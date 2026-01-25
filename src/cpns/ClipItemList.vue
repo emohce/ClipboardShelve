@@ -15,9 +15,10 @@
     >
       <div class="clip-info">
         <div class="clip-time">
-          <span class="relative-date" :title="new Date(item.updateTime).toLocaleString()">{{
-            dateFormat(item.updateTime)
-          }}</span>
+          <span class="relative-date" :title="new Date(item.updateTime).toLocaleString()">
+            <span v-if="item.retain" class="retain-marker">📌</span>
+            {{ dateFormat(item.updateTime) }}
+          </span>
         </div>
         <div class="clip-data">
           <template v-if="item.type === 'text'">
@@ -48,6 +49,7 @@
       <ClipOperate
         v-show="!isMultiple && activeIndex === index"
         :item="item"
+        :currentActiveTab="currentActiveTab"
         @onDataChange="() => emit('onDataChange', item)"
         @onDataRemove="() => emit('onDataRemove')"
       ></ClipOperate>
@@ -90,6 +92,8 @@ const emit = defineEmits([
   'onDataChange',
   'onDataRemove',
   'onMultiCopyExecute',
+  'onMultiDeleteExecute',
+  'onMultiRetainExecute',
   'toggleMultiSelect'
 ])
 const isOverSizedContent = (item) => {
@@ -198,7 +202,7 @@ watch(
 )
 
 const keyDownCallBack = (e) => {
-  const { key, ctrlKey, metaKey, altKey } = e
+  const { key, ctrlKey, metaKey, altKey, shiftKey } = e
   const isArrowUp = key === 'ArrowUp' || (ctrlKey && (key === 'K' || key === 'k'))
   const isArrowDown = key === 'ArrowDown' || (ctrlKey && (key === 'J' || key === 'j'))
   const isEnter = key === 'Enter'
@@ -206,10 +210,32 @@ const keyDownCallBack = (e) => {
   const isNumber = parseInt(key) <= 9 && parseInt(key) >= 0
   const isShift = key === 'Shift'
   const isSpace = key === ' '
+  const isDelete = key === 'Delete'
   const activeNode = !props.isMultiple
     ? document.querySelector('.clip-item.active' + (isArrowDown ? '+.clip-item' : ''))
     : document.querySelector('.clip-item.multi-active' + (isArrowDown ? '+.clip-item' : ''))
-  if (isArrowUp) {
+  if ((isArrowUp || isArrowDown) && shiftKey) {
+    if (!props.isMultiple) {
+      emit('toggleMultiSelect')
+    }
+    const currentItem = props.showList[activeIndex.value]
+    if (currentItem && selectItemList.value.indexOf(currentItem) === -1) {
+      selectItemList.value.push(currentItem)
+    }
+    const targetIndex = isArrowUp
+      ? Math.max(0, activeIndex.value - 1)
+      : Math.min(props.showList.length - 1, activeIndex.value + 1)
+    const targetItem = props.showList[targetIndex]
+    if (targetItem && selectItemList.value.indexOf(targetItem) === -1) {
+      selectItemList.value.push(targetItem)
+    }
+    activeIndex.value = targetIndex
+    document.querySelectorAll('.clip-item')[activeIndex.value]?.scrollIntoView({
+      block: 'nearest',
+      inline: 'nearest'
+    })
+    e.preventDefault()
+  } else if (isArrowUp) {
     if (activeIndex.value === 1) window.toTop()
     if (activeIndex.value > 0) {
       activeIndex.value--
@@ -241,6 +267,8 @@ const keyDownCallBack = (e) => {
       console.log('isEnter')
       window.copy(props.showList[activeIndex.value])
       window.paste()
+    } else if (ctrlKey || metaKey) {
+      emit('onMultiRetainExecute')
     } else {
       emit('onMultiCopyExecute', true)
     }
@@ -248,6 +276,11 @@ const keyDownCallBack = (e) => {
     window.copy(props.showList[parseInt(key) - 1])
     window.paste()
     selectItemList.value = []
+  } else if (isDelete) {
+    if (props.isMultiple && selectItemList.value.length > 0) {
+      emit('onMultiDeleteExecute')
+      e.preventDefault()
+    }
   } else if (isShift) {
     if (props.isMultiple) {
       isShiftDown.value = true
@@ -297,4 +330,8 @@ onUnmounted(() => {
 
 <style lang="less" scoped>
 @import '../style';
+
+.retain-marker {
+  margin-right: 4px;
+}
 </style>

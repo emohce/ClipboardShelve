@@ -8,6 +8,7 @@
       :placeholder="itemCount ? `🔍 在${itemCount}条历史中检索...` : '🔍 检索剪贴板历史...'"
     />
     <span v-show="filterText" @click="clear" class="clip-search-suffix">✖</span>
+    <span v-if="prioritizeCollect" class="clip-search-indicator" title="已开启收藏优先">⭐</span>
   </div>
 </template>
 
@@ -20,6 +21,10 @@ const props = defineProps({
   },
   itemCount: {
     type: Number
+  },
+  prioritizeCollect: {
+    type: Boolean,
+    default: false
   }
 })
 

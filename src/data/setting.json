@@ -2,6 +2,8 @@
   "database.path": {},
   "database.maxsize": 800,
   "database.maxage": 14,
+  "database.retainEnabled": true,
+  "database.retainHours": 28,
   "operation.shown": ["copy", "view", "collect", "un-collect", "remove"],
   "operation.custom": [
     {

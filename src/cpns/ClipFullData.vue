@@ -6,6 +6,7 @@
           <ClipOperate
             :item="fullData"
             :isFullData="true"
+            :currentActiveTab="currentActiveTab"
             @onDataRemove="emit('onDataRemove')"
             @onOperateExecute="emit('onOverlayClick')"
           ></ClipOperate>
@@ -40,6 +41,10 @@ const props = defineProps({
   fullData: {
     type: Object,
     required: true
+  },
+  currentActiveTab: {
+    type: String,
+    default: 'all'
   }
 })
 

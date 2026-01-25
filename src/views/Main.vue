@@ -4,6 +4,7 @@
     <ClipFullData
       :isShow="fullDataShow"
       :fullData="fullData"
+      :currentActiveTab="activeTab"
       @onDataRemove="handleDataRemove"
       @onOverlayClick="toggleFullData({ type: 'text', data: '' })"
     ></ClipFullData>
@@ -31,13 +32,14 @@
             🔍
           </span>
         </div>
-        <ClipSearch
-          v-show="isSearchPanelExpand"
-          @onPanelHide="isSearchPanelExpand = false"
-          v-model="filterText"
-          :itemCount="list.length"
-        ></ClipSearch>
-      </template>
+          <ClipSearch
+            v-show="isSearchPanelExpand"
+            @onPanelHide="isSearchPanelExpand = false"
+            v-model="filterText"
+            :itemCount="list.length"
+            :prioritizeCollect="prioritizeCollect"
+          ></ClipSearch>
+        </template>
     </ClipSwitch>
     <div class="clip-break"></div>
     <div class="clip-empty-status" v-if="showList.length === 0">📪 无记录</div>
@@ -49,6 +51,8 @@
       :currentActiveTab="activeTab"
       :isSearchPanelExpand="isSearchPanelExpand"
       @onMultiCopyExecute="handleMultiCopyBtnClick"
+      @onMultiDeleteExecute="handleMultiDeleteBtnClick"
+      @onMultiRetainExecute="handleMultiRetainBtnClick"
       @toggleMultiSelect="() => (isMultiple = true)"
       @onDataChange="toggleFullData"
       @onDataRemove="handleDataRemove"
@@ -58,8 +62,8 @@
 </template>
 
 <script setup>
-import { ref, watch, onMounted, onUnmounted, computed, nextTick } from 'vue'
-import { ElMessageBox, ElMessage } from 'element-plus'
+import { ref, watch, onMounted, onUnmounted, computed, nextTick, h } from 'vue'
+import { ElMessageBox, ElMessage, ElRadioGroup, ElRadio } from 'element-plus'
 import ClipItemList from '../cpns/ClipItemList.vue'
 import ClipFullData from '../cpns/ClipFullData.vue'
 import ClipSearch from '../cpns/ClipSearch.vue'
@@ -131,11 +135,125 @@ const handleMultiCopyBtnClick = (isPaste) => {
   isMultiple.value = false
 }
 
+const handleMultiDeleteBtnClick = () => {
+  const itemList = ClipItemListRef.value.selectItemList
+  if (!itemList || itemList.length === 0) {
+    return
+  }
+  const isCollectTab = activeTab.value === 'collect'
+  const targetList = isCollectTab ? itemList : itemList.filter((item) => !item.collect)
+  const skippedCount = itemList.length - targetList.length
+  if (targetList.length === 0) {
+    ElMessage({
+      message: '已收藏记录已跳过',
+      type: 'info'
+    })
+    return
+  }
+  const actionText = isCollectTab ? '取消收藏' : '删除'
+  const skipText = skippedCount > 0 ? `（${skippedCount}条已收藏记录将被跳过）` : ''
+  ElMessageBox.confirm(`确认${actionText}${targetList.length}条记录${skipText}？`, '提示', {
+    confirmButtonText: '确定',
+    cancelButtonText: '取消',
+    type: 'warning',
+    autofocus: true
+  })
+    .then(() => {
+      if (isCollectTab) {
+        targetList.forEach((item) => {
+          item.collect = undefined
+        })
+        window.db.updateDataBaseLocal()
+      } else {
+        targetList.forEach((item) => window.db.removeItemViaId(item.id))
+      }
+      ClipItemListRef.value.emptySelectItemList()
+      isMultiple.value = false
+      handleDataRemove()
+      ElMessage({
+        message: `已${actionText}${targetList.length}条记录`,
+        type: 'success'
+      })
+    })
+    .catch(() => {})
+}
+
+const handleMultiRetainBtnClick = () => {
+  const itemList = ClipItemListRef.value.selectItemList
+  if (!itemList || itemList.length === 0) {
+    return
+  }
+  const hasUnretained = itemList.some((item) => !item.retain)
+  const now = new Date().getTime()
+  itemList.forEach((item) => {
+    if (hasUnretained) {
+      item.retain = true
+      item.retainTime = now
+    } else {
+      item.retain = undefined
+      item.retainTime = undefined
+    }
+  })
+  window.db.updateDataBaseLocal()
+  ClipItemListRef.value.emptySelectItemList()
+  isMultiple.value = false
+  handleDataRemove()
+  ElMessage({
+    message: hasUnretained ? '已添加保留标记' : '已移除保留标记',
+    type: 'success'
+  })
+}
+
+const quickDeleteOptions = [1, 3, 6, 12, 24, 28, 48, 72]
+const quickDeleteHours = ref(1)
+
+const handleQuickDelete = () => {
+  ElMessageBox({
+    title: '快速删除',
+    message: h('div', null, [
+      h('div', { style: 'margin-bottom: 8px;' }, '选择要删除的时间范围（已收藏/已保留将被跳过）'),
+      h(
+        ElRadioGroup,
+        {
+          modelValue: quickDeleteHours.value,
+          'onUpdate:modelValue': (val) => (quickDeleteHours.value = val)
+        },
+        () => quickDeleteOptions.map((n) => h(ElRadio, { label: n }, () => `${n}小时`))
+      )
+    ]),
+    showCancelButton: true,
+    confirmButtonText: '删除',
+    cancelButtonText: '取消',
+    type: 'warning'
+  })
+    .then(() => {
+      const cutoffTime = new Date().getTime() - quickDeleteHours.value * 60 * 60 * 1000
+      const targetList = list.value.filter(
+        (item) => item.updateTime >= cutoffTime && !item.collect && !item.retain
+      )
+      if (!targetList.length) {
+        ElMessage({
+          message: '没有符合条件的记录',
+          type: 'info'
+        })
+        return
+      }
+      targetList.forEach((item) => window.db.removeItemViaId(item.id))
+      handleDataRemove()
+      ElMessage({
+        message: `已删除${targetList.length}条记录`,
+        type: 'success'
+      })
+    })
+    .catch(() => {})
+}
+
 const GAP = 15 // 懒加载 每次添加的条数
 const offset = ref(0) // 懒加载 偏移量
 const filterText = ref('') // 搜索框绑定值
 const list = ref([]) // 全部数据
 const showList = ref([]) // 展示的数据
+const prioritizeCollect = ref(false)
 
 const textFilterCallBack = (item) => {
   // filterText & item
@@ -160,13 +278,21 @@ const textFilterCallBack = (item) => {
 
 const updateShowList = (type, toTop = true) => {
   // 更新显示列表
-  showList.value = list.value
+  let result = list.value
     .filter((item) =>
       type === 'collect' ? item.collect === true : type === 'all' ? item : item.type === type
     ) // 是 collect则返回所有收藏 否则按照 type返回
     .filter((item) => (filterText.value ? item.type !== 'image' : item)) // 有过滤词 排除掉图片 DataURL
     .filter((item) => textFilterCallBack(item))
-    .slice(0, GAP) // 重新切分懒加载列表
+  if (filterText.value && prioritizeCollect.value) {
+    result = result.sort((a, b) => {
+      if (!!a.collect === !!b.collect) {
+        return b.updateTime - a.updateTime
+      }
+      return a.collect ? -1 : 1
+    })
+  }
+  showList.value = result.slice(0, GAP) // 重新切分懒加载列表
   toTop && window.toTop()
 }
 
@@ -295,7 +421,7 @@ onMounted(() => {
 
   // 监听键盘事件
   const keyDownCallBack = (e) => {
-    const { key, ctrlKey, metaKey } = e
+    const { key, ctrlKey, metaKey, shiftKey, altKey } = e
     const isTab = key === 'Tab'
     const isSearch =
       (ctrlKey && (key === 'F' || key === 'f')) || (ctrlKey && (key === 'L' || key === 'l'))
@@ -305,7 +431,24 @@ onMounted(() => {
     const isShift = key === 'Shift'
     const isAlt = key === 'Alt'
     const isSpace = key === ' '
-    if (isTab) {
+    const isDelete = key === 'Delete'
+    const isNumber = parseInt(key) <= 9 && parseInt(key) >= 0
+    if (altKey && isTab) {
+      const tabTypes = tabs.map((item) => item.type)
+      const index = tabTypes.indexOf(activeTab.value)
+      const target = index === tabTypes.length - 1 ? tabTypes[0] : tabTypes[index + 1]
+      toggleNav(target)
+      updateShowList(activeTab.value)
+      e.preventDefault()
+    } else if (altKey && isNumber) {
+      const targetIndex = key === '0' ? tabs.length - 1 : parseInt(key) - 1
+      if (targetIndex >= 0 && targetIndex < tabs.length) {
+        const target = tabs[targetIndex].type
+        toggleNav(target)
+        updateShowList(activeTab.value)
+      }
+      e.preventDefault()
+    } else if (isTab) {
       const tabTypes = tabs.map((item) => item.type)
       const index = tabTypes.indexOf(activeTab.value)
       const target = index === tabTypes.length - 1 ? tabTypes[0] : tabTypes[index + 1]
@@ -337,6 +480,17 @@ onMounted(() => {
           isMultiple.value = !isMultiple.value
         }
       }
+    } else if (ctrlKey && isEnter && (isSearchPanelExpand.value || filterText.value)) {
+      prioritizeCollect.value = !prioritizeCollect.value
+      updateShowList(activeTab.value)
+      ElMessage({
+        message: prioritizeCollect.value ? '收藏优先显示' : '按时间排序',
+        type: 'info'
+      })
+      e.preventDefault()
+    } else if (ctrlKey && shiftKey && isDelete) {
+      handleQuickDelete()
+      e.preventDefault()
     } else if (isArrow || isEnter) {
       e.preventDefault()
     } else if (ctrlKey || metaKey || isAlt) {

@@ -1,0 +1,141 @@
+Based on my comprehensive analysis of the ClipboardManager project, I can now provide you with detailed guidance on how to add more functions to this clipboard management plugin.
+🎯 How to Add More Functions to ClipboardManager
+The ClipboardManager is highly extensible with several well-defined extension points. Here's how you can enhance it:
+
+. Add New Operations (Primary Extension Method)
+ Easiest way: Add custom operations through the Settings UI or modify src/data/setting.json:
+ {
+ operation: {
+ custom: [ {
+ id: custom.your_function,
+ title: Your Function Name,
+ icon: 🔧,
+ match: [text],
+ command: redirect:PluginName
+ }
+ ]
+ }
+ }
+ Advanced matching with regex:
+ {
+ id: custom.url_analyzer,
+ title: Analyze URL,
+ icon: 🔗,
+ match: [{
+ type: text,
+ regex: ^https?://[\w\-]+(\.[\w\-]+)+([\w\-\.,@?^=%&amp;:/~\+#]*[\w\-\@?^=%&amp;/~\+#])?$
+ }],
+ command: redirect:URLAnalyzer
+ }
+. Extend Built-in Operations
+ Modify src/hooks/useClipOperate.js to add new built-in operations:
+ // Add to handleOperateClick function
+ else if (id === 'your-new-operation') {
+ yourCustomHandler(item)
+ emit('onOperateExecute')
+ }
+ // Add to filterOperate function +
+ else if (id === 'your-new-operation') {
+ return item.type === 'text' &amp;&amp; item.data.length &gt; 10
+ }
+. Add New Content Types
+ Step 1: Update detection in src/global/initPlugin.js:
+ // Modify pbpaste function to detect new content types
+ if (yourNewContentPattern) {
+ return { type: 'your-type', data: processedData }
+ }
+ Step 2: Add display logic in src/cpns/ClipItemList.vue:
+ else if (item.type === 'your-type') {
+ // Your custom display logic
+ }
+. Create New UI Components
+ Add new tabs in src/cpns/ClipSwitch.vue:
+ const tabs = [ { type: 'all', title: '全部', icon: 'Menu' },
+ { type: 'your-type', title: 'Your Type', icon: 'YourIcon' }
+ ]
+ Update filtering in src/views/Main.vue:
+ const updateShowList = (type) =&gt; {
+ if (type === 'your-type') {
+ showList.value = list.value.filter(item =&gt; item.type === 'your-type')
+ }
+ }
+. Extend Database Schema
+ Step 1: Modify item structure in src/global/initPlugin.js:
+ // Add new fields to clipboard items
+ const item = {
+ id: md5(content),
+ type: 'text',
+ data: content,
+ createTime: Date.now(),
+ updateTime: Date.now(),
+ collect: false,
+ yourNewField: yourValue // New field
+ }
+ Step 2: Add migration logic in src/global/readSetting.js:
+ // Handle backward compatibility
+ if (oldItems.some(item =&gt; !item.yourNewField)) {
+ oldItems.forEach(item =&gt; {
+ item.yourNewField = defaultValue
+ })
+ }
+ 🚀 Concrete Function Ideas &amp; Implementations
+ A. Text Processing Operations
+ {
+ id: custom.text_formatter,
+ title: Format Text,
+ icon: 📝,
+ match: [text],
+ command: redirect:TextFormatter
+ }
+ B. Image Operations
+ {
+ id: custom.image_compressor,
+ title: Compress Image,
+ icon: 🖼️,
+ match: [image, {type: file, regex: .(?:jpg|jpeg|png|gif|webp)$}],
+ command: redirect:ImageCompressor
+ }
+ C. Code Operations
+ {
+ id: custom.code_formatter,
+ title: Format Code,
+ icon: 💻,
+ match: [{
+ type: text,
+ regex: (?:function|class|import|export|const|let|var)
+ }],
+ command: redirect:CodeFormatter
+ }
+ D. Data Extraction
+ {
+ id: custom.email_extractor,
+ title: Extract Emails,
+ icon: 📧,
+ match: [{
+ type: text,
+ regex: [a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}
+ }],
+ command: redirect:EmailExtractor
+ }
+ 🛠️ Development Workflow
+. Define Operation: Add to JSON configuration
+. Test Pattern: Verify regex matching works correctly
+. Implement Handler: Add logic in useClipOperate.js if not using redirect
+. Update UI: Add filtering and display logic
+. Test Integration: Verify operation appears correctly and functions as expected
+ 📋 Best Practices
+* Use meaningful IDs: custom.your_plugin_name.timestamp
+* Provide clear icons: Use descriptive emojis for operations
+* Test regex patterns: Ensure they match intended content without false positives
+* Handle edge cases: Consider empty content, malformed data, etc.
+* Maintain performance: Avoid heavy computations in filtering logic
+* Use redirects: Leverage existing uTools plugins when possible
+ 🔌 External Plugin Integration
+ The redirect mechanism allows seamless integration with any uTools plugin:
+ // Data format passed to external plugins
+ const pluginData = {
+ type: 'text' | 'files' | 'img',
+ data: 'content' | ['file', 'paths'] | 'base64-image'
+ }
+ utools.redirect('PluginName', pluginData)
+ This architecture makes it incredibly easy to extend the clipboard manager with new functionality while maintaining a clean, organized codebase. You can add everything from simple text processing operations to complex integrations with external services and tools.

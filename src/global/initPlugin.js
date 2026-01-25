@@ -36,12 +36,24 @@ export default function initPlugin() {
           // 读取磁盘记录到内存
           const dataBase = JSON.parse(data)
           this.dataBase = dataBase
-          // 将超过14天的数据删除 排除掉收藏
+          // 将超过最大保存时间的数据删除 排除掉收藏/保留
           const now = new Date().getTime()
           const deleteTime = now - setting.database.maxage * 24 * 60 * 60 * 1000 // unicode
-          this.dataBase.data = this.dataBase.data?.filter(
-            (item) => item.updateTime > deleteTime || item.collect
-          )
+          if (setting.database.retainEnabled) {
+            const retainExpireTime =
+              now - (setting.database.retainHours || 28) * 60 * 60 * 1000
+            this.dataBase.data = this.dataBase.data?.filter((item) => {
+              if (item.retain && item.retainTime && item.retainTime < retainExpireTime) {
+                item.retain = undefined
+                item.retainTime = undefined
+              }
+              return item.updateTime > deleteTime || item.collect || item.retain
+            })
+          } else {
+            this.dataBase.data = this.dataBase.data?.filter(
+              (item) => item.updateTime > deleteTime || item.collect
+            )
+          }
           this.updateDataBaseLocal()
           this.watchDataBaseUpdate()
         } catch (err) {

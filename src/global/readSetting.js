@@ -17,6 +17,14 @@ if (typeof setting.database.path === 'string') {
   }
 }
 
+if (typeof setting.database.retainEnabled !== 'boolean') {
+  setting.database.retainEnabled = true
+}
+
+if (!setting.database.retainHours) {
+  setting.database.retainHours = 28
+}
+
 // 将设置更新到数据库
 utools.dbStorage.setItem('setting', setting)
 

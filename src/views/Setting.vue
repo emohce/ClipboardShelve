@@ -42,6 +42,26 @@
           天
         </div>
         <div class="setting-card-content-item">
+          <span>保留标记开关</span>
+          <el-switch v-model="retainEnabled" />
+        </div>
+        <div class="setting-card-content-item">
+          <span>保留时长(小时)</span>
+          <el-select
+            class="number-select"
+            v-model="retainHours"
+            :disabled="!retainEnabled"
+            fit-input-width
+          >
+            <el-option
+              v-for="n in [1, 3, 6, 12, 24, 28, 48, 72]"
+              :key="n"
+              :value="n"
+            />
+          </el-select>
+          小时
+        </div>
+        <div class="setting-card-content-item">
           <span>展示在主界面的功能</span>
           <el-select
             class="operation-select"
@@ -90,6 +110,8 @@ const nativeId = getNativeId()
 const path = ref(database.path[nativeId])
 const maxsize = ref(database.maxsize)
 const maxage = ref(database.maxage)
+const retainEnabled = ref(database.retainEnabled)
+const retainHours = ref(database.retainHours)
 
 const shown = ref(operation.shown)
 const custom = ref(operation.custom)
@@ -145,7 +167,9 @@ const handleSaveBtnClick = () => {
             [nativeId]: path.value
           },
           maxsize: maxsize.value,
-          maxage: maxage.value
+          maxage: maxage.value,
+          retainEnabled: retainEnabled.value,
+          retainHours: retainHours.value
         },
         operation: {
           shown: shown.value,
