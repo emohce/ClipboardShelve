@@ -387,24 +387,41 @@ onMounted(() => {
 
   // 监听键盘事件
   const keyDownCallBack = (e) => {
-    const { key, ctrlKey, metaKey } = e
+    const { key, ctrlKey, metaKey, altKey, shiftKey } = e
     const isTab = key === 'Tab'
-    const isSearch =
-      (ctrlKey && (key === 'F' || key === 'f')) || (ctrlKey && (key === 'L' || key === 'l'))
+    const isSearch = ctrlKey && (key === 'F' || key === 'f')
     const isExit = key === 'Escape'
+    const isAltNumber = altKey && /^[1-9]$/.test(key)
     const isArrow = key === 'ArrowDown' || key === 'ArrowUp'
     const isEnter = key === 'Enter'
     const isShift = key === 'Shift'
-    const isAlt = key === 'Alt'
+    const isAlt = altKey
     const isSpace = key === ' '
     if (isTab) {
+      e.preventDefault()
       const tabTypes = tabs.map((item) => item.type)
       const index = tabTypes.indexOf(activeTab.value)
-      const target = index === tabTypes.length - 1 ? tabTypes[0] : tabTypes[index + 1]
+      const target = shiftKey
+        ? index <= 0
+          ? tabTypes[tabTypes.length - 1]
+          : tabTypes[index - 1]
+        : index === tabTypes.length - 1
+          ? tabTypes[0]
+          : tabTypes[index + 1]
       toggleNav(target)
-      updateShowList(activeTab.value)
+      updateShowList(target)
     } else if (isSearch) {
       window.focus()
+    } else if (isAltNumber) {
+      const tabTypes = tabs.map((item) => item.type)
+      const targetIndex = Math.min(parseInt(key, 10) - 1, tabTypes.length - 1)
+      const target = tabTypes[targetIndex]
+      if (target) {
+        e.preventDefault()
+        e.stopPropagation()
+        toggleNav(target)
+        updateShowList(target)
+      }
     } else if (isExit) {
       if (filterText.value) {
         // 有筛选词 先清空筛选词
@@ -436,9 +453,16 @@ onMounted(() => {
       // Alt:
     } else if (isSpace) {
       // 空格向下多选
+    } else if (key === 'Delete' || key === 'Backspace') {
+      // 让 ClipItemList 的快捷键处理删除，避免强制聚焦搜索框
+      return
     } else {
-      // 其他键盘事件 直接聚焦搜索框
-      window.focus()
+      const isPlainTextInput =
+        key.length === 1 && !ctrlKey && !metaKey && !altKey && key !== ' '
+      if (isPlainTextInput) {
+        // 普通文字输入自动聚焦搜索框
+        window.focus()
+      }
     }
   }
 
