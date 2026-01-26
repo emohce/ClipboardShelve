@@ -3,6 +3,7 @@
     <input
       class="clip-search-input"
       @focusout="handleFocusOut"
+      @keydown="handleKeyDown"
       v-model="filterText"
       type="text"
       :placeholder="itemCount ? `🔍 在${itemCount}条历史中检索...` : '🔍 检索剪贴板历史...'"
@@ -44,6 +45,23 @@ watch(
 const clear = () => {
   emit('update:modelValue', '')
   nextTick(() => window.focus())
+}
+
+const handleKeyDown = (e) => {
+  // 当光标在末尾且没有选中文本时，Delete 键应该删除条目而不是删除文本
+  if (e.key === 'Delete') {
+    const input = e.target
+    const isAtEnd = input.selectionStart === input.selectionEnd && 
+                    input.selectionStart === input.value.length
+    if (isAtEnd) {
+      // 阻止默认的删除文本行为，但让事件继续冒泡以便父组件处理删除条目
+      e.preventDefault()
+      // 在事件对象上添加标记，表示应该删除条目
+      e.shouldDeleteItem = true
+      // 不阻止冒泡，让事件继续传播到 document 级别的事件处理器
+    }
+  }
+  // Backspace 保持默认行为，用于删除搜索框中的文本
 }
 
 utools.onPluginEnter(() => {

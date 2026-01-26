@@ -91,7 +91,8 @@ const emit = defineEmits([
   'onDataChange',
   'onDataRemove',
   'onMultiCopyExecute',
-  'toggleMultiSelect'
+  'toggleMultiSelect',
+  'onItemDelete'
 ])
 const isOverSizedContent = (item) => {
   const { type, data } = item
@@ -104,10 +105,12 @@ const isOverSizedContent = (item) => {
 }
 const isShiftDown = ref(false)
 const selectItemList = ref([])
+const activeIndex = ref(0) // 定义 activeIndex，需要在 defineExpose 之前
 const emptySelectItemList = () => (selectItemList.value = [])
 defineExpose({
   selectItemList, // 暴露给 Main/Switch中的操作按钮以执行复制
-  emptySelectItemList
+  emptySelectItemList,
+  activeIndex // 暴露当前高亮的索引
 })
 watch(
   () => props.isMultiple,
@@ -186,7 +189,6 @@ const handleItemClick = (ev, item) => {
     }
   }
 }
-const activeIndex = ref(0)
 const handleMouseOver = (index) => {
   if (!props.isMultiple) {
     activeIndex.value = index
@@ -207,9 +209,36 @@ const keyDownCallBack = (e) => {
   const isNumber = parseInt(key) <= 9 && parseInt(key) >= 0
   const isShift = key === 'Shift'
   const isSpace = key === ' '
+  const isDelete = key === 'Delete' || key === 'Backspace'
   const activeNode = !props.isMultiple
     ? document.querySelector('.clip-item.active' + (isArrowDown ? '+.clip-item' : ''))
     : document.querySelector('.clip-item.multi-active' + (isArrowDown ? '+.clip-item' : ''))
+  
+  // 检查搜索框是否有焦点，以及是否可以删除条目
+  const searchInput = document.querySelector('.clip-search-input')
+  const isSearchInputFocused = document.activeElement === searchInput
+  
+  // Delete 键：如果事件对象上有 shouldDeleteItem 标记，或者搜索框没有焦点，或者光标在末尾，则可以删除条目
+  // Backspace 键：只有在搜索框没有焦点时才能删除条目（搜索框有焦点时保持默认的删除文本行为）
+  const isDeleteKey = key === 'Delete'
+  const isBackspaceKey = key === 'Backspace'
+  const canDeleteItem = isDeleteKey && (e.shouldDeleteItem || !isSearchInputFocused || (isSearchInputFocused && searchInput && 
+    searchInput.selectionStart === searchInput.selectionEnd && 
+    searchInput.selectionStart === searchInput.value.length)) ||
+    (isBackspaceKey && !isSearchInputFocused)
+  
+  if (isDelete && canDeleteItem) {
+    // Delete/Backspace: 删除高亮的条目
+    if (!props.isMultiple && props.showList[activeIndex.value]) {
+      const currentItem = props.showList[activeIndex.value]
+      e.preventDefault()
+      e.stopPropagation()
+      // 触发删除事件，让父组件处理删除逻辑
+      emit('onItemDelete', currentItem)
+    }
+    return
+  }
+  
   if (isArrowUp) {
     if (activeIndex.value === 1) window.toTop()
     if (activeIndex.value > 0) {
