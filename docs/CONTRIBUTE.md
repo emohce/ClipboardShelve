@@ -6,6 +6,8 @@ Issue => Project => Develop => Pull Request => Merge
 
 提出Issue确定需求，在Project中排入发布的版本号，贡献者fork指定版本号的分支，完成开发后提交PR
 
+提出Issue确定需求，在Project中排入发布的版本号，贡献者fork指定版本号的分支，完成开发后提交PR
+
 ## 🔰 贡献指南
 
 ```sh

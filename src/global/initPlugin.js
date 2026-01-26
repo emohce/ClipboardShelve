@@ -14,6 +14,11 @@ import setting from './readSetting'
 
 export default function initPlugin() {
   console.log('[initPlugin] 开始初始化插件')
+  
+  // 模块级变量：防止重复启动轮询模式
+  let hasFallbackToPolling = false
+  let pollingStarted = false
+  
   class DB {
     constructor(path) {
       const d = new Date()
@@ -229,6 +234,11 @@ export default function initPlugin() {
   }
 
   const addCommonListener = () => {
+    if (pollingStarted) {
+      console.log('[addCommonListener] 轮询模式已在运行，跳过重复启动')
+      return
+    }
+    pollingStarted = true
     console.log('[addCommonListener] 启动轮询模式监听')
     let prev = db.dataBase.data[0] || {}
     console.log('[addCommonListener] 初始prev ID:', prev.id || '无')
@@ -266,15 +276,26 @@ export default function initPlugin() {
     console.log('[registerClipEvent] 注册剪贴板事件监听器')
     const exitHandler = () => {
       console.error('[registerClipEvent] 监听器异常退出')
-      utools.showNotification('剪贴板监听异常退出 请重启插件以开启监听')
-      utools.outPlugin()
+      if (!hasFallbackToPolling) {
+        hasFallbackToPolling = true
+        console.log('[registerClipEvent] 监听器退出，降级到轮询模式')
+        utools.showNotification('剪贴板监听程序不可用，已切换到轮询模式')
+        addCommonListener()
+      } else {
+        console.log('[registerClipEvent] 轮询模式已在运行，忽略退出事件')
+      }
     }
     const errorHandler = (error) => {
       console.error('[registerClipEvent] 监听器错误:', error)
-      // const info = '请到设置页检查剪贴板监听程序状态'
-      // utools.showNotification('启动剪贴板监听程序启动出错: ' + error + info)
-      console.log('[registerClipEvent] 降级到轮询模式')
-      addCommonListener()
+      if (!hasFallbackToPolling) {
+        hasFallbackToPolling = true
+        // const info = '请到设置页检查剪贴板监听程序状态'
+        // utools.showNotification('启动剪贴板监听程序启动出错: ' + error + info)
+        console.log('[registerClipEvent] 降级到轮询模式')
+        addCommonListener()
+      } else {
+        console.log('[registerClipEvent] 轮询模式已在运行，忽略错误事件')
+      }
     }
     listener
       .on('change', () => {
@@ -299,19 +320,48 @@ export default function initPlugin() {
   // 首次启动插件 即开启监听
   // 如果监听程序异常退出 则会在errorHandler中开启常规监听
   console.log('[initPlugin] 准备启动监听器')
+  // 先注册事件监听器，再启动监听程序，确保事件能被捕获
   registerClipEvent(listener)
   console.log('[initPlugin] 调用 listener.startListening, 路径:', setting.database.path[nativeId])
-  listener.startListening(setting.database.path[nativeId])
-  console.log('[initPlugin] 监听器启动完成, 状态:', listener.listening)
+  // 延迟启动，确保事件监听器已完全注册
+  setTimeout(() => {
+    listener.startListening(setting.database.path[nativeId])
+    console.log('[initPlugin] 监听器启动完成, 状态:', listener.listening)
+    // 如果监听器启动失败（listening仍为false），延迟检查并降级
+    if (!listener.listening && !hasFallbackToPolling) {
+      setTimeout(() => {
+        if (!listener.listening && !hasFallbackToPolling) {
+          console.log('[initPlugin] 监听器启动失败，延迟降级到轮询模式')
+          hasFallbackToPolling = true
+          addCommonListener()
+        }
+      }, 500)
+    }
+  }, 100)
 
   utools.onPluginEnter(() => {
     console.log('[onPluginEnter] 插件进入事件触发')
-    if (!listener.listening) {
+    // 如果轮询模式已启动，不再尝试启动原生监听器
+    if (pollingStarted) {
+      console.log('[onPluginEnter] 轮询模式已运行，跳过监听器启动')
+    } else if (!listener.listening) {
       // 进入插件后 如果监听已关闭 则重新开启监听
       console.log('[onPluginEnter] 监听器未运行, 重新启动')
       registerClipEvent(listener)
-      listener.startListening(setting.database.path[nativeId])
-      console.log('[onPluginEnter] 监听器重新启动, 状态:', listener.listening)
+      setTimeout(() => {
+        listener.startListening(setting.database.path[nativeId])
+        console.log('[onPluginEnter] 监听器重新启动, 状态:', listener.listening)
+        // 如果启动失败，延迟检查并降级
+        if (!listener.listening && !hasFallbackToPolling) {
+          setTimeout(() => {
+            if (!listener.listening && !hasFallbackToPolling) {
+              console.log('[onPluginEnter] 监听器重新启动失败，延迟降级到轮询模式')
+              hasFallbackToPolling = true
+              addCommonListener()
+            }
+          }, 500)
+        }
+      }, 100)
     } else {
       console.log('[onPluginEnter] 监听器正在运行')
     }
