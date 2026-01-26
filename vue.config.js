@@ -3,6 +3,9 @@ const UglifyJsPlugin = require('uglifyjs-webpack-plugin')
 module.exports = {
   publicPath: './',
   productionSourceMap: false,
+  devServer: {
+    port: 8081
+  },
   chainWebpack: (config) => {
     config.optimization.minimizer('uglify-plugin').use(UglifyJsPlugin, [
       {

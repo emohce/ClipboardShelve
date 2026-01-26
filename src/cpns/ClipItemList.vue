@@ -213,41 +213,53 @@ const keyDownCallBack = (e) => {
     if (activeIndex.value === 1) window.toTop()
     if (activeIndex.value > 0) {
       activeIndex.value--
-      activeNode.previousElementSibling.previousElementSibling.scrollIntoView({
-        block: 'nearest',
-        inline: 'nearest'
-      })
+      const prevNode = activeNode?.previousElementSibling?.previousElementSibling
+      if (prevNode) {
+        prevNode.scrollIntoView({
+          block: 'nearest',
+          inline: 'nearest'
+        })
+      }
     }
   } else if (isArrowDown) {
     if (activeIndex.value < props.showList.length - 1) {
       activeIndex.value++
-      activeNode.scrollIntoView({ block: 'nearest', inline: 'nearest' })
+      if (activeNode) {
+        activeNode.scrollIntoView({ block: 'nearest', inline: 'nearest' })
+      }
     }
   } else if (isCopy) {
     if (!props.fullData.data) {
       // 如果侧栏中有数据 证明侧栏是打开的 不执行复制
       if (!props.isMultiple) {
-        window.copy(props.showList[activeIndex.value])
-        ElMessage({
-          message: '复制成功',
-          type: 'success'
-        })
+        if (props.showList[activeIndex.value]) {
+          window.copy(props.showList[activeIndex.value])
+          ElMessage({
+            message: '复制成功',
+            type: 'success'
+          })
+        }
       } else {
         emit('onMultiCopyExecute', false)
       }
     }
   } else if (isEnter) {
     if (!props.isMultiple) {
-      console.log('isEnter')
-      window.copy(props.showList[activeIndex.value])
-      window.paste()
+      if (props.showList[activeIndex.value]) {
+        console.log('isEnter')
+        window.copy(props.showList[activeIndex.value])
+        window.paste()
+      }
     } else {
       emit('onMultiCopyExecute', true)
     }
   } else if ((ctrlKey || metaKey || altKey) && isNumber) {
-    window.copy(props.showList[parseInt(key) - 1])
-    window.paste()
-    selectItemList.value = []
+    const targetItem = props.showList[parseInt(key) - 1]
+    if (targetItem) {
+      window.copy(targetItem)
+      window.paste()
+      selectItemList.value = []
+    }
   } else if (isShift) {
     if (props.isMultiple) {
       isShiftDown.value = true
@@ -261,15 +273,18 @@ const keyDownCallBack = (e) => {
       emit('toggleMultiSelect') // 如果不是多选状态 则切换到多选状态
     }
     e.preventDefault()
-    const i = selectItemList.value.findIndex((item) => item === props.showList[activeIndex.value])
+    const currentItem = props.showList[activeIndex.value]
+    if (!currentItem) return // 如果当前项不存在，直接返回
+    const i = selectItemList.value.findIndex((item) => item === currentItem)
     if (i !== -1) {
       selectItemList.value.splice(i, 1) // 如果已选中 则取消选中
     } else {
-      selectItemList.value.push(props.showList[activeIndex.value]) // 如果未选中 则选中
+      selectItemList.value.push(currentItem) // 如果未选中 则选中
       activeIndex.value++
-      document
-        .querySelector('.clip-item.multi-active+.clip-item')
-        .scrollIntoView({ block: 'nearest', inline: 'nearest' })
+      const nextNode = document.querySelector('.clip-item.multi-active+.clip-item')
+      if (nextNode) {
+        nextNode.scrollIntoView({ block: 'nearest', inline: 'nearest' })
+      }
     }
   }
 }
