@@ -215,6 +215,21 @@ const handleDataRemove = () => {
   updateShowList(ClipSwitchRef.value.activeTab, false)
 }
 
+const getActiveIndex = () => {
+  const ai = ClipItemListRef.value?.activeIndex
+  if (typeof ai === 'number') return ai
+  return ai?.value ?? 0
+}
+
+const setActiveIndex = (val) => {
+  const ai = ClipItemListRef.value?.activeIndex
+  if (typeof ai === 'number') {
+    ClipItemListRef.value.activeIndex = val
+  } else if (ai && typeof ai === 'object' && 'value' in ai) {
+    ai.value = val
+  }
+}
+
 const handleItemDelete = (item) => {
   // 处理删除操作，复用 useClipOperate 的逻辑
   const activeTabValue = typeof ClipSwitchRef.value?.activeTab === 'object' 
@@ -228,16 +243,40 @@ const handleItemDelete = (item) => {
       message: '收藏内容不允许删除，请先取消收藏',
       type: 'warning'
     })
+    return
   } else if (isCollected) {
     // 在其他标签页删除已收藏项目：不允许删除（收藏数据单独存储）
     ElMessage({
       message: '已收藏项目不允许删除，请先取消收藏',
       type: 'warning'
     })
+    return
   } else {
     // 在其他标签页删除未收藏项目：完全删除
+    // 记录当前高亮的索引，用于删除后调整位置
+    const currentActiveIndex = getActiveIndex()
+    const listLengthBeforeDelete = showList.value.length
+    
     window.remove(item)
     handleDataRemove()
+    
+    // 删除后调整高亮位置：优先移动到下一个，如果没有则移动到上一个
+    nextTick(() => {
+      if (ClipItemListRef.value && !isMultiple.value) {
+        const newListLength = showList.value.length
+        if (newListLength > 0) {
+          // 如果删除的不是最后一个，则保持当前位置（因为后面的item会前移）
+          // 如果删除的是最后一个，则移动到上一个
+          if (currentActiveIndex >= newListLength) {
+            // 删除的是最后一个或更后面的，移动到新的最后一个
+            setActiveIndex(newListLength - 1)
+          } else {
+            // 删除的不是最后一个，保持当前位置（下一个item会自动前移到这里）
+            setActiveIndex(currentActiveIndex)
+          }
+        }
+      }
+    })
   }
 }
 
@@ -398,35 +437,6 @@ onMounted(() => {
     } else if (isSpace) {
       // 空格向下多选
     } else {
-      // 检查是否是 Delete/Backspace 键
-      const isDelete = key === 'Delete' || key === 'Backspace'
-      // 检查搜索框是否有焦点，以及是否可以删除条目
-      const searchInput = document.querySelector('.clip-search-input')
-      const isSearchInputFocused = document.activeElement === searchInput
-      
-      // Delete 键：如果事件对象上有 shouldDeleteItem 标记，或者搜索框没有焦点，或者光标在末尾，则可以删除条目
-      // Backspace 键：只有在搜索框没有焦点时才能删除条目（搜索框有焦点时保持默认的删除文本行为）
-      const isDeleteKey = key === 'Delete'
-      const isBackspaceKey = key === 'Backspace'
-      const canDeleteItem = isDeleteKey && (e.shouldDeleteItem || !isSearchInputFocused || (isSearchInputFocused && searchInput && 
-        searchInput.selectionStart === searchInput.selectionEnd && 
-        searchInput.selectionStart === searchInput.value.length)) ||
-        (isBackspaceKey && !isSearchInputFocused)
-      
-      if (isDelete && canDeleteItem) {
-        // Delete/Backspace: 如果有高亮条目则删除，否则聚焦搜索框
-        if (ClipItemListRef.value && !isMultiple.value) {
-          const activeIdx = ClipItemListRef.value.activeIndex
-          if (activeIdx !== undefined && showList.value[activeIdx]) {
-            const currentItem = showList.value[activeIdx]
-            e.preventDefault()
-            e.stopPropagation()
-            handleItemDelete(currentItem)
-            return
-          }
-        }
-      }
-      
       // 其他键盘事件 直接聚焦搜索框
       window.focus()
     }

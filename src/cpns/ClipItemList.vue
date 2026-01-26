@@ -197,7 +197,15 @@ const handleMouseOver = (index) => {
 // 父组件中改变了引用类型的地址 故要用 getter返回
 watch(
   () => props.showList,
-  () => (activeIndex.value = 0)
+  (newList) => {
+    if (!Array.isArray(newList) || newList.length === 0) {
+      activeIndex.value = 0
+      return
+    }
+    if (activeIndex.value >= newList.length) {
+      activeIndex.value = newList.length - 1
+    }
+  }
 )
 
 const keyDownCallBack = (e) => {
