@@ -236,13 +236,33 @@ const keyDownCallBack = (e) => {
     (isBackspaceKey && !isSearchInputFocused)
   
   if (isDelete && canDeleteItem) {
-    // Delete/Backspace: 删除高亮的条目
-    if (!props.isMultiple && props.showList[activeIndex.value]) {
-      const currentItem = props.showList[activeIndex.value]
+    const itemsToDelete = []
+    const anchorIndex = activeIndex.value
+    if (props.isMultiple) {
+      if (selectItemList.value.length) {
+        itemsToDelete.push(...selectItemList.value)
+      } else if (props.showList[activeIndex.value]) {
+        itemsToDelete.push(props.showList[activeIndex.value])
+      }
+    } else if (props.showList[activeIndex.value]) {
+      itemsToDelete.push(props.showList[activeIndex.value])
+    }
+
+    if (itemsToDelete.length) {
       e.preventDefault()
       e.stopPropagation()
-      // 触发删除事件，让父组件处理删除逻辑
-      emit('onItemDelete', currentItem)
+      if (props.isMultiple) {
+        selectItemList.value = selectItemList.value.filter(
+          (item) => !itemsToDelete.includes(item)
+        )
+      }
+      itemsToDelete.forEach((item, index) =>
+        emit('onItemDelete', item, {
+          anchorIndex,
+          isBatch: props.isMultiple && itemsToDelete.length > 1,
+          isLast: index === itemsToDelete.length - 1
+        })
+      )
     }
     return
   }
@@ -308,7 +328,7 @@ const keyDownCallBack = (e) => {
       return
     }
     if (!props.isMultiple) {
-      emit('toggleMultiSelect') // 如果不是多选状态 则切换到多选状态
+      emit('toggleMultiSelect', true) // 仅在需要时开启多选
     }
     e.preventDefault()
     const currentItem = props.showList[activeIndex.value]

@@ -49,7 +49,7 @@
       :currentActiveTab="activeTab"
       :isSearchPanelExpand="isSearchPanelExpand"
       @onMultiCopyExecute="handleMultiCopyBtnClick"
-      @toggleMultiSelect="() => (isMultiple = true)"
+      @toggleMultiSelect="handleToggleMultiSelect"
       @onDataChange="toggleFullData"
       @onDataRemove="handleDataRemove"
       @onItemDelete="handleItemDelete"
@@ -84,6 +84,9 @@ const handleSearchBtnClick = () => {
 
 const ClipItemListRef = ref(null)
 const selectCount = ref(0)
+const handleToggleMultiSelect = (val = true) => {
+  isMultiple.value = Boolean(val)
+}
 const handleMultiCopyBtnClick = (isPaste) => {
   const itemList = ClipItemListRef.value.selectItemList
   // 如果包含了图片/文件 则转为文件合并 否则仅合并文本
@@ -230,7 +233,21 @@ const setActiveIndex = (val) => {
   }
 }
 
-const handleItemDelete = (item) => {
+const adjustActiveIndexAfterDelete = (baseIndex) => {
+  nextTick(() => {
+    if (!ClipItemListRef.value) return
+    const newListLength = showList.value.length
+    if (newListLength === 0) return
+    const normalizedIndex = Math.min(
+      Math.max(typeof baseIndex === 'number' ? baseIndex : getActiveIndex(), 0),
+      newListLength - 1
+    )
+    setActiveIndex(normalizedIndex)
+  })
+}
+
+const handleItemDelete = (item, metadata = {}) => {
+  const { anchorIndex, isBatch = false, isLast = true } = metadata
   // 处理删除操作，复用 useClipOperate 的逻辑
   const activeTabValue = typeof ClipSwitchRef.value?.activeTab === 'object' 
     ? ClipSwitchRef.value.activeTab.value 
@@ -253,30 +270,18 @@ const handleItemDelete = (item) => {
     return
   } else {
     // 在其他标签页删除未收藏项目：完全删除
-    // 记录当前高亮的索引，用于删除后调整位置
-    const currentActiveIndex = getActiveIndex()
-    const listLengthBeforeDelete = showList.value.length
+    // 记录删除前的高亮索引，用于删除后调整位置
+    const currentActiveIndex =
+      typeof anchorIndex === 'number' ? anchorIndex : getActiveIndex()
+    const shouldAdjustAfterDelete = !isBatch || isLast
     
     window.remove(item)
     handleDataRemove()
     
     // 删除后调整高亮位置：优先移动到下一个，如果没有则移动到上一个
-    nextTick(() => {
-      if (ClipItemListRef.value && !isMultiple.value) {
-        const newListLength = showList.value.length
-        if (newListLength > 0) {
-          // 如果删除的不是最后一个，则保持当前位置（因为后面的item会前移）
-          // 如果删除的是最后一个，则移动到上一个
-          if (currentActiveIndex >= newListLength) {
-            // 删除的是最后一个或更后面的，移动到新的最后一个
-            setActiveIndex(newListLength - 1)
-          } else {
-            // 删除的不是最后一个，保持当前位置（下一个item会自动前移到这里）
-            setActiveIndex(currentActiveIndex)
-          }
-        }
-      }
-    })
+    if (shouldAdjustAfterDelete) {
+      adjustActiveIndexAfterDelete(currentActiveIndex)
+    }
   }
 }
 
@@ -394,7 +399,6 @@ onMounted(() => {
     const isAltNumber = altKey && /^[1-9]$/.test(key)
     const isArrow = key === 'ArrowDown' || key === 'ArrowUp'
     const isEnter = key === 'Enter'
-    const isShift = key === 'Shift'
     const isAlt = altKey
     const isSpace = key === ' '
     if (isTab) {
@@ -438,13 +442,6 @@ onMounted(() => {
         e.stopPropagation()
       } else {
         // 无上述情况 执行默认: 隐藏uTools主窗口
-      }
-    } else if (isShift) {
-      // Shift: 多选操作
-      if (!isSearchPanelExpand.value) {
-        if (!isMultiple.value) {
-          isMultiple.value = !isMultiple.value
-        }
       }
     } else if (isArrow || isEnter) {
       e.preventDefault()
