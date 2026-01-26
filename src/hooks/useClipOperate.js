@@ -1,7 +1,7 @@
 import { ElMessage } from 'element-plus'
 import setting from '../global/readSetting'
 
-export default function useClipOperate({ emit }) {
+export default function useClipOperate({ emit, currentActiveTab }) {
   return {
     handleOperateClick: (operation, item) => {
       const { id } = operation
@@ -23,11 +23,15 @@ export default function useClipOperate({ emit }) {
         const fl = JSON.parse(data)
         utools.shellShowItemInFolder(fl[0].path) // 取第一个文件的路径打开
       } else if (id === 'collect') {
-        item.collect = true
-        window.db.updateDataBaseLocal()
+        // 添加到收藏列表
+        console.log('[useClipOperate] 收藏操作 - 项目ID:', item.id)
+        window.db.addCollect(item.id)
+        emit('onDataRemove') // 触发视图更新
       } else if (id === 'un-collect') {
-        item.collect = undefined
-        window.db.updateDataBaseLocal()
+        // 从收藏列表移除
+        console.log('[useClipOperate] 取消收藏操作 - 项目ID:', item.id)
+        window.db.removeCollect(item.id)
+        emit('onDataRemove') // 触发视图更新
       } else if (id === 'word-break') {
         utools.redirect('超级分词', item.data)
       } else if (id === 'save-file') {
@@ -36,8 +40,30 @@ export default function useClipOperate({ emit }) {
           data: item.type === 'file' ? JSON.parse(item.data).map((f) => f.path) : item.data
         })
       } else if (id === 'remove') {
-        window.remove(item)
-        emit('onDataRemove')
+        const activeTab = typeof currentActiveTab === 'function' ? currentActiveTab() : currentActiveTab
+        const isCollected = window.db.isCollected(item.id)
+        console.log('[useClipOperate] 删除操作 - 标签页:', activeTab, '项目ID:', item.id, '是否已收藏:', isCollected)
+        
+        if (activeTab === 'collect') {
+          // 在"收藏"标签页：不允许删除，只能取消收藏
+          console.log('[useClipOperate] 收藏内容不允许删除，请使用取消收藏功能')
+          ElMessage({
+            message: '收藏内容不允许删除，请先取消收藏',
+            type: 'warning'
+          })
+        } else if (isCollected) {
+          // 在其他标签页删除已收藏项目：不允许删除（收藏数据单独存储）
+          console.log('[useClipOperate] 已收藏项目不允许删除，请先取消收藏')
+          ElMessage({
+            message: '已收藏项目不允许删除，请先取消收藏',
+            type: 'warning'
+          })
+        } else {
+          // 在其他标签页删除未收藏项目：完全删除
+          console.log('[useClipOperate] 步骤: 删除未收藏项目')
+          window.remove(item)
+          emit('onDataRemove')
+        }
       } else if (id.indexOf('custom') !== -1) {
         const a = operation.command.split(':')
         if (a[0] === 'redirect') {
@@ -64,9 +90,9 @@ export default function useClipOperate({ emit }) {
       } else if (id === 'open-folder') {
         return item.type === 'file'
       } else if (id === 'collect') {
-        return item.type !== 'file' && !item.collect
+        return item.type !== 'file' && !window.db.isCollected(item.id)
       } else if (id === 'un-collect') {
-        return item.type !== 'file' && item.collect
+        return item.type !== 'file' && window.db.isCollected(item.id)
       } else if (id === 'word-break') {
         return item.type === 'text' && item.data.length <= 500 && item.data.length >= 2
       } else if (id === 'save-file') {

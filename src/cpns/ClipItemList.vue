@@ -48,6 +48,7 @@
       <ClipOperate
         v-show="!isMultiple && activeIndex === index"
         :item="item"
+        :currentActiveTab="currentActiveTab"
         @onDataChange="() => emit('onDataChange', item)"
         @onDataRemove="() => emit('onDataRemove')"
       ></ClipOperate>

@@ -160,10 +160,22 @@ const textFilterCallBack = (item) => {
 
 const updateShowList = (type, toTop = true) => {
   // 更新显示列表
-  showList.value = list.value
-    .filter((item) =>
-      type === 'collect' ? item.collect === true : type === 'all' ? item : item.type === type
-    ) // 是 collect则返回所有收藏 否则按照 type返回
+  // 切换标签页时重置offset
+  offset.value = 0
+  
+  let filteredList = list.value
+  if (type === 'collect') {
+    // 收藏标签页：从收藏列表中获取项目
+    filteredList = window.db.getCollects()
+  } else if (type === 'all') {
+    // 全部标签页：显示所有数据（不受收藏影响）
+    filteredList = list.value
+  } else {
+    // 其他类型标签页：按类型过滤
+    filteredList = list.value.filter((item) => item.type === type)
+  }
+  
+  showList.value = filteredList
     .filter((item) => (filterText.value ? item.type !== 'image' : item)) // 有过滤词 排除掉图片 DataURL
     .filter((item) => textFilterCallBack(item))
     .slice(0, GAP) // 重新切分懒加载列表
@@ -197,6 +209,8 @@ const ClipSwitchRef = ref()
 const handleDataRemove = () => {
   // 此函数须在挂载后执行
   list.value = window.db.dataBase.data
+  // 重置offset以便重新加载
+  offset.value = 0
   updateShowList(ClipSwitchRef.value.activeTab, false)
 }
 
@@ -210,11 +224,17 @@ onMounted(() => {
   const tabs = ClipSwitchRef.value.tabs
 
   watch(
-    () => ClipSwitchRef.value.activeTab,
+    () => {
+      const switchRef = ClipSwitchRef.value
+      if (!switchRef || !switchRef.activeTab) return 'all'
+      // activeTab 是一个 ref，需要获取其 .value
+      return switchRef.activeTab.value || switchRef.activeTab
+    },
     (newVal) => {
       activeTab.value = newVal
       updateShowList(newVal)
-    }
+    },
+    { immediate: true }
   )
 
   // 多选已选择的条数
@@ -279,11 +299,17 @@ onMounted(() => {
     if (scrollTop + clientHeight + 5 >= scrollHeight) {
       offset.value += GAP
       let addition = []
-      if (activeTab.value !== 'all') {
+      if (activeTab.value === 'collect') {
+        // 收藏标签页：从收藏列表中获取
+        const collectItems = window.db.getCollects()
+        addition = collectItems.filter((item) => textFilterCallBack(item))
+      } else if (activeTab.value !== 'all') {
+        // 其他类型标签页：按类型过滤
         addition = list.value
           .filter((item) => item.type === activeTab.value)
           .filter((item) => textFilterCallBack(item))
       } else {
+        // 全部标签页：显示所有数据
         addition = list.value.filter((item) => textFilterCallBack(item))
       }
       addition = addition.slice(offset.value, offset.value + GAP)

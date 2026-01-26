@@ -28,12 +28,16 @@ const props = defineProps({
   isFullData: {
     type: Boolean,
     default: false
+  },
+  currentActiveTab: {
+    type: String,
+    default: 'all'
   }
 })
 
 const operation = computed(() => [...defaultOperation, ...setting.operation.custom])
 
-const { handleOperateClick, filterOperate } = useClipOperate({ emit })
+const { handleOperateClick, filterOperate } = useClipOperate({ emit, currentActiveTab: () => props.currentActiveTab })
 </script>
 
 <style lang="less" scoped>
