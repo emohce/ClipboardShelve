@@ -1,6 +1,6 @@
 <template>
   <div class="main">
-    <ClipFloatBtn :icon="'🧭'" @onBtnClick="restoreDataBase"></ClipFloatBtn>
+    <ClipFloatBtn :icon="'🧭'" @onBtnClick="handleClearBtnClick"></ClipFloatBtn>
     <ClipFullData
       :isShow="fullDataShow"
       :fullData="fullData"
@@ -55,18 +55,73 @@
       @onItemDelete="handleItemDelete"
     >
     </ClipItemList>
+
+    <Transition name="clear-panel">
+      <div class="clear-panel" v-if="isClearDialogVisible" ref="clearDialogBodyRef">
+        <div class="clear-panel-header">
+          <div>
+            <h3>清除记录</h3>
+            <span class="clear-panel-sub">仅清除「{{ activeTabLabel }}」标签页内的记录。</span>
+          </div>
+          <button class="clear-panel-close" @click="closeClearDialog">✕</button>
+        </div>
+        <div class="clear-panel-body">
+          <p class="clear-panel-tip" v-if="isClearingCollectTab">
+            收藏内容将通过“取消收藏”完成清除。
+          </p>
+          <p class="clear-panel-tip" v-else>
+            操作与多选删除一致，收藏内容不会受影响。
+          </p>
+          <el-radio-group v-model="clearRange" class="clear-range-group" size="small">
+            <el-radio-button
+              v-for="option in CLEAR_RANGE_OPTIONS"
+              :key="option.value"
+              :label="option.value"
+              :data-range="option.value"
+            >
+              {{ option.label }}
+            </el-radio-button>
+          </el-radio-group>
+        </div>
+        <div class="clear-panel-footer">
+          <el-button @click="closeClearDialog">取消</el-button>
+          <el-button type="primary" :loading="isClearing" @click="handleClearConfirm">清除</el-button>
+        </div>
+      </div>
+    </Transition>
+    <div
+      class="clear-panel-overlay"
+      v-show="isClearDialogVisible"
+      @click="closeClearDialog"
+    ></div>
   </div>
 </template>
 
 <script setup>
 import { ref, watch, onMounted, onUnmounted, computed, nextTick } from 'vue'
-import { ElMessageBox, ElMessage } from 'element-plus'
+import { ElMessage, ElMessageBox, ElButton, ElRadioGroup, ElRadioButton } from 'element-plus'
 import ClipItemList from '../cpns/ClipItemList.vue'
 import ClipFullData from '../cpns/ClipFullData.vue'
 import ClipSearch from '../cpns/ClipSearch.vue'
 import ClipSwitch from '../cpns/ClipSwitch.vue'
 import ClipFloatBtn from '../cpns/ClipFloatBtn.vue'
 import notify from '../data/notify.json'
+
+const CLEAR_RANGE_OPTIONS = [
+  { label: '1 小时内', value: '1h' },
+  { label: '5 小时内', value: '5h' },
+  { label: '8 小时内', value: '8h' },
+  { label: '24 小时内', value: '24h' },
+  { label: '全部', value: 'all' }
+]
+
+const RANGE_DURATION_MAP = {
+  '1h': 60 * 60 * 1000,
+  '5h': 5 * 60 * 60 * 1000,
+  '8h': 8 * 60 * 60 * 1000,
+  '24h': 24 * 60 * 60 * 1000,
+  all: null
+}
 
 const notifyShown = ref(false) // 将在onMounted时根据此值判断是否显示通知
 const storageNotify = utools.dbStorage.getItem('notify')
@@ -75,6 +130,11 @@ notifyShown.value = storageNotify ? storageNotify.version < notify.version : tru
 const isMultiple = ref(false)
 
 const isSearchPanelExpand = ref(false)
+
+const isClearDialogVisible = ref(false)
+const clearRange = ref('1h')
+const isClearing = ref(false)
+const clearDialogBodyRef = ref(null)
 
 const handleSearchBtnClick = () => {
   // 展开搜索框
@@ -162,6 +222,31 @@ const textFilterCallBack = (item) => {
   }
 }
 
+const handleClearDialogHotkeys = (e) => {
+  const { key, ctrlKey } = e
+  if (key === 'Escape') {
+    e.preventDefault()
+    closeClearDialog()
+    return true
+  }
+  if (ctrlKey && key === 'Enter') {
+    e.preventDefault()
+    handleClearConfirm()
+    return true
+  }
+  if (/^[1-5]$/.test(key)) {
+    const index = parseInt(key, 10) - 1
+    const targetOption = CLEAR_RANGE_OPTIONS[index]
+    if (targetOption) {
+      clearRange.value = targetOption.value
+      focusRangeButton(targetOption.value)
+      e.preventDefault()
+      return true
+    }
+  }
+  return false
+}
+
 const updateShowList = (type, toTop = true) => {
   // 更新显示列表
   // 切换标签页时重置offset
@@ -186,18 +271,104 @@ const updateShowList = (type, toTop = true) => {
   toTop && window.toTop()
 }
 
-const restoreDataBase = () => {
-  // 清空数据库
-  ElMessageBox.confirm('即将清空剪贴板记录(包括收藏内容)', '提示', {
-    confirmButtonText: '确定',
-    cancelButtonText: '取消',
-    type: 'warning'
+const getItemsByTab = (tabType) => {
+  if (tabType === 'collect') {
+    return window.db.getCollects()
+  }
+  const data = window.db.dataBase.data || []
+  if (tabType === 'all') return [...data]
+  return data.filter((item) => item.type === tabType)
+}
+
+const filterItemsByRange = (items, rangeValue) => {
+  const duration = RANGE_DURATION_MAP[rangeValue]
+  if (!duration) return [...items]
+  const cutoff = Date.now() - duration
+  return items.filter((item) => {
+    const time = item.updateTime || item.collectTime || item.createTime || 0
+    return time >= cutoff
   })
-    .then(() => {
-      window.db.emptyDataBase()
-      updateShowList('all')
+}
+
+const clearRegularTabItems = (tabType, rangeValue) => {
+  const candidates = filterItemsByRange(getItemsByTab(tabType), rangeValue)
+  let removed = 0
+  candidates.forEach((item) => {
+    if (window.remove(item)) {
+      removed++
+    }
+  })
+  if (removed) {
+    handleDataRemove()
+    adjustActiveIndexAfterDelete(0)
+  }
+  return removed
+}
+
+const clearCollectTabItems = (rangeValue) => {
+  const candidates = filterItemsByRange(window.db.getCollects(), rangeValue)
+  let removed = 0
+  candidates.forEach((item) => {
+    if (window.db.removeCollect(item.id, false) !== false) {
+      removed++
+    }
+  })
+  if (removed) {
+    handleDataRemove()
+  }
+  return removed
+}
+
+const focusRangeButton = (rangeValue) => {
+  nextTick(() => {
+    const container = clearDialogBodyRef.value
+    const target = container?.querySelector(`[data-range="${rangeValue}"]`)
+    target?.focus()
+  })
+}
+
+const closeClearDialog = () => {
+  isClearDialogVisible.value = false
+  clearRange.value = '1h'
+}
+
+const handleClearBtnClick = () => {
+  clearRange.value = '1h'
+  isClearDialogVisible.value = true
+  focusRangeButton(clearRange.value)
+}
+
+const handleClearConfirm = () => {
+  if (isClearing.value) return
+  isClearing.value = true
+  const tabType = activeTab.value
+  try {
+    const removedCount =
+      tabType === 'collect'
+        ? clearCollectTabItems(clearRange.value)
+        : clearRegularTabItems(tabType, clearRange.value)
+
+    if (removedCount > 0) {
+      ElMessage({
+        type: 'success',
+        message: `已清除 ${removedCount} 条记录`
+      })
+      closeClearDialog()
+    } else {
+      ElMessage({
+        type: 'info',
+        message: '没有符合条件的记录'
+      })
+    }
+  } catch (error) {
+    console.error('[handleClearConfirm] 清除失败:', error)
+    ElMessage({
+      type: 'error',
+      message: '清除失败，请稍后再试'
     })
-    .catch(() => {})
+  } finally {
+    isClearing.value = false
+  }
 }
 
 const fullData = ref({ type: 'text', data: '' })
@@ -288,6 +459,11 @@ const handleItemDelete = (item, metadata = {}) => {
 const emit = defineEmits(['showSetting'])
 
 const activeTab = ref('all')
+const activeTabLabel = computed(() => {
+  const tabs = ClipSwitchRef.value?.tabs || []
+  return tabs.find((tab) => tab.type === activeTab.value)?.name || '全部'
+})
+const isClearingCollectTab = computed(() => activeTab.value === 'collect')
 
 onMounted(() => {
   // 获取挂载的导航组件 Ref
@@ -392,11 +568,16 @@ onMounted(() => {
 
   // 监听键盘事件
   const keyDownCallBack = (e) => {
+    if (isClearDialogVisible.value) {
+      handleClearDialogHotkeys(e)
+      return
+    }
     const { key, ctrlKey, metaKey, altKey, shiftKey } = e
     const isTab = key === 'Tab'
     const isSearch = ctrlKey && (key === 'F' || key === 'f')
     const isExit = key === 'Escape'
     const isAltNumber = altKey && /^[1-9]$/.test(key)
+    const isCtrlDelete = ctrlKey && key === 'Delete'
     const isArrow = key === 'ArrowDown' || key === 'ArrowUp'
     const isEnter = key === 'Enter'
     const isAlt = altKey
@@ -416,6 +597,10 @@ onMounted(() => {
       updateShowList(target)
     } else if (isSearch) {
       window.focus()
+    } else if (isCtrlDelete) {
+      e.preventDefault()
+      e.stopPropagation()
+      handleClearBtnClick()
     } else if (isAltNumber) {
       const tabTypes = tabs.map((item) => item.type)
       const targetIndex = Math.min(parseInt(key, 10) - 1, tabTypes.length - 1)
@@ -485,5 +670,131 @@ onMounted(() => {
   justify-content: center;
   align-items: center;
   margin-top: 50px;
+}
+
+:deep(.el-overlay) {
+  background-color: rgba(16, 20, 37, 0.55);
+}
+
+:deep(.el-dialog) {
+  border-radius: 16px;
+  padding: 0 8px 12px;
+  background: #fff;
+  box-shadow:
+    0 30px 80px rgba(25, 34, 68, 0.18),
+    0 10px 30px rgba(25, 34, 68, 0.12);
+}
+
+:deep(.el-dialog__header) {
+  text-align: center;
+  font-weight: 600;
+  letter-spacing: 0.5px;
+}
+
+.clear-panel-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(22, 27, 45, 0.45);
+  backdrop-filter: blur(2px);
+  z-index: 180;
+}
+
+.clear-panel {
+  position: fixed;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: 320px;
+  background: #fff;
+  box-shadow: -12px 0 28px rgba(15, 23, 42, 0.2);
+  z-index: 190;
+  display: flex;
+  flex-direction: column;
+  padding: 20px 18px 16px;
+  border-top-left-radius: 16px;
+  border-bottom-left-radius: 16px;
+}
+
+.clear-panel-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
+  h3 {
+    margin: 0;
+    font-size: 18px;
+    font-weight: 600;
+    color: #2b2f3a;
+  }
+  .clear-panel-sub {
+    display: block;
+    margin-top: 2px;
+    font-size: 13px;
+    color: #7d8597;
+  }
+}
+
+.clear-panel-close {
+  border: none;
+  background: #f2f4ff;
+  border-radius: 50%;
+  width: 28px;
+  height: 28px;
+  cursor: pointer;
+  color: #5c6c94;
+}
+
+.clear-panel-body {
+  margin-top: 18px;
+  flex: 1;
+  .clear-panel-tip {
+    margin-bottom: 12px;
+    color: #9094a6;
+    font-size: 13px;
+    line-height: 1.5;
+  }
+}
+
+.clear-range-group {
+  width: 100%;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  :deep(.el-radio-button__inner) {
+    width: 80px;
+    text-align: center;
+    border: none;
+    border-radius: 10px !important;
+    background: #f4f6fb;
+    color: #5a5f73;
+    box-shadow: inset 0 0 0 1px transparent;
+    transition: all 0.2s ease;
+    &:hover {
+      background: #eef2ff;
+      color: #4c63d9;
+    }
+  }
+  :deep(.is-active .el-radio-button__inner) {
+    background: #5c7cfa;
+    color: #fff;
+    box-shadow: 0 8px 16px rgba(92, 124, 250, 0.35);
+  }
+}
+
+.clear-panel-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 16px;
+}
+
+.clear-panel-enter-active,
+.clear-panel-leave-active {
+  transition: transform 0.2s ease, opacity 0.2s ease;
+}
+.clear-panel-enter-from,
+.clear-panel-leave-to {
+  transform: translateX(40px);
+  opacity: 0;
 }
 </style>
