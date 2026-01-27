@@ -251,7 +251,7 @@ const updateShowList = (type, toTop = true) => {
   // 更新显示列表
   // 切换标签页时重置offset
   offset.value = 0
-  
+
   let filteredList = list.value
   if (type === 'collect') {
     // 收藏标签页：从收藏列表中获取项目
@@ -263,7 +263,7 @@ const updateShowList = (type, toTop = true) => {
     // 其他类型标签页：按类型过滤
     filteredList = list.value.filter((item) => item.type === type)
   }
-  
+
   showList.value = filteredList
     .filter((item) => (filterText.value ? item.type !== 'image' : item)) // 有过滤词 排除掉图片 DataURL
     .filter((item) => textFilterCallBack(item))
@@ -280,12 +280,15 @@ const getItemsByTab = (tabType) => {
   return data.filter((item) => item.type === tabType)
 }
 
-const filterItemsByRange = (items, rangeValue) => {
+const filterItemsByRange = (items, rangeValue, options = {}) => {
   const duration = RANGE_DURATION_MAP[rangeValue]
   if (!duration) return [...items]
+  const { preferCollectTime = false } = options
   const cutoff = Date.now() - duration
   return items.filter((item) => {
-    const time = item.updateTime || item.collectTime || item.createTime || 0
+    const time = preferCollectTime
+      ? item.collectTime || item.updateTime || item.createTime || 0
+      : item.updateTime || item.collectTime || item.createTime || 0
     return time >= cutoff
   })
 }
@@ -306,7 +309,9 @@ const clearRegularTabItems = (tabType, rangeValue) => {
 }
 
 const clearCollectTabItems = (rangeValue) => {
-  const candidates = filterItemsByRange(window.db.getCollects(), rangeValue)
+  const candidates = filterItemsByRange(window.db.getCollects(), rangeValue, {
+    preferCollectTime: true
+  })
   let removed = 0
   candidates.forEach((item) => {
     if (window.db.removeCollect(item.id, false) !== false) {
@@ -420,11 +425,11 @@ const adjustActiveIndexAfterDelete = (baseIndex) => {
 const handleItemDelete = (item, metadata = {}) => {
   const { anchorIndex, isBatch = false, isLast = true } = metadata
   // 处理删除操作，复用 useClipOperate 的逻辑
-  const activeTabValue = typeof ClipSwitchRef.value?.activeTab === 'object' 
-    ? ClipSwitchRef.value.activeTab.value 
+  const activeTabValue = typeof ClipSwitchRef.value?.activeTab === 'object'
+    ? ClipSwitchRef.value.activeTab.value
     : ClipSwitchRef.value?.activeTab || activeTab.value
   const isCollected = window.db.isCollected(item.id)
-  
+
   if (activeTabValue === 'collect') {
     // 在"收藏"标签页：不允许删除，只能取消收藏
     ElMessage({
@@ -445,10 +450,10 @@ const handleItemDelete = (item, metadata = {}) => {
     const currentActiveIndex =
       typeof anchorIndex === 'number' ? anchorIndex : getActiveIndex()
     const shouldAdjustAfterDelete = !isBatch || isLast
-    
+
     window.remove(item)
     handleDataRemove()
-    
+
     // 删除后调整高亮位置：优先移动到下一个，如果没有则移动到上一个
     if (shouldAdjustAfterDelete) {
       adjustActiveIndexAfterDelete(currentActiveIndex)
