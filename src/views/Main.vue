@@ -118,6 +118,7 @@
 <script setup>
 import { ref, watch, onMounted, onUnmounted, computed, nextTick } from 'vue'
 import { ElMessage, ElMessageBox, ElButton, ElRadioGroup, ElRadioButton, ElTooltip } from 'element-plus'
+import { handleLayerKeyDown, activateLayer, deactivateLayer } from '../global/hotkeyLayers'
 import ClipItemList from '../cpns/ClipItemList.vue'
 import ClipFullData from '../cpns/ClipFullData.vue'
 import ClipSearch from '../cpns/ClipSearch.vue'
@@ -157,6 +158,7 @@ const handleSearchEmpty = () => {
 }
 
 const isClearDialogVisible = ref(false)
+const CLEAR_DIALOG_LAYER = 'clear-dialog'
 const clearRange = ref('1h')
 const isClearing = ref(false)
 const clearDialogBodyRef = ref(null)
@@ -400,9 +402,8 @@ const handleClearDialogHotkeys = (e) => {
     return true
   }
   
-  // 阻止所有其他快捷键穿透，但允许Ctrl+数字（已在上面处理）
-  const num = parseInt(key, 10)
-  if ((isCtrl || altKey) && !(isCtrl && !Number.isNaN(num) && num >= 1 && num <= 5)) {
+  // 阻止所有其他快捷键穿透（包含 Ctrl+数字）
+  if (isCtrl || altKey) {
     e.preventDefault()
     e.stopPropagation()
     return true
@@ -417,6 +418,22 @@ const handleClearDialogHotkeys = (e) => {
   
   return false
 }
+
+const clearDialogLayerHandler = (event) => {
+  if (!isClearDialogVisible.value) return false
+  return handleClearDialogHotkeys(event)
+}
+
+watch(
+  () => isClearDialogVisible.value,
+  (visible) => {
+    if (visible) {
+      activateLayer(CLEAR_DIALOG_LAYER, clearDialogLayerHandler)
+    } else {
+      deactivateLayer(CLEAR_DIALOG_LAYER)
+    }
+  }
+)
 
 const updateShowList = (type, toTop = true) => {
   // 更新显示列表
@@ -771,8 +788,7 @@ onMounted(() => {
       console.log('[Main.keyDown] 按键:', key, 'ctrl:', ctrlKey, 'meta:', metaKey, 'alt:', altKey, 'shift:', shiftKey)
     }
 
-    if (isClearDialogVisible.value) {
-      handleClearDialogHotkeys(e)
+    if (handleLayerKeyDown(e)) {
       return
     }
     const isTab = key === 'Tab'

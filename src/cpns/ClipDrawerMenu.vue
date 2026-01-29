@@ -27,7 +27,8 @@
 </template>
 
 <script setup>
-import { ref, watch, onMounted, onUnmounted } from 'vue'
+import {ref, watch, onUnmounted} from 'vue'
+import {activateLayer, deactivateLayer} from '../global/hotkeyLayers'
 
 const props = defineProps({
   show: { type: Boolean, required: true },
@@ -78,50 +79,49 @@ const onDrop = (idx) => {
   emit('reorder', list)
 }
 
-const keydownHandler = (e) => {
-  if (!props.show) return
-  const { key, ctrlKey, metaKey, shiftKey, altKey } = e
+const layerName = 'clip-drawer'
+
+const drawerHotkeyHandler = (e) => {
+  if (!props.show) return false
+  const clearPanel = document.querySelector('.clear-panel')
+  if (clearPanel && clearPanel.offsetParent !== null) {
+    return false
+  }
+  const {key, ctrlKey, metaKey, shiftKey} = e
   const isCtrl = ctrlKey || metaKey
-  
-  // 立即阻止所有Ctrl组合键，防止穿透
+
   if (isCtrl) {
     e.preventDefault()
     e.stopPropagation()
-    
-    // 处理抽屉内部的Ctrl+数字功能
     const num = parseInt(key, 10)
     if (!Number.isNaN(num) && num >= 1 && num <= localItems.value.length) {
       const target = localItems.value[num - 1]
       handleSelect(target, { sub: isCtrl && shiftKey })
-      return
     }
-    
-    // 其他Ctrl组合键直接阻止
-    return
+    return true
   }
-  
-  // 阻止所有可能穿透的快捷键
+
   if (key === 'Escape' || key === 'ArrowLeft') {
     emit('close')
     e.preventDefault()
     e.stopPropagation()
-    return
+    return true
   }
-  
+
   if (key === 'ArrowDown') {
     activeIndex.value = (activeIndex.value + 1) % localItems.value.length
     e.preventDefault()
     e.stopPropagation()
-    return
+    return true
   }
-  
+
   if (key === 'ArrowUp') {
     activeIndex.value = (activeIndex.value - 1 + localItems.value.length) % localItems.value.length
     e.preventDefault()
     e.stopPropagation()
-    return
+    return true
   }
-  
+
   if (key === 'Enter') {
     const target = localItems.value[activeIndex.value]
     if (target) {
@@ -129,20 +129,29 @@ const keydownHandler = (e) => {
       e.preventDefault()
       e.stopPropagation()
     }
-    return
+    return true
   }
-  
-  // 阻止所有其他快捷键穿透，确保只在本层使用
+
+  // 阻止所有其他快捷键穿透
   e.preventDefault()
   e.stopPropagation()
+  return true
 }
 
-onMounted(() => {
-  document.addEventListener('keydown', keydownHandler, true) // 使用捕获阶段
-})
+watch(
+    () => props.show,
+    (visible) => {
+      if (visible) {
+        activateLayer(layerName, drawerHotkeyHandler)
+      } else {
+        deactivateLayer(layerName)
+      }
+    },
+    {immediate: true}
+)
 
 onUnmounted(() => {
-  document.removeEventListener('keydown', keydownHandler, true) // 使用捕获阶段
+  deactivateLayer(layerName)
 })
 </script>
 

@@ -30,7 +30,8 @@
 <script setup>
 import FileList from './FileList.vue'
 import ClipOperate from './ClipOperate.vue'
-import { onMounted, onUnmounted } from 'vue'
+import { watch, onUnmounted } from 'vue'
+import { activateLayer, deactivateLayer } from '../global/hotkeyLayers'
 
 const props = defineProps({
   isShow: {
@@ -49,40 +50,49 @@ const onOverlayClick = () => {
   emit('onOverlayClick')
 }
 
-const keyDownCallBack = (e) => {
-  if (!props.isShow) return
-  const { key, ctrlKey, metaKey, shiftKey, altKey } = e
+const FULL_DATA_LAYER = 'full-data-overlay'
+
+const fullDataHotkeyHandler = (e) => {
+  if (!props.isShow) return false
+  const { key, ctrlKey, metaKey, altKey } = e
   const isCtrl = ctrlKey || metaKey
-  
+
   if (key === 'Escape' && props.fullData.data) {
-    // 有值时执行退出 Overlay
     emit('onOverlayClick')
     e.preventDefault()
     e.stopPropagation()
-    return
+    return true
   }
-  
-  // 阻止所有其他快捷键穿透到底层
+
   if (isCtrl || altKey) {
     e.preventDefault()
     e.stopPropagation()
-    return
+    return true
   }
-  
-  // 阻止导航键穿透
+
   if (['Tab', 'Enter', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Home', 'End', 'PageUp', 'PageDown'].includes(key)) {
     e.preventDefault()
     e.stopPropagation()
-    return
+    return true
   }
+
+  return false
 }
 
-onMounted(() => {
-  document.addEventListener('keydown', keyDownCallBack)
-})
+watch(
+  () => props.isShow,
+  (visible) => {
+    if (visible) {
+      activateLayer(FULL_DATA_LAYER, fullDataHotkeyHandler)
+    } else {
+      deactivateLayer(FULL_DATA_LAYER)
+    }
+  },
+  { immediate: true }
+)
 
 onUnmounted(() => {
-  document.removeEventListener('keydown', keyDownCallBack)
+  deactivateLayer(FULL_DATA_LAYER)
 })
 </script>
 

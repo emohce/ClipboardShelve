@@ -589,6 +589,13 @@ const DEBUG_KEYS = false
 let lastNavAt = 0
 
 const keyDownCallBack = (e) => {
+  if (e.__layerHandled) {
+    return
+  }
+  const clearPanel = document.querySelector('.clear-panel')
+  if (clearPanel && clearPanel.offsetParent !== null) {
+    return
+  }
   const {key, ctrlKey, metaKey, altKey, shiftKey} = e
   if (DEBUG_KEYS) {
     console.log('[keyDown] 按键:', key, 'ctrl:', ctrlKey, 'meta:', metaKey, 'alt:', altKey, 'shift:', shiftKey)
