@@ -327,15 +327,13 @@ const keyDownCallBack = (e) => {
   const isDelete = key === 'Delete' || key === 'Backspace'
   const isCollect = (ctrlKey || metaKey) && (key === 'D' || key === 'd')
   const isToggleLockHotkey = (ctrlKey || metaKey) && (key === 'U' || key === 'u')
-  const isLockHotkey = (ctrlKey || metaKey) && (key === 'L' || key === 'l') && !shiftKey
-  const isUnlockHotkey2 = (ctrlKey || metaKey) && (key === 'L' || key === 'l') && shiftKey
   const isCtrl = ctrlKey || metaKey
 
   if (DEBUG_KEYS) {
     console.log('[keyDown] 快捷键状态:', {
       isArrowUp, isArrowDown, isArrowRight, isArrowLeft, isEnter, isCtrlEnter,
     isCopy, isNumber, isShift, isSpace, isDelete, isCollect, isToggleLockHotkey,
-    isLockHotkey, isUnlockHotkey2, isCtrl
+    isCtrl
     })
   }
 
@@ -345,7 +343,7 @@ const keyDownCallBack = (e) => {
       const now = Date.now()
       if (now - lastNavAt < 40) return
       lastNavAt = now
-    } else if (isCopy || isEnter || isCtrlEnter || isDelete || isCollect || isLockHotkey || isToggleLockHotkey || isUnlockHotkey2 || isSpace) {
+    } else if (isCopy || isEnter || isCtrlEnter || isDelete || isCollect || isToggleLockHotkey || isSpace) {
       return
     }
   }
@@ -436,33 +434,6 @@ const keyDownCallBack = (e) => {
     return
   }
 
-  // 上锁：Ctrl/Command + L
-  if (isLockHotkey) {
-    e.preventDefault()
-    e.stopPropagation()
-    if (e.repeat) return
-    const targets = props.isMultiple && selectItemList.value.length
-        ? [...selectItemList.value]
-        : props.showList[activeIndex.value]
-            ? [props.showList[activeIndex.value]]
-            : []
-    targets.forEach((item) => window.setLock(item.id, true))
-    return
-  }
-
-  // 解锁：Ctrl/Command + Shift + L
-  if (isUnlockHotkey2) {
-    e.preventDefault()
-    e.stopPropagation()
-    if (e.repeat) return
-    const targets = props.isMultiple && selectItemList.value.length
-        ? [...selectItemList.value]
-        : props.showList[activeIndex.value]
-            ? [props.showList[activeIndex.value]]
-            : []
-    targets.forEach((item) => window.setLock(item.id, false))
-    return
-  }
 
   // 锁定开关：Ctrl/Command + U
   if (isToggleLockHotkey) {
