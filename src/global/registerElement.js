@@ -10,6 +10,7 @@ import 'element-plus/theme-chalk/el-select.css'
 import 'element-plus/theme-chalk/el-option.css'
 import 'element-plus/theme-chalk/el-scrollbar.css'
 import 'element-plus/theme-chalk/el-tag.css'
+import 'element-plus/theme-chalk/el-popover.css'
 import {
   ElButton,
   ElMessageBox,
@@ -19,7 +20,8 @@ import {
   ElSelect,
   ElOption,
   ElScrollbar,
-  ElTag
+  ElTag,
+  ElPopover
 } from 'element-plus'
 
 const components = [
@@ -31,7 +33,8 @@ const components = [
   ElSelect,
   ElOption,
   ElScrollbar,
-  ElTag
+  ElTag,
+  ElPopover
 ]
 
 document.querySelector('html').className = utools.isDarkColors() ? 'dark' : ''

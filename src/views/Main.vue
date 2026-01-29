@@ -10,30 +10,43 @@
     <ClipSwitch ref="ClipSwitchRef">
       <template #SidePanel>
         <div class="clip-switch-btn-list" v-show="!isSearchPanelExpand">
-          <span class="clip-switch-btn clip-select-count" v-show="isMultiple">
-            {{ selectCount }}
-          </span>
-          <span class="clip-switch-btn" v-show="isMultiple" @click="handleMultiCopyBtnClick(false)"
-            >📄 复制</span
-          >
-          <span class="clip-switch-btn" v-show="isMultiple" @click="handleMultiCopyBtnClick(true)"
-            >📑 粘贴</span
-          >
-          <span class="clip-switch-btn" @click="isMultiple = !isMultiple">{{
-            isMultiple ? '❌ 退出多选' : '👆'
-          }}</span>
-          <span class="clip-switch-btn" v-show="!isMultiple" @click="emit('showSetting')">💡</span>
-          <span
-            class="clip-switch-btn clip-search-btn"
-            v-show="!isMultiple"
-            @click="handleSearchBtnClick"
-          >
-            🔍
-          </span>
+          <el-tooltip content="已选条数" placement="bottom" :show-after="150">
+            <span class="clip-switch-btn clip-select-count" v-show="isMultiple">
+              {{ selectCount }}
+            </span>
+          </el-tooltip>
+          <el-tooltip content="复制所选" placement="bottom" :show-after="150">
+            <span class="clip-switch-btn" v-show="isMultiple" @click="handleMultiCopyBtnClick(false)">
+              📄 复制
+            </span>
+          </el-tooltip>
+          <el-tooltip content="复制并粘贴所选" placement="bottom" :show-after="150">
+            <span class="clip-switch-btn" v-show="isMultiple" @click="handleMultiCopyBtnClick(true)">
+              📑 粘贴
+            </span>
+          </el-tooltip>
+          <el-tooltip :content="isMultiple ? '退出多选 (Esc)' : '开启多选 (空格)'" placement="bottom" :show-after="150">
+            <span class="clip-switch-btn" @click="isMultiple = !isMultiple">{{
+              isMultiple ? '❌ 退出多选' : '👆'
+            }}</span>
+          </el-tooltip>
+          <el-tooltip content="设置" placement="bottom" :show-after="150">
+            <span class="clip-switch-btn" v-show="!isMultiple" @click="emit('showSetting')">💡</span>
+          </el-tooltip>
+          <el-tooltip content="搜索 (点击或输入开始)" placement="bottom" :show-after="150">
+            <span
+              class="clip-switch-btn clip-search-btn"
+              v-show="!isMultiple"
+              @click="handleSearchBtnClick"
+            >
+              🔍
+            </span>
+          </el-tooltip>
         </div>
         <ClipSearch
           v-show="isSearchPanelExpand"
           @onPanelHide="isSearchPanelExpand = false"
+          @onEmpty="handleSearchEmpty"
           v-model="filterText"
           :itemCount="list.length"
         ></ClipSearch>
@@ -99,7 +112,7 @@
 
 <script setup>
 import { ref, watch, onMounted, onUnmounted, computed, nextTick } from 'vue'
-import { ElMessage, ElMessageBox, ElButton, ElRadioGroup, ElRadioButton } from 'element-plus'
+import { ElMessage, ElMessageBox, ElButton, ElRadioGroup, ElRadioButton, ElTooltip } from 'element-plus'
 import ClipItemList from '../cpns/ClipItemList.vue'
 import ClipFullData from '../cpns/ClipFullData.vue'
 import ClipSearch from '../cpns/ClipSearch.vue'
@@ -126,10 +139,17 @@ const RANGE_DURATION_MAP = {
 const notifyShown = ref(false) // 将在onMounted时根据此值判断是否显示通知
 const storageNotify = utools.dbStorage.getItem('notify')
 notifyShown.value = storageNotify ? storageNotify.version < notify.version : true
+const DEBUG_KEYS = false
 
 const isMultiple = ref(false)
 
 const isSearchPanelExpand = ref(false)
+
+const handleSearchEmpty = () => {
+  filterText.value = ''
+  isSearchPanelExpand.value = false
+  window.focus()
+}
 
 const isClearDialogVisible = ref(false)
 const clearRange = ref('1h')
@@ -177,10 +197,13 @@ const handleMultiCopyBtnClick = (isPaste) => {
       data: JSON.stringify(filePathArray.reverse())
     })
   } else {
+    const eol =
+      (window?.exports && window.exports.os && window.exports.os.EOL) ||
+      (navigator.userAgent.includes('Windows') ? '\r\n' : '\n')
     const result = itemList
       .map((item) => item.data)
       .reverse()
-      .join('\n')
+      .join(eol)
     window.copy({
       type: 'text',
       data: result
@@ -222,8 +245,16 @@ const textFilterCallBack = (item) => {
   }
 }
 
+const getClearDialogFocusables = () => {
+  const container = clearDialogBodyRef.value
+  if (!container) return []
+  const rangeButtons = Array.from(container.querySelectorAll('.clear-range-group button'))
+  const footerButtons = Array.from(container.querySelectorAll('.clear-panel-footer button'))
+  return [...rangeButtons, ...footerButtons].filter((el) => !el.disabled)
+}
+
 const handleClearDialogHotkeys = (e) => {
-  const { key, ctrlKey } = e
+  const { key, ctrlKey, shiftKey } = e
   if (key === 'Escape') {
     e.preventDefault()
     closeClearDialog()
@@ -243,6 +274,17 @@ const handleClearDialogHotkeys = (e) => {
       e.preventDefault()
       return true
     }
+  }
+  if (key === 'Tab') {
+    const focusable = getClearDialogFocusables()
+    if (!focusable.length) return false
+    const active = document.activeElement
+    let idx = focusable.indexOf(active)
+    if (idx === -1) idx = 0
+    idx = (idx + (shiftKey ? -1 : 1) + focusable.length) % focusable.length
+    focusable[idx].focus()
+    e.preventDefault()
+    return true
   }
   return false
 }
@@ -296,16 +338,17 @@ const filterItemsByRange = (items, rangeValue, options = {}) => {
 const clearRegularTabItems = (tabType, rangeValue) => {
   const candidates = filterItemsByRange(getItemsByTab(tabType), rangeValue)
   let removed = 0
+  let skippedLocked = 0
   candidates.forEach((item) => {
-    if (window.remove(item)) {
-      removed++
-    }
+    const ok = window.remove(item)
+    if (ok) removed++
+    else if (item.locked) skippedLocked++
   })
   if (removed) {
     handleDataRemove()
     adjustActiveIndexAfterDelete(0)
   }
-  return removed
+  return { removed, skippedLocked }
 }
 
 const clearCollectTabItems = (rangeValue) => {
@@ -313,15 +356,18 @@ const clearCollectTabItems = (rangeValue) => {
     preferCollectTime: true
   })
   let removed = 0
+  let skippedLocked = 0
   candidates.forEach((item) => {
-    if (window.db.removeCollect(item.id, false) !== false) {
-      removed++
+    if (item.locked) {
+      skippedLocked++
+      return
     }
+    if (window.db.removeCollect(item.id, false) !== false) removed++
   })
   if (removed) {
     handleDataRemove()
   }
-  return removed
+  return { removed, skippedLocked }
 }
 
 const focusRangeButton = (rangeValue) => {
@@ -348,7 +394,7 @@ const handleClearConfirm = () => {
   isClearing.value = true
   const tabType = activeTab.value
   try {
-    const removedCount =
+    const { removed: removedCount, skippedLocked } =
       tabType === 'collect'
         ? clearCollectTabItems(clearRange.value)
         : clearRegularTabItems(tabType, clearRange.value)
@@ -356,13 +402,13 @@ const handleClearConfirm = () => {
     if (removedCount > 0) {
       ElMessage({
         type: 'success',
-        message: `已清除 ${removedCount} 条记录`
+        message: skippedLocked > 0 ? `已清除 ${removedCount} 条记录，跳过锁定 ${skippedLocked} 条` : `已清除 ${removedCount} 条记录`
       })
       closeClearDialog()
     } else {
       ElMessage({
         type: 'info',
-        message: '没有符合条件的记录'
+        message: skippedLocked > 0 ? `没有符合条件的记录（跳过锁定 ${skippedLocked} 条）` : '没有符合条件的记录'
       })
     }
   } catch (error) {
@@ -423,7 +469,7 @@ const adjustActiveIndexAfterDelete = (baseIndex) => {
 }
 
 const handleItemDelete = (item, metadata = {}) => {
-  const { anchorIndex, isBatch = false, isLast = true } = metadata
+  const { anchorIndex, isBatch = false, isLast = true, force = false } = metadata
   // 处理删除操作，复用 useClipOperate 的逻辑
   const activeTabValue = typeof ClipSwitchRef.value?.activeTab === 'object'
     ? ClipSwitchRef.value.activeTab.value
@@ -451,7 +497,7 @@ const handleItemDelete = (item, metadata = {}) => {
       typeof anchorIndex === 'number' ? anchorIndex : getActiveIndex()
     const shouldAdjustAfterDelete = !isBatch || isLast
 
-    window.remove(item)
+    window.remove(item, { force })
     handleDataRemove()
 
     // 删除后调整高亮位置：优先移动到下一个，如果没有则移动到上一个
@@ -573,11 +619,15 @@ onMounted(() => {
 
   // 监听键盘事件
   const keyDownCallBack = (e) => {
+    const { key, ctrlKey, metaKey, altKey, shiftKey } = e
+    if (DEBUG_KEYS) {
+      console.log('[Main.keyDown] 按键:', key, 'ctrl:', ctrlKey, 'meta:', metaKey, 'alt:', altKey, 'shift:', shiftKey)
+    }
+
     if (isClearDialogVisible.value) {
       handleClearDialogHotkeys(e)
       return
     }
-    const { key, ctrlKey, metaKey, altKey, shiftKey } = e
     const isTab = key === 'Tab'
     const isSearch = ctrlKey && (key === 'F' || key === 'f')
     const isExit = key === 'Escape'
@@ -587,6 +637,9 @@ onMounted(() => {
     const isEnter = key === 'Enter'
     const isAlt = altKey
     const isSpace = key === ' '
+    if (e.repeat && (isTab || isCtrlDelete || isAltNumber)) {
+      return
+    }
     if (isTab) {
       e.preventDefault()
       const tabTypes = tabs.map((item) => item.type)
@@ -709,13 +762,13 @@ onMounted(() => {
   top: 0;
   right: 0;
   bottom: 0;
-  width: 320px;
+  width: 360px;
   background: #fff;
-  box-shadow: -12px 0 28px rgba(15, 23, 42, 0.2);
+  box-shadow: -12px 0 28px rgba(15, 23, 42, 0.18);
   z-index: 190;
   display: flex;
   flex-direction: column;
-  padding: 20px 18px 16px;
+  padding: 22px 20px 18px;
   border-top-left-radius: 16px;
   border-bottom-left-radius: 16px;
 }
@@ -752,6 +805,9 @@ onMounted(() => {
 .clear-panel-body {
   margin-top: 18px;
   flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
   .clear-panel-tip {
     margin-bottom: 12px;
     color: #9094a6;
@@ -762,8 +818,8 @@ onMounted(() => {
 
 .clear-range-group {
   width: 100%;
-  display: flex;
-  flex-wrap: wrap;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(120px, 1fr));
   gap: 10px;
   :deep(.el-radio-button__inner) {
     width: 80px;
@@ -791,6 +847,12 @@ onMounted(() => {
   justify-content: flex-end;
   gap: 8px;
   margin-top: 16px;
+}
+
+.clear-panel :focus-visible {
+  outline: 2px solid #5c7cfa;
+  outline-offset: 2px;
+  border-radius: 8px;
 }
 
 .clear-panel-enter-active,

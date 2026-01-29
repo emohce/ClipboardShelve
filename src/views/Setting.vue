@@ -1,70 +1,71 @@
 <template>
   <div class="setting">
     <el-card class="setting-card">
-      <template #header>
-        <el-button type="primary" @click="handleLinkClick(4)">💖 赞赏我</el-button>
-        <el-button @click="handleLinkClick(0)">🏠 主页</el-button>
-        <el-button @click="handleLinkClick(1)">🚀 进阶功能</el-button>
-        <el-button @click="handleLinkClick(5)">❓ 遇到问题</el-button>
-        <el-button @click="handleLinkClick(2)">⭐ 开源代码</el-button>
-        <el-button @click="handleLinkClick(3)">🎈 论坛发布页</el-button>
-      </template>
       <div class="setting-card-content">
-        <div class="setting-card-content-item">
-          <span>剪贴板监听程序状态</span>
-          <el-tag
-            :type="listenStatus ? 'success' : 'warning'"
-            @click="handleLinkClick(1)"
-            title="手动安装剪贴板监听程序"
-          >
-            {{ listenStatus ? '已安装' : '未安装 点此查看安装方法' }}
-          </el-tag>
-        </div>
-        <div class="setting-card-content-item">
-          <span>数据库路径</span>
-          <el-input class="path" v-model="path" :title="path" disabled></el-input>
-          <el-button type="primary" @click="handlePathBtnClick('modify')">修改</el-button>
-          <el-button @click="handlePathBtnClick('open')" v-show="path">打开</el-button>
-          <input type="file" id="database-path" :style="{ display: 'none' }" />
-        </div>
-        <div class="setting-card-content-item">
-          <span>最大历史条数</span>
-          <el-select class="number-select" v-model="maxsize" fit-input-width>
-            <el-option v-for="n in [500, 600, 700, 800, 900, 1000]" :key="n" :value="n" />
-          </el-select>
-          条
-        </div>
-        <div class="setting-card-content-item">
-          <span>最长保存时间</span>
-          <el-select class="number-select" v-model="maxage" fit-input-width>
-            <el-option v-for="n in [1, 3, 5, 7, 14, 31]" :key="n" :value="n" />
-          </el-select>
-          天
-        </div>
-        <div class="setting-card-content-item">
-          <span>展示在主界面的功能</span>
-          <el-select
-            class="operation-select"
-            v-model="shown"
-            multiple
-            :multiple-limit="5"
-            placeholder="请选择"
-          >
-            <el-option
-              v-for="{ id, title, icon } in [
-                ...defaultOperation,
-                ...custom.map(({ id, title, icon }) => ({ id, title, icon }))
-              ]"
-              :key="id"
-              :label="icon + ' ' + title"
-              :value="id"
-            />
-          </el-select>
-        </div>
-        <div class="setting-card-content-item">
-          <span>自定义功能</span>
-          <el-input v-model="stringCustom" :rows="5" type="textarea" placeholder="Please input" />
-        </div>
+        <el-space direction="vertical" :size="18" fill>
+          <div class="setting-card-content-item">
+            <div class="setting-section-title">存储</div>
+            <el-divider></el-divider>
+            <div class="setting-row">
+              <span>剪贴板监听程序状态</span>
+              <el-tag :type="listenStatus ? 'success' : 'warning'" title="监听程序状态">
+                {{ listenStatus ? '已安装' : '未安装' }}
+              </el-tag>
+            </div>
+            <div class="setting-row">
+              <span>数据库路径</span>
+              <el-input class="path" v-model="path" :title="path" disabled></el-input>
+              <el-button type="primary" @click="handlePathBtnClick('modify')">修改</el-button>
+              <el-button @click="handlePathBtnClick('open')" v-show="path">打开</el-button>
+              <input type="file" id="database-path" :style="{ display: 'none' }" />
+            </div>
+            <div class="setting-row">
+              <span>最大历史条数</span>
+              <el-select class="number-select" v-model="maxsize" fit-input-width>
+                <el-option v-for="n in [500, 600, 700, 800, 900, 1000]" :key="n" :value="n" />
+              </el-select>
+              条
+            </div>
+            <div class="setting-row">
+              <span>最长保存时间</span>
+              <el-select class="number-select" v-model="maxage" fit-input-width>
+                <el-option v-for="n in [1, 3, 5, 7, 14, 31]" :key="n" :value="n" />
+              </el-select>
+              天
+            </div>
+          </div>
+
+          <div class="setting-card-content-item">
+            <div class="setting-section-title">展示</div>
+            <el-divider></el-divider>
+            <div class="setting-row">
+              <span>展示在主界面的功能</span>
+              <el-select
+                class="operation-select"
+                v-model="shown"
+                multiple
+                :multiple-limit="5"
+                placeholder="请选择"
+              >
+                <el-option
+                  v-for="{ id, title, icon } in [
+                    ...defaultOperation,
+                    ...custom.map(({ id, title, icon }) => ({ id, title, icon }))
+                  ]"
+                  :key="id"
+                  :label="icon + ' ' + title"
+                  :value="id"
+                />
+              </el-select>
+            </div>
+          </div>
+
+          <div class="setting-card-content-item">
+            <div class="setting-section-title">自定义功能</div>
+            <el-divider></el-divider>
+            <el-input v-model="stringCustom" :rows="5" type="textarea" placeholder="请填写 JSON 数组" />
+          </div>
+        </el-space>
       </div>
       <div class="setting-card-footer">
         <el-button @click="handleRestoreBtnClick">重置</el-button>
@@ -96,18 +97,6 @@ const custom = ref(operation.custom)
 const stringCustom = ref(JSON.stringify(operation.custom))
 
 const listenStatus = ref(false)
-
-const handleLinkClick = (index) => {
-  const links = [
-    'https://ziuchen.gitee.io/project/ClipboardManager/',
-    'https://ziuchen.gitee.io/project/ClipboardManager/guide/',
-    'https://github.com/ZiuChen/ClipboardManager',
-    'https://yuanliao.info/d/5722',
-    'https://ziuchen.gitee.io/project/ClipboardManager/#%F0%9F%92%9D-%E6%84%9F%E8%B0%A2%E8%B5%9E%E8%B5%8F',
-    'https://ziuchen.gitee.io/project/ClipboardManager/statement/'
-  ]
-  utools.shellOpenExternal(links[index])
-}
 
 const handleSaveBtnClick = () => {
   // 校验格式
@@ -210,4 +199,27 @@ onUnmounted(() => {
 
 <style lang="less" scoped>
 @import '../style';
+.setting-card-content {
+  padding: 12px 6px 4px;
+}
+.setting-section-title {
+  font-size: 16px;
+  font-weight: 600;
+  color: #2b2f3a;
+}
+.setting-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 10px 0;
+}
+.path {
+  flex: 1;
+}
+.number-select {
+  width: 110px;
+}
+.operation-select {
+  min-width: 240px;
+}
 </style>

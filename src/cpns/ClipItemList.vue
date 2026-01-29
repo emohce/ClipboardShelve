@@ -18,30 +18,55 @@
           <span class="relative-date" :title="new Date(item.updateTime).toLocaleString()">{{
             dateFormat(item.updateTime)
           }}</span>
+          <span v-if="item.locked" class="clip-lock" title="已锁定">🔒</span>
         </div>
         <div class="clip-data">
           <template v-if="item.type === 'text'">
-            <div
-              :class="{ 'clip-over-sized-content': isOverSizedContent(item) }"
-              :title="item.data"
-            >
-              {{ item.data.split(`\n`).slice(0, 6).join(`\n`).trim() }}
-            </div>
+            <el-tooltip :content="item.data" placement="left" :show-after="200">
+              <div :class="{ 'clip-over-sized-content': isOverSizedContent(item) }">
+                {{ item.data.split(`\n`).slice(0, 6).join(`\n`).trim() }}
+              </div>
+            </el-tooltip>
           </template>
           <template v-if="item.type === 'image'">
-            <img class="clip-data-image" :src="item.data" alt="Image" />
+            <el-popover placement="left" trigger="hover" width="260">
+              <template #reference>
+                <el-image
+                  class="clip-data-image"
+                  :src="item.data"
+                  :preview-src-list="[item.data]"
+                  :hide-on-click-modal="true"
+                  fit="cover"
+                />
+              </template>
+              <el-image
+                :src="item.data"
+                :preview-src-list="[item.data]"
+                :hide-on-click-modal="true"
+                fit="contain"
+                style="width: 240px; max-height: 240px"
+              />
+            </el-popover>
           </template>
           <template v-if="item.type === 'file'">
-            <div
-              :class="{ 'clip-over-sized-content': isOverSizedContent(item) }"
-              :title="
-                JSON.parse(item.data)
-                  .map((item) => item.path)
-                  .join('\n')
-              "
-            >
-              <FileList :data="JSON.parse(item.data).slice(0, 6)" />
-            </div>
+            <el-tooltip :content="formatFileNames(item)" placement="left" :show-after="200">
+              <el-popover placement="left" trigger="hover" width="320">
+                <template #reference>
+                  <div :class="{ 'clip-over-sized-content': isOverSizedContent(item) }">
+                    <FileList :data="JSON.parse(item.data).slice(0, 6)" />
+                  </div>
+                </template>
+                <div style="max-height: 260px; overflow: auto">
+                  <FileList :data="JSON.parse(item.data)" />
+                  <div v-if="Array.isArray(item.originPaths) && item.originPaths.length" style="margin-top: 8px; opacity: 0.75">
+                    <div>原始路径</div>
+                    <div v-for="p in item.originPaths" :key="p" :title="p" style="font-size: 12px; word-break: break-all">
+                      {{ p }}
+                    </div>
+                  </div>
+                </div>
+              </el-popover>
+            </el-tooltip>
           </template>
         </div>
       </div>
@@ -57,14 +82,27 @@
       </div>
     </div>
   </div>
+  <ClipDrawerMenu
+      :show="drawerShow"
+      :items="drawerItems"
+      :position="drawerPosition"
+      :defaultActive="drawerDefaultActive"
+      @select="handleDrawerSelect"
+      @close="closeDrawer"
+      @reorder="handleDrawerReorder"
+  />
 </template>
 
 <script setup>
-import { ref, onMounted, onUnmounted, watch } from 'vue'
+import {ref, onMounted, onUnmounted, watch, computed} from 'vue'
 import { ElMessage } from 'element-plus'
 import FileList from './FileList.vue'
 import ClipOperate from './ClipOperate.vue'
-import { dateFormat } from '../utils'
+import ClipDrawerMenu from './ClipDrawerMenu.vue'
+import { dateFormat, isUToolsPlugin, copyWithSearchFocus, copyOnly } from '../utils'
+import defaultOperation from '../data/operation.json'
+import setting from '../global/readSetting'
+import useClipOperate from '../hooks/useClipOperate'
 const props = defineProps({
   showList: {
     type: Array,
@@ -103,9 +141,60 @@ const isOverSizedContent = (item) => {
     return JSON.parse(item.data).length >= 6
   }
 }
+
+const formatFileNames = (item) => {
+  try {
+    const paths = JSON.parse(item.data)
+      .map((f) => f.path)
+      .filter(Boolean)
+    const origin = Array.isArray(item.originPaths) ? item.originPaths.filter(Boolean) : []
+    if (origin.length) {
+      return [...paths, '---', ...origin].join('\n')
+    }
+    return paths.join('\n')
+  } catch (e) {
+    return ''
+  }
+}
+
+const closeDrawer = () => {
+  drawerShow.value = false
+}
+
+const handleDrawerSelect = (op, meta = {}) => {
+  const currentItem = props.showList[activeIndex.value]
+  if (!currentItem) return
+  handleOperateClick(op, currentItem, meta)
+  if (!meta.sub) {
+    drawerShow.value = false
+  }
+}
+
+const handleDrawerReorder = (list) => {
+  drawerItems.value = list
+  drawerOrder.value = list.map((op) => op.id)
+  utools.dbStorage.setItem('drawer.order', drawerOrder.value)
+}
+
+const applyDrawerOrder = (list) => {
+  if (!drawerOrder.value.length) return list
+  const orderSet = new Set(drawerOrder.value)
+  const ordered = drawerOrder.value
+    .map((id) => list.find((op) => op.id === id))
+    .filter(Boolean)
+  const remaining = list.filter((op) => !orderSet.has(op.id))
+  return [...ordered, ...remaining]
+}
 const isShiftDown = ref(false)
 const selectItemList = ref([])
 const activeIndex = ref(0) // 定义 activeIndex，需要在 defineExpose 之前
+const drawerShow = ref(false)
+const drawerPosition = ref({top: 0, left: 0})
+const drawerItems = ref([])
+const drawerDefaultActive = ref(0)
+const drawerOrder = ref(Array.isArray(utools.dbStorage.getItem('drawer.order')) ? utools.dbStorage.getItem('drawer.order') : [])
+const operations = computed(() => [...defaultOperation, ...setting.operation.custom])
+const {handleOperateClick, filterOperate} = useClipOperate({emit, currentActiveTab: () => props.currentActiveTab})
 const emptySelectItemList = () => (selectItemList.value = [])
 defineExpose({
   selectItemList, // 暴露给 Main/Switch中的操作按钮以执行复制
@@ -119,6 +208,15 @@ watch(
       emptySelectItemList() // 退出多选状态 清空列表
     }
   }
+)
+// 多选列表为空时自动退出多选状态
+watch(
+    () => selectItemList.value.length,
+    (len) => {
+      if (props.isMultiple && len === 0) {
+        emit('toggleMultiSelect', false)
+      }
+    }
 )
 const handleItemClick = (ev, item) => {
   if (props.isMultiple === true) {
@@ -176,9 +274,8 @@ const handleItemClick = (ev, item) => {
   } else {
     const { button } = ev
     if (button === 0) {
-      // 左键 复制后粘贴
-      window.copy(item)
-      window.paste()
+      // 左键 复制（不改变插件内位置，可粘贴到外部）
+      copyWithSearchFocus(item)
     } else if (button === 2) {
       // 右键 仅复制
       window.copy(item)
@@ -208,34 +305,192 @@ watch(
   }
 )
 
+const DEBUG_KEYS = false
+let lastNavAt = 0
+
 const keyDownCallBack = (e) => {
-  const { key, ctrlKey, metaKey, altKey } = e
+  const {key, ctrlKey, metaKey, altKey, shiftKey} = e
+  if (DEBUG_KEYS) {
+    console.log('[keyDown] 按键:', key, 'ctrl:', ctrlKey, 'meta:', metaKey, 'alt:', altKey, 'shift:', shiftKey)
+  }
+
   const isArrowUp = key === 'ArrowUp' || (ctrlKey && (key === 'K' || key === 'k'))
   const isArrowDown = key === 'ArrowDown' || (ctrlKey && (key === 'J' || key === 'j'))
+  const isArrowRight = key === 'ArrowRight'
+  const isArrowLeft = key === 'ArrowLeft'
   const isEnter = key === 'Enter'
+  const isCtrlEnter = isEnter && (ctrlKey || metaKey)
   const isCopy = (ctrlKey || metaKey) && (key === 'C' || key === 'c')
   const isNumber = parseInt(key) <= 9 && parseInt(key) >= 0
   const isShift = key === 'Shift'
   const isSpace = key === ' '
   const isDelete = key === 'Delete' || key === 'Backspace'
+  const isCollect = (ctrlKey || metaKey) && (key === 'D' || key === 'd')
+  const isToggleLockHotkey = (ctrlKey || metaKey) && (key === 'U' || key === 'u')
+  const isLockHotkey = (ctrlKey || metaKey) && (key === 'L' || key === 'l') && !shiftKey
+  const isUnlockHotkey2 = (ctrlKey || metaKey) && (key === 'L' || key === 'l') && shiftKey
+  const isCtrl = ctrlKey || metaKey
+
+  if (DEBUG_KEYS) {
+    console.log('[keyDown] 快捷键状态:', {
+      isArrowUp, isArrowDown, isArrowRight, isArrowLeft, isEnter, isCtrlEnter,
+    isCopy, isNumber, isShift, isSpace, isDelete, isCollect, isToggleLockHotkey,
+    isLockHotkey, isUnlockHotkey2, isCtrl
+    })
+  }
+
+  const isNav = isArrowUp || isArrowDown
+  if (e.repeat) {
+    if (isNav) {
+      const now = Date.now()
+      if (now - lastNavAt < 40) return
+      lastNavAt = now
+    } else if (isCopy || isEnter || isCtrlEnter || isDelete || isCollect || isLockHotkey || isToggleLockHotkey || isUnlockHotkey2 || isSpace) {
+      return
+    }
+  }
   const activeNode = !props.isMultiple
     ? document.querySelector('.clip-item.active' + (isArrowDown ? '+.clip-item' : ''))
     : document.querySelector('.clip-item.multi-active' + (isArrowDown ? '+.clip-item' : ''))
-  
+
   // 检查搜索框是否有焦点，以及是否可以删除条目
   const searchInput = document.querySelector('.clip-search-input')
   const isSearchInputFocused = document.activeElement === searchInput
-  
+
   // Delete 键：如果事件对象上有 shouldDeleteItem 标记，或者搜索框没有焦点，或者光标在末尾，则可以删除条目
   // Backspace 键：只有在搜索框没有焦点时才能删除条目（搜索框有焦点时保持默认的删除文本行为）
   const isDeleteKey = key === 'Delete'
   const isBackspaceKey = key === 'Backspace'
-  const canDeleteItem = isDeleteKey && (e.shouldDeleteItem || !isSearchInputFocused || (isSearchInputFocused && searchInput && 
-    searchInput.selectionStart === searchInput.selectionEnd && 
+  const canDeleteItem = isDeleteKey && (e.shouldDeleteItem || !isSearchInputFocused || (isSearchInputFocused && searchInput &&
+    searchInput.selectionStart === searchInput.selectionEnd &&
     searchInput.selectionStart === searchInput.value.length)) ||
     (isBackspaceKey && !isSearchInputFocused)
-  
+
+  // 抽屉菜单打开时的 Ctrl+数字 / Ctrl+Shift+数字，由 ClipDrawerMenu 接管，避免重复触发
+  if (drawerShow.value && isCtrl && isNumber) {
+    return
+  }
+
+  // Ctrl+Shift+数字：抽屉子菜单快捷触发（抽屉未打开时）
+  if (!drawerShow.value && isCtrl && shiftKey && isNumber) {
+    const currentItem = props.showList[activeIndex.value]
+    if (currentItem) {
+      const available = operations.value.filter((op) => filterOperate(op, currentItem, false))
+      const ordered = applyDrawerOrder(available)
+      const num = parseInt(key, 10)
+      if (!Number.isNaN(num) && num >= 1 && num <= ordered.length) {
+        const target = ordered[num - 1]
+        handleOperateClick(target, currentItem, { sub: true })
+        e.preventDefault()
+        e.stopPropagation()
+        return
+      }
+    }
+  }
+
+  // 收藏快捷键：Ctrl/Command + D
+  if (isCollect) {
+    e.preventDefault()
+    const targets = props.isMultiple && selectItemList.value.length
+        ? [...selectItemList.value]
+        : props.showList[activeIndex.value]
+            ? [props.showList[activeIndex.value]]
+            : []
+    targets.forEach((item) => {
+      const isCollected = window.db.isCollected(item.id)
+      if (props.currentActiveTab === 'collect' || isCollected) {
+        window.db.removeCollect(item.id)
+      } else {
+        window.db.addCollect(item.id)
+      }
+    })
+    if (targets.length) {
+      ElMessage({type: 'success', message: props.currentActiveTab === 'collect' ? '已取消收藏选中项' : '已更新收藏状态'})
+      emit('onDataRemove')
+    }
+    return
+  }
+
+  if (isArrowRight) {
+    const currentItem = props.showList[activeIndex.value]
+    if (currentItem) {
+      const nodeList = document.querySelectorAll('.clip-item')
+      const node = nodeList[activeIndex.value]
+      if (node) {
+        const rect = node.getBoundingClientRect()
+        drawerPosition.value = {top: rect.top, left: rect.right + 8}
+        const available = operations.value.filter((op) => filterOperate(op, currentItem, false))
+        drawerItems.value = applyDrawerOrder(available)
+        drawerDefaultActive.value = 0
+        drawerShow.value = available.length > 0
+      }
+    }
+    e.preventDefault()
+    e.stopPropagation()
+    return
+  }
+
+  if (isArrowLeft && drawerShow.value) {
+    drawerShow.value = false
+    e.stopPropagation()
+    return
+  }
+
+  // 上锁：Ctrl/Command + L
+  if (isLockHotkey) {
+    e.preventDefault()
+    e.stopPropagation()
+    if (e.repeat) return
+    const targets = props.isMultiple && selectItemList.value.length
+        ? [...selectItemList.value]
+        : props.showList[activeIndex.value]
+            ? [props.showList[activeIndex.value]]
+            : []
+    targets.forEach((item) => window.setLock(item.id, true))
+    return
+  }
+
+  // 解锁：Ctrl/Command + Shift + L
+  if (isUnlockHotkey2) {
+    e.preventDefault()
+    e.stopPropagation()
+    if (e.repeat) return
+    const targets = props.isMultiple && selectItemList.value.length
+        ? [...selectItemList.value]
+        : props.showList[activeIndex.value]
+            ? [props.showList[activeIndex.value]]
+            : []
+    targets.forEach((item) => window.setLock(item.id, false))
+    return
+  }
+
+  // 锁定开关：Ctrl/Command + U
+  if (isToggleLockHotkey) {
+    e.preventDefault()
+    e.stopPropagation()
+    if (e.repeat) return
+    const targets = props.isMultiple && selectItemList.value.length
+        ? [...selectItemList.value]
+        : props.showList[activeIndex.value]
+            ? [props.showList[activeIndex.value]]
+            : []
+    targets.forEach((item) => window.setLock(item.id, item.locked !== true))
+    return
+  }
+
+  // Ctrl+Enter: 复制+上锁（即使搜索框有焦点也生效）
+  if (isCtrlEnter && !props.isMultiple && props.showList[activeIndex.value]) {
+    e.preventDefault()
+    e.stopPropagation()
+    if (e.repeat) return
+    const current = props.showList[activeIndex.value]
+    copyWithSearchFocus(current)
+    window.setLock(current.id, true)
+    return
+  }
+
   if (isDelete && canDeleteItem) {
+    const forceDelete = (ctrlKey || metaKey) && isDeleteKey
     const itemsToDelete = []
     const anchorIndex = activeIndex.value
     if (props.isMultiple) {
@@ -248,25 +503,32 @@ const keyDownCallBack = (e) => {
       itemsToDelete.push(props.showList[activeIndex.value])
     }
 
-    if (itemsToDelete.length) {
+    const deletableItems = itemsToDelete.filter((item) => forceDelete || item.locked !== true)
+    const skippedLocked = itemsToDelete.length - deletableItems.length
+
+    if (deletableItems.length) {
       e.preventDefault()
       e.stopPropagation()
       if (props.isMultiple) {
         selectItemList.value = selectItemList.value.filter(
-          (item) => !itemsToDelete.includes(item)
+            (item) => !deletableItems.includes(item)
         )
       }
-      itemsToDelete.forEach((item, index) =>
+      deletableItems.forEach((item, index) =>
         emit('onItemDelete', item, {
           anchorIndex,
-          isBatch: props.isMultiple && itemsToDelete.length > 1,
-          isLast: index === itemsToDelete.length - 1
+          isBatch: props.isMultiple && deletableItems.length > 1,
+          isLast: index === deletableItems.length - 1,
+          force: forceDelete
         })
       )
     }
+    if (skippedLocked > 0 && !forceDelete) {
+      ElMessage({type: 'info', message: `已跳过锁定 ${skippedLocked} 条，使用 Ctrl+Delete 强制删除`})
+    }
     return
   }
-  
+
   if (isArrowUp) {
     if (activeIndex.value === 1) window.toTop()
     if (activeIndex.value > 0) {
@@ -291,7 +553,7 @@ const keyDownCallBack = (e) => {
       // 如果侧栏中有数据 证明侧栏是打开的 不执行复制
       if (!props.isMultiple) {
         if (props.showList[activeIndex.value]) {
-          window.copy(props.showList[activeIndex.value])
+          copyWithSearchFocus(props.showList[activeIndex.value])
           ElMessage({
             message: '复制成功',
             type: 'success'
@@ -302,20 +564,19 @@ const keyDownCallBack = (e) => {
       }
     }
   } else if (isEnter) {
-    if (!props.isMultiple) {
-      if (props.showList[activeIndex.value]) {
-        console.log('isEnter')
-        window.copy(props.showList[activeIndex.value])
-        window.paste()
-      }
-    } else {
+    if (!props.isMultiple && !isCtrlEnter && props.showList[activeIndex.value]) {
+      console.log('isEnter')
+      copyWithSearchFocus(props.showList[activeIndex.value])
+    } else if (props.isMultiple && isCtrlEnter) {
+      e.preventDefault()
+      e.stopPropagation()
+      if (e.repeat) return
       emit('onMultiCopyExecute', true)
     }
   } else if ((ctrlKey || metaKey || altKey) && isNumber) {
     const targetItem = props.showList[parseInt(key) - 1]
     if (targetItem) {
-      window.copy(targetItem)
-      window.paste()
+      copyWithSearchFocus(targetItem)
       selectItemList.value = []
     }
   } else if (isShift) {

@@ -19,6 +19,18 @@ export default function initPlugin() {
   let hasFallbackToPolling = false
   let pollingStarted = false
   
+  // 防抖写磁盘定时器
+  let dbWriteTimer = null
+  const debouncedWriteLocal = () => {
+    if (dbWriteTimer) clearTimeout(dbWriteTimer)
+    dbWriteTimer = setTimeout(() => {
+      if (db) {
+        db.updateDataBaseLocal()
+        dbWriteTimer = null
+      }
+    }, 300)
+  }
+  
   class DB {
     constructor(path) {
       const d = new Date()
@@ -102,6 +114,30 @@ export default function initPlugin() {
             }
           }
           
+          // 为现有数据补充 locked 字段，默认 false
+          const normalizeLockedField = (items = []) =>
+            items.forEach((item) => {
+              if (typeof item.locked !== 'boolean') item.locked = false
+            })
+          normalizeLockedField(this.dataBase.data)
+          normalizeLockedField(this.dataBase.collectData)
+
+          // 为 file 类型补充 originPaths（原始文件路径）
+          const normalizeOriginPaths = (items = []) =>
+            items.forEach((item) => {
+              if (item?.type !== 'file') return
+              if (!Array.isArray(item.originPaths)) {
+                try {
+                  const fl = JSON.parse(item.data)
+                  item.originPaths = Array.isArray(fl) ? fl.map((f) => f.path).filter(Boolean) : []
+                } catch (e) {
+                  item.originPaths = []
+                }
+              }
+            })
+          normalizeOriginPaths(this.dataBase.data)
+          normalizeOriginPaths(this.dataBase.collectData)
+
           // 将超过14天的普通数据删除（收藏数据不受影响）
           const now = new Date().getTime()
           const deleteTime = now - setting.database.maxage * 24 * 60 * 60 * 1000
@@ -166,7 +202,14 @@ export default function initPlugin() {
     }
     addItem(cItem) {
       console.log('[DB.addItem] 添加新记录, 类型:', cItem.type, 'ID:', cItem.id, '数据长度:', cItem.data?.length || 0)
-      this.dataBase.data.unshift(cItem)
+      
+      // 对文本类型进行空内容检查（仅判断，不修改原数据）
+      if (cItem.type === 'text' && (!cItem.data || cItem.data.trim() === '')) {
+        console.log('[DB.addItem] 跳过空文本内容')
+        return
+      }
+      
+      this.dataBase.data.unshift({ ...cItem, locked: false })
       this.updateDataBase()
       const exceedCount = this.dataBase.data.length - setting.database.maxsize
       if (exceedCount > 0) {
@@ -219,12 +262,13 @@ export default function initPlugin() {
       })
       this.updateDataBaseLocal()
     }
-    removeItemViaId(id) {
-      console.log('[DB.removeItemViaId] 开始删除项目, ID:', id)
+    removeItemViaId(id, options = {}) {
+      const { force = false } = options
+      console.log('[DB.removeItemViaId] 开始删除项目, ID:', id, 'force:', force)
       const isCollected = this.isCollected(id)
       
       // 如果项目已收藏，不允许删除（收藏数据单独存储，不可删除）
-      if (isCollected) {
+      if (isCollected && !force) {
         console.log('[DB.removeItemViaId] 项目已收藏，不允许删除。请先取消收藏后再删除')
         return false
       }
@@ -232,6 +276,10 @@ export default function initPlugin() {
       // 只删除普通历史记录
       for (const item of this.dataBase.data) {
         if (item.id === id) {
+          if (item.locked && !force) {
+            console.log('[DB.removeItemViaId] 项目已锁定，跳过删除')
+            return false
+          }
           const index = this.dataBase.data.indexOf(item)
           this.dataBase.data.splice(index, 1)
           console.log('[DB.removeItemViaId] 已从data数组删除，索引:', index)
@@ -242,6 +290,22 @@ export default function initPlugin() {
       }
       console.log('[DB.removeItemViaId] 未找到项目, ID:', id)
       return false
+    }
+    setLock(itemId, locked = true) {
+      const target =
+        this.dataBase.data.find((item) => item.id === itemId) ||
+        this.dataBase.collectData.find((item) => item.id === itemId)
+      if (!target) return false
+      target.locked = locked
+      this.updateDataBase()
+      debouncedWriteLocal()
+      return true
+    }
+    isLocked(itemId) {
+      const target =
+        this.dataBase.data.find((item) => item.id === itemId) ||
+        this.dataBase.collectData.find((item) => item.id === itemId)
+      return target?.locked === true
     }
     // 添加收藏
     addCollect(itemId, log = true) {
@@ -291,7 +355,8 @@ export default function initPlugin() {
         // 添加收藏时间
         itemToCollect.collectTime = new Date().getTime()
         this.dataBase.collects.push(itemId)
-        this.dataBase.collectData.push(itemToCollect)
+        // 保持最新收藏在最前（避免 getCollects 每次排序）
+        this.dataBase.collectData.unshift(itemToCollect)
         if (log) {
           console.log('[DB.addCollect] 已添加到收藏列表, 当前收藏数:', this.dataBase.collects.length)
         }
@@ -366,12 +431,7 @@ export default function initPlugin() {
       if (!this.dataBase.collectData) {
         return []
       }
-      // 按收藏时间倒序排列（最新的在前）
-      return [...this.dataBase.collectData].sort((a, b) => {
-        const timeA = a.collectTime || a.updateTime || a.createTime || 0
-        const timeB = b.collectTime || b.updateTime || b.createTime || 0
-        return timeB - timeA
-      })
+      return [...this.dataBase.collectData]
     }
   }
 
@@ -383,7 +443,8 @@ export default function initPlugin() {
     if (files) {
       const result = {
         type: 'file',
-        data: JSON.stringify(files)
+        data: JSON.stringify(files),
+        originPaths: files.map((f) => f.path).filter(Boolean)
       }
       console.log('[pbpaste] 返回文件类型, 数据长度:', result.data.length)
       return result
@@ -421,7 +482,7 @@ export default function initPlugin() {
   const db = new DB(dbPath)
   db.init()
 
-  const remove = (item) => db.removeItemViaId(item.id)
+  const remove = (item, options = {}) => db.removeItemViaId(item.id, options)
 
   const focus = (isBlur = false) => {
     return document.querySelector('.clip-search').style.display !== 'none'
@@ -451,6 +512,7 @@ export default function initPlugin() {
     console.log('[handleClipboardChange] 新记录, 准备添加')
     item.createTime = new Date().getTime()
     item.updateTime = new Date().getTime()
+    item.locked = false
     db.addItem(item)
     console.log('[handleClipboardChange] 处理完成')
   }
@@ -597,6 +659,8 @@ export default function initPlugin() {
   window.copy = copy
   window.paste = paste
   window.remove = remove
+  window.setLock = (id, locked) => db.setLock(id, locked)
+  window.isLocked = (id) => db.isLocked(id)
   window.createFile = createFile
   window.focus = focus
   window.toTop = toTop

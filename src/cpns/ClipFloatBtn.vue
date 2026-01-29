@@ -1,5 +1,5 @@
 <template>
-  <div class="clip-float-btn" @click="handleBtnClick">
+  <div class="clip-float-btn" @click="handleBtnClick" title="清除记录">
     <div>{{ props.icon }}</div>
   </div>
 </template>

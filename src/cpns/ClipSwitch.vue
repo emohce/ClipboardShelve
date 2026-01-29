@@ -4,6 +4,7 @@
       <template v-for="tab of tabs">
         <div
           :class="{ 'clip-switch-item': true, active: activeTab === tab.type }"
+          :title="tab.name"
           @click="toggleNav(tab.type)"
         >
           <component :is="tab.icon"></component>

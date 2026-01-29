@@ -8,7 +8,7 @@
       type="text"
       :placeholder="itemCount ? `🔍 在${itemCount}条历史中检索...` : '🔍 检索剪贴板历史...'"
     />
-    <span v-show="filterText" @click="clear" class="clip-search-suffix">✖</span>
+    <span v-show="filterText" @click="clear" class="clip-search-suffix" title="清空搜索">✖</span>
   </div>
 </template>
 
@@ -25,9 +25,15 @@ const props = defineProps({
 })
 
 const filterText = ref('')
-const emit = defineEmits(['update:modelValue', 'onPanelHide'])
+const emit = defineEmits(['update:modelValue', 'onPanelHide', 'onEmpty'])
 // filterText变了 通知父组件修改 modelValue的值
-watch(filterText, (val) => emit('update:modelValue', val))
+watch(filterText, (val, prev) => {
+  emit('update:modelValue', val)
+  if (prev && !val) {
+    // 删除到空字符串时，通知父组件退出搜索
+    emit('onEmpty')
+  }
+})
 
 const handleFocusOut = () => {
   // 失去焦点时 如果没有输入内容 则隐藏输入框
@@ -48,10 +54,11 @@ const clear = () => {
 }
 
 const handleKeyDown = (e) => {
+  // keep minimal work in keydown to avoid UI stalls
   // 当光标在末尾且没有选中文本时，Delete 键应该删除条目而不是删除文本
   if (e.key === 'Delete') {
     const input = e.target
-    const isAtEnd = input.selectionStart === input.selectionEnd && 
+    const isAtEnd = input.selectionStart === input.selectionEnd &&
                     input.selectionStart === input.value.length
     if (isAtEnd) {
       // 阻止默认的删除文本行为，但让事件继续冒泡以便父组件处理删除条目

@@ -59,6 +59,56 @@ const paste = () => {
   else utools.simulateKeyboardTap('v', 'ctrl')
 }
 
+const isUToolsPlugin = () => {
+  return typeof utools !== 'undefined' && utools.getNativeId
+}
+
+const copyWithSearchFocus = (item) => {
+  // 复制到剪切板
+  switch (item.type) {
+    case 'text':
+      utools.copyText(item.data)
+      break
+    case 'image':
+      utools.copyImage(item.data)
+      break
+    case 'file':
+      const paths = JSON.parse(item.data).map((file) => file.path)
+      utools.copyFile(paths)
+      break
+  }
+  
+  // 如果在 uTools 插件环境，只复制不粘贴（避免影响插件内状态）
+  if (isUToolsPlugin()) {
+    return
+  }
+  
+  // 非插件环境，先退出搜索焦点，再粘贴到外部光标位置
+  const searchInput = document.querySelector('.clip-search-input')
+  if (document.activeElement === searchInput) {
+    searchInput.blur()
+    setTimeout(() => paste(), 50)
+  } else {
+    paste()
+  }
+}
+
+const copyOnly = (item) => {
+  // 仅复制到剪切板，不执行任何其他操作
+  switch (item.type) {
+    case 'text':
+      utools.copyText(item.data)
+      break
+    case 'image':
+      utools.copyImage(item.data)
+      break
+    case 'file':
+      const paths = JSON.parse(item.data).map((file) => file.path)
+      utools.copyFile(paths)
+      break
+  }
+}
+
 const createFile = (item) => {
   const tempPath = utools.getPath('temp')
   const folderPath = tempPath + sep + 'utools-clipboard-manager'
@@ -87,4 +137,4 @@ const getNativeId = () => {
   return utools.getNativeId()
 }
 
-export { dateFormat, pointToObj, copy, paste, createFile, getNativeId }
+export { dateFormat, pointToObj, copy, paste, createFile, getNativeId, isUToolsPlugin, copyWithSearchFocus, copyOnly }
