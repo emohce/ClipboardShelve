@@ -198,7 +198,51 @@ onUnmounted(() => {
 </script>
 
 <style lang="less" scoped>
-@import '../style';
+
+// 定义颜色变量以解决作用域问题
+@media (prefers-color-scheme: dark) {
+  .setting {
+    --primary-color: #448bd2;
+    --primary-color-lighter: #4997e1;
+    --text-color: #e8e6e3;
+    --text-color-lighter: rgb(181, 181, 181);
+    --text-bg-color: #656565;
+    --text-bg-color-lighter: #4e4e4e;
+    --nav-bg-color: #222426;
+    --nav-hover-bg-color: #2b2e30;
+    --bg-color: #181a1b;
+  }
+}
+
+@media (prefers-color-scheme: light) {
+  .setting {
+    --primary-color: #3271ae;
+    --primary-color-lighter: #4997e1;
+    --text-color: #333;
+    --text-color-lighter: rgb(138, 138, 138);
+    --text-bg-color: #f2f2f2;
+    --text-bg-color-lighter: #eeeaf3;
+    --nav-bg-color: #eeeeee;
+    --nav-hover-bg-color: #dedede;
+    --bg-color: #fff;
+  }
+}
+
+// 使用CSS变量
+@primary-color: var(--primary-color);
+@primary-color-lighter: var(--primary-color-lighter);
+@text-color: var(--text-color);
+@text-color-lighter: var(--text-color-lighter);
+@text-bg-color: var(--text-bg-color);
+@text-bg-color-lighter: var(--text-bg-color-lighter);
+@nav-bg-color: var(--nav-bg-color);
+@nav-hover-bg-color: var(--nav-hover-bg-color);
+@bg-color: var(--bg-color);
+
+// 定义fade函数
+.fade(@color, @percent) {
+  @result: rgba(red(@color), green(@color), blue(@color), @percent);
+}
 .setting-card-content {
   padding: 12px 6px 4px;
 }

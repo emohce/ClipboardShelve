@@ -101,7 +101,7 @@
       padding: 10px 10px 10px 5px;
       .clip-time {
         display: flex;
-        flex-direction: column;
+        flex-direction: row;
         justify-content: center;
         align-items: center;
         min-width: 95px;
@@ -111,6 +111,7 @@
         border-style: solid;
         border-width: 0px 2px 0px 0px;
         margin: 0px 5px 0px 0px;
+        gap: 4px;
         .relative-date {
           display: flex;
           justify-content: center;
@@ -138,9 +139,132 @@
           max-height: 100px; // 比外框 max-height少一点 因为有 5px的边框
           max-width: 85%;
           box-shadow: 0px 0px 3px @text-color;
+          border-radius: 4px;
+          cursor: pointer;
+          transition: transform 0.2s ease;
+          
+          &:hover {
+            transform: scale(1.05);
+            box-shadow: 0px 2px 8px fade(@primary-color, 30%);
+          }
+        }
+        
+        .image-container {
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          min-height: 60px;
+          cursor: pointer;
+          
+          .image-error-placeholder {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 10px;
+            background: fade(@text-bg-color, 50%);
+            border-radius: 4px;
+            color: @text-color-lighter;
+            font-size: 12px;
+            border: 1px dashed fade(@primary-color, 30%);
+            
+            span {
+              margin-right: 4px;
+            }
+          }
+        }
+        
+        .image-preview {
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          padding: 10px;
+          
+          .preview-error {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+            color: @text-color-lighter;
+            font-size: 14px;
+          }
         }
         .clip-over-sized-content {
           color: @primary-color;
+        }
+        
+        // 文件中的图片处理样式
+        .file-with-images {
+          .image-files-preview {
+            display: flex;
+            align-items: center;
+            gap: 2px;
+            margin-bottom: 4px;
+            padding: 2px 4px;
+            background: fade(@primary-color, 10%);
+            border-radius: 3px;
+            
+            .image-file-indicator {
+              font-size: 10px;
+              opacity: 0.8;
+            }
+            
+            .more-images {
+              font-size: 9px;
+              color: @primary-color;
+              font-weight: bold;
+            }
+          }
+        }
+        
+        .image-files-section {
+          margin-bottom: 12px;
+          padding-bottom: 8px;
+          border-bottom: 1px solid fade(@text-bg-color-lighter, 50%);
+          
+          .section-title {
+            font-size: 12px;
+            font-weight: bold;
+            color: @primary-color;
+            margin-bottom: 6px;
+          }
+          
+          .image-files-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+            gap: 6px;
+            
+            .image-file-item {
+              display: flex;
+              align-items: center;
+              gap: 4px;
+              padding: 4px 6px;
+              background: fade(@text-bg-color, 30%);
+              border-radius: 3px;
+              font-size: 11px;
+              
+              .file-icon {
+                font-size: 12px;
+                opacity: 0.8;
+              }
+              
+              .file-name {
+                flex: 1;
+                overflow: hidden;
+                text-overflow: ellipsis;
+                white-space: nowrap;
+                color: @text-color;
+              }
+            }
+          }
+        }
+        
+        .all-files-section {
+          .section-title {
+            font-size: 12px;
+            font-weight: bold;
+            color: @text-color-lighter;
+            margin-bottom: 6px;
+          }
         }
       }
     }

@@ -15,10 +15,10 @@
     >
       <div class="clip-info">
         <div class="clip-time">
+          <span v-if="item.locked" class="clip-lock" title="已锁定" :key="`lock-${item.id}-${lockUpdateKey}`">🔒</span>
           <span class="relative-date" :title="new Date(item.updateTime).toLocaleString()">{{
             dateFormat(item.updateTime)
           }}</span>
-          <span v-if="item.locked" class="clip-lock" title="已锁定" :key="`lock-${item.id}-${lockUpdateKey}`">🔒</span>
         </div>
         <div class="clip-data">
           <template v-if="item.type === 'text'">
@@ -29,23 +29,33 @@
             </el-tooltip>
           </template>
           <template v-if="item.type === 'image'">
-            <el-popover placement="left" trigger="hover" width="260">
+            <el-popover placement="left" trigger="hover" width="260" :disabled="!isValidImageData(item.data)">
               <template #reference>
-                <el-image
-                  class="clip-data-image"
-                  :src="item.data"
-                  :preview-src-list="[item.data]"
-                  :hide-on-click-modal="true"
-                  fit="cover"
-                />
+                <div class="image-container" @click="handleImageClick(item)">
+                  <img 
+                    v-if="isValidImageData(item.data)"
+                    class="clip-data-image"
+                    :src="item.data"
+                    :alt="'Clipboard Image'"
+                    @error="handleImageError"
+                    @load="handleImageLoad"
+                  />
+                  <div v-else class="image-error-placeholder">
+                    <span>🖼️ 无效图片</span>
+                  </div>
+                </div>
               </template>
-              <el-image
-                :src="item.data"
-                :preview-src-list="[item.data]"
-                :hide-on-click-modal="true"
-                fit="contain"
-                style="width: 240px; max-height: 240px"
-              />
+              <div class="image-preview">
+                <img 
+                  v-if="isValidImageData(item.data)"
+                  :src="item.data"
+                  style="width: 240px; max-height: 240px; object-fit: contain;"
+                  @error="handleImageError"
+                />
+                <div v-else class="preview-error">
+                  <span>图片加载失败</span>
+                </div>
+              </div>
             </el-popover>
           </template>
           <template v-if="item.type === 'file'">
@@ -53,11 +63,34 @@
               <el-popover placement="left" trigger="hover" width="320">
                 <template #reference>
                   <div :class="{ 'clip-over-sized-content': isOverSizedContent(item) }">
-                    <FileList :data="JSON.parse(item.data).slice(0, 6)" />
+                    <div v-if="hasImageFiles(item)" class="file-with-images">
+                      <div class="image-files-preview">
+                        <span v-for="(imgFile, index) in getImageFiles(item).slice(0, 3)" :key="imgFile.path" class="image-file-indicator">
+                          🖼️
+                        </span>
+                        <span v-if="getImageFiles(item).length > 3" class="more-images">
+                          +{{ getImageFiles(item).length - 3 }}
+                        </span>
+                      </div>
+                      <FileList :data="JSON.parse(item.data).slice(0, 6)" />
+                    </div>
+                    <FileList v-else :data="JSON.parse(item.data).slice(0, 6)" />
                   </div>
                 </template>
                 <div style="max-height: 260px; overflow: auto">
-                  <FileList :data="JSON.parse(item.data)" />
+                  <div v-if="hasImageFiles(item)" class="image-files-section">
+                    <div class="section-title">📷 图片文件 ({{ getImageFiles(item).length }})</div>
+                    <div class="image-files-grid">
+                      <div v-for="imgFile in getImageFiles(item)" :key="imgFile.path" class="image-file-item">
+                        <div class="file-icon">🖼️</div>
+                        <div class="file-name">{{ imgFile.path?.split('/').pop() || imgFile.name }}</div>
+                      </div>
+                    </div>
+                  </div>
+                  <div class="all-files-section">
+                    <div class="section-title">📁 所有文件</div>
+                    <FileList :data="JSON.parse(item.data)" />
+                  </div>
                   <div v-if="Array.isArray(item.originPaths) && item.originPaths.length" style="margin-top: 8px; opacity: 0.75">
                     <div>原始路径</div>
                     <div v-for="p in item.originPaths" :key="p" :title="p" style="font-size: 12px; word-break: break-all">
@@ -140,6 +173,58 @@ const isOverSizedContent = (item) => {
     return data.split(`\n`).length - 1 > 6 || data.length > 255
   } else if (type === 'file') {
     return JSON.parse(item.data).length >= 6
+  }
+}
+
+// 图片数据验证
+const isValidImageData = (data) => {
+  if (!data || typeof data !== 'string') return false
+  return data.startsWith('data:image/') && data.includes('base64,')
+}
+
+// 图片点击处理
+const handleImageClick = (item) => {
+  if (isValidImageData(item.data)) {
+    copyWithSearchFocus(item)
+  }
+}
+
+// 图片加载错误处理
+const handleImageError = (event) => {
+  console.warn('[ClipItemList] 图片加载失败:', event.target.src)
+  event.target.style.display = 'none'
+}
+
+// 图片加载成功处理
+const handleImageLoad = (event) => {
+  console.log('[ClipItemList] 图片加载成功:', event.target.src)
+}
+
+// 检测文件中是否包含图片
+const hasImageFiles = (item) => {
+  if (item.type !== 'file') return false
+  try {
+    const files = JSON.parse(item.data)
+    return files.some(file => {
+      const extension = file.path?.split('.').pop()?.toLowerCase()
+      return ['jpg', 'jpeg', 'png', 'gif', 'bmp', 'webp', 'svg', 'ico'].includes(extension)
+    })
+  } catch (e) {
+    return false
+  }
+}
+
+// 获取文件中的图片文件
+const getImageFiles = (item) => {
+  if (item.type !== 'file') return []
+  try {
+    const files = JSON.parse(item.data)
+    return files.filter(file => {
+      const extension = file.path?.split('.').pop()?.toLowerCase()
+      return ['jpg', 'jpeg', 'png', 'gif', 'bmp', 'webp', 'svg', 'ico'].includes(extension)
+    })
+  } catch (e) {
+    return []
   }
 }
 
@@ -465,17 +550,12 @@ const keyDownCallBack = (e) => {
   }
 
   if (isArrowRight) {
-    const currentItem = props.showList[activeIndex.value]
-    if (currentItem) {
-      const nodeList = document.querySelectorAll('.clip-item')
-      const node = nodeList[activeIndex.value]
-      if (node) {
-        const rect = node.getBoundingClientRect()
-        drawerPosition.value = {top: rect.top, left: rect.right + 8}
-        const available = operations.value.filter((op) => filterOperate(op, currentItem, false))
-        drawerItems.value = applyDrawerOrder(available)
-        drawerDefaultActive.value = 0
-        drawerShow.value = available.length > 0
+    // Navigate to next item
+    if (activeIndex.value < props.showList.length - 1) {
+      activeIndex.value++
+      const nextNode = document.querySelector('.clip-item.active+.clip-item')
+      if (nextNode) {
+        nextNode.scrollIntoView({ block: 'nearest', inline: 'nearest' })
       }
     }
     e.preventDefault()
@@ -483,8 +563,16 @@ const keyDownCallBack = (e) => {
     return
   }
 
-  if (isArrowLeft && drawerShow.value) {
-    drawerShow.value = false
+  if (isArrowLeft) {
+    // Navigate to previous item
+    if (activeIndex.value > 0) {
+      activeIndex.value--
+      const prevNode = document.querySelector('.clip-item.active')?.previousElementSibling?.previousElementSibling
+      if (prevNode) {
+        prevNode.scrollIntoView({ block: 'nearest', inline: 'nearest' })
+      }
+    }
+    e.preventDefault()
     e.stopPropagation()
     return
   }
@@ -505,7 +593,21 @@ const keyDownCallBack = (e) => {
       preserveSelection()
       // 使用临时标志决定操作：如果全部已锁定则解锁全部，否则锁定全部
       const shouldLock = !allSelectedLocked.value
-      targets.forEach((item) => window.setLock(item.id, shouldLock, true)) // 跳过文件写入
+      
+      // 直接更新内存中的锁定状态，避免触发setLock的副作用
+      targets.forEach((item) => {
+        const target = window.db.dataBase.data.find((dbItem) => dbItem.id === item.id) ||
+                      window.db.dataBase.collectData.find((dbItem) => dbItem.id === item.id)
+        if (target) {
+          target.locked = shouldLock
+          // 同时更新showList中的item以保持UI同步
+          item.locked = shouldLock
+        }
+      })
+      
+      // 更新数据库时间戳但不写入文件
+      window.db.updateDataBase()
+      
       // 更新临时标志
       allSelectedLocked.value = shouldLock
       // 标记有待处理的锁定操作
