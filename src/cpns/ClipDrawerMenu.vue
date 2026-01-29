@@ -80,25 +80,48 @@ const onDrop = (idx) => {
 
 const keydownHandler = (e) => {
   if (!props.show) return
-  const { key, ctrlKey, metaKey, shiftKey } = e
+  const { key, ctrlKey, metaKey, shiftKey, altKey } = e
   const isCtrl = ctrlKey || metaKey
+  
+  // 立即阻止所有Ctrl组合键，防止穿透
+  if (isCtrl) {
+    e.preventDefault()
+    e.stopPropagation()
+    
+    // 处理抽屉内部的Ctrl+数字功能
+    const num = parseInt(key, 10)
+    if (!Number.isNaN(num) && num >= 1 && num <= localItems.value.length) {
+      const target = localItems.value[num - 1]
+      handleSelect(target, { sub: isCtrl && shiftKey })
+      return
+    }
+    
+    // 其他Ctrl组合键直接阻止
+    return
+  }
+  
+  // 阻止所有可能穿透的快捷键
   if (key === 'Escape' || key === 'ArrowLeft') {
     emit('close')
+    e.preventDefault()
     e.stopPropagation()
     return
   }
+  
   if (key === 'ArrowDown') {
     activeIndex.value = (activeIndex.value + 1) % localItems.value.length
     e.preventDefault()
     e.stopPropagation()
     return
   }
+  
   if (key === 'ArrowUp') {
     activeIndex.value = (activeIndex.value - 1 + localItems.value.length) % localItems.value.length
     e.preventDefault()
     e.stopPropagation()
     return
   }
+  
   if (key === 'Enter') {
     const target = localItems.value[activeIndex.value]
     if (target) {
@@ -108,23 +131,18 @@ const keydownHandler = (e) => {
     }
     return
   }
-  // Ctrl+数字快捷选择
-  const num = parseInt(key, 10)
-  if (isCtrl && !Number.isNaN(num) && num >= 1 && num <= localItems.value.length) {
-    const target = localItems.value[num - 1]
-    handleSelect(target, { sub: isCtrl && shiftKey })
-    e.preventDefault()
-    e.stopPropagation()
-    return
-  }
+  
+  // 阻止所有其他快捷键穿透，确保只在本层使用
+  e.preventDefault()
+  e.stopPropagation()
 }
 
 onMounted(() => {
-  document.addEventListener('keydown', keydownHandler)
+  document.addEventListener('keydown', keydownHandler, true) // 使用捕获阶段
 })
 
 onUnmounted(() => {
-  document.removeEventListener('keydown', keydownHandler)
+  document.removeEventListener('keydown', keydownHandler, true) // 使用捕获阶段
 })
 </script>
 

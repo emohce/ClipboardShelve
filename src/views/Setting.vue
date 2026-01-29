@@ -61,6 +61,69 @@
           </div>
 
           <div class="setting-card-content-item">
+            <div class="setting-section-title">快捷键说明</div>
+            <el-divider></el-divider>
+            <div class="shortcut-list">
+              <div class="shortcut-item">
+                <span class="shortcut-key">↑ ↓</span>
+                <span class="shortcut-desc">上下导航选择项目</span>
+              </div>
+              <div class="shortcut-item">
+                <span class="shortcut-key">← →</span>
+                <span class="shortcut-desc">左右切换分页</span>
+              </div>
+              <div class="shortcut-item">
+                <span class="shortcut-key">Enter</span>
+                <span class="shortcut-desc">复制选中的剪贴板内容</span>
+              </div>
+              <div class="shortcut-item">
+                <span class="shortcut-key">Ctrl + Enter</span>
+                <span class="shortcut-desc">复制并锁定选中的内容</span>
+              </div>
+              <div class="shortcut-item">
+                <span class="shortcut-key">Space</span>
+                <span class="shortcut-desc">向下多选项目</span>
+              </div>
+              <div class="shortcut-item">
+                <span class="shortcut-key">Ctrl/Cmd + D</span>
+                <span class="shortcut-desc">收藏/取消收藏选中项目</span>
+              </div>
+              <div class="shortcut-item">
+                <span class="shortcut-key">Ctrl/Cmd + U</span>
+                <span class="shortcut-desc">锁定/解锁选中项目</span>
+              </div>
+              <div class="shortcut-item">
+                <span class="shortcut-key">Delete/Backspace</span>
+                <span class="shortcut-desc">删除选中项目</span>
+              </div>
+              <div class="shortcut-item">
+                <span class="shortcut-key">Shift + Delete</span>
+                <span class="shortcut-desc">强制删除（包括锁定项目）</span>
+              </div>
+              <div class="shortcut-item">
+                <span class="shortcut-key">Shift（按住）</span>
+                <span class="shortcut-desc">预览图片内容</span>
+              </div>
+              <div class="shortcut-item">
+                <span class="shortcut-key">数字键 1-9</span>
+                <span class="shortcut-desc">快速复制对应位置的项目</span>
+              </div>
+              <div class="shortcut-item">
+                <span class="shortcut-key">Esc</span>
+                <span class="shortcut-desc">退出设置页/关闭对话框</span>
+              </div>
+              <div class="shortcut-item">
+                <span class="shortcut-key">Tab</span>
+                <span class="shortcut-desc">在清除对话框中切换选项</span>
+              </div>
+              <div class="shortcut-item">
+                <span class="shortcut-key">Ctrl + Delete</span>
+                <span class="shortcut-desc">强制删除选中项目（包括锁定项）</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="setting-card-content-item">
             <div class="setting-section-title">自定义功能</div>
             <el-divider></el-divider>
             <el-input v-model="stringCustom" :rows="5" type="textarea" placeholder="请填写 JSON 数组" />
@@ -265,5 +328,31 @@ onUnmounted(() => {
 }
 .operation-select {
   min-width: 240px;
+}
+.shortcut-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.shortcut-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 4px 0;
+}
+.shortcut-key {
+  min-width: 120px;
+  padding: 4px 8px;
+  background: var(--text-bg-color);
+  border: 1px solid var(--text-bg-color-lighter);
+  border-radius: 4px;
+  font-family: 'Courier New', monospace;
+  font-size: 12px;
+  color: var(--primary-color);
+  text-align: center;
+}
+.shortcut-desc {
+  color: var(--text-color);
+  font-size: 14px;
 }
 </style>

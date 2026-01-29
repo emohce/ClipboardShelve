@@ -766,7 +766,7 @@ const keyDownCallBack = (e) => {
         if (!props.isMultiple) {
           allSelectedLocked.value = false
         }
-      }, 150)
+      }, 50)
     } else {
       targets.forEach((item) => window.setLock(item.id, item.locked !== true))
     }

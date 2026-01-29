@@ -50,11 +50,30 @@ const onOverlayClick = () => {
 }
 
 const keyDownCallBack = (e) => {
-  const { key } = e
+  if (!props.isShow) return
+  const { key, ctrlKey, metaKey, shiftKey, altKey } = e
+  const isCtrl = ctrlKey || metaKey
+  
   if (key === 'Escape' && props.fullData.data) {
     // 有值时执行退出 Overlay
     emit('onOverlayClick')
+    e.preventDefault()
     e.stopPropagation()
+    return
+  }
+  
+  // 阻止所有其他快捷键穿透到底层
+  if (isCtrl || altKey) {
+    e.preventDefault()
+    e.stopPropagation()
+    return
+  }
+  
+  // 阻止导航键穿透
+  if (['Tab', 'Enter', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Home', 'End', 'PageUp', 'PageDown'].includes(key)) {
+    e.preventDefault()
+    e.stopPropagation()
+    return
   }
 }
 

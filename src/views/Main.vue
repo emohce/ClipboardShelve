@@ -86,16 +86,20 @@
           <p class="clear-panel-tip" v-else>
             操作与多选删除一致，收藏内容不会受影响。
           </p>
-          <el-radio-group v-model="clearRange" class="clear-range-group" size="small">
-            <el-radio-button
+          <div class="clear-range-group">
+            <button
               v-for="option in CLEAR_RANGE_OPTIONS"
               :key="option.value"
-              :label="option.value"
+              :class="['range-button', { active: clearRange === option.value }]"
               :data-range="option.value"
+              @click="handleRangeClick(option.value)"
+              @keydown="handleRangeKeydown($event, option.value)"
+              tabindex="0"
+              type="button"
             >
-              {{ option.label }}
-            </el-radio-button>
-          </el-radio-group>
+              <span>{{ option.label }}</span>
+            </button>
+          </div>
         </div>
         <div class="clear-panel-footer">
           <el-button @click="closeClearDialog">取消</el-button>
@@ -296,23 +300,70 @@ const textFilterCallBack = (item) => {
 const getClearDialogFocusables = () => {
   const container = clearDialogBodyRef.value
   if (!container) return []
-  const rangeButtons = Array.from(container.querySelectorAll('.clear-range-group button'))
+  // 只获取时间选项和底部按钮，排除关闭按钮
+  const rangeButtons = Array.from(container.querySelectorAll('.clear-range-group .range-button'))
   const footerButtons = Array.from(container.querySelectorAll('.clear-panel-footer button'))
-  return [...rangeButtons, ...footerButtons].filter((el) => !el.disabled)
+  
+  // 过滤掉不可见和禁用的元素
+  const visibleRangeButtons = rangeButtons.filter(el => !el.disabled && el.offsetParent !== null)
+  const visibleFooterButtons = footerButtons.filter(el => !el.disabled && el.offsetParent !== null)
+  
+  // 确保顺序：时间选项 -> 取消按钮 -> 清除按钮
+  return [...visibleRangeButtons, ...visibleFooterButtons]
+}
+
+const handleRangeClick = (value) => {
+  clearRange.value = value
+  // 点击后自动聚焦到该按钮
+  nextTick(() => {
+    const button = document.querySelector(`[data-range="${value}"]`)
+    button?.focus()
+  })
+}
+
+// 监听选中状态变化，自动更新焦点
+watch(clearRange, (newValue) => {
+  if (isClearDialogVisible.value) {
+    nextTick(() => {
+      const button = document.querySelector(`[data-range="${newValue}"]`)
+      button?.focus()
+    })
+  }
+})
+
+const handleRangeKeydown = (e, value) => {
+  const { key } = e
+  if (key === 'Enter' || key === ' ') {
+    e.preventDefault()
+    clearRange.value = value
+    return
+  }
+  if (key === 'Tab') {
+    // 让全局的Tab处理逻辑接管
+    return
+  }
 }
 
 const handleClearDialogHotkeys = (e) => {
-  const { key, ctrlKey, shiftKey } = e
+  const { key, ctrlKey, shiftKey, altKey, metaKey } = e
+  const isCtrl = ctrlKey || metaKey
+  
   if (key === 'Escape') {
     e.preventDefault()
+    e.stopPropagation()
     closeClearDialog()
     return true
   }
-  if (ctrlKey && key === 'Enter') {
+  
+  // Enter 和 Ctrl+Enter 都触发确认操作
+  if (key === 'Enter') {
     e.preventDefault()
+    e.stopPropagation()
     handleClearConfirm()
     return true
   }
+  
+  // 数字键快速选择
   if (/^[1-5]$/.test(key)) {
     const index = parseInt(key, 10) - 1
     const targetOption = CLEAR_RANGE_OPTIONS[index]
@@ -320,9 +371,12 @@ const handleClearDialogHotkeys = (e) => {
       clearRange.value = targetOption.value
       focusRangeButton(targetOption.value)
       e.preventDefault()
+      e.stopPropagation()
       return true
     }
   }
+  
+  // Tab导航
   if (key === 'Tab') {
     const focusable = getClearDialogFocusables()
     if (!focusable.length) return false
@@ -331,9 +385,36 @@ const handleClearDialogHotkeys = (e) => {
     if (idx === -1) idx = 0
     idx = (idx + (shiftKey ? -1 : 1) + focusable.length) % focusable.length
     focusable[idx].focus()
+    
+    // 如果焦点移动到时间选项按钮上，自动更新选中状态
+    const focusedElement = focusable[idx]
+    if (focusedElement.classList.contains('range-button')) {
+      const rangeValue = focusedElement.getAttribute('data-range')
+      if (rangeValue) {
+        clearRange.value = rangeValue
+      }
+    }
+    
     e.preventDefault()
+    e.stopPropagation()
     return true
   }
+  
+  // 阻止所有其他快捷键穿透，但允许Ctrl+数字（已在上面处理）
+  const num = parseInt(key, 10)
+  if ((isCtrl || altKey) && !(isCtrl && !Number.isNaN(num) && num >= 1 && num <= 5)) {
+    e.preventDefault()
+    e.stopPropagation()
+    return true
+  }
+  
+  // 阻止其他导航键
+  if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Home', 'End', 'PageUp', 'PageDown'].includes(key)) {
+    e.preventDefault()
+    e.stopPropagation()
+    return true
+  }
+  
   return false
 }
 
@@ -882,24 +963,114 @@ onMounted(() => {
   display: grid;
   grid-template-columns: repeat(2, minmax(120px, 1fr));
   gap: 10px;
-  :deep(.el-radio-button__inner) {
-    width: 80px;
-    text-align: center;
-    border: none;
-    border-radius: 10px !important;
-    background: #f4f6fb;
-    color: #5a5f73;
-    box-shadow: inset 0 0 0 1px transparent;
-    transition: all 0.2s ease;
-    &:hover {
-      background: #eef2ff;
-      color: #4c63d9;
+}
+
+.range-button {
+  width: 100%;
+  text-align: center;
+  border: none;
+  border-radius: 12px !important;
+  background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%);
+  color: #64748b;
+  box-shadow: 
+    inset 0 1px 0 rgba(255, 255, 255, 0.8),
+    0 1px 3px rgba(0, 0, 0, 0.1),
+    0 0 0 1px rgba(148, 163, 184, 0.1);
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  cursor: pointer;
+  outline: none;
+  padding: 10px 16px;
+  font-size: 13px;
+  font-weight: 500;
+  position: relative;
+  overflow: hidden;
+  
+  &::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: linear-gradient(135deg, rgba(99, 102, 241, 0.1) 0%, rgba(139, 92, 246, 0.1) 100%);
+    opacity: 0;
+    transition: opacity 0.3s ease;
+  }
+  
+  &::after {
+    content: '';
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: 0;
+    height: 0;
+    border-radius: 50%;
+    background: rgba(255, 255, 255, 0.3);
+    transform: translate(-50%, -50%);
+    transition: width 0.6s ease, height 0.6s ease;
+  }
+  
+  span {
+    position: relative;
+    z-index: 1;
+  }
+  
+  &:hover {
+    background: linear-gradient(135deg, #eef2ff 0%, #e0e7ff 100%);
+    color: #4f46e5;
+    transform: translateY(-1px);
+    box-shadow: 
+      inset 0 1px 0 rgba(255, 255, 255, 0.9),
+      0 4px 12px rgba(99, 102, 241, 0.15),
+      0 0 0 1px rgba(99, 102, 241, 0.2);
+    
+    &::before {
+      opacity: 1;
     }
   }
-  :deep(.is-active .el-radio-button__inner) {
-    background: #5c7cfa;
-    color: #fff;
-    box-shadow: 0 8px 16px rgba(92, 124, 250, 0.35);
+  
+  &:focus-visible {
+    outline: 2px solid #6366f1;
+    outline-offset: 2px;
+    box-shadow: 
+      0 0 0 4px rgba(99, 102, 241, 0.1),
+      inset 0 1px 0 rgba(255, 255, 255, 0.9),
+      0 4px 12px rgba(99, 102, 241, 0.15);
+  }
+  
+  &.active {
+    background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%);
+    color: #ffffff;
+    font-weight: 600;
+    transform: translateY(-1px);
+    box-shadow: 
+      inset 0 1px 0 rgba(255, 255, 255, 0.3),
+      0 8px 25px rgba(99, 102, 241, 0.4),
+      0 0 0 1px rgba(99, 102, 241, 0.3);
+    
+    &::before {
+      background: linear-gradient(135deg, rgba(255, 255, 255, 0.2) 0%, rgba(255, 255, 255, 0.1) 100%);
+      opacity: 1;
+    }
+    
+    &::after {
+      width: 300px;
+      height: 300px;
+    }
+    
+    &:hover {
+      background: linear-gradient(135deg, #7c3aed 0%, #a855f7 100%);
+      transform: translateY(-2px);
+      box-shadow: 
+        inset 0 1px 0 rgba(255, 255, 255, 0.4),
+        0 12px 35px rgba(124, 58, 237, 0.5),
+        0 0 0 1px rgba(124, 58, 237, 0.4);
+    }
+  }
+  
+  &:active {
+    transform: translateY(0) scale(0.98);
+    transition: transform 0.1s ease;
   }
 }
 
