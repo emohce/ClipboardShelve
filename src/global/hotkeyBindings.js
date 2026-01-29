@@ -14,6 +14,7 @@ export const HOTKEY_BINDINGS = [
   { layer: 'clear-dialog', shortcutId: '4', features: ['clear-dialog-range-24h'] },
   { layer: 'clear-dialog', shortcutId: '5', features: ['clear-dialog-range-all'] },
   { layer: 'clear-dialog', shortcutId: 'Tab', features: ['clear-dialog-tab'] },
+  { layer: 'clear-dialog', shortcutId: 'shift+Tab', features: ['clear-dialog-tab'] },
   { layer: 'clear-dialog', shortcutId: '*', features: ['clear-dialog-block'] },
 
   // ---- clip-drawer ----
@@ -44,6 +45,7 @@ export const HOTKEY_BINDINGS = [
 
   // ---- main: global ----
   { layer: 'main', shortcutId: 'Tab', features: ['main-tab'] },
+  { layer: 'main', shortcutId: 'shift+Tab', features: ['main-tab'] },
   { layer: 'main', shortcutId: 'ctrl+f', features: ['main-focus-search'] },
   { layer: 'main', shortcutId: 'alt+1', features: ['main-alt-tab-1'] },
   { layer: 'main', shortcutId: 'alt+2', features: ['main-alt-tab-2'] },

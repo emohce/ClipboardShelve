@@ -10,6 +10,8 @@ const MODIFIER_ORDER = ['ctrl', 'alt', 'shift', 'meta']
  * @param {KeyboardEvent} e
  * @returns {string} shortcutId e.g. "Delete", "ctrl+Backspace", "ctrl+shift+Delete"
  */
+const KEY_ALIAS = { ' ': 'Space' }
+
 export function eventToShortcutId(e) {
   const parts = []
   if (e.ctrlKey) parts.push('ctrl')
@@ -17,7 +19,8 @@ export function eventToShortcutId(e) {
   if (e.shiftKey) parts.push('shift')
   if (e.metaKey) parts.push('meta')
   let key = e.key
-  if (key && key.length === 1) key = key.toLowerCase()
+  if (key && KEY_ALIAS[key] !== undefined) key = KEY_ALIAS[key]
+  else if (key && key.length === 1) key = key.toLowerCase()
   if (key) parts.push(key)
   return parts.join('+')
 }

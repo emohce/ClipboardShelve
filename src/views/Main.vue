@@ -630,8 +630,12 @@ onMounted(() => {
     { immediate: true }
   )
 
-  // 多选已选择的条数
-  selectCount.value = computed(() => ClipItemListRef.value?.selectItemList?.length)
+  // 多选已选择的条数（用 watch 更新，避免 computed 赋给 ref 导致运行时 null 引用）
+  watch(
+    () => ClipItemListRef.value?.selectItemList?.length ?? 0,
+    (len) => { selectCount.value = len },
+    { immediate: true }
+  )
 
   // 初始化数据
   list.value = window.db.dataBase.data
@@ -832,9 +836,6 @@ onMounted(() => {
           type: 'info'
         })
       }
-      filterText.value = ''
-      isSearchPanelExpand.value = false
-      window.focus()
       return true
     })
     registerFeature('search-delete-force', () => {
@@ -853,9 +854,6 @@ onMounted(() => {
         adjustActiveIndexAfterDelete(0)
         ElMessage({ type: 'success', message: `已强制删除 ${removed} 条搜索结果` })
       }
-      filterText.value = ''
-      isSearchPanelExpand.value = false
-      window.focus()
       return true
     })
   }

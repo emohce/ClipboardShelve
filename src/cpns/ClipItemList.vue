@@ -124,6 +124,17 @@
       </div>
     </div>
   </div>
+
+  <!-- Long Text Preview (Shift hold) -->
+  <div
+    v-if="textPreview.show"
+    class="text-preview-modal"
+    :style="textPreview.style"
+    @mouseenter="keepTextPreview"
+    @mouseleave="hideTextPreview"
+  >
+    <div class="text-preview-content">{{ textPreview.text }}</div>
+  </div>
   
   <ClipDrawerMenu
       :show="drawerShow"
@@ -214,7 +225,13 @@ const handleImageLoad = (event) => {
 // 显示图片预览
 const showImagePreview = (event, item) => {
   if (!isValidImageData(item.data)) return
-  
+
+  textPreview.value.show = false
+  if (textPreviewHideTimer) {
+    clearTimeout(textPreviewHideTimer)
+    textPreviewHideTimer = null
+  }
+
   // 清除之前的隐藏定时器
   if (imagePreviewHideTimer) {
     clearTimeout(imagePreviewHideTimer)
@@ -274,20 +291,38 @@ const keepImagePreview = () => {
   }
 }
 
-// Shift键长按处理
+// Shift 持续按下预览：按 item 类型封装的预览入口
+const SHIFT_PREVIEW_HOLD_MS = 100
+const LONG_TEXT_THRESHOLD = 80
+
+const isLongText = (item) => {
+  if (!item || item.type !== 'text' || typeof item.data !== 'string') return false
+  return item.data.length > LONG_TEXT_THRESHOLD || item.data.includes('\n')
+}
+
+/** 根据当前 item 类型执行预览（图片 / 长文本，其余类型暂不处理） */
+const runPreviewForItem = (item) => {
+  if (!item) return
+  if (item.type === 'image' && isValidImageData(item.data)) {
+    showImagePreview(null, item)
+    return
+  }
+  if (item.type === 'text' && isLongText(item)) {
+    showTextPreview(item)
+    return
+  }
+}
+
+// Shift键长按处理（普通层 100ms 持续即对所在 item 进行预览）
 const handleShiftKeyDown = () => {
   if (shiftKeyTimer) return
-  
+
   shiftKeyDownTime = Date.now()
   shiftKeyTimer = setTimeout(() => {
-    // Shift键按住超过100ms，触发键盘预览
     keyboardTriggeredPreview.value = true
-    // 如果当前有活跃的图片项，显示预览
     const currentItem = props.showList[activeIndex.value]
-    if (currentItem && currentItem.type === 'image' && isValidImageData(currentItem.data)) {
-      showImagePreview(null, currentItem)
-    }
-  }, 100) // 改为100ms
+    runPreviewForItem(currentItem)
+  }, SHIFT_PREVIEW_HOLD_MS)
 }
 
 const handleShiftKeyUp = () => {
@@ -295,25 +330,74 @@ const handleShiftKeyUp = () => {
     clearTimeout(shiftKeyTimer)
     shiftKeyTimer = null
   }
-  
-  // 如果是键盘触发的预览，隐藏预览
+
   if (keyboardTriggeredPreview.value) {
     keyboardTriggeredPreview.value = false
-    // 使用更温和的方式隐藏预览，避免影响UI状态
     imagePreviewHideTimer = setTimeout(() => {
       imagePreview.value.show = false
       imagePreviewHideTimer = null
-    }, 100) // 减少延迟时间
+    }, 100)
+    textPreviewHideTimer = setTimeout(() => {
+      textPreview.value.show = false
+      textPreviewHideTimer = null
+    }, 100)
   }
 }
 
-// 键盘触发的图片预览
-const triggerKeyboardImagePreview = () => {
+// 键盘触发的预览（Shift 长按后切换 item 时刷新预览）
+const triggerKeyboardPreview = () => {
   if (!keyboardTriggeredPreview.value) return
-  
   const currentItem = props.showList[activeIndex.value]
-  if (currentItem && currentItem.type === 'image' && isValidImageData(currentItem.data)) {
-    showImagePreview(null, currentItem)
+  runPreviewForItem(currentItem)
+}
+
+const showTextPreview = (item) => {
+  imagePreview.value.show = false
+  if (imagePreviewHideTimer) {
+    clearTimeout(imagePreviewHideTimer)
+    imagePreviewHideTimer = null
+  }
+  if (textPreviewHideTimer) {
+    clearTimeout(textPreviewHideTimer)
+    textPreviewHideTimer = null
+  }
+  const margin = 80
+  const maxW = window.innerWidth - margin * 2
+  const maxH = window.innerHeight - margin * 2
+  textPreview.value.text = item.data || ''
+  textPreview.value.show = true
+  textPreview.value.style = {
+    position: 'fixed',
+    top: '50%',
+    left: '50%',
+    transform: 'translate(-50%, -50%)',
+    zIndex: 9999,
+    backgroundColor: 'rgba(0, 0, 0, 0.88)',
+    borderRadius: '8px',
+    padding: '16px 20px',
+    boxShadow: '0 8px 32px rgba(0, 0, 0, 0.35)',
+    maxWidth: `${maxW}px`,
+    maxHeight: `${maxH}px`,
+    overflow: 'auto',
+    whiteSpace: 'pre-wrap',
+    wordBreak: 'break-word',
+    fontSize: '14px',
+    lineHeight: '1.5',
+    color: '#e8e6e3'
+  }
+}
+
+const hideTextPreview = () => {
+  textPreviewHideTimer = setTimeout(() => {
+    textPreview.value.show = false
+    textPreviewHideTimer = null
+  }, 200)
+}
+
+const keepTextPreview = () => {
+  if (textPreviewHideTimer) {
+    clearTimeout(textPreviewHideTimer)
+    textPreviewHideTimer = null
   }
 }
 
@@ -402,8 +486,17 @@ const imagePreview = ref({
   imageStyle: {}
 })
 
+// 长文本预览相关
+const textPreview = ref({
+  show: false,
+  text: '',
+  style: {}
+})
+
 // 图片预览隐藏定时器
 let imagePreviewHideTimer = null
+// 长文本预览隐藏定时器
+let textPreviewHideTimer = null
 
 // Shift键长按相关
 let shiftKeyDownTime = 0
@@ -449,6 +542,9 @@ const updateAllSelectedLockedFlag = () => {
 
 // 保存选中项的ID列表，用于在数据更新后恢复选择
 const selectedItemIds = ref([])
+// 多选普通删除后：用于在 showList 更新时恢复高亮（若高亮项被删则下移，最后一个则上移）
+const pendingHighlightedItemId = ref(null)
+const pendingActiveIndexAfterDelete = ref(null)
 const preserveSelection = () => {
   selectedItemIds.value = selectItemList.value.map(item => item.id)
 }
@@ -551,22 +647,34 @@ const handleMouseOver = (index) => {
     activeIndex.value = index
   }
 }
-// 监听activeIndex变化，在Shift长按状态下触发图片预览
+// 监听activeIndex变化，在Shift长按状态下触发预览
 watch(
   () => activeIndex.value,
-  (newIndex) => {
+  () => {
     if (keyboardTriggeredPreview.value) {
-      triggerKeyboardImagePreview()
+      triggerKeyboardPreview()
     }
   }
 )
 
-// 监听showList变化，恢复选择状态
+// 监听showList变化，恢复选择状态并恢复高亮
 watch(
   () => props.showList,
   (newList, oldList) => {
     if (newList && oldList && newList !== oldList) {
       restoreSelection()
+      if (props.isMultiple && pendingHighlightedItemId.value != null && pendingActiveIndexAfterDelete.value != null) {
+        const id = pendingHighlightedItemId.value
+        const oldIdx = pendingActiveIndexAfterDelete.value
+        pendingHighlightedItemId.value = null
+        pendingActiveIndexAfterDelete.value = null
+        const idx = newList.findIndex((item) => item.id === id)
+        if (idx !== -1) {
+          activeIndex.value = idx
+        } else {
+          activeIndex.value = Math.min(oldIdx, newList.length - 1)
+        }
+      }
     }
   },
   { deep: true }
@@ -704,7 +812,16 @@ function registerListHotkeyFeatures() {
     const deletableItems = itemsToDelete.filter((item) => item.locked !== true)
     const skippedLocked = itemsToDelete.length - deletableItems.length
     if (deletableItems.length) {
-      if (props.isMultiple) selectItemList.value = selectItemList.value.filter((item) => !deletableItems.includes(item))
+      if (props.isMultiple) {
+        const toKeep = selectItemList.value.filter((item) => !deletableItems.includes(item))
+        selectedItemIds.value = toKeep.map((item) => item.id)
+        selectItemList.value = selectItemList.value.filter((item) => !deletableItems.includes(item))
+        const highlighted = props.showList[activeIndex.value]
+        if (highlighted) {
+          pendingHighlightedItemId.value = highlighted.id
+          pendingActiveIndexAfterDelete.value = activeIndex.value
+        }
+      }
       deletableItems.forEach((item, index) =>
         emit('onItemDelete', item, { anchorIndex: activeIndex.value, isBatch: props.isMultiple && deletableItems.length > 1, isLast: index === deletableItems.length - 1, force: false })
       )
@@ -806,9 +923,24 @@ onUnmounted(() => {
     clearTimeout(shiftKeyTimer)
     shiftKeyTimer = null
   }
+
+  // 清理长文本预览定时器
+  if (textPreviewHideTimer) {
+    clearTimeout(textPreviewHideTimer)
+    textPreviewHideTimer = null
+  }
 })
 </script>
 
 <style lang="less" scoped>
 @import '../style';
+
+.text-preview-modal {
+  .text-preview-content {
+    white-space: pre-wrap;
+    word-break: break-word;
+    max-height: inherit;
+    overflow: auto;
+  }
+}
 </style>
