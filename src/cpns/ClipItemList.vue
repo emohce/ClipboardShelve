@@ -138,6 +138,7 @@
 
 <script setup>
 import {ref, onMounted, onUnmounted, watch, computed} from 'vue'
+import {getCurrentLayer} from '../global/hotkeyLayers'
 import { ElMessage } from 'element-plus'
 import FileList from './FileList.vue'
 import ClipOperate from './ClipOperate.vue'
@@ -592,8 +593,7 @@ const keyDownCallBack = (e) => {
   if (e.__layerHandled) {
     return
   }
-  const clearPanel = document.querySelector('.clear-panel')
-  if (clearPanel && clearPanel.offsetParent !== null) {
+  if (getCurrentLayer()) {
     return
   }
   const {key, ctrlKey, metaKey, altKey, shiftKey} = e

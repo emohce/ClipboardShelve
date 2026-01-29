@@ -28,7 +28,7 @@
 
 <script setup>
 import {ref, watch, onUnmounted} from 'vue'
-import {activateLayer, deactivateLayer} from '../global/hotkeyLayers'
+import {activateLayer, deactivateLayer, setHotkeyAction} from '../global/hotkeyLayers'
 
 const props = defineProps({
   show: { type: Boolean, required: true },
@@ -91,6 +91,7 @@ const drawerHotkeyHandler = (e) => {
   const isCtrl = ctrlKey || metaKey
 
   if (isCtrl) {
+    setHotkeyAction('drawer-select', layerName)
     e.preventDefault()
     e.stopPropagation()
     const num = parseInt(key, 10)
@@ -102,6 +103,7 @@ const drawerHotkeyHandler = (e) => {
   }
 
   if (key === 'Escape' || key === 'ArrowLeft') {
+    setHotkeyAction('drawer-close', layerName)
     emit('close')
     e.preventDefault()
     e.stopPropagation()
@@ -109,6 +111,7 @@ const drawerHotkeyHandler = (e) => {
   }
 
   if (key === 'ArrowDown') {
+    setHotkeyAction('drawer-nav', layerName)
     activeIndex.value = (activeIndex.value + 1) % localItems.value.length
     e.preventDefault()
     e.stopPropagation()
@@ -116,6 +119,7 @@ const drawerHotkeyHandler = (e) => {
   }
 
   if (key === 'ArrowUp') {
+    setHotkeyAction('drawer-nav', layerName)
     activeIndex.value = (activeIndex.value - 1 + localItems.value.length) % localItems.value.length
     e.preventDefault()
     e.stopPropagation()
@@ -125,6 +129,7 @@ const drawerHotkeyHandler = (e) => {
   if (key === 'Enter') {
     const target = localItems.value[activeIndex.value]
     if (target) {
+      setHotkeyAction('drawer-select', layerName)
       handleSelect(target, { sub: isCtrl && shiftKey })
       e.preventDefault()
       e.stopPropagation()

@@ -118,7 +118,7 @@
 <script setup>
 import { ref, watch, onMounted, onUnmounted, computed, nextTick } from 'vue'
 import { ElMessage, ElMessageBox, ElButton, ElRadioGroup, ElRadioButton, ElTooltip } from 'element-plus'
-import { handleLayerKeyDown, activateLayer, deactivateLayer } from '../global/hotkeyLayers'
+import { handleLayerKeyDown, activateLayer, deactivateLayer, setHotkeyAction, getCurrentLayer } from '../global/hotkeyLayers'
 import ClipItemList from '../cpns/ClipItemList.vue'
 import ClipFullData from '../cpns/ClipFullData.vue'
 import ClipSearch from '../cpns/ClipSearch.vue'
@@ -351,6 +351,7 @@ const handleClearDialogHotkeys = (e) => {
   const isCtrl = ctrlKey || metaKey
   
   if (key === 'Escape') {
+    setHotkeyAction('clear-dialog-close', CLEAR_DIALOG_LAYER)
     e.preventDefault()
     e.stopPropagation()
     closeClearDialog()
@@ -359,6 +360,7 @@ const handleClearDialogHotkeys = (e) => {
   
   // Enter 和 Ctrl+Enter 都触发确认操作
   if (key === 'Enter') {
+    setHotkeyAction('clear-dialog-confirm', CLEAR_DIALOG_LAYER)
     e.preventDefault()
     e.stopPropagation()
     handleClearConfirm()
@@ -370,6 +372,7 @@ const handleClearDialogHotkeys = (e) => {
     const index = parseInt(key, 10) - 1
     const targetOption = CLEAR_RANGE_OPTIONS[index]
     if (targetOption) {
+      setHotkeyAction('clear-dialog-select-range', CLEAR_DIALOG_LAYER)
       clearRange.value = targetOption.value
       focusRangeButton(targetOption.value)
       e.preventDefault()
@@ -393,6 +396,7 @@ const handleClearDialogHotkeys = (e) => {
     if (focusedElement.classList.contains('range-button')) {
       const rangeValue = focusedElement.getAttribute('data-range')
       if (rangeValue) {
+        setHotkeyAction('clear-dialog-select-range', CLEAR_DIALOG_LAYER)
         clearRange.value = rangeValue
       }
     }
@@ -404,6 +408,7 @@ const handleClearDialogHotkeys = (e) => {
   
   // 阻止所有其他快捷键穿透（包含 Ctrl+数字）
   if (isCtrl || altKey) {
+    setHotkeyAction('clear-dialog-blocked', CLEAR_DIALOG_LAYER)
     e.preventDefault()
     e.stopPropagation()
     return true
@@ -411,6 +416,7 @@ const handleClearDialogHotkeys = (e) => {
   
   // 阻止其他导航键
   if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Home', 'End', 'PageUp', 'PageDown'].includes(key)) {
+    setHotkeyAction('clear-dialog-blocked', CLEAR_DIALOG_LAYER)
     e.preventDefault()
     e.stopPropagation()
     return true
@@ -789,6 +795,9 @@ onMounted(() => {
     }
 
     if (handleLayerKeyDown(e)) {
+      return
+    }
+    if (getCurrentLayer()) {
       return
     }
     const isTab = key === 'Tab'

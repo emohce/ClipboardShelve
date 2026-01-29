@@ -1,6 +1,11 @@
 import { reactive } from 'vue'
 
 const layerStack = reactive([])
+const hotkeyState = reactive({
+  currentLayer: null,
+  action: null,
+  sourceLayer: null
+})
 
 export const activateLayer = (name, handler) => {
   if (!name) return
@@ -9,6 +14,7 @@ export const activateLayer = (name, handler) => {
     layerStack.splice(idx, 1)
   }
   layerStack.push({ name, handler })
+  hotkeyState.currentLayer = layerStack[layerStack.length - 1]?.name || null
 }
 
 export const deactivateLayer = (name) => {
@@ -17,25 +23,40 @@ export const deactivateLayer = (name) => {
   if (idx !== -1) {
     layerStack.splice(idx, 1)
   }
+  hotkeyState.currentLayer = layerStack[layerStack.length - 1]?.name || null
 }
 
+export const setHotkeyAction = (action, sourceLayer = null) => {
+  hotkeyState.action = action
+  hotkeyState.sourceLayer = sourceLayer || hotkeyState.currentLayer
+}
+
+export const clearHotkeyAction = () => {
+  hotkeyState.action = null
+  hotkeyState.sourceLayer = null
+}
+
+export const getHotkeyState = () => hotkeyState
+export const getCurrentLayer = () => hotkeyState.currentLayer
+
 export const handleLayerKeyDown = (event) => {
+  clearHotkeyAction()
+  hotkeyState.currentLayer = layerStack[layerStack.length - 1]?.name || null
+  if (!hotkeyState.currentLayer) {
+    return false
+  }
   if (event && event.__layerHandled) {
     return true
   }
-  for (let i = layerStack.length - 1; i >= 0; i -= 1) {
-    const handler = layerStack[i].handler
-    if (typeof handler === 'function') {
-      const handled = handler(event)
-      if (handled) {
-        if (event) {
-          event.__layerHandled = true
-        }
-        return true
-      }
-    }
+  const handler = layerStack[layerStack.length - 1]?.handler
+  if (typeof handler !== 'function') {
+    return false
   }
-  return false
+  const handled = handler(event)
+  if (handled && event) {
+    event.__layerHandled = true
+  }
+  return Boolean(handled)
 }
 
 export const getActiveLayers = () => layerStack.map((layer) => layer.name)
