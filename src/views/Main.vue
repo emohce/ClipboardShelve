@@ -817,11 +817,11 @@ onMounted(() => {
       const index = tabTypes.indexOf(activeTab.value)
       const target = shiftKey
         ? index <= 0
-          ? tabTypes[tabTypes.length - 1]
-          : tabTypes[index - 1]
-        : index === tabTypes.length - 1
-          ? tabTypes[0]
-          : tabTypes[index + 1]
+          ? tabTypes[tabTypes.length - 1]  // 从第一个循环到最后一个
+          : tabTypes[index - 1]             // 向前移动
+        : index >= tabTypes.length - 1
+          ? tabTypes[0]                     // 从最后一个循环到第一个
+          : tabTypes[index + 1]            // 向后移动
       toggleNav(target)
       updateShowList(target)
     } else if (isSearch) {

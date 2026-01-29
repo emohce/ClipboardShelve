@@ -22,6 +22,7 @@
             <div class="setting-row">
               <span>最大历史条数</span>
               <el-select class="number-select" v-model="maxsize" fit-input-width>
+                <el-option label="不限制" :value="null" />
                 <el-option v-for="n in [500, 600, 700, 800, 900, 1000]" :key="n" :value="n" />
               </el-select>
               条

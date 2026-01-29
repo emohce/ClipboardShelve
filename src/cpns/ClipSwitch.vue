@@ -21,11 +21,11 @@ import { ref } from 'vue'
 import { Menu, Tickets, Picture, Document, Collection } from '@element-plus/icons-vue'
 
 const tabs = [
+  { name: '收藏', type: 'collect', icon: Collection },
   { name: '全部', type: 'all', icon: Menu },
   { name: '文字', type: 'text', icon: Tickets },
   { name: '图片', type: 'image', icon: Picture },
-  { name: '文件', type: 'file', icon: Document },
-  { name: '收藏', type: 'collect', icon: Collection }
+  { name: '文件', type: 'file', icon: Document }
 ]
 const activeTab = ref('all')
 const toggleNav = (type) => (activeTab.value = type)

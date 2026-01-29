@@ -211,22 +211,25 @@ export default function initPlugin() {
       
       this.dataBase.data.unshift({ ...cItem, locked: false })
       this.updateDataBase()
-      const exceedCount = this.dataBase.data.length - setting.database.maxsize
-      if (exceedCount > 0) {
-        // 达到条数限制 在收藏条数限制内遍历非收藏历史并删除
-        // 所有被移除的 item都存入tempList
-        const collectIds = new Set(this.dataBase.collects || [])
-        const tmpList = []
-        for (let i = 0; i < exceedCount; i++) {
-          const item = this.dataBase.data.pop()
-          tmpList.push(item)
-        }
-        // 收藏内容 重新入栈
-        tmpList.forEach((item) => {
-          if (collectIds.has(item.id)) {
-            this.dataBase.data.push(item)
+      // 只有在设置了最大条数限制时才进行清理
+      if (setting.database.maxsize !== null) {
+        const exceedCount = this.dataBase.data.length - setting.database.maxsize
+        if (exceedCount > 0) {
+          // 达到条数限制 在收藏条数限制内遍历非收藏历史并删除
+          // 所有被移除的 item都存入tempList
+          const collectIds = new Set(this.dataBase.collects || [])
+          const tmpList = []
+          for (let i = 0; i < exceedCount; i++) {
+            const item = this.dataBase.data.pop()
+            tmpList.push(item)
           }
-        })
+          // 收藏内容 重新入栈
+          tmpList.forEach((item) => {
+            if (collectIds.has(item.id)) {
+              this.dataBase.data.push(item)
+            }
+          })
+        }
       }
       this.updateDataBaseLocal()
     }
