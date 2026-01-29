@@ -291,14 +291,16 @@ export default function initPlugin() {
       console.log('[DB.removeItemViaId] 未找到项目, ID:', id)
       return false
     }
-    setLock(itemId, locked = true) {
+    setLock(itemId, locked = true, skipFileWrite = false) {
       const target =
         this.dataBase.data.find((item) => item.id === itemId) ||
         this.dataBase.collectData.find((item) => item.id === itemId)
       if (!target) return false
       target.locked = locked
       this.updateDataBase()
-      debouncedWriteLocal()
+      if (!skipFileWrite) {
+        debouncedWriteLocal()
+      }
       return true
     }
     isLocked(itemId) {
@@ -659,7 +661,7 @@ export default function initPlugin() {
   window.copy = copy
   window.paste = paste
   window.remove = remove
-  window.setLock = (id, locked) => db.setLock(id, locked)
+  window.setLock = (id, locked, skipFileWrite) => db.setLock(id, locked, skipFileWrite)
   window.isLocked = (id) => db.isLocked(id)
   window.createFile = createFile
   window.focus = focus

@@ -21,10 +21,77 @@
       border-style: solid hidden hidden solid; // TODO: 会导致左侧提示块上部被切下去一块
       border-width: 1px 0px 0px 6px;
       border-color: @text-bg-color-lighter @bg-color @bg-color @primary-color;
+      background-color: @text-bg-color-lighter;
       transition: all 0.15s;
     }
     &.select {
-      background-color: @text-bg-color-lighter;
+      background: linear-gradient(90deg, fade(@primary-color, 15%) 0%, fade(@primary-color, 8%) 100%);
+      border-style: solid hidden hidden solid;
+      border-width: 2px 0px 2px 8px;
+      border-color: @primary-color @bg-color @primary-color @primary-color;
+      box-shadow: 0 2px 8px fade(@primary-color, 20%);
+      transform: translateX(2px);
+      transition: all 0.2s ease-in-out;
+      position: relative;
+      
+      &::before {
+        content: '';
+        position: absolute;
+        left: -2px;
+        top: 0;
+        bottom: 0;
+        width: 4px;
+        background: @primary-color;
+        border-radius: 0 2px 2px 0;
+      }
+      
+      &:hover {
+        transform: translateX(3px);
+        box-shadow: 0 3px 12px fade(@primary-color, 30%);
+        background: linear-gradient(90deg, fade(@primary-color, 20%) 0%, fade(@primary-color, 10%) 100%);
+      }
+    }
+    
+    // Merged style for items that are both active/multi-active AND selected
+    &.active.select,
+    &.multi-active.select {
+      background: linear-gradient(135deg, fade(@primary-color, 25%) 0%, fade(@primary-color, 15%) 50%, fade(@primary-color, 8%) 100%);
+      border-style: solid hidden hidden solid;
+      border-width: 3px 0px 3px 12px;
+      border-color: @primary-color-lighter @bg-color @primary-color-lighter @primary-color;
+      box-shadow: 0 4px 16px fade(@primary-color, 35%), inset 0 1px 0 fade(@primary-color, 20%);
+      transform: translateX(4px) scale(1.02);
+      transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+      position: relative;
+      
+      &::before {
+        content: '';
+        position: absolute;
+        left: -3px;
+        top: -1px;
+        bottom: -1px;
+        width: 6px;
+        background: linear-gradient(180deg, @primary-color-lighter 0%, @primary-color 100%);
+        border-radius: 0 3px 3px 0;
+        box-shadow: 0 0 8px fade(@primary-color, 40%);
+      }
+      
+      &::after {
+        content: '';
+        position: absolute;
+        top: -3px;
+        left: 12px;
+        right: 0;
+        height: 3px;
+        background: linear-gradient(90deg, @primary-color 0%, transparent 100%);
+        border-radius: 0 3px 0 0;
+      }
+      
+      &:hover {
+        transform: translateX(6px) scale(1.03);
+        box-shadow: 0 6px 24px fade(@primary-color, 45%), inset 0 1px 0 fade(@primary-color, 30%);
+        background: linear-gradient(135deg, fade(@primary-color, 30%) 0%, fade(@primary-color, 20%) 50%, fade(@primary-color, 12%) 100%);
+      }
     }
     .clip-info {
       display: flex;

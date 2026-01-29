@@ -18,7 +18,7 @@
           <span class="relative-date" :title="new Date(item.updateTime).toLocaleString()">{{
             dateFormat(item.updateTime)
           }}</span>
-          <span v-if="item.locked" class="clip-lock" title="已锁定">🔒</span>
+          <span v-if="item.locked" class="clip-lock" title="已锁定" :key="`lock-${item.id}-${lockUpdateKey}`">🔒</span>
         </div>
         <div class="clip-data">
           <template v-if="item.type === 'text'">
@@ -130,7 +130,8 @@ const emit = defineEmits([
   'onDataRemove',
   'onMultiCopyExecute',
   'toggleMultiSelect',
-  'onItemDelete'
+  'onItemDelete',
+  'openCleanDialog'
 ])
 const isOverSizedContent = (item) => {
   const { type, data } = item
@@ -187,6 +188,9 @@ const applyDrawerOrder = (list) => {
 }
 const isShiftDown = ref(false)
 const selectItemList = ref([])
+const allSelectedLocked = ref(false) // 临时标志：记录所有选中项是否都已锁定
+const pendingLockOperations = ref(false) // 标记是否有待处理的锁定操作
+const lockUpdateKey = ref(0) // 用于强制更新锁图标
 const activeIndex = ref(0) // 定义 activeIndex，需要在 defineExpose 之前
 const drawerShow = ref(false)
 const drawerPosition = ref({top: 0, left: 0})
@@ -206,15 +210,53 @@ watch(
   (val) => {
     if (!val) {
       emptySelectItemList() // 退出多选状态 清空列表
+      // 只有在没有待处理的锁定操作时才重置标志
+      if (!pendingLockOperations.value) {
+        allSelectedLocked.value = false // 重置锁定状态标志
+      }
+    } else if (val && selectItemList.value.length > 0) {
+      // 进入多选模式且已有选中项时，初始化锁定状态标志
+      updateAllSelectedLockedFlag()
     }
   }
 )
+// 更新所有选中项锁定状态的标志
+const updateAllSelectedLockedFlag = () => {
+  if (selectItemList.value.length === 0) {
+    allSelectedLocked.value = false
+    return
+  }
+  allSelectedLocked.value = selectItemList.value.every(item => item.locked === true)
+}
+
+// 保存选中项的ID列表，用于在数据更新后恢复选择
+const selectedItemIds = ref([])
+const preserveSelection = () => {
+  selectedItemIds.value = selectItemList.value.map(item => item.id)
+}
+
+// 恢复选择状态
+const restoreSelection = () => {
+  if (!props.isMultiple || selectedItemIds.value.length === 0) return
+  
+  const newSelection = props.showList.filter(item => 
+    selectedItemIds.value.includes(item.id)
+  )
+  selectItemList.value = newSelection
+  selectedItemIds.value = []
+  updateAllSelectedLockedFlag()
+}
+
 // 多选列表为空时自动退出多选状态
 watch(
     () => selectItemList.value.length,
     (len) => {
       if (props.isMultiple && len === 0) {
         emit('toggleMultiSelect', false)
+        allSelectedLocked.value = false // 重置锁定状态标志
+      } else if (props.isMultiple && len > 0) {
+        // 选中项发生变化时更新锁定状态标志
+        updateAllSelectedLockedFlag()
       }
     }
 )
@@ -291,6 +333,17 @@ const handleMouseOver = (index) => {
     activeIndex.value = index
   }
 }
+// 监听showList变化，恢复选择状态
+watch(
+  () => props.showList,
+  (newList, oldList) => {
+    if (newList && oldList && newList !== oldList) {
+      restoreSelection()
+    }
+  },
+  { deep: true }
+)
+
 // 父组件中改变了引用类型的地址 故要用 getter返回
 watch(
   () => props.showList,
@@ -327,13 +380,14 @@ const keyDownCallBack = (e) => {
   const isDelete = key === 'Delete' || key === 'Backspace'
   const isCollect = (ctrlKey || metaKey) && (key === 'D' || key === 'd')
   const isToggleLockHotkey = (ctrlKey || metaKey) && (key === 'U' || key === 'u')
+  const isShiftDelete = shiftKey && (key === 'Delete' || key === 'Backspace')
   const isCtrl = ctrlKey || metaKey
 
   if (DEBUG_KEYS) {
     console.log('[keyDown] 快捷键状态:', {
       isArrowUp, isArrowDown, isArrowRight, isArrowLeft, isEnter, isCtrlEnter,
     isCopy, isNumber, isShift, isSpace, isDelete, isCollect, isToggleLockHotkey,
-    isCtrl
+    isShiftDelete, isCtrl
     })
   }
 
@@ -343,7 +397,7 @@ const keyDownCallBack = (e) => {
       const now = Date.now()
       if (now - lastNavAt < 40) return
       lastNavAt = now
-    } else if (isCopy || isEnter || isCtrlEnter || isDelete || isCollect || isToggleLockHotkey || isSpace) {
+    } else if (isCopy || isEnter || isCtrlEnter || isDelete || isCollect || isToggleLockHotkey || isShiftDelete || isSpace) {
       return
     }
   }
@@ -359,10 +413,11 @@ const keyDownCallBack = (e) => {
   // Backspace 键：只有在搜索框没有焦点时才能删除条目（搜索框有焦点时保持默认的删除文本行为）
   const isDeleteKey = key === 'Delete'
   const isBackspaceKey = key === 'Backspace'
-  const canDeleteItem = isDeleteKey && (e.shouldDeleteItem || !isSearchInputFocused || (isSearchInputFocused && searchInput &&
+  const isForceDeleteKey = (ctrlKey || metaKey) && (isDeleteKey || isBackspaceKey)
+  const canDeleteItem = isForceDeleteKey || (isDeleteKey && (e.shouldDeleteItem || !isSearchInputFocused || (isSearchInputFocused && searchInput &&
     searchInput.selectionStart === searchInput.selectionEnd &&
     searchInput.selectionStart === searchInput.value.length)) ||
-    (isBackspaceKey && !isSearchInputFocused)
+    (isBackspaceKey && !isSearchInputFocused))
 
   // 抽屉菜单打开时的 Ctrl+数字 / Ctrl+Shift+数字，由 ClipDrawerMenu 接管，避免重复触发
   if (drawerShow.value && isCtrl && isNumber) {
@@ -445,13 +500,40 @@ const keyDownCallBack = (e) => {
         : props.showList[activeIndex.value]
             ? [props.showList[activeIndex.value]]
             : []
-    console.log('[ToggleLock] 目标项目:', targets.map(t => ({ id: t.id, locked: t.locked, type: typeof t.locked })))
-    targets.forEach((item) => {
-      const currentLockState = Boolean(item.locked === true)
-      const newLockState = !currentLockState
-      console.log('[ToggleLock] 项目ID:', item.id, '当前锁定状态:', item.locked, '解析后:', currentLockState, '新状态:', newLockState)
-      window.setLock(item.id, newLockState)
-    })
+    if (props.isMultiple && targets.length) {
+      // 保存当前选择状态
+      preserveSelection()
+      // 使用临时标志决定操作：如果全部已锁定则解锁全部，否则锁定全部
+      const shouldLock = !allSelectedLocked.value
+      targets.forEach((item) => window.setLock(item.id, shouldLock, true)) // 跳过文件写入
+      // 更新临时标志
+      allSelectedLocked.value = shouldLock
+      // 标记有待处理的锁定操作
+      pendingLockOperations.value = true
+      
+      // 强制更新锁图标显示
+      lockUpdateKey.value++
+      
+      // 延迟清除待处理标志，但不写入文件以避免触发view-change
+      setTimeout(() => {
+        // 操作完成后清除待处理标志
+        pendingLockOperations.value = false
+        // 如果已经退出多选模式，现在重置标志
+        if (!props.isMultiple) {
+          allSelectedLocked.value = false
+        }
+      }, 150)
+    } else {
+      targets.forEach((item) => window.setLock(item.id, item.locked !== true))
+    }
+    return
+  }
+
+  // Shift+Delete: 打开清理对话框
+  if (isShiftDelete) {
+    e.preventDefault()
+    e.stopPropagation()
+    emit('openCleanDialog')
     return
   }
 
@@ -467,7 +549,7 @@ const keyDownCallBack = (e) => {
   }
 
   if (isDelete && canDeleteItem) {
-    const forceDelete = (ctrlKey || metaKey) && isDeleteKey
+    const forceDelete = (ctrlKey || metaKey) && (isDeleteKey || isBackspaceKey)
     const itemsToDelete = []
     const anchorIndex = activeIndex.value
     if (props.isMultiple) {
@@ -501,7 +583,11 @@ const keyDownCallBack = (e) => {
       )
     }
     if (skippedLocked > 0 && !forceDelete) {
-      ElMessage({type: 'info', message: `已跳过锁定 ${skippedLocked} 条，使用 Ctrl+Delete 强制删除`})
+      ElMessage({type: 'info', message: `已跳过锁定 ${skippedLocked} 条，使用 Ctrl+Delete/Ctrl+Backspace 强制删除`})
+    }
+    if (props.isMultiple && forceDelete) {
+      selectItemList.value = []
+      emit('toggleMultiSelect', false)
     }
     return
   }
@@ -537,18 +623,22 @@ const keyDownCallBack = (e) => {
           })
         }
       } else {
-        emit('onMultiCopyExecute', false)
+        e.preventDefault()
+        e.stopPropagation()
+        emit('onMultiCopyExecute', { paste: false, persist: true, exit: true })
       }
     }
   } else if (isEnter) {
-    if (!props.isMultiple && !isCtrlEnter && props.showList[activeIndex.value]) {
-      console.log('isEnter')
-      copyWithSearchFocus(props.showList[activeIndex.value])
-    } else if (props.isMultiple && isCtrlEnter) {
+    if (props.isMultiple) {
       e.preventDefault()
       e.stopPropagation()
       if (e.repeat) return
-      emit('onMultiCopyExecute', true)
+      emit('onMultiCopyExecute', { paste: isCtrlEnter, persist: true, exit: true })
+      return
+    }
+    if (!props.isMultiple && !isCtrlEnter && props.showList[activeIndex.value]) {
+      console.log('isEnter')
+      copyWithSearchFocus(props.showList[activeIndex.value])
     }
   } else if ((ctrlKey || metaKey || altKey) && isNumber) {
     const targetItem = props.showList[parseInt(key) - 1]

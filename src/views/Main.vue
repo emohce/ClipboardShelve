@@ -66,6 +66,7 @@
       @onDataChange="toggleFullData"
       @onDataRemove="handleDataRemove"
       @onItemDelete="handleItemDelete"
+      @openCleanDialog="handleOpenCleanDialog"
     >
     </ClipItemList>
 
@@ -167,11 +168,45 @@ const selectCount = ref(0)
 const handleToggleMultiSelect = (val = true) => {
   isMultiple.value = Boolean(val)
 }
-const handleMultiCopyBtnClick = (isPaste) => {
+const handleMultiCopyBtnClick = (isPaste, options = {}) => {
+  let paste = isPaste
+  let persist = false
+  let exitMulti = true
+  if (typeof isPaste === 'object' && isPaste) {
+    paste = Boolean(isPaste.paste)
+    persist = Boolean(isPaste.persist)
+    exitMulti = isPaste.exit !== false
+  } else {
+    persist = Boolean(options.persist)
+    exitMulti = options.exit !== false
+  }
+
   const itemList = ClipItemListRef.value.selectItemList
+  if (!Array.isArray(itemList) || itemList.length === 0) {
+    return
+  }
   // 如果包含了图片/文件 则转为文件合并 否则仅合并文本
   const isMergeFile =
     itemList.filter((item) => item.type === 'image' || item.type === 'file').length !== 0
+  const addMergedItemToDb = (item) => {
+    const crypto = window.exports?.crypto
+    if (!window.db || !crypto || !item?.data) return false
+    const id = crypto.createHash('md5').update(item.data).digest('hex')
+    const dataList = window.db.dataBase?.data || []
+    const collectList = window.db.dataBase?.collectData || []
+    if (dataList.some((i) => i.id === id) || collectList.some((i) => i.id === id)) {
+      return false
+    }
+    const now = Date.now()
+    window.db.addItem({
+      ...item,
+      id,
+      createTime: now,
+      updateTime: now
+    })
+    return true
+  }
+
   if (isMergeFile) {
     const filePathArray = []
     itemList.map((item) => {
@@ -192,10 +227,18 @@ const handleMultiCopyBtnClick = (isPaste) => {
         filePathArray.push(...files)
       }
     })
+    const fileData = JSON.stringify(filePathArray.reverse())
     window.copy({
       type: 'file',
-      data: JSON.stringify(filePathArray.reverse())
+      data: fileData
     })
+    if (persist) {
+      addMergedItemToDb({
+        type: 'file',
+        data: fileData,
+        originPaths: filePathArray.map((f) => f.path).filter(Boolean)
+      })
+    }
   } else {
     const eol =
       (window?.exports && window.exports.os && window.exports.os.EOL) ||
@@ -208,14 +251,19 @@ const handleMultiCopyBtnClick = (isPaste) => {
       type: 'text',
       data: result
     })
+    if (persist) {
+      addMergedItemToDb({ type: 'text', data: result })
+    }
   }
   ElMessage({
     message: '复制成功',
     type: 'success'
   })
-  isPaste && window.paste()
-  ClipItemListRef.value.emptySelectItemList()
-  isMultiple.value = false
+  paste && window.paste()
+  if (exitMulti) {
+    ClipItemListRef.value.emptySelectItemList()
+    isMultiple.value = false
+  }
 }
 
 const GAP = 15 // 懒加载 每次添加的条数
@@ -389,6 +437,12 @@ const handleClearBtnClick = () => {
   focusRangeButton(clearRange.value)
 }
 
+const handleOpenCleanDialog = () => {
+  clearRange.value = '1h'
+  isClearDialogVisible.value = true
+  focusRangeButton(clearRange.value)
+}
+
 const handleClearConfirm = () => {
   if (isClearing.value) return
   isClearing.value = true
@@ -477,6 +531,14 @@ const handleItemDelete = (item, metadata = {}) => {
   const isCollected = window.db.isCollected(item.id)
 
   if (activeTabValue === 'collect') {
+    if (force) {
+      window.db.removeCollect(item.id, false)
+      if (isLast) {
+        handleDataRemove()
+        adjustActiveIndexAfterDelete(currentActiveIndex)
+      }
+      return
+    }
     // 在"收藏"标签页：不允许删除，只能取消收藏
     ElMessage({
       message: '收藏内容不允许删除，请先取消收藏',
@@ -636,12 +698,11 @@ onMounted(() => {
     const isSearch = ctrlKey && (key === 'F' || key === 'f')
     const isExit = key === 'Escape'
     const isAltNumber = altKey && /^[1-9]$/.test(key)
-    const isCtrlDelete = ctrlKey && key === 'Delete'
     const isArrow = key === 'ArrowDown' || key === 'ArrowUp'
     const isEnter = key === 'Enter'
     const isAlt = altKey
     const isSpace = key === ' '
-    if (e.repeat && (isTab || isCtrlDelete || isAltNumber)) {
+    if (e.repeat && (isTab || isAltNumber)) {
       return
     }
     if (isTab) {
@@ -659,10 +720,6 @@ onMounted(() => {
       updateShowList(target)
     } else if (isSearch) {
       window.focus()
-    } else if (isCtrlDelete) {
-      e.preventDefault()
-      e.stopPropagation()
-      handleClearBtnClick()
     } else if (isAltNumber) {
       const tabTypes = tabs.map((item) => item.type)
       const targetIndex = Math.min(parseInt(key, 10) - 1, tabTypes.length - 1)
