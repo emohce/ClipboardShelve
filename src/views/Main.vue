@@ -517,6 +517,10 @@ const activeTabLabel = computed(() => {
 const isClearingCollectTab = computed(() => activeTab.value === 'collect')
 
 onMounted(() => {
+  utools.onPluginEnter(() => {
+    window.focus()
+    document.activeElement?.blur?.()
+  })
   // 获取挂载的导航组件 Ref
   const toggleNav = ClipSwitchRef.value.toggleNav
   const tabs = ClipSwitchRef.value.tabs
