@@ -445,7 +445,13 @@ const keyDownCallBack = (e) => {
         : props.showList[activeIndex.value]
             ? [props.showList[activeIndex.value]]
             : []
-    targets.forEach((item) => window.setLock(item.id, item.locked !== true))
+    console.log('[ToggleLock] 目标项目:', targets.map(t => ({ id: t.id, locked: t.locked, type: typeof t.locked })))
+    targets.forEach((item) => {
+      const currentLockState = Boolean(item.locked === true)
+      const newLockState = !currentLockState
+      console.log('[ToggleLock] 项目ID:', item.id, '当前锁定状态:', item.locked, '解析后:', currentLockState, '新状态:', newLockState)
+      window.setLock(item.id, newLockState)
+    })
     return
   }
 
