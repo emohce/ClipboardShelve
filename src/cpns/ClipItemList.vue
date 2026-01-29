@@ -138,7 +138,7 @@
 
 <script setup>
 import {ref, onMounted, onUnmounted, watch, computed} from 'vue'
-import {getCurrentLayer} from '../global/hotkeyLayers'
+import { registerFeature } from '../global/hotkeyRegistry'
 import { ElMessage } from 'element-plus'
 import FileList from './FileList.vue'
 import ClipOperate from './ClipOperate.vue'
@@ -586,376 +586,213 @@ watch(
   }
 )
 
-const DEBUG_KEYS = false
-let lastNavAt = 0
-
-const keyDownCallBack = (e) => {
-  if (e.__layerHandled) {
-    return
-  }
-  if (getCurrentLayer()) {
-    return
-  }
-  const {key, ctrlKey, metaKey, altKey, shiftKey} = e
-  if (DEBUG_KEYS) {
-    console.log('[keyDown] 按键:', key, 'ctrl:', ctrlKey, 'meta:', metaKey, 'alt:', altKey, 'shift:', shiftKey)
+function registerListHotkeyFeatures() {
+  const getCanDeleteItem = (e, forceDelete) => {
+    const searchInput = document.querySelector('.clip-search-input')
+    const isSearchInputFocused = document.activeElement === searchInput
+    const isDeleteKey = e.key === 'Delete'
+    const isBackspaceKey = e.key === 'Backspace'
+    if (forceDelete) return true
+    if (isDeleteKey && (e.shouldDeleteItem || !isSearchInputFocused || (isSearchInputFocused && searchInput && searchInput.selectionStart === searchInput.selectionEnd && searchInput.selectionStart === searchInput.value.length))) return true
+    if (isBackspaceKey && !isSearchInputFocused) return true
+    return false
   }
 
-  const isArrowUp = key === 'ArrowUp' || (ctrlKey && (key === 'K' || key === 'k'))
-  const isArrowDown = key === 'ArrowDown' || (ctrlKey && (key === 'J' || key === 'j'))
-  const isArrowRight = key === 'ArrowRight'
-  const isArrowLeft = key === 'ArrowLeft'
-  const isEnter = key === 'Enter'
-  const isCtrlEnter = isEnter && (ctrlKey || metaKey)
-  const isCopy = (ctrlKey || metaKey) && (key === 'C' || key === 'c')
-  const isNumber = parseInt(key) <= 9 && parseInt(key) >= 0
-  const isShift = key === 'Shift'
-  const isSpace = key === ' '
-  const isDelete = key === 'Delete' || key === 'Backspace'
-  const isCollect = (ctrlKey || metaKey) && (key === 'D' || key === 'd')
-  const isToggleLockHotkey = (ctrlKey || metaKey) && (key === 'U' || key === 'u')
-  const isShiftDelete = shiftKey && (key === 'Delete' || key === 'Backspace')
-  const isCtrl = ctrlKey || metaKey
-
-  if (DEBUG_KEYS) {
-    console.log('[keyDown] 快捷键状态:', {
-      isArrowUp, isArrowDown, isArrowRight, isArrowLeft, isEnter, isCtrlEnter,
-    isCopy, isNumber, isShift, isSpace, isDelete, isCollect, isToggleLockHotkey,
-    isShiftDelete, isCtrl
-    })
-  }
-
-  const isNav = isArrowUp || isArrowDown
-  if (e.repeat) {
-    if (isNav) {
-      const now = Date.now()
-      if (now - lastNavAt < 40) return
-      lastNavAt = now
-    } else if (isCopy || isEnter || isCtrlEnter || isDelete || isCollect || isToggleLockHotkey || isShiftDelete || isSpace) {
-      return
-    }
-  }
-  const activeNode = !props.isMultiple
-    ? document.querySelector('.clip-item.active' + (isArrowDown ? '+.clip-item' : ''))
-    : document.querySelector('.clip-item.multi-active' + (isArrowDown ? '+.clip-item' : ''))
-
-  // 检查搜索框是否有焦点，以及是否可以删除条目
-  const searchInput = document.querySelector('.clip-search-input')
-  const isSearchInputFocused = document.activeElement === searchInput
-
-  // Delete 键：如果事件对象上有 shouldDeleteItem 标记，或者搜索框没有焦点，或者光标在末尾，则可以删除条目
-  // Backspace 键：只有在搜索框没有焦点时才能删除条目（搜索框有焦点时保持默认的删除文本行为）
-  const isDeleteKey = key === 'Delete'
-  const isBackspaceKey = key === 'Backspace'
-  const isForceDeleteKey = (ctrlKey || metaKey) && (isDeleteKey || isBackspaceKey)
-  const canDeleteItem = isForceDeleteKey || (isDeleteKey && (e.shouldDeleteItem || !isSearchInputFocused || (isSearchInputFocused && searchInput &&
-    searchInput.selectionStart === searchInput.selectionEnd &&
-    searchInput.selectionStart === searchInput.value.length)) ||
-    (isBackspaceKey && !isSearchInputFocused))
-
-  // 抽屉菜单打开时的 Ctrl+数字 / Ctrl+Shift+数字，由 ClipDrawerMenu 接管，避免重复触发
-  if (drawerShow.value && isCtrl && isNumber) {
-    return
-  }
-
-  // Ctrl+Shift+数字：抽屉子菜单快捷触发（抽屉未打开时）
-  if (!drawerShow.value && isCtrl && shiftKey && isNumber) {
-    const currentItem = props.showList[activeIndex.value]
-    if (currentItem) {
-      const available = operations.value.filter((op) => filterOperate(op, currentItem, false))
-      const ordered = applyDrawerOrder(available)
-      const num = parseInt(key, 10)
-      if (!Number.isNaN(num) && num >= 1 && num <= ordered.length) {
-        const target = ordered[num - 1]
-        handleOperateClick(target, currentItem, { sub: true })
-        e.preventDefault()
-        e.stopPropagation()
-        return
-      }
-    }
-  }
-
-  // 收藏快捷键：Ctrl/Command + D
-  if (isCollect) {
-    e.preventDefault()
-    const targets = props.isMultiple && selectItemList.value.length
-        ? [...selectItemList.value]
-        : props.showList[activeIndex.value]
-            ? [props.showList[activeIndex.value]]
-            : []
-    targets.forEach((item) => {
-      const isCollected = window.db.isCollected(item.id)
-      if (props.currentActiveTab === 'collect' || isCollected) {
-        window.db.removeCollect(item.id)
-      } else {
-        window.db.addCollect(item.id)
-      }
-    })
-    if (targets.length) {
-      ElMessage({type: 'success', message: props.currentActiveTab === 'collect' ? '已取消收藏选中项' : '已更新收藏状态'})
-      emit('onDataRemove')
-    }
-    return
-  }
-
-  if (isArrowRight) {
-    // Navigate to next item
-    if (activeIndex.value < props.showList.length - 1) {
-      activeIndex.value++
-      const nextNode = document.querySelector('.clip-item.active+.clip-item')
-      if (nextNode) {
-        nextNode.scrollIntoView({ block: 'nearest', inline: 'nearest' })
-      }
-    }
-    e.preventDefault()
-    e.stopPropagation()
-    return
-  }
-
-  if (isArrowLeft) {
-    // Navigate to previous item
-    if (activeIndex.value > 0) {
-      activeIndex.value--
-      const prevNode = document.querySelector('.clip-item.active')?.previousElementSibling?.previousElementSibling
-      if (prevNode) {
-        prevNode.scrollIntoView({ block: 'nearest', inline: 'nearest' })
-      }
-    }
-    e.preventDefault()
-    e.stopPropagation()
-    return
-  }
-
-
-  // 锁定开关：Ctrl/Command + U
-  if (isToggleLockHotkey) {
-    e.preventDefault()
-    e.stopPropagation()
-    if (e.repeat) return
-    const targets = props.isMultiple && selectItemList.value.length
-        ? [...selectItemList.value]
-        : props.showList[activeIndex.value]
-            ? [props.showList[activeIndex.value]]
-            : []
-    if (props.isMultiple && targets.length) {
-      // 保存当前选择状态
-      preserveSelection()
-      // 使用临时标志决定操作：如果全部已锁定则解锁全部，否则锁定全部
-      const shouldLock = !allSelectedLocked.value
-      
-      // 直接更新内存中的锁定状态，避免触发setLock的副作用
-      targets.forEach((item) => {
-        const target = window.db.dataBase.data.find((dbItem) => dbItem.id === item.id) ||
-                      window.db.dataBase.collectData.find((dbItem) => dbItem.id === item.id)
-        if (target) {
-          target.locked = shouldLock
-          // 同时更新showList中的item以保持UI同步
-          item.locked = shouldLock
-        }
-      })
-      
-      // 更新数据库时间戳但不写入文件
-      window.db.updateDataBase()
-      
-      // 更新临时标志
-      allSelectedLocked.value = shouldLock
-      // 标记有待处理的锁定操作
-      pendingLockOperations.value = true
-      
-      // 强制更新锁图标显示
-      lockUpdateKey.value++
-      
-      // 延迟清除待处理标志，但不写入文件以避免触发view-change
-      setTimeout(() => {
-        // 操作完成后清除待处理标志
-        pendingLockOperations.value = false
-        // 如果已经退出多选模式，现在重置标志
-        if (!props.isMultiple) {
-          allSelectedLocked.value = false
-        }
-      }, 50)
-    } else {
-      targets.forEach((item) => window.setLock(item.id, item.locked !== true))
-    }
-    return
-  }
-
-  // Shift+Delete: 打开清理对话框
-  if (isShiftDelete) {
-    e.preventDefault()
-    e.stopPropagation()
-    emit('openCleanDialog')
-    return
-  }
-
-  // Ctrl+Enter: 复制+上锁（即使搜索框有焦点也生效）
-  if (isCtrlEnter && !props.isMultiple && props.showList[activeIndex.value]) {
-    e.preventDefault()
-    e.stopPropagation()
-    if (e.repeat) return
-    const current = props.showList[activeIndex.value]
-    copyWithSearchFocus(current)
-    window.setLock(current.id, true)
-    return
-  }
-
-  if (isDelete && canDeleteItem) {
-    const forceDelete = (ctrlKey || metaKey) && (isDeleteKey || isBackspaceKey)
-    const itemsToDelete = []
-    const anchorIndex = activeIndex.value
-    if (props.isMultiple) {
-      if (selectItemList.value.length) {
-        itemsToDelete.push(...selectItemList.value)
-      } else if (props.showList[activeIndex.value]) {
-        itemsToDelete.push(props.showList[activeIndex.value])
-      }
-    } else if (props.showList[activeIndex.value]) {
-      itemsToDelete.push(props.showList[activeIndex.value])
-    }
-
-    const deletableItems = itemsToDelete.filter((item) => forceDelete || item.locked !== true)
-    const skippedLocked = itemsToDelete.length - deletableItems.length
-
-    if (deletableItems.length) {
-      e.preventDefault()
-      e.stopPropagation()
-      if (props.isMultiple) {
-        selectItemList.value = selectItemList.value.filter(
-            (item) => !deletableItems.includes(item)
-        )
-      }
-      deletableItems.forEach((item, index) =>
-        emit('onItemDelete', item, {
-          anchorIndex,
-          isBatch: props.isMultiple && deletableItems.length > 1,
-          isLast: index === deletableItems.length - 1,
-          force: forceDelete
-        })
-      )
-    }
-    if (skippedLocked > 0 && !forceDelete) {
-      ElMessage({type: 'info', message: `已跳过锁定 ${skippedLocked} 条，使用 Ctrl+Delete/Ctrl+Backspace 强制删除`})
-    }
-    if (props.isMultiple && forceDelete) {
-      selectItemList.value = []
-      emit('toggleMultiSelect', false)
-    }
-    return
-  }
-
-  if (isArrowUp) {
+  registerFeature('list-nav-up', () => {
     if (activeIndex.value === 1) window.toTop()
     if (activeIndex.value > 0) {
       activeIndex.value--
-      const prevNode = activeNode?.previousElementSibling?.previousElementSibling
-      if (prevNode) {
-        prevNode.scrollIntoView({
-          block: 'nearest',
-          inline: 'nearest'
-        })
-      }
+      const prevNode = document.querySelector('.clip-item.active')?.previousElementSibling?.previousElementSibling
+      prevNode?.scrollIntoView({ block: 'nearest', inline: 'nearest' })
     }
-  } else if (isArrowDown) {
+    return true
+  })
+  registerFeature('list-nav-down', () => {
     if (activeIndex.value < props.showList.length - 1) {
       activeIndex.value++
-      if (activeNode) {
-        activeNode.scrollIntoView({ block: 'nearest', inline: 'nearest' })
-      }
+      const activeNode = document.querySelector('.clip-item.active')
+      activeNode?.scrollIntoView({ block: 'nearest', inline: 'nearest' })
     }
-  } else if (isCopy) {
-    if (!props.fullData.data) {
-      // 如果侧栏中有数据 证明侧栏是打开的 不执行复制
-      if (!props.isMultiple) {
-        if (props.showList[activeIndex.value]) {
-          copyWithSearchFocus(props.showList[activeIndex.value])
-          ElMessage({
-            message: '复制成功',
-            type: 'success'
-          })
-        }
-      } else {
-        e.preventDefault()
-        e.stopPropagation()
-        emit('onMultiCopyExecute', { paste: false, persist: true, exit: true })
-      }
+    return true
+  })
+  registerFeature('list-nav-left', () => {
+    if (activeIndex.value > 0) {
+      activeIndex.value--
+      const prevNode = document.querySelector('.clip-item.active')?.previousElementSibling?.previousElementSibling
+      prevNode?.scrollIntoView({ block: 'nearest', inline: 'nearest' })
     }
-  } else if (isEnter) {
-    if (props.isMultiple) {
-      e.preventDefault()
-      e.stopPropagation()
-      if (e.repeat) return
-      emit('onMultiCopyExecute', { paste: isCtrlEnter, persist: true, exit: true })
-      return
-    }
-    if (!props.isMultiple && !isCtrlEnter && props.showList[activeIndex.value]) {
-      console.log('isEnter')
-      copyWithSearchFocus(props.showList[activeIndex.value])
-    }
-  } else if ((ctrlKey || metaKey || altKey) && isNumber) {
-    const targetItem = props.showList[parseInt(key) - 1]
-    if (targetItem) {
-      copyWithSearchFocus(targetItem)
-      selectItemList.value = []
-    }
-  } else if (isShift) {
-    // Shift键只用于图片预览，不应该影响导航或高亮
-    // 防止Shift键影响activeIndex或选择状态
-    e.preventDefault()
-    e.stopPropagation()
-    
-    if (props.isMultiple) {
-      isShiftDown.value = true
-    }
-    // 处理Shift键长按预览
-    handleShiftKeyDown()
-  } else if (isSpace) {
-    if (props.isSearchPanelExpand) {
-      // 搜索栏展开状态 不进入多选
-      return
-    }
-    if (!props.isMultiple) {
-      emit('toggleMultiSelect', true) // 仅在需要时开启多选
-    }
-    e.preventDefault()
-    const currentItem = props.showList[activeIndex.value]
-    if (!currentItem) return // 如果当前项不存在，直接返回
-    const i = selectItemList.value.findIndex((item) => item === currentItem)
-    if (i !== -1) {
-      selectItemList.value.splice(i, 1) // 如果已选中 则取消选中
-    } else {
-      selectItemList.value.push(currentItem) // 如果未选中 则选中
+    return true
+  })
+  registerFeature('list-nav-right', () => {
+    if (activeIndex.value < props.showList.length - 1) {
       activeIndex.value++
-      const nextNode = document.querySelector('.clip-item.multi-active+.clip-item')
-      if (nextNode) {
-        nextNode.scrollIntoView({ block: 'nearest', inline: 'nearest' })
-      }
+      const nextNode = document.querySelector('.clip-item.active+.clip-item')
+      nextNode?.scrollIntoView({ block: 'nearest', inline: 'nearest' })
     }
+    return true
+  })
+  registerFeature('list-enter', (e) => {
+    if (props.isMultiple) {
+      emit('onMultiCopyExecute', { paste: false, persist: true, exit: true })
+      return true
+    }
+    if (props.showList[activeIndex.value]) copyWithSearchFocus(props.showList[activeIndex.value])
+    return true
+  })
+  registerFeature('list-ctrl-enter', () => {
+    if (!props.isMultiple && props.showList[activeIndex.value]) {
+      const current = props.showList[activeIndex.value]
+      copyWithSearchFocus(current)
+      window.setLock(current.id, true)
+      return true
+    }
+    return false
+  })
+  registerFeature('list-copy', () => {
+    if (props.fullData.data) {
+      emit('onMultiCopyExecute', { paste: false, persist: true, exit: true })
+      return true
+    }
+    if (!props.isMultiple && props.showList[activeIndex.value]) {
+      copyWithSearchFocus(props.showList[activeIndex.value])
+      ElMessage({ message: '复制成功', type: 'success' })
+      return true
+    }
+    return false
+  })
+  registerFeature('list-collect', () => {
+    const targets = props.isMultiple && selectItemList.value.length
+      ? [...selectItemList.value]
+      : props.showList[activeIndex.value] ? [props.showList[activeIndex.value]] : []
+    targets.forEach((item) => {
+      const isCollected = window.db.isCollected(item.id)
+      if (props.currentActiveTab === 'collect' || isCollected) window.db.removeCollect(item.id)
+      else window.db.addCollect(item.id)
+    })
+    if (targets.length) {
+      ElMessage({ type: 'success', message: props.currentActiveTab === 'collect' ? '已取消收藏选中项' : '已更新收藏状态' })
+      emit('onDataRemove')
+    }
+    return true
+  })
+  registerFeature('list-lock', () => {
+    const targets = props.isMultiple && selectItemList.value.length
+      ? [...selectItemList.value]
+      : props.showList[activeIndex.value] ? [props.showList[activeIndex.value]] : []
+    if (props.isMultiple && targets.length) {
+      preserveSelection()
+      const shouldLock = !allSelectedLocked.value
+      targets.forEach((item) => {
+        const target = window.db.dataBase.data.find((dbItem) => dbItem.id === item.id) || window.db.dataBase.collectData.find((dbItem) => dbItem.id === item.id)
+        if (target) { target.locked = shouldLock; item.locked = shouldLock }
+      })
+      window.db.updateDataBase()
+      allSelectedLocked.value = shouldLock
+      pendingLockOperations.value = true
+      lockUpdateKey.value++
+      setTimeout(() => { pendingLockOperations.value = false; if (!props.isMultiple) allSelectedLocked.value = false }, 50)
+    } else {
+      targets.forEach((item) => window.setLock(item.id, item.locked !== true))
+    }
+    return true
+  })
+  registerFeature('list-delete', (e) => {
+    if (!getCanDeleteItem(e, false)) return false
+    const itemsToDelete = props.isMultiple
+      ? (selectItemList.value.length ? [...selectItemList.value] : props.showList[activeIndex.value] ? [props.showList[activeIndex.value]] : [])
+      : props.showList[activeIndex.value] ? [props.showList[activeIndex.value]] : []
+    const deletableItems = itemsToDelete.filter((item) => item.locked !== true)
+    const skippedLocked = itemsToDelete.length - deletableItems.length
+    if (deletableItems.length) {
+      if (props.isMultiple) selectItemList.value = selectItemList.value.filter((item) => !deletableItems.includes(item))
+      deletableItems.forEach((item, index) =>
+        emit('onItemDelete', item, { anchorIndex: activeIndex.value, isBatch: props.isMultiple && deletableItems.length > 1, isLast: index === deletableItems.length - 1, force: false })
+      )
+    }
+    if (skippedLocked > 0) ElMessage({ type: 'info', message: `已跳过锁定 ${skippedLocked} 条，使用 Ctrl+Delete/Ctrl+Backspace 强制删除` })
+    return true
+  })
+  registerFeature('list-force-delete', (e) => {
+    const itemsToDelete = props.isMultiple
+      ? (selectItemList.value.length ? [...selectItemList.value] : props.showList[activeIndex.value] ? [props.showList[activeIndex.value]] : [])
+      : props.showList[activeIndex.value] ? [props.showList[activeIndex.value]] : []
+    if (itemsToDelete.length) {
+      if (props.isMultiple) {
+        selectItemList.value = selectItemList.value.filter((item) => !itemsToDelete.includes(item))
+        itemsToDelete.forEach((item, index) =>
+          emit('onItemDelete', item, { anchorIndex: activeIndex.value, isBatch: true, isLast: index === itemsToDelete.length - 1, force: true })
+        )
+        selectItemList.value = []
+        emit('toggleMultiSelect', false)
+      } else {
+        itemsToDelete.forEach((item, index) =>
+          emit('onItemDelete', item, { anchorIndex: activeIndex.value, isBatch: false, isLast: true, force: true })
+        )
+      }
+      return true
+    }
+    return false
+  })
+  registerFeature('list-space', () => {
+    if (props.isSearchPanelExpand) return false
+    if (!props.isMultiple) emit('toggleMultiSelect', true)
+    const currentItem = props.showList[activeIndex.value]
+    if (!currentItem) return true
+    const i = selectItemList.value.findIndex((item) => item === currentItem)
+    if (i !== -1) selectItemList.value.splice(i, 1)
+    else {
+      selectItemList.value.push(currentItem)
+      activeIndex.value++
+      document.querySelector('.clip-item.multi-active+.clip-item')?.scrollIntoView({ block: 'nearest', inline: 'nearest' })
+    }
+    return true
+  })
+  registerFeature('list-shift', () => {
+    if (props.isMultiple) isShiftDown.value = true
+    handleShiftKeyDown()
+    return true
+  })
+  for (let n = 1; n <= 9; n++) {
+    registerFeature(`list-quick-copy-${n}`, () => {
+      const targetItem = props.showList[n - 1]
+      if (targetItem) { copyWithSearchFocus(targetItem); selectItemList.value = []; return true }
+      return false
+    })
+  }
+  for (let n = 1; n <= 9; n++) {
+    const num = n
+    registerFeature(`list-drawer-sub-${num}`, () => {
+      const currentItem = props.showList[activeIndex.value]
+      if (!currentItem) return false
+      const available = operations.value.filter((op) => filterOperate(op, currentItem, false))
+      const ordered = applyDrawerOrder(available)
+      if (num >= 1 && num <= ordered.length) {
+        const target = ordered[num - 1]
+        handleOperateClick(target, currentItem, { sub: true })
+        return true
+      }
+      return false
+    })
   }
 }
+
 const keyUpCallBack = (e) => {
   const { key } = e
   const isShift = key === 'Shift'
   if (isShift) {
-    // Shift键释放不应该影响任何UI状态
     e.preventDefault()
     e.stopPropagation()
-    
-    if (props.isMultiple) {
-      isShiftDown.value = false
-    }
-    // 处理Shift键释放
+    if (props.isMultiple) isShiftDown.value = false
     handleShiftKeyUp()
   }
 }
 
 onMounted(() => {
-  // 监听键盘事件
-  document.addEventListener('keydown', keyDownCallBack)
+  registerListHotkeyFeatures()
   document.addEventListener('keyup', keyUpCallBack)
 })
 
 onUnmounted(() => {
-  document.removeEventListener('keydown', keyDownCallBack)
   document.removeEventListener('keyup', keyUpCallBack)
   
   // 清理图片预览定时器

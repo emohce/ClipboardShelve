@@ -30,8 +30,9 @@
 <script setup>
 import FileList from './FileList.vue'
 import ClipOperate from './ClipOperate.vue'
-import { watch, onUnmounted } from 'vue'
+import { watch, onMounted, onUnmounted } from 'vue'
 import { activateLayer, deactivateLayer } from '../global/hotkeyLayers'
+import { registerFeature } from '../global/hotkeyRegistry'
 
 const props = defineProps({
   isShow: {
@@ -52,38 +53,26 @@ const onOverlayClick = () => {
 
 const FULL_DATA_LAYER = 'full-data-overlay'
 
-const fullDataHotkeyHandler = (e) => {
-  if (!props.isShow) return false
-  const { key, ctrlKey, metaKey, altKey } = e
-  const isCtrl = ctrlKey || metaKey
-
-  if (key === 'Escape' && props.fullData.data) {
-    emit('onOverlayClick')
-    e.preventDefault()
-    e.stopPropagation()
-    return true
-  }
-
-  if (isCtrl || altKey) {
-    e.preventDefault()
-    e.stopPropagation()
-    return true
-  }
-
-  if (['Tab', 'Enter', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Home', 'End', 'PageUp', 'PageDown'].includes(key)) {
-    e.preventDefault()
-    e.stopPropagation()
-    return true
-  }
-
-  return false
+function registerFullDataFeatures() {
+  registerFeature('full-data-close', () => {
+    if (props.fullData.data) {
+      emit('onOverlayClick')
+      return true
+    }
+    return false
+  })
+  registerFeature('full-data-block', () => true)
 }
+
+onMounted(() => {
+  registerFullDataFeatures()
+})
 
 watch(
   () => props.isShow,
   (visible) => {
     if (visible) {
-      activateLayer(FULL_DATA_LAYER, fullDataHotkeyHandler)
+      activateLayer(FULL_DATA_LAYER)
     } else {
       deactivateLayer(FULL_DATA_LAYER)
     }

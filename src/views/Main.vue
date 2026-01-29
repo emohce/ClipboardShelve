@@ -118,7 +118,8 @@
 <script setup>
 import { ref, watch, onMounted, onUnmounted, computed, nextTick } from 'vue'
 import { ElMessage, ElMessageBox, ElButton, ElRadioGroup, ElRadioButton, ElTooltip } from 'element-plus'
-import { handleLayerKeyDown, activateLayer, deactivateLayer, setHotkeyAction, getCurrentLayer } from '../global/hotkeyLayers'
+import { activateLayer, deactivateLayer } from '../global/hotkeyLayers'
+import { registerFeature, setMainState } from '../global/hotkeyRegistry'
 import ClipItemList from '../cpns/ClipItemList.vue'
 import ClipFullData from '../cpns/ClipFullData.vue'
 import ClipSearch from '../cpns/ClipSearch.vue'
@@ -346,99 +347,23 @@ const handleRangeKeydown = (e, value) => {
   }
 }
 
-const handleClearDialogHotkeys = (e) => {
-  const { key, ctrlKey, shiftKey, altKey, metaKey } = e
-  const isCtrl = ctrlKey || metaKey
-  
-  if (key === 'Escape') {
-    setHotkeyAction('clear-dialog-close', CLEAR_DIALOG_LAYER)
-    e.preventDefault()
-    e.stopPropagation()
-    closeClearDialog()
-    return true
-  }
-  
-  // Enter 和 Ctrl+Enter 都触发确认操作
-  if (key === 'Enter') {
-    setHotkeyAction('clear-dialog-confirm', CLEAR_DIALOG_LAYER)
-    e.preventDefault()
-    e.stopPropagation()
-    handleClearConfirm()
-    return true
-  }
-  
-  // 数字键快速选择
-  if (/^[1-5]$/.test(key)) {
-    const index = parseInt(key, 10) - 1
-    const targetOption = CLEAR_RANGE_OPTIONS[index]
-    if (targetOption) {
-      setHotkeyAction('clear-dialog-select-range', CLEAR_DIALOG_LAYER)
-      clearRange.value = targetOption.value
-      focusRangeButton(targetOption.value)
-      e.preventDefault()
-      e.stopPropagation()
-      return true
-    }
-  }
-  
-  // Tab导航
-  if (key === 'Tab') {
-    const focusable = getClearDialogFocusables()
-    if (!focusable.length) return false
-    const active = document.activeElement
-    let idx = focusable.indexOf(active)
-    if (idx === -1) idx = 0
-    idx = (idx + (shiftKey ? -1 : 1) + focusable.length) % focusable.length
-    focusable[idx].focus()
-    
-    // 如果焦点移动到时间选项按钮上，自动更新选中状态
-    const focusedElement = focusable[idx]
-    if (focusedElement.classList.contains('range-button')) {
-      const rangeValue = focusedElement.getAttribute('data-range')
-      if (rangeValue) {
-        setHotkeyAction('clear-dialog-select-range', CLEAR_DIALOG_LAYER)
-        clearRange.value = rangeValue
-      }
-    }
-    
-    e.preventDefault()
-    e.stopPropagation()
-    return true
-  }
-  
-  // 阻止所有其他快捷键穿透（包含 Ctrl+数字）
-  if (isCtrl || altKey) {
-    setHotkeyAction('clear-dialog-blocked', CLEAR_DIALOG_LAYER)
-    e.preventDefault()
-    e.stopPropagation()
-    return true
-  }
-  
-  // 阻止其他导航键
-  if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Home', 'End', 'PageUp', 'PageDown'].includes(key)) {
-    setHotkeyAction('clear-dialog-blocked', CLEAR_DIALOG_LAYER)
-    e.preventDefault()
-    e.stopPropagation()
-    return true
-  }
-  
-  return false
-}
-
-const clearDialogLayerHandler = (event) => {
-  if (!isClearDialogVisible.value) return false
-  return handleClearDialogHotkeys(event)
-}
-
 watch(
   () => isClearDialogVisible.value,
   (visible) => {
     if (visible) {
-      activateLayer(CLEAR_DIALOG_LAYER, clearDialogLayerHandler)
+      activateLayer(CLEAR_DIALOG_LAYER)
     } else {
       deactivateLayer(CLEAR_DIALOG_LAYER)
     }
   }
+)
+
+watch(
+  [isSearchPanelExpand, isMultiple],
+  () => {
+    setMainState(isSearchPanelExpand.value ? 'search' : isMultiple.value ? 'multi-select' : 'normal')
+  },
+  { immediate: true }
 )
 
 const updateShowList = (type, toTop = true) => {
@@ -787,94 +712,154 @@ onMounted(() => {
     }
   }
 
-  // 监听键盘事件
+  // Plain-text focus only: hotkey dispatch is in HotkeyProvider
   const keyDownCallBack = (e) => {
-    const { key, ctrlKey, metaKey, altKey, shiftKey } = e
-    if (DEBUG_KEYS) {
-      console.log('[Main.keyDown] 按键:', key, 'ctrl:', ctrlKey, 'meta:', metaKey, 'alt:', altKey, 'shift:', shiftKey)
-    }
-
-    if (handleLayerKeyDown(e)) {
-      return
-    }
-    if (getCurrentLayer()) {
-      return
-    }
-    const isTab = key === 'Tab'
-    const isSearch = ctrlKey && (key === 'F' || key === 'f')
-    const isExit = key === 'Escape'
-    const isAltNumber = altKey && /^[1-9]$/.test(key)
-    const isArrow = key === 'ArrowDown' || key === 'ArrowUp'
-    const isEnter = key === 'Enter'
-    const isAlt = altKey
-    const isSpace = key === ' '
-    if (e.repeat && (isTab || isAltNumber)) {
-      return
-    }
-    if (isTab) {
-      e.preventDefault()
-      const tabTypes = tabs.map((item) => item.type)
-      const index = tabTypes.indexOf(activeTab.value)
-      const target = shiftKey
-        ? index <= 0
-          ? tabTypes[tabTypes.length - 1]  // 从第一个循环到最后一个
-          : tabTypes[index - 1]             // 向前移动
-        : index >= tabTypes.length - 1
-          ? tabTypes[0]                     // 从最后一个循环到第一个
-          : tabTypes[index + 1]            // 向后移动
-      toggleNav(target)
-      updateShowList(target)
-    } else if (isSearch) {
-      window.focus()
-    } else if (isAltNumber) {
-      const tabTypes = tabs.map((item) => item.type)
-      const targetIndex = Math.min(parseInt(key, 10) - 1, tabTypes.length - 1)
-      const target = tabTypes[targetIndex]
-      if (target) {
-        e.preventDefault()
-        e.stopPropagation()
-        toggleNav(target)
-        updateShowList(target)
-      }
-    } else if (isExit) {
-      if (filterText.value) {
-        // 有筛选词 先清空筛选词
-        filterText.value = ''
-        window.focus()
-        e.stopPropagation()
-      } else if (isSearchPanelExpand.value) {
-        // 移除焦点 隐藏搜索框
-        window.focus(true)
-        e.stopPropagation()
-      } else if (isMultiple.value) {
-        // 退出多选状态
-        isMultiple.value = !isMultiple.value
-        e.stopPropagation()
-      } else {
-        // 无上述情况 执行默认: 隐藏uTools主窗口
-      }
-    } else if (isArrow || isEnter) {
-      e.preventDefault()
-    } else if (ctrlKey || metaKey || isAlt) {
-      // Ctrl: utools模拟执行粘贴时触发
-      // Alt:
-    } else if (isSpace) {
-      // 空格向下多选
-    } else if (key === 'Delete' || key === 'Backspace') {
-      // 让 ClipItemList 的快捷键处理删除，避免强制聚焦搜索框
-      return
-    } else {
-      const isPlainTextInput =
-        key.length === 1 && !ctrlKey && !metaKey && !altKey && key !== ' '
-      if (isPlainTextInput) {
-        // 普通文字输入自动聚焦搜索框
-        window.focus()
-      }
-    }
+    if (e.__hotkeyHandled) return
+    const { key, ctrlKey, metaKey, altKey } = e
+    const isPlainTextInput =
+      key.length === 1 && !ctrlKey && !metaKey && !altKey && key !== ' '
+    if (isPlainTextInput) window.focus()
   }
 
   document.addEventListener('scroll', scrollCallBack)
   document.addEventListener('keydown', keyDownCallBack)
+
+  // Register hotkey features (main, clear-dialog, search)
+  const registerMainHotkeyFeatures = () => {
+    const switchRef = ClipSwitchRef.value
+    if (!switchRef) return
+    const toggleNav = switchRef.toggleNav
+    const tabs = switchRef.tabs || []
+    const tabTypes = tabs.map((t) => t.type)
+
+    registerFeature('clear-dialog-close', () => {
+      closeClearDialog()
+      return true
+    })
+    registerFeature('clear-dialog-confirm', () => {
+      handleClearConfirm()
+      return true
+    })
+    registerFeature('clear-dialog-range-1h', () => { clearRange.value = '1h'; focusRangeButton('1h'); return true })
+    registerFeature('clear-dialog-range-5h', () => { clearRange.value = '5h'; focusRangeButton('5h'); return true })
+    registerFeature('clear-dialog-range-8h', () => { clearRange.value = '8h'; focusRangeButton('8h'); return true })
+    registerFeature('clear-dialog-range-24h', () => { clearRange.value = '24h'; focusRangeButton('24h'); return true })
+    registerFeature('clear-dialog-range-all', () => { clearRange.value = 'all'; focusRangeButton('all'); return true })
+    registerFeature('clear-dialog-tab', (e) => {
+      const focusable = getClearDialogFocusables()
+      if (!focusable.length) return false
+      const active = document.activeElement
+      let idx = focusable.indexOf(active)
+      if (idx === -1) idx = 0
+      idx = (idx + (e.shiftKey ? -1 : 1) + focusable.length) % focusable.length
+      focusable[idx].focus()
+      const focused = focusable[idx]
+      if (focused.classList.contains('range-button')) {
+        const r = focused.getAttribute('data-range')
+        if (r) { clearRange.value = r }
+      }
+      return true
+    })
+    registerFeature('clear-dialog-block', () => true)
+
+    registerFeature('main-tab', (e) => {
+      const index = tabTypes.indexOf(activeTab.value)
+      const target = e.shiftKey
+        ? (index <= 0 ? tabTypes[tabTypes.length - 1] : tabTypes[index - 1])
+        : (index >= tabTypes.length - 1 ? tabTypes[0] : tabTypes[index + 1])
+      toggleNav(target)
+      updateShowList(target)
+      return true
+    })
+    registerFeature('main-focus-search', () => {
+      window.focus()
+      return true
+    })
+    for (let i = 1; i <= 9; i++) {
+      const n = i
+      registerFeature(`main-alt-tab-${n}`, () => {
+        const target = tabTypes[Math.min(n - 1, tabTypes.length - 1)]
+        if (target) { toggleNav(target); updateShowList(target); return true }
+        return false
+      })
+    }
+    registerFeature('open-clear-dialog', () => {
+      handleOpenCleanDialog()
+      return true
+    })
+    registerFeature('main-escape', (e) => {
+      if (filterText.value) {
+        filterText.value = ''
+        window.focus()
+        return true
+      }
+      if (isSearchPanelExpand.value) {
+        window.focus(true)
+        return true
+      }
+      if (isMultiple.value) {
+        isMultiple.value = false
+        return true
+      }
+      return false
+    })
+    registerFeature('search-delete-normal', () => {
+      if (!filterText.value.trim()) return false
+      const candidates = showList.value.filter((item) => textFilterCallBack(item))
+      if (!candidates.length) {
+        ElMessage({ message: '没有符合条件的搜索结果', type: 'info' })
+        return true
+      }
+      let removed = 0
+      let skippedLocked = 0
+      candidates.forEach((item) => {
+        const ok = window.remove(item, { force: false })
+        if (ok) removed++
+        else if (item.locked) skippedLocked++
+      })
+      if (removed > 0) {
+        handleDataRemove()
+        adjustActiveIndexAfterDelete(0)
+        ElMessage({
+          type: 'success',
+          message: skippedLocked > 0
+            ? `已删除 ${removed} 条搜索结果，跳过锁定 ${skippedLocked} 条`
+            : `已删除 ${removed} 条搜索结果`
+        })
+      } else {
+        ElMessage({
+          message: skippedLocked > 0 ? `没有可删除的条目（跳过锁定 ${skippedLocked} 条）` : '没有可删除的条目',
+          type: 'info'
+        })
+      }
+      filterText.value = ''
+      isSearchPanelExpand.value = false
+      window.focus()
+      return true
+    })
+    registerFeature('search-delete-force', () => {
+      if (!filterText.value.trim()) return false
+      const candidates = showList.value.filter((item) => textFilterCallBack(item))
+      if (!candidates.length) {
+        ElMessage({ message: '没有符合条件的搜索结果', type: 'info' })
+        return true
+      }
+      let removed = 0
+      candidates.forEach((item) => {
+        if (window.remove(item, { force: true })) removed++
+      })
+      if (removed > 0) {
+        handleDataRemove()
+        adjustActiveIndexAfterDelete(0)
+        ElMessage({ type: 'success', message: `已强制删除 ${removed} 条搜索结果` })
+      }
+      filterText.value = ''
+      isSearchPanelExpand.value = false
+      window.focus()
+      return true
+    })
+  }
+  nextTick(() => registerMainHotkeyFeatures())
 
   onUnmounted(() => {
     document.removeEventListener('scroll', scrollCallBack)

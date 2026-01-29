@@ -27,8 +27,9 @@
 </template>
 
 <script setup>
-import {ref, watch, onUnmounted} from 'vue'
-import {activateLayer, deactivateLayer, setHotkeyAction} from '../global/hotkeyLayers'
+import { ref, watch, onMounted, onUnmounted } from 'vue'
+import { activateLayer, deactivateLayer } from '../global/hotkeyLayers'
+import { registerFeature } from '../global/hotkeyRegistry'
 
 const props = defineProps({
   show: { type: Boolean, required: true },
@@ -81,78 +82,52 @@ const onDrop = (idx) => {
 
 const layerName = 'clip-drawer'
 
-const drawerHotkeyHandler = (e) => {
-  if (!props.show) return false
-  const clearPanel = document.querySelector('.clear-panel')
-  if (clearPanel && clearPanel.offsetParent !== null) {
-    return false
-  }
-  const {key, ctrlKey, metaKey, shiftKey} = e
-  const isCtrl = ctrlKey || metaKey
-
-  if (isCtrl) {
-    setHotkeyAction('drawer-select', layerName)
-    e.preventDefault()
-    e.stopPropagation()
-    const num = parseInt(key, 10)
-    if (!Number.isNaN(num) && num >= 1 && num <= localItems.value.length) {
-      const target = localItems.value[num - 1]
-      handleSelect(target, { sub: isCtrl && shiftKey })
-    }
-    return true
-  }
-
-  if (key === 'Escape' || key === 'ArrowLeft') {
-    setHotkeyAction('drawer-close', layerName)
+function registerDrawerFeatures() {
+  registerFeature('drawer-close', () => {
     emit('close')
-    e.preventDefault()
-    e.stopPropagation()
     return true
-  }
-
-  if (key === 'ArrowDown') {
-    setHotkeyAction('drawer-nav', layerName)
+  })
+  registerFeature('drawer-nav-down', () => {
     activeIndex.value = (activeIndex.value + 1) % localItems.value.length
-    e.preventDefault()
-    e.stopPropagation()
     return true
-  }
-
-  if (key === 'ArrowUp') {
-    setHotkeyAction('drawer-nav', layerName)
+  })
+  registerFeature('drawer-nav-up', () => {
     activeIndex.value = (activeIndex.value - 1 + localItems.value.length) % localItems.value.length
-    e.preventDefault()
-    e.stopPropagation()
     return true
-  }
-
-  if (key === 'Enter') {
+  })
+  registerFeature('drawer-select', () => {
     const target = localItems.value[activeIndex.value]
-    if (target) {
-      setHotkeyAction('drawer-select', layerName)
-      handleSelect(target, { sub: isCtrl && shiftKey })
-      e.preventDefault()
-      e.stopPropagation()
-    }
-    return true
+    if (target) { handleSelect(target, { sub: false }); return true }
+    return false
+  })
+  for (let n = 1; n <= 9; n++) {
+    const num = n
+    registerFeature(`drawer-select-${num}`, (e) => {
+      if (num >= 1 && num <= localItems.value.length) {
+        const target = localItems.value[num - 1]
+        handleSelect(target, { sub: e.shiftKey })
+        return true
+      }
+      return false
+    })
   }
-
-  // 阻止所有其他快捷键穿透
-  e.preventDefault()
-  e.stopPropagation()
-  return true
+  registerFeature('drawer-block', () => true)
 }
 
+onMounted(() => {
+  registerDrawerFeatures()
+})
+
 watch(
-    () => props.show,
-    (visible) => {
-      if (visible) {
-        activateLayer(layerName, drawerHotkeyHandler)
-      } else {
-        deactivateLayer(layerName)
-      }
-    },
-    {immediate: true}
+  () => props.show,
+  (visible) => {
+    if (visible) {
+      activateLayer(layerName)
+    } else {
+      deactivateLayer(layerName)
+    }
+  },
+  { immediate: true }
 )
 
 onUnmounted(() => {
