@@ -29,34 +29,21 @@
             </el-tooltip>
           </template>
           <template v-if="item.type === 'image'">
-            <el-popover placement="left" trigger="hover" width="260" :disabled="!isValidImageData(item.data)">
-              <template #reference>
-                <div class="image-container" @click="handleImageClick(item)">
-                  <img 
-                    v-if="isValidImageData(item.data)"
-                    class="clip-data-image"
-                    :src="item.data"
-                    :alt="'Clipboard Image'"
-                    @error="handleImageError"
-                    @load="handleImageLoad"
-                  />
-                  <div v-else class="image-error-placeholder">
-                    <span>🖼️ 无效图片</span>
-                  </div>
-                </div>
-              </template>
-              <div class="image-preview">
-                <img 
-                  v-if="isValidImageData(item.data)"
-                  :src="item.data"
-                  style="width: 240px; max-height: 240px; object-fit: contain;"
-                  @error="handleImageError"
-                />
-                <div v-else class="preview-error">
-                  <span>图片加载失败</span>
-                </div>
+            <div class="image-container" @click="handleImageClick(item)">
+              <img 
+                v-if="isValidImageData(item.data)"
+                class="clip-data-image"
+                :src="item.data"
+                :alt="'Clipboard Image'"
+                @error="handleImageError"
+                @load="handleImageLoad"
+                @mouseenter="showImagePreview($event, item)"
+                @mouseleave="hideImagePreview"
+              />
+              <div v-else class="image-error-placeholder">
+                <span>🖼️ 无效图片</span>
               </div>
-            </el-popover>
+            </div>
           </template>
           <template v-if="item.type === 'file'">
             <el-tooltip :content="formatFileNames(item)" placement="left" :show-after="200">
@@ -115,6 +102,29 @@
       </div>
     </div>
   </div>
+  
+  <!-- Custom Image Preview -->
+  <div 
+    v-if="imagePreview.show" 
+    class="image-preview-modal"
+    :style="imagePreview.style"
+    @mouseenter="keepImagePreview"
+    @mouseleave="hideImagePreview"
+  >
+    <div class="image-preview-content">
+      <img 
+        v-if="isValidImageData(imagePreview.src)"
+        :src="imagePreview.src"
+        :style="imagePreview.imageStyle"
+        @error="handleImageError"
+        @load="handleImageLoad"
+      />
+      <div v-else class="preview-error">
+        <span>图片加载失败</span>
+      </div>
+    </div>
+  </div>
+  
   <ClipDrawerMenu
       :show="drawerShow"
       :items="drawerItems"
@@ -200,6 +210,112 @@ const handleImageLoad = (event) => {
   console.log('[ClipItemList] 图片加载成功:', event.target.src)
 }
 
+// 显示图片预览
+const showImagePreview = (event, item) => {
+  if (!isValidImageData(item.data)) return
+  
+  // 清除之前的隐藏定时器
+  if (imagePreviewHideTimer) {
+    clearTimeout(imagePreviewHideTimer)
+    imagePreviewHideTimer = null
+  }
+  
+  // 获取窗口尺寸
+  const windowWidth = window.innerWidth
+  const windowHeight = window.innerHeight
+  
+  // 计算图片显示区域（留出边距）
+  const margin = 100
+  const maxWidth = windowWidth - margin * 2
+  const maxHeight = windowHeight - margin * 2
+  
+  // 设置预览位置和样式
+  imagePreview.value.src = item.data
+  imagePreview.value.show = true
+  imagePreview.value.style = {
+    position: 'fixed',
+    top: '50%',
+    left: '50%',
+    transform: 'translate(-50%, -50%)',
+    zIndex: 9999,
+    backgroundColor: 'rgba(0, 0, 0, 0.8)',
+    borderRadius: '8px',
+    padding: '20px',
+    boxShadow: '0 8px 32px rgba(0, 0, 0, 0.3)',
+    maxWidth: `${maxWidth}px`,
+    maxHeight: `${maxHeight}px`
+  }
+  
+  // 图片样式
+  imagePreview.value.imageStyle = {
+    maxWidth: `${maxWidth}px`,
+    maxHeight: `${maxHeight}px`,
+    objectFit: 'contain',
+    display: 'block',
+    borderRadius: '4px'
+  }
+}
+
+// 隐藏图片预览
+const hideImagePreview = () => {
+  // 延迟隐藏，允许鼠标移动到预览区域
+  imagePreviewHideTimer = setTimeout(() => {
+    imagePreview.value.show = false
+    imagePreviewHideTimer = null
+  }, 200)
+}
+
+// 保持图片预览显示
+const keepImagePreview = () => {
+  if (imagePreviewHideTimer) {
+    clearTimeout(imagePreviewHideTimer)
+    imagePreviewHideTimer = null
+  }
+}
+
+// Shift键长按处理
+const handleShiftKeyDown = () => {
+  if (shiftKeyTimer) return
+  
+  shiftKeyDownTime = Date.now()
+  shiftKeyTimer = setTimeout(() => {
+    // Shift键按住超过100ms，触发键盘预览
+    keyboardTriggeredPreview.value = true
+    // 如果当前有活跃的图片项，显示预览
+    const currentItem = props.showList[activeIndex.value]
+    if (currentItem && currentItem.type === 'image' && isValidImageData(currentItem.data)) {
+      showImagePreview(null, currentItem)
+    }
+  }, 100) // 改为100ms
+}
+
+const handleShiftKeyUp = () => {
+  if (shiftKeyTimer) {
+    clearTimeout(shiftKeyTimer)
+    shiftKeyTimer = null
+  }
+  
+  // 如果是键盘触发的预览，隐藏预览
+  if (keyboardTriggeredPreview.value) {
+    keyboardTriggeredPreview.value = false
+    // 使用更温和的方式隐藏预览，避免影响UI状态
+    imagePreviewHideTimer = setTimeout(() => {
+      imagePreview.value.show = false
+      imagePreviewHideTimer = null
+    }, 100) // 减少延迟时间
+  }
+}
+
+// 键盘触发的图片预览
+const triggerKeyboardImagePreview = () => {
+  if (!keyboardTriggeredPreview.value) return
+  
+  const currentItem = props.showList[activeIndex.value]
+  if (currentItem && currentItem.type === 'image' && isValidImageData(currentItem.data)) {
+    showImagePreview(null, currentItem)
+  }
+}
+
 // 检测文件中是否包含图片
 const hasImageFiles = (item) => {
   if (item.type !== 'file') return false
@@ -276,6 +392,22 @@ const selectItemList = ref([])
 const allSelectedLocked = ref(false) // 临时标志：记录所有选中项是否都已锁定
 const pendingLockOperations = ref(false) // 标记是否有待处理的锁定操作
 const lockUpdateKey = ref(0) // 用于强制更新锁图标
+
+// 图片预览相关
+const imagePreview = ref({
+  show: false,
+  src: '',
+  style: {},
+  imageStyle: {}
+})
+
+// 图片预览隐藏定时器
+let imagePreviewHideTimer = null
+
+// Shift键长按相关
+let shiftKeyDownTime = 0
+let shiftKeyTimer = null
+const keyboardTriggeredPreview = ref(false)
 const activeIndex = ref(0) // 定义 activeIndex，需要在 defineExpose 之前
 const drawerShow = ref(false)
 const drawerPosition = ref({top: 0, left: 0})
@@ -418,6 +550,16 @@ const handleMouseOver = (index) => {
     activeIndex.value = index
   }
 }
+// 监听activeIndex变化，在Shift长按状态下触发图片预览
+watch(
+  () => activeIndex.value,
+  (newIndex) => {
+    if (keyboardTriggeredPreview.value) {
+      triggerKeyboardImagePreview()
+    }
+  }
+)
+
 // 监听showList变化，恢复选择状态
 watch(
   () => props.showList,
@@ -749,9 +891,16 @@ const keyDownCallBack = (e) => {
       selectItemList.value = []
     }
   } else if (isShift) {
+    // Shift键只用于图片预览，不应该影响导航或高亮
+    // 防止Shift键影响activeIndex或选择状态
+    e.preventDefault()
+    e.stopPropagation()
+    
     if (props.isMultiple) {
       isShiftDown.value = true
     }
+    // 处理Shift键长按预览
+    handleShiftKeyDown()
   } else if (isSpace) {
     if (props.isSearchPanelExpand) {
       // 搜索栏展开状态 不进入多选
@@ -780,9 +929,15 @@ const keyUpCallBack = (e) => {
   const { key } = e
   const isShift = key === 'Shift'
   if (isShift) {
+    // Shift键释放不应该影响任何UI状态
+    e.preventDefault()
+    e.stopPropagation()
+    
     if (props.isMultiple) {
       isShiftDown.value = false
     }
+    // 处理Shift键释放
+    handleShiftKeyUp()
   }
 }
 
@@ -795,6 +950,18 @@ onMounted(() => {
 onUnmounted(() => {
   document.removeEventListener('keydown', keyDownCallBack)
   document.removeEventListener('keyup', keyUpCallBack)
+  
+  // 清理图片预览定时器
+  if (imagePreviewHideTimer) {
+    clearTimeout(imagePreviewHideTimer)
+    imagePreviewHideTimer = null
+  }
+  
+  // 清理Shift键定时器
+  if (shiftKeyTimer) {
+    clearTimeout(shiftKeyTimer)
+    shiftKeyTimer = null
+  }
 })
 </script>
 
