@@ -188,6 +188,15 @@
             font-size: 14px;
           }
         }
+      
+      .image-preview-footer {
+        margin-top: 8px;
+        font-size: 12px;
+        color: fade(@text-color, 75%);
+        white-space: pre-wrap;
+        word-break: break-all;
+        text-align: center;
+      }
         .clip-over-sized-content {
           color: @primary-color;
         }
@@ -230,29 +239,33 @@
           
           .image-files-grid {
             display: grid;
-            grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+            grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
             gap: 6px;
             
             .image-file-item {
               display: flex;
-              align-items: center;
-              gap: 4px;
+              flex-direction: column;
+              align-items: stretch;
+              gap: 6px;
               padding: 4px 6px;
               background: fade(@text-bg-color, 30%);
               border-radius: 3px;
               font-size: 11px;
               
-              .file-icon {
-                font-size: 12px;
-                opacity: 0.8;
+              .image-file-preview {
+                width: 100%;
+                height: auto;
+                display: block;
+                border-radius: 3px;
+                background: fade(@text-bg-color, 40%);
               }
               
               .file-name {
-                flex: 1;
                 overflow: hidden;
                 text-overflow: ellipsis;
                 white-space: nowrap;
                 color: @text-color;
+                text-align: center;
               }
             }
           }

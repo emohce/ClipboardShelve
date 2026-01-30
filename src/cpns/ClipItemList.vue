@@ -7,6 +7,7 @@
       @click.left="handleItemClick($event, item)"
       @click.right="handleItemClick($event, item)"
       @mouseenter.prevent="handleMouseOver(index)"
+      @mouseleave="handleRowMouseLeave(index)"
       :class="{
         active: !isMultiple && index === activeIndex,
         'multi-active': isMultiple && index === activeIndex,
@@ -75,7 +76,13 @@
                         @mouseenter="showImageFilePreview(imgFile.path)"
                         @mouseleave="hideImagePreview"
                       >
-                        <div class="file-icon">🖼️</div>
+                        <img
+                          class="image-file-preview"
+                          :src="toFileUrl(imgFile.path)"
+                          :alt="imgFile.name || 'image-file'"
+                          @error="handleImageError"
+                          @load="handleImageLoad"
+                        />
                         <div class="file-name">{{ imgFile.path?.split('/').pop() || imgFile.name }}</div>
                       </div>
                     </div>
@@ -110,26 +117,29 @@
   </div>
   
   <!-- Custom Image Preview -->
-  <div 
-    v-if="imagePreview.show" 
-    class="image-preview-modal"
-    :style="imagePreview.style"
-    @mouseenter="keepImagePreview"
-    @mouseleave="hideImagePreview"
-  >
-    <div class="image-preview-content">
-      <img 
-        v-if="isValidImageData(imagePreview.src)"
-        :src="imagePreview.src"
-        :style="imagePreview.imageStyle"
-        @error="handleImageError"
-        @load="handleImageLoad"
-      />
-      <div v-else class="preview-error">
-        <span>图片加载失败</span>
+  <Teleport to="body">
+    <div 
+      v-if="imagePreview.show" 
+      class="image-preview-modal"
+      :style="imagePreview.style"
+      @mouseenter="keepImagePreview"
+      @mouseleave="hideImagePreview"
+    >
+      <div class="image-preview-content">
+        <img 
+          v-if="isPreviewableImageSrc(imagePreview.src)"
+          :src="imagePreview.src"
+          :style="imagePreview.imageStyle"
+          @error="handleImageError"
+          @load="handleImageLoad"
+        />
+        <div v-else class="preview-error">
+          <span>图片加载失败</span>
+        </div>
       </div>
+    <div v-if="imagePreview.footer" class="image-preview-footer">{{ imagePreview.footer }}</div>
     </div>
-  </div>
+  </Teleport>
 
   <!-- Long Text Preview (Shift hold) -->
   <div
@@ -229,10 +239,16 @@ const handleImageLoad = (event) => {
   console.log('[ClipItemList] 图片加载成功:', event.target.src)
 }
 
+const isPreviewableImageSrc = (src) => {
+  if (!src) return false
+  return isValidImageData(src) || /^file:\/\//i.test(src)
+}
+
 // 显示图片预览
 const showImagePreview = (event, item) => {
   if (!isValidImageData(item.data)) return
 
+  imagePreviewSource.value = event ? 'hover' : 'keyboard'
   textPreview.value.show = false
   if (textPreviewHideTimer) {
     clearTimeout(textPreviewHideTimer)
@@ -245,17 +261,23 @@ const showImagePreview = (event, item) => {
     imagePreviewHideTimer = null
   }
   
+  if (openExternalPreview(item.data, '', 0.66)) {
+    imagePreview.value.show = false
+    return
+  }
+
   // 获取屏幕尺寸（不局限于插件窗口）
   const screenWidth = window.screen?.width || window.innerWidth
   const screenHeight = window.screen?.height || window.innerHeight
   
-  // 计算图片显示区域（约占屏幕 2/3）
-  const targetRatio = 0.66
-  const maxWidth = Math.floor(screenWidth * targetRatio)
-  const maxHeight = Math.floor(screenHeight * targetRatio)
+  // 以桌面尺寸为准展示原始图片尺寸（超出则按屏幕缩放）
+  const maxWidth = Math.floor(screenWidth)
+  const maxHeight = Math.floor(screenHeight)
+  expandPreviewWindow(maxWidth, maxHeight)
   
   // 设置预览位置和样式
   imagePreview.value.src = item.data
+  imagePreview.value.footer = ''
   imagePreview.value.show = true
   imagePreview.value.style = {
     position: 'fixed',
@@ -265,7 +287,7 @@ const showImagePreview = (event, item) => {
     zIndex: 9999,
     backgroundColor: 'rgba(0, 0, 0, 0.8)',
     borderRadius: '8px',
-    padding: '20px',
+    padding: '8px',
     boxShadow: '0 8px 32px rgba(0, 0, 0, 0.3)',
     maxWidth: `${maxWidth}px`,
     maxHeight: `${maxHeight}px`
@@ -273,29 +295,158 @@ const showImagePreview = (event, item) => {
   
   // 图片样式
   imagePreview.value.imageStyle = {
+    width: 'auto',
+    height: 'auto',
     maxWidth: `${maxWidth}px`,
     maxHeight: `${maxHeight}px`,
-    objectFit: 'contain',
     display: 'block',
     borderRadius: '4px'
   }
 }
 
 // 隐藏图片预览
-const hideImagePreview = () => {
-  // 延迟隐藏，允许鼠标移动到预览区域
-  imagePreviewHideTimer = setTimeout(() => {
-    imagePreview.value.show = false
-    imagePreviewHideTimer = null
-  }, 200)
-}
-
-// 保持图片预览显示
-const keepImagePreview = () => {
+const stopImagePreview = (immediate = false) => {
   if (imagePreviewHideTimer) {
     clearTimeout(imagePreviewHideTimer)
     imagePreviewHideTimer = null
   }
+  if (immediate) {
+    imagePreview.value.show = false
+    imagePreviewSource.value = ''
+    restorePreviewWindow()
+    closeExternalPreview()
+    return
+  }
+  imagePreviewHideTimer = setTimeout(() => {
+    imagePreview.value.show = false
+    imagePreviewSource.value = ''
+    restorePreviewWindow()
+    closeExternalPreview()
+    imagePreviewHideTimer = null
+  }, 200)
+}
+
+const hideImagePreview = () => {
+  // 延迟隐藏，允许鼠标移动到预览区域
+  stopImagePreview(false)
+}
+
+// 保持图片预览显示
+const keepImagePreview = () => {
+  if (imagePreviewSource.value === 'hover') return
+  if (imagePreviewHideTimer) {
+    clearTimeout(imagePreviewHideTimer)
+    imagePreviewHideTimer = null
+  }
+}
+
+let externalPreviewWindow = null
+
+const escapePreviewText = (value = '') =>
+  String(value)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;')
+
+const openExternalPreview = (src, footer = '', ratio = 0.66) => {
+  if (!src) return false
+  const screenWidth = window.screen?.availWidth || window.screen?.width || window.innerWidth
+  const screenHeight = window.screen?.availHeight || window.screen?.height || window.innerHeight
+  const width = Math.floor(screenWidth * ratio)
+  const height = Math.floor(screenHeight * ratio)
+  const left = Math.max(0, Math.floor((screenWidth - width) / 2))
+  const top = Math.max(0, Math.floor((screenHeight - height) / 2))
+
+  let win = externalPreviewWindow
+  if (!win || win.closed) {
+    win = window.open('', 'clip-image-preview', `width=${width},height=${height},left=${left},top=${top},resizable=yes`)
+    externalPreviewWindow = win
+  } else {
+    try { win.resizeTo(width, height) } catch (e) {}
+    try { win.moveTo(left, top) } catch (e) {}
+  }
+  if (!win) return false
+
+  const footerHtml = footer
+    ? `<div class="footer">${escapePreviewText(footer).replace(/\n/g, '<br>')}</div>`
+    : ''
+  const html = `<!DOCTYPE html>
+  <html>
+  <head>
+    <meta charset="utf-8" />
+    <title>图片预览</title>
+    <style>
+      html, body { margin: 0; padding: 0; width: 100%; height: 100%; background: #0f1115; color: #e5e7eb; }
+      body { display: flex; flex-direction: column; align-items: center; justify-content: center; }
+      .wrap { display: flex; flex-direction: column; align-items: center; justify-content: center; width: 100%; height: 100%; padding: 12px; box-sizing: border-box; }
+      img { width: auto; height: auto; max-width: 100%; max-height: 100%; object-fit: contain; border-radius: 6px; }
+      .footer { margin-top: 10px; font-size: 12px; color: #9ca3af; text-align: center; white-space: pre-wrap; word-break: break-all; }
+    </style>
+  </head>
+  <body>
+    <div class="wrap">
+      <img src="${src}" alt="preview" />
+      ${footerHtml}
+    </div>
+  </body>
+  </html>`
+  win.document.open()
+  win.document.write(html)
+  win.document.close()
+  return true
+}
+
+const focusUtoolsMainWindow = () => {
+  if (typeof utools?.showMainWindow === 'function') {
+    utools.showMainWindow()
+    return
+  }
+  if (typeof utools?.showWindow === 'function') {
+    utools.showWindow()
+    return
+  }
+  if (typeof window.focus === 'function') {
+    window.focus()
+  }
+}
+
+const closeExternalPreview = () => {
+  if (externalPreviewWindow && !externalPreviewWindow.closed) {
+    try { externalPreviewWindow.close() } catch (e) {}
+  }
+  externalPreviewWindow = null
+  focusUtoolsMainWindow()
+}
+
+const expandPreviewWindow = (maxWidth, maxHeight) => {
+  const canExpandWidth = typeof utools?.setExpendWidth === 'function'
+  const canExpandHeight = typeof utools?.setExpendHeight === 'function'
+  if (!canExpandWidth && !canExpandHeight) return
+  if (!previewWindowSize.value) {
+    previewWindowSize.value = { width: window.innerWidth, height: window.innerHeight }
+  }
+  if (canExpandWidth) {
+    const nextWidth = Math.max(window.innerWidth, Math.ceil(maxWidth + 80))
+    utools.setExpendWidth(nextWidth)
+  }
+  if (canExpandHeight) {
+    const nextHeight = Math.max(window.innerHeight, Math.ceil(maxHeight + 80))
+    utools.setExpendHeight(nextHeight)
+  }
+}
+
+const restorePreviewWindow = () => {
+  if (!previewWindowSize.value) return
+  const { width, height } = previewWindowSize.value
+  if (typeof utools?.setExpendWidth === 'function') {
+    utools.setExpendWidth(width)
+  }
+  if (typeof utools?.setExpendHeight === 'function') {
+    utools.setExpendHeight(height)
+  }
+  previewWindowSize.value = null
 }
 
 const toFileUrl = (path) => {
@@ -309,6 +460,9 @@ const showImageFilePreview = (path) => {
   if (!path) return
   const src = toFileUrl(path)
   if (!src) return
+  const name = path.split(/[\\/]/).pop() || path
+  const footerText = `${name}\n${path}`
+  imagePreviewSource.value = 'hover'
   textPreview.value.show = false
   if (textPreviewHideTimer) {
     clearTimeout(textPreviewHideTimer)
@@ -319,13 +473,19 @@ const showImageFilePreview = (path) => {
     imagePreviewHideTimer = null
   }
 
+  if (openExternalPreview(src, footerText, 0.8)) {
+    imagePreview.value.show = false
+    return
+  }
+
   const screenWidth = window.screen?.width || window.innerWidth
   const screenHeight = window.screen?.height || window.innerHeight
-  const targetRatio = 0.66
-  const maxWidth = Math.floor(screenWidth * targetRatio)
-  const maxHeight = Math.floor(screenHeight * targetRatio)
+  const maxWidth = Math.floor(screenWidth)
+  const maxHeight = Math.floor(screenHeight)
+  expandPreviewWindow(maxWidth, maxHeight)
 
   imagePreview.value.src = src
+  imagePreview.value.footer = footerText
   imagePreview.value.show = true
   imagePreview.value.style = {
     position: 'fixed',
@@ -335,16 +495,17 @@ const showImageFilePreview = (path) => {
     zIndex: 9999,
     backgroundColor: 'rgba(0, 0, 0, 0.8)',
     borderRadius: '8px',
-    padding: '20px',
+    padding: '8px',
     boxShadow: '0 8px 32px rgba(0, 0, 0, 0.3)',
     maxWidth: `${maxWidth}px`,
     maxHeight: `${maxHeight}px`
   }
 
   imagePreview.value.imageStyle = {
+    width: 'auto',
+    height: 'auto',
     maxWidth: `${maxWidth}px`,
     maxHeight: `${maxHeight}px`,
-    objectFit: 'contain',
     display: 'block',
     borderRadius: '4px'
   }
@@ -392,14 +553,8 @@ const handleShiftKeyUp = () => {
 
   if (keyboardTriggeredPreview.value) {
     keyboardTriggeredPreview.value = false
-    imagePreviewHideTimer = setTimeout(() => {
-      imagePreview.value.show = false
-      imagePreviewHideTimer = null
-    }, 100)
-    textPreviewHideTimer = setTimeout(() => {
-      textPreview.value.show = false
-      textPreviewHideTimer = null
-    }, 100)
+    stopImagePreview(true)
+    hideTextPreview()
   }
 }
 
@@ -565,9 +720,13 @@ const lockUpdateKey = ref(0) // 用于强制更新锁图标
 const imagePreview = ref({
   show: false,
   src: '',
+  footer: '',
   style: {},
   imageStyle: {}
 })
+const imagePreviewSource = ref('')
+const hoverRowIndex = ref(null)
+const previewWindowSize = ref(null)
 
 // 长文本预览相关
 const textPreview = ref({
@@ -727,6 +886,19 @@ const handleItemClick = (ev, item) => {
 const handleMouseOver = (index) => {
   if (!props.isMultiple) {
     activeIndex.value = index
+  }
+  if (imagePreviewSource.value === 'hover' && hoverRowIndex.value !== null && hoverRowIndex.value !== index) {
+    stopImagePreview(true)
+  }
+  hoverRowIndex.value = index
+}
+
+const handleRowMouseLeave = (index) => {
+  if (hoverRowIndex.value === index) {
+    hoverRowIndex.value = null
+    if (imagePreviewSource.value === 'hover') {
+      stopImagePreview(true)
+    }
   }
 }
 // 监听activeIndex变化，在Shift长按状态下触发预览
