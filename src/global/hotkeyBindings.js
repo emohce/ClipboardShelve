@@ -78,6 +78,7 @@ export const HOTKEY_BINDINGS = [
 
   // ---- full-data-overlay ----
   { layer: 'full-data-overlay', shortcutId: 'Escape', features: ['full-data-close'] },
+  { layer: 'full-data-overlay', shortcutId: 'ArrowRight', features: ['full-data-close'] },
   { layer: 'full-data-overlay', shortcutId: '*', features: ['full-data-block'] },
 
   // ---- main: search state (search panel expanded + filter) ----
@@ -103,7 +104,7 @@ export const HOTKEY_BINDINGS = [
   { layer: 'main', shortcutId: 'ctrl+k', features: ['list-nav-up'] },
   { layer: 'main', shortcutId: 'ArrowDown', features: ['list-nav-down'] },
   { layer: 'main', shortcutId: 'ctrl+j', features: ['list-nav-down'] },
-  { layer: 'main', shortcutId: 'ArrowLeft', features: ['list-nav-left'] },
+  { layer: 'main', shortcutId: 'ArrowLeft', features: ['list-view-full'] },
   { layer: 'main', shortcutId: 'ArrowRight', features: ['list-drawer-open'] },
   { layer: 'main', shortcutId: 'Enter', features: ['list-enter'] },
   { layer: 'main', shortcutId: 'ctrl+Enter', features: ['list-ctrl-enter'] },

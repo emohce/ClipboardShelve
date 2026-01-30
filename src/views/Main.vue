@@ -173,6 +173,20 @@ const handleSearchBtnClick = () => {
   nextTick(() => window.focus())
 }
 
+const focusSearchInput = (initialValue = '') => {
+  nextTick(() => {
+    const input = document.querySelector('.clip-search-input')
+    if (input) {
+      input.focus()
+      if (initialValue) {
+        input.value = initialValue
+        filterText.value = initialValue
+        input.setSelectionRange(initialValue.length, initialValue.length)
+      }
+    }
+  })
+}
+
 const ClipItemListRef = ref(null)
 const selectCount = ref(0)
 const handleToggleMultiSelect = (val = true) => {
@@ -731,7 +745,15 @@ onMounted(() => {
     const { key, ctrlKey, metaKey, altKey } = e
     const isPlainTextInput =
       key.length === 1 && !ctrlKey && !metaKey && !altKey && key !== ' '
-    if (isPlainTextInput) window.focus()
+    if (isPlainTextInput) {
+      // 在普通层单键直接展开搜索并填入首字符
+      if (!isSearchPanelExpand.value && !isMultiple.value) {
+        isSearchPanelExpand.value = true
+        focusSearchInput(key)
+        return
+      }
+      window.focus()
+    }
   }
 
   document.addEventListener('scroll', scrollCallBack)
@@ -785,7 +807,8 @@ onMounted(() => {
       return true
     })
     registerFeature('main-focus-search', () => {
-      window.focus()
+      if (!isSearchPanelExpand.value) isSearchPanelExpand.value = true
+      focusSearchInput()
       return true
     })
     for (let i = 1; i <= 9; i++) {

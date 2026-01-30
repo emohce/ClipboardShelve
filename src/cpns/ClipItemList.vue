@@ -1162,6 +1162,14 @@ function registerListHotkeyFeatures() {
     }
     return true
   })
+  registerFeature('list-view-full', () => {
+    const item = props.showList[activeIndex.value]
+    if (item) {
+      emit('onDataChange', item)
+      return true
+    }
+    return false
+  })
   registerFeature('list-drawer-open', () => {
     openDrawerForCurrentItem()
     return true
@@ -1217,11 +1225,22 @@ function registerListHotkeyFeatures() {
     if (props.isMultiple && targets.length) {
       preserveSelection()
       const shouldLock = !allSelectedLocked.value
+      const dataMap = new Map(
+        [...window.db.dataBase.data, ...window.db.dataBase.collectData].map((dbItem) => [dbItem.id, dbItem])
+      )
+      let changed = false
       targets.forEach((item) => {
-        const target = window.db.dataBase.data.find((dbItem) => dbItem.id === item.id) || window.db.dataBase.collectData.find((dbItem) => dbItem.id === item.id)
-        if (target) { target.locked = shouldLock; item.locked = shouldLock }
+        const target = dataMap.get(item.id)
+        if (target && target.locked !== shouldLock) {
+          target.locked = shouldLock
+          item.locked = shouldLock
+          changed = true
+        }
       })
-      window.db.updateDataBase()
+      if (changed) {
+        // 延迟持久化，先让 UI 立即响应
+        setTimeout(() => window.db.updateDataBase(), 0)
+      }
       allSelectedLocked.value = shouldLock
       pendingLockOperations.value = true
       lockUpdateKey.value++

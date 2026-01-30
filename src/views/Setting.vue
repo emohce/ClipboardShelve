@@ -34,12 +34,6 @@
             <div class="setting-section-title">存储</div>
             <el-divider></el-divider>
             <div class="setting-row">
-              <span>剪贴板监听程序状态</span>
-              <el-tag :type="listenStatus ? 'success' : 'warning'" title="监听程序状态">
-                {{ listenStatus ? '已安装' : '未安装' }}
-              </el-tag>
-            </div>
-            <div class="setting-row">
               <span>存储位置</span>
               <el-input class="path" v-model="path" :title="path" disabled></el-input>
               <el-button type="primary" @click="handlePathBtnClick('modify')">修改</el-button>
@@ -50,7 +44,7 @@
               <span>最大历史条数</span>
               <el-select class="number-select" v-model="maxsize" fit-input-width placeholder="">
                 <el-option label="无限" :value="unlimitedVal" />
-                <el-option v-for="n in [500, 600, 700, 800, 900, 1000]" :key="n" :value="n" />
+                <el-option v-for="n in [500, 1000, 5000, 50000]" :key="n" :value="n" />
               </el-select>
               条
             </div>
@@ -58,7 +52,7 @@
               <span>保存时间</span>
               <el-select class="number-select" v-model="maxage" fit-input-width placeholder="">
                 <el-option label="无限" :value="unlimitedVal" />
-                <el-option v-for="n in [1, 3, 5, 7, 14, 31]" :key="n" :value="n" />
+                <el-option v-for="n in [1, 5, 7, 15, 30, 60, 90, 360]" :key="n" :value="n" />
               </el-select>
               天
             </div>
@@ -107,7 +101,7 @@
                 <el-option
                   v-for="o in allOperations"
                   :key="o.id"
-                  :label="o.icon + ' ' + o.title"
+                  :label="`${o.index}. ${o.icon} ${o.title}`"
                   :value="o.id"
                 />
               </el-select>
@@ -212,17 +206,17 @@ const path = ref(database.path[nativeId])
 const maxsize = ref(database.maxsize ?? unlimitedVal)
 const maxage = ref(database.maxage ?? unlimitedVal)
 
-const shown = ref([...operation.shown])
 const custom = ref(operation.custom.map((c) => ({ ...c })))
 const hotkeyOverrides = ref({ ...(setting.hotkeyOverrides || {}) })
 
 const activeTab = ref('basic')
-const listenStatus = ref(false)
 
-const allOperations = computed(() => [
-  ...defaultOperation,
-  ...custom.value.map(({ id, title, icon }) => ({ id, title, icon }))
-])
+function sortShownByOrder(shownIds, order) {
+  const orderMap = new Map(order.map((id, idx) => [id, idx]))
+  return (Array.isArray(shownIds) ? shownIds.filter((id) => orderMap.has(id)) : []).sort(
+    (a, b) => orderMap.get(a) - orderMap.get(b)
+  )
+}
 
 const defaultOperationIds = defaultOperation.map((o) => o.id)
 
@@ -234,7 +228,9 @@ function buildFeatureOrder(savedOrder, customIds) {
 }
 
 const featureOrder = ref(buildFeatureOrder(setting.operation?.order, custom.value.map((c) => c.id)))
+const shown = ref(sortShownByOrder(operation.shown, featureOrder.value))
 const shortcutColumns = [
+  { key: 'index', label: '序号', width: 70, align: 'center' },
   { key: 'shortcutDisplay', label: '快捷键', width: 140 },
   { key: 'descDisplay', label: '描述', minWidth: 240 }
 ]
@@ -254,16 +250,19 @@ const shortcutDisplayRows = computed(() => {
       grouped[shortcutDisplay].push(`[${layerLabel}-${label}]`)
     })
   })
-  const rows = Object.keys(grouped).sort().map((shortcut) => {
-    const descFull = grouped[shortcut].join(' ')
-    const maxLen = 30
-    const descDisplay = descFull.length > maxLen ? `${descFull.slice(0, maxLen)}...` : descFull
-    return {
-      shortcutDisplay: shortcut,
-      descDisplay,
-      descFull
-    }
-  })
+  const rows = Object.keys(grouped)
+    .sort()
+    .map((shortcut, idx) => {
+      const descFull = grouped[shortcut].join(' ')
+      const maxLen = 30
+      const descDisplay = descFull.length > maxLen ? `${descFull.slice(0, maxLen)}...` : descFull
+      return {
+        index: idx + 1,
+        shortcutDisplay: shortcut,
+        descDisplay,
+        descFull
+      }
+    })
   return rows
 })
 
@@ -285,6 +284,7 @@ const customFormRules = {
 const customEditId = ref('')
 
 const featureColumns = [
+  { key: 'index', label: '序号', width: 70, align: 'center' },
   { key: 'drag', label: '', width: 40, align: 'center' },
   { key: 'typeLabel', label: '类型', width: 90 },
   { key: 'title', label: '功能', minWidth: 200 },
@@ -313,8 +313,26 @@ const featureRows = computed(() => {
     raw: o
   }))
   const map = new Map([...defaults, ...customs].map((item) => [item.id, item]))
-  return featureOrder.value.map((id) => map.get(id)).filter(Boolean)
+  return featureOrder.value
+    .map((id, idx) => {
+      const item = map.get(id)
+      if (!item) return null
+      return { ...item, index: idx + 1 }
+    })
+    .filter(Boolean)
 })
+
+const orderedOperations = computed(() =>
+  featureRows.value.map((row) => ({ id: row.id, title: row.title, icon: row.icon, index: row.index }))
+)
+
+const allOperations = computed(() => orderedOperations.value)
+
+function syncShownOrder() {
+  const sorted = sortShownByOrder(shown.value, featureOrder.value)
+  const changed = sorted.length !== shown.value.length || sorted.some((id, idx) => id !== shown.value[idx])
+  if (changed) shown.value = sorted
+}
 
 function allowFeatureDrag(evt) {
   return true
@@ -324,6 +342,7 @@ function handleFeatureDragEnd({ rows }) {
   if (!Array.isArray(rows) || !rows.length) return
   featureOrder.value = rows.map((row) => row.id)
   custom.value = rows.filter((row) => row.isCustom).map((row) => row.raw)
+  syncShownOrder()
 }
 
 function openCustomAdd() {
@@ -406,7 +425,16 @@ watch(
   () => custom.value.map((c) => c.id),
   (ids) => {
     featureOrder.value = buildFeatureOrder(featureOrder.value, ids)
+    syncShownOrder()
   }
+)
+
+watch(
+  () => featureOrder.value,
+  () => {
+    syncShownOrder()
+  },
+  { deep: true }
 )
 
 function validateCustom() {
@@ -474,9 +502,10 @@ const handleRestoreBtnClick = () => {
       path.value = restored.database.path[nativeId]
       maxsize.value = restored.database.maxsize ?? unlimitedVal
       maxage.value = restored.database.maxage ?? unlimitedVal
-      shown.value = [...(restored.operation?.shown || [])]
+      shown.value = sortShownByOrder(restored.operation?.shown || [], featureOrder.value)
       custom.value = (restored.operation?.custom || []).map((c) => ({ ...c }))
       featureOrder.value = buildFeatureOrder(restored.operation?.order, custom.value.map((c) => c.id))
+      syncShownOrder()
       hotkeyOverrides.value = { ...(restored.hotkeyOverrides || {}) }
       ElMessage.success('重置成功 重启插件生效')
     })
@@ -491,7 +520,6 @@ const keyDownHandler = (e) => {
 }
 
 onMounted(() => {
-  if (typeof window.listener !== 'undefined') listenStatus.value = window.listener.listening
   document.addEventListener('keydown', keyDownHandler)
 })
 

@@ -14,6 +14,20 @@ import { copy, paste, createFile, getNativeId } from '../utils'
 import setting from './readSetting'
 import { initWindowManager, setPluginWindowSize } from './windowManager'
 
+// 忽略 ResizeObserver 噪声错误，避免 dev overlay 反复弹出
+const RESIZE_OBSERVER_ERROR = 'ResizeObserver loop limit exceeded'
+window.addEventListener('error', (event) => {
+  if (event?.message === RESIZE_OBSERVER_ERROR) {
+    event.stopImmediatePropagation()
+  }
+})
+window.addEventListener('unhandledrejection', (event) => {
+  const msg = event?.reason?.message
+  if (msg === RESIZE_OBSERVER_ERROR) {
+    event.preventDefault()
+  }
+})
+
 export default function initPlugin() {
   console.log('[initPlugin] 开始初始化插件')
   
