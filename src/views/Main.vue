@@ -33,6 +33,9 @@
           <el-tooltip content="设置" placement="bottom" :show-after="150">
             <span class="clip-switch-btn" v-show="!isMultiple" @click="emit('showSetting')">💡</span>
           </el-tooltip>
+          <el-tooltip content="清除记录" placement="bottom" :show-after="150">
+            <span class="clip-switch-btn" v-show="!isMultiple" @click="handleOpenCleanDialog">🗑️</span>
+          </el-tooltip>
           <el-tooltip content="搜索 (点击或输入开始)" placement="bottom" :show-after="150">
             <span
               class="clip-switch-btn clip-search-btn"
@@ -103,7 +106,7 @@
         </div>
         <div class="clear-panel-footer">
           <el-button @click="closeClearDialog">取消</el-button>
-          <el-button type="primary" :loading="isClearing" @click="handleClearConfirm">清除</el-button>
+          <el-button type="primary" :loading="isClearing" @click="handleClearConfirm">确定</el-button>
         </div>
       </div>
     </Transition>
@@ -910,17 +913,17 @@ onMounted(() => {
 .clear-panel {
   position: fixed;
   top: 0;
-  right: 0;
+  left: 0;
   bottom: 0;
   width: 360px;
   background: #fff;
-  box-shadow: -12px 0 28px rgba(15, 23, 42, 0.18);
+  box-shadow: 12px 0 28px rgba(15, 23, 42, 0.18);
   z-index: 190;
   display: flex;
   flex-direction: column;
   padding: 22px 20px 18px;
-  border-top-left-radius: 16px;
-  border-bottom-left-radius: 16px;
+  border-top-right-radius: 16px;
+  border-bottom-right-radius: 16px;
 }
 
 .clear-panel-header {
@@ -1101,7 +1104,7 @@ onMounted(() => {
 }
 .clear-panel-enter-from,
 .clear-panel-leave-to {
-  transform: translateX(40px);
+  transform: translateX(-40px);
   opacity: 0;
 }
 </style>

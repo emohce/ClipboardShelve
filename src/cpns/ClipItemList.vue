@@ -6,8 +6,8 @@
       :key="item.createTime"
       @click.left="handleItemClick($event, item)"
       @click.right="handleItemClick($event, item)"
-      @mouseenter.prevent="handleMouseOver(index)"
-      @mouseleave="handleRowMouseLeave(index)"
+      @mouseenter.prevent="handleMouseOver($event, index, item)"
+      @mouseleave="handleRowMouseLeave(index, item)"
       :class="{
         active: !isMultiple && index === activeIndex,
         'multi-active': isMultiple && index === activeIndex,
@@ -32,9 +32,9 @@
           <template v-if="item.type === 'image'">
             <div class="image-container" @click="handleImageClick(item)">
               <img 
-                v-if="isValidImageData(item.data)"
+                v-if="getItemImageSrc(item)"
                 class="clip-data-image"
-                :src="item.data"
+                :src="getItemImageSrc(item)"
                 :alt="'Clipboard Image'"
                 @error="handleImageError"
                 @load="handleImageLoad"
@@ -244,9 +244,22 @@ const isPreviewableImageSrc = (src) => {
   return isValidImageData(src) || /^file:\/\//i.test(src)
 }
 
+const resolvePreviewImageSrc = (value) => {
+  if (!value || typeof value !== 'string') return ''
+  if (isValidImageData(value)) return value
+  if (/^file:\/\//i.test(value)) return value
+  return toFileUrl(value)
+}
+
+const getItemImageSrc = (item) => {
+  if (!item || item.type !== 'image') return ''
+  return resolvePreviewImageSrc(item.data)
+}
+
 // 显示图片预览
-const showImagePreview = (event, item) => {
-  if (!isValidImageData(item.data)) return
+const showImagePreview = (event, item, footerText = '') => {
+  const src = getItemImageSrc(item)
+  if (!src) return
 
   imagePreviewSource.value = event ? 'hover' : 'keyboard'
   textPreview.value.show = false
@@ -261,7 +274,7 @@ const showImagePreview = (event, item) => {
     imagePreviewHideTimer = null
   }
   
-  if (openExternalPreview(item.data, '', 0.66)) {
+  if (openExternalPreview(src, footerText, 0.66)) {
     imagePreview.value.show = false
     return
   }
@@ -276,8 +289,8 @@ const showImagePreview = (event, item) => {
   expandPreviewWindow(maxWidth, maxHeight)
   
   // 设置预览位置和样式
-  imagePreview.value.src = item.data
-  imagePreview.value.footer = ''
+  imagePreview.value.src = src
+  imagePreview.value.footer = footerText
   imagePreview.value.show = true
   imagePreview.value.style = {
     position: 'fixed',
@@ -462,53 +475,9 @@ const showImageFilePreview = (path) => {
   if (!src) return
   const name = path.split(/[\\/]/).pop() || path
   const footerText = `${name}\n${path}`
-  imagePreviewSource.value = 'hover'
-  textPreview.value.show = false
-  if (textPreviewHideTimer) {
-    clearTimeout(textPreviewHideTimer)
-    textPreviewHideTimer = null
-  }
-  if (imagePreviewHideTimer) {
-    clearTimeout(imagePreviewHideTimer)
-    imagePreviewHideTimer = null
-  }
-
-  if (openExternalPreview(src, footerText, 0.8)) {
-    imagePreview.value.show = false
-    return
-  }
-
-  const screenWidth = window.screen?.width || window.innerWidth
-  const screenHeight = window.screen?.height || window.innerHeight
-  const maxWidth = Math.floor(screenWidth)
-  const maxHeight = Math.floor(screenHeight)
-  expandPreviewWindow(maxWidth, maxHeight)
-
-  imagePreview.value.src = src
-  imagePreview.value.footer = footerText
-  imagePreview.value.show = true
-  imagePreview.value.style = {
-    position: 'fixed',
-    top: '50%',
-    left: '50%',
-    transform: 'translate(-50%, -50%)',
-    zIndex: 9999,
-    backgroundColor: 'rgba(0, 0, 0, 0.8)',
-    borderRadius: '8px',
-    padding: '8px',
-    boxShadow: '0 8px 32px rgba(0, 0, 0, 0.3)',
-    maxWidth: `${maxWidth}px`,
-    maxHeight: `${maxHeight}px`
-  }
-
-  imagePreview.value.imageStyle = {
-    width: 'auto',
-    height: 'auto',
-    maxWidth: `${maxWidth}px`,
-    maxHeight: `${maxHeight}px`,
-    display: 'block',
-    borderRadius: '4px'
-  }
+  
+  // 使用统一的图片预览逻辑
+  showImagePreview(null, { type: 'image', data: src }, footerText)
 }
 
 // Shift 持续按下预览：按 item 类型封装的预览入口
@@ -523,13 +492,19 @@ const isLongText = (item) => {
 /** 根据当前 item 类型执行预览（图片 / 长文本，其余类型暂不处理） */
 const runPreviewForItem = (item) => {
   if (!item) return
-  if (item.type === 'image' && isValidImageData(item.data)) {
+  if (item.type === 'image' && getItemImageSrc(item)) {
     showImagePreview(null, item)
     return
   }
   if (item.type === 'text' && isLongText(item)) {
     showTextPreview(item)
     return
+  }
+  if (item.type === 'file') {
+    const imageFiles = getImageFiles(item)
+    if (imageFiles.length && imageFiles[0]?.path) {
+      showImageFilePreview(imageFiles[0].path)
+    }
   }
 }
 
@@ -883,10 +858,12 @@ const handleItemClick = (ev, item) => {
     }
   }
 }
-const handleMouseOver = (index) => {
+const handleMouseOver = (event, index, item) => {
   if (!props.isMultiple) {
     activeIndex.value = index
   }
+  // 图片类型现在直接在图片元素上处理悬浮，这里不再处理
+  // 只有当从不同行移入时才停止预览，避免同一行内移动造成闪烁
   if (imagePreviewSource.value === 'hover' && hoverRowIndex.value !== null && hoverRowIndex.value !== index) {
     stopImagePreview(true)
   }
@@ -1145,6 +1122,12 @@ function registerListHotkeyFeatures() {
   }
 }
 
+const keyDownCallBack = (e) => {
+  if (e.key !== 'Shift' || e.repeat) return
+  if (props.isMultiple) isShiftDown.value = true
+  handleShiftKeyDown()
+}
+
 const keyUpCallBack = (e) => {
   const { key } = e
   const isShift = key === 'Shift'
@@ -1158,10 +1141,12 @@ const keyUpCallBack = (e) => {
 
 onMounted(() => {
   registerListHotkeyFeatures()
+  document.addEventListener('keydown', keyDownCallBack)
   document.addEventListener('keyup', keyUpCallBack)
 })
 
 onUnmounted(() => {
+  document.removeEventListener('keydown', keyDownCallBack)
   document.removeEventListener('keyup', keyUpCallBack)
   
   // 清理图片预览定时器
