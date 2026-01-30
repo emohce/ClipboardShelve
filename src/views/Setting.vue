@@ -21,15 +21,16 @@
             </div>
             <div class="setting-row">
               <span>最大历史条数</span>
-              <el-select class="number-select" v-model="maxsize" fit-input-width>
-                <el-option label="不限制" :value="null" />
+              <el-select class="number-select" v-model="maxsize" fit-input-width placeholder="">
+                <el-option label="无限" :value="unlimitedVal" />
                 <el-option v-for="n in [500, 600, 700, 800, 900, 1000]" :key="n" :value="n" />
               </el-select>
               条
             </div>
             <div class="setting-row">
               <span>最长保存时间</span>
-              <el-select class="number-select" v-model="maxage" fit-input-width>
+              <el-select class="number-select" v-model="maxage" fit-input-width placeholder="">
+                <el-option label="无限" :value="unlimitedVal" />
                 <el-option v-for="n in [1, 3, 5, 7, 14, 31]" :key="n" :value="n" />
               </el-select>
               天
@@ -152,9 +153,11 @@ const emit = defineEmits(['back'])
 const { database, operation } = setting
 const nativeId = getNativeId()
 
+// null 表示无限，下拉用占位值以便 el-select 能匹配并展示「无限」
+const unlimitedVal = 'unlimited'
 const path = ref(database.path[nativeId])
-const maxsize = ref(database.maxsize)
-const maxage = ref(database.maxage)
+const maxsize = ref(database.maxsize ?? unlimitedVal)
+const maxage = ref(database.maxage ?? unlimitedVal)
 
 const shown = ref(operation.shown)
 const custom = ref(operation.custom)
@@ -197,8 +200,8 @@ const handleSaveBtnClick = () => {
             ...database.path,
             [nativeId]: path.value
           },
-          maxsize: maxsize.value,
-          maxage: maxage.value
+          maxsize: maxsize.value === unlimitedVal ? null : maxsize.value,
+          maxage: maxage.value === unlimitedVal ? null : maxage.value
         },
         operation: {
           shown: shown.value,

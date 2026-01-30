@@ -9,6 +9,19 @@ import { getCurrentLayer } from './hotkeyLayers'
 
 const MAIN_LAYER = 'main'
 
+/** Mac 上 Cmd 与 Ctrl 同根：匹配时把 meta 当作 ctrl，使现有 ctrl 绑定对 Cmd 生效 */
+function isMac() {
+  if (typeof window !== 'undefined' && window.exports?.utools?.isMacOs?.()) return true
+  if (typeof navigator !== 'undefined' && /Mac/i.test(navigator.platform)) return true
+  return false
+}
+
+/** 用于查找的 shortcutId：Mac 上 meta 视为 ctrl，与 hotkeyBindings 中 ctrl 绑定统一 */
+function shortcutIdForLookup(shortcutId) {
+  if (!shortcutId || !isMac()) return shortcutId
+  return shortcutId.split('+').map((p) => (p === 'meta' ? 'ctrl' : p)).join('+')
+}
+
 const features = new Map()
 let bindings = []
 const mainStateRef = { current: 'normal' }
@@ -104,6 +117,7 @@ export function dispatch(e) {
   if (ignoreRepeat && e.repeat) return false
 
   const shortcutId = eventToShortcutId(e)
+  const lookupId = shortcutIdForLookup(shortcutId)
   const layer = getEffectiveLayer()
   const state = mainStateRef.current
 
@@ -111,7 +125,7 @@ export function dispatch(e) {
   let binding = null
   let bindingLayer = null
   for (const L of order) {
-    binding = findBinding(L, state, shortcutId)
+    binding = findBinding(L, state, lookupId)
     if (binding) {
       bindingLayer = L
       break

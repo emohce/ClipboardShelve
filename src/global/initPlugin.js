@@ -138,13 +138,15 @@ export default function initPlugin() {
           normalizeOriginPaths(this.dataBase.data)
           normalizeOriginPaths(this.dataBase.collectData)
 
-          // 将超过14天的普通数据删除（收藏数据不受影响）
-          const now = new Date().getTime()
-          const deleteTime = now - setting.database.maxage * 24 * 60 * 60 * 1000
+          // 当设置了最长保存时间时，将超过该时间的普通数据删除（收藏数据不受影响）；maxage 为 null 时不按时间删除
           const collectIds = new Set(this.dataBase.collects) // 收藏的ID集合
-          this.dataBase.data = this.dataBase.data?.filter(
-            (item) => item.updateTime > deleteTime && !collectIds.has(item.id)
-          )
+          if (setting.database.maxage != null) {
+            const now = new Date().getTime()
+            const deleteTime = now - setting.database.maxage * 24 * 60 * 60 * 1000
+            this.dataBase.data = this.dataBase.data?.filter(
+              (item) => item.updateTime > deleteTime && !collectIds.has(item.id)
+            )
+          }
           
           // 清理collects和collectData中已不存在的项目ID
           const collectDataIds = new Set(this.dataBase.collectData.map((item) => item.id))

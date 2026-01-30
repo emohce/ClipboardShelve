@@ -1,7 +1,7 @@
 {
   "database.path": {},
   "database.maxsize": null,
-  "database.maxage": 14,
+  "database.maxage": null,
   "operation.shown": ["copy", "view", "collect", "un-collect", "remove"],
   "operation.custom": [
     {
