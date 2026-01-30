@@ -656,6 +656,14 @@ export default function initPlugin() {
     }
     toTop()
     resetNav()
+    // 将焦点移到主内容区，使上下键能被热键层识别；并让当前选中项滚动到视图中
+    setTimeout(() => {
+      const mainEl = document.querySelector('.main')
+      if (mainEl) {
+        mainEl.focus()
+      }
+      document.querySelector('.clip-item.active')?.scrollIntoView({ block: 'nearest', inline: 'nearest' })
+    }, 80)
   })
   
   console.log('[initPlugin] 插件初始化完成')

@@ -1,5 +1,5 @@
 <template>
-  <div class="main">
+  <div class="main" tabindex="-1">
     <ClipFloatBtn :icon="'🧭'" @onBtnClick="handleClearBtnClick"></ClipFloatBtn>
     <ClipFullData
       :isShow="fullDataShow"
