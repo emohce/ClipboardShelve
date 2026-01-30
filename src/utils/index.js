@@ -77,13 +77,15 @@ const copyWithSearchFocus = (item) => {
       utools.copyFile(paths)
       break
   }
-  
-  // 如果在 uTools 插件环境，只复制不粘贴（避免影响插件内状态）
+
+  // uTools 插件环境：主窗口(main)=插件内固定，只复制不粘贴；分离窗口(detach)=不固定，复制后自动粘贴到光标
   if (isUToolsPlugin()) {
-    return
+    if (utools.getWindowType && utools.getWindowType() === 'main') {
+      return
+    }
   }
-  
-  // 非插件环境，先退出搜索焦点，再粘贴到外部光标位置
+
+  // 非插件环境 或 分离窗口：先退出搜索焦点，再粘贴到外部光标位置
   const searchInput = document.querySelector('.clip-search-input')
   if (document.activeElement === searchInput) {
     searchInput.blur()

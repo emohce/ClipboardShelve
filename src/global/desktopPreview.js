@@ -66,8 +66,14 @@ function createDesktopPreviewWindow(src, footer = '', options = {}) {
     autoFit = true
   } = options
   
-  if (!src) return null
-  
+  if (!src) {
+    console.warn('[DesktopPreview] createDesktopPreviewWindow: src 为空')
+    return null
+  }
+
+  const srcType = src.startsWith('data:') ? 'data' : src.startsWith('file:') ? 'file' : 'other'
+  console.log('[DesktopPreview] createDesktopPreviewWindow 调用', { srcType, srcLen: src.length })
+
   // 获取屏幕信息
   const screen = getDesktopScreenInfo()
   
@@ -95,15 +101,19 @@ function createDesktopPreviewWindow(src, footer = '', options = {}) {
   let previewWindow = window.open('', 'desktop-preview-' + Date.now(), windowFeatures)
   
   if (!previewWindow) {
-    console.error('[DesktopPreview] 无法创建预览窗口')
+    console.error('[DesktopPreview] window.open 返回 null，可能被拦截或环境限制')
     return null
   }
+  console.log('[DesktopPreview] window.open 成功，准备写入 HTML')
   
   // 生成HTML内容
   const footerHtml = footer
     ? `<div class="footer">${escapeHtml(footer).replace(/\n/g, '<br>')}</div>`
     : ''
   
+  // 转义 src 避免 data URL / file URL 中的 " 或 & 截断属性导致预览失败
+  const srcEscaped = escapeHtml(src)
+
   const html = `<!DOCTYPE html>
   <html>
   <head>
@@ -211,7 +221,7 @@ function createDesktopPreviewWindow(src, footer = '', options = {}) {
       </div>
       <div class="image-wrapper">
         <div class="loading">加载中...</div>
-        <img src="${src}" alt="preview" style="display: none;" />
+        <img src="${srcEscaped}" alt="preview" style="display: none;" />
       </div>
       ${footerHtml}
       <div class="shortcuts">ESC: 关闭 | 双击图片: 适应窗口</div>
@@ -222,6 +232,7 @@ function createDesktopPreviewWindow(src, footer = '', options = {}) {
       
       // 图片加载处理（延迟一帧再调整窗口，确保 naturalWidth/Height 就绪）
       function handleImageLoad() {
+        try { console.log('[DesktopPreview \u9884\u89c8\u7a97] \u56fe\u7247\u52a0\u8f7d\u6210\u529f'); } catch(e) {}
         loading.style.display = 'none';
         img.style.display = 'block';
         
@@ -232,6 +243,7 @@ function createDesktopPreviewWindow(src, footer = '', options = {}) {
       
       // 图片加载错误处理
       function handleImageError() {
+        try { console.error('[DesktopPreview \u9884\u89c8\u7a97] \u56fe\u7247\u52a0\u8f7d\u5931\u8d25', img ? img.src ? img.src.substring(0, 80) : 'no-src' : 'no-img'); } catch(e) {}
         loading.textContent = '图片加载失败';
         loading.style.color = '#ef4444';
       }
@@ -301,10 +313,16 @@ function createDesktopPreviewWindow(src, footer = '', options = {}) {
   </html>`
   
   // 写入内容
+  const htmlLen = html.length
+  console.log('[DesktopPreview] 写入预览页', { htmlLen, htmlLenMB: (htmlLen / 1024 / 1024).toFixed(2) + 'MB' })
+  if (htmlLen > 2 * 1024 * 1024) {
+    console.warn('[DesktopPreview] HTML 体积较大，可能影响写入或渲染', htmlLen)
+  }
   previewWindow.document.open()
   previewWindow.document.write(html)
   previewWindow.document.close()
-  
+  console.log('[DesktopPreview] 预览页写入完成')
+
   // 聚焦窗口
   try {
     previewWindow.focus()
@@ -335,8 +353,12 @@ class DesktopPreviewManager {
    * 创建预览窗口
    */
   createPreview(src, footer = '', options = {}) {
-    if (!src) return null
-    
+    if (!src) {
+      console.warn('[DesktopPreview] createPreview: src 为空')
+      return null
+    }
+    console.log('[DesktopPreview] createPreview 调用', { srcLen: src.length })
+
     // 清理已关闭的窗口
     this.cleanupClosedWindows()
     
@@ -351,6 +373,7 @@ class DesktopPreviewManager {
     const previewWindow = createDesktopPreviewWindow(src, footer, options)
     
     if (previewWindow) {
+      console.log('[DesktopPreview] createPreview 成功，窗口已创建')
       this.previewWindows.set(windowId, previewWindow)
       
       // 监听窗口关闭
@@ -360,6 +383,8 @@ class DesktopPreviewManager {
           clearInterval(checkClosed)
         }
       }, 1000)
+    } else {
+      console.warn('[DesktopPreview] createPreview 失败，createDesktopPreviewWindow 返回 null')
     }
     
     return previewWindow

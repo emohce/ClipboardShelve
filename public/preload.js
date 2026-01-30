@@ -2,7 +2,7 @@ const { existsSync, readFileSync, writeFileSync, mkdirSync, watch } = require('f
 const { sep } = require('path')
 const crypto = require('crypto')
 const listener = require('./listener')
-const { clipboard } = require('electron')
+const { clipboard, nativeImage } = require('electron')
 const time = require('./time')
 
 window.exports = {
@@ -16,6 +16,7 @@ window.exports = {
   crypto,
   listener,
   clipboard,
+  nativeImage,
   time,
   Buffer
 }

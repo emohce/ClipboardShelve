@@ -71,8 +71,6 @@
                         v-for="imgFile in getImageFiles(item)"
                         :key="imgFile.path"
                         class="image-file-item"
-                        @mouseenter="showImageFilePreview(imgFile.path)"
-                        @mouseleave="hideImagePreview"
                       >
                         <img
                           class="image-file-preview"
@@ -254,7 +252,7 @@ const getItemImageSrc = (item) => {
   return resolvePreviewImageSrc(item.data)
 }
 
-// 显示图片预览
+// 显示图片预览（统一使用插件内弹层，不调用 window.open 桌面预览）
 const showImagePreview = (event, item, footerText = '') => {
   const src = getItemImageSrc(item)
   if (!src) return
@@ -265,29 +263,40 @@ const showImagePreview = (event, item, footerText = '') => {
     clearTimeout(textPreviewHideTimer)
     textPreviewHideTimer = null
   }
-
-  // 清除之前的隐藏定时器
   if (imagePreviewHideTimer) {
     clearTimeout(imagePreviewHideTimer)
     imagePreviewHideTimer = null
   }
-  
-  // 使用桌面预览管理器创建独立预览窗口，不改变插件窗口
-  const previewWindow = desktopPreviewManager.createPreview(src, footerText, {
-    ratio: 0.67, // 使用桌面2/3比例
-    title: '图片预览 - 超级剪贴板',
-    autoFit: true
-  })
-  
-  if (previewWindow) {
-    imagePreview.value.show = false
-    console.log('[showImagePreview] 桌面预览窗口已创建，插件窗口大小不变')
-    return
-  }
 
-  // 如果桌面预览失败，也不改变插件窗口大小，直接返回
-  console.log('[showImagePreview] 桌面预览失败，不显示插件内预览')
-  imagePreview.value.show = false
+  const margin = 40
+  const maxW = Math.min(window.innerWidth - margin * 2, 900)
+  const maxH = Math.min(window.innerHeight - margin * 2, 700)
+  imagePreview.value.src = src
+  imagePreview.value.footer = footerText
+  imagePreview.value.style = {
+    position: 'fixed',
+    top: '50%',
+    left: '50%',
+    transform: 'translate(-50%, -50%)',
+    zIndex: 9999,
+    backgroundColor: 'rgba(15, 17, 21, 0.96)',
+    borderRadius: '8px',
+    padding: '16px',
+    boxShadow: '0 8px 32px rgba(0, 0, 0, 0.5)',
+    maxWidth: `${maxW}px`,
+    maxHeight: `${maxH}px`,
+    display: 'flex',
+    flexDirection: 'column',
+    alignItems: 'center',
+    overflow: 'auto'
+  }
+  imagePreview.value.imageStyle = {
+    maxWidth: '100%',
+    maxHeight: '100%',
+    objectFit: 'contain',
+    display: 'block'
+  }
+  imagePreview.value.show = true
 }
 
 // 隐藏图片预览
@@ -1351,6 +1360,30 @@ onUnmounted(() => {
     word-break: break-word;
     max-height: inherit;
     overflow: auto;
+  }
+}
+
+.image-preview-modal {
+  .image-preview-content {
+    flex: 1;
+    min-height: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 100%;
+  }
+  .image-preview-footer {
+    margin-top: 8px;
+    font-size: 12px;
+    color: rgba(255, 255, 255, 0.7);
+    white-space: pre-wrap;
+    word-break: break-all;
+    text-align: center;
+  }
+  .preview-error {
+    padding: 16px;
+    color: #ef4444;
+    font-size: 14px;
   }
 }
 </style>

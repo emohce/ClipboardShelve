@@ -7,6 +7,7 @@ const {
   crypto,
   listener,
   clipboard,
+  nativeImage,
   time
 } = window.exports
 import { copy, paste, createFile, getNativeId } from '../utils'
@@ -638,6 +639,26 @@ export default function initPlugin() {
   const toTop = () => (document.scrollingElement.scrollTop = 0)
   const resetNav = () => document.querySelectorAll('.clip-switch-item')[0]?.click()
 
+  /** 将刚入库的内容写回剪贴板，避免常驻时复制后剪贴板被清空、无法在其他应用粘贴 */
+  const restoreClipboard = (item) => {
+    if (!item || !item.type) return
+    try {
+      if (item.type === 'text' && typeof item.data === 'string') {
+        clipboard.writeText(item.data)
+        console.log('[restoreClipboard] 已写回文本')
+      } else if (item.type === 'image' && item.data && typeof nativeImage?.createFromDataURL === 'function') {
+        const img = nativeImage.createFromDataURL(item.data)
+        if (img && !img.isEmpty()) {
+          clipboard.writeImage(img)
+          console.log('[restoreClipboard] 已写回图片')
+        }
+      }
+      // file 类型写回依赖系统格式，暂不处理
+    } catch (e) {
+      console.warn('[restoreClipboard] 写回剪贴板失败', e)
+    }
+  }
+
   const handleClipboardChange = (item = pbpaste()) => {
     console.log('[handleClipboardChange] 处理剪贴板变化, item:', item ? `类型: ${item.type}` : 'null')
     if (!item) {
@@ -649,6 +670,7 @@ export default function initPlugin() {
     if (db.updateItemViaId(item.id)) {
       // 在库中 由 updateItemViaId 更新 updateTime
       console.log('[handleClipboardChange] 记录已存在, 已更新')
+      restoreClipboard(item)
       return
     }
     // 不在库中 由 addItem 添加
@@ -658,6 +680,7 @@ export default function initPlugin() {
     item.locked = false
     db.addItem(item)
     console.log('[handleClipboardChange] 处理完成')
+    restoreClipboard(item)
   }
 
   const addCommonListener = () => {
