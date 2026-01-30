@@ -442,25 +442,150 @@ export default function initPlugin() {
     }
   }
 
+  const normalizeFilePath = (rawPath = '') => {
+    let path = String(rawPath).trim()
+    if (!path) return ''
+    if (path.startsWith('file://')) {
+      path = decodeURIComponent(path.replace(/^file:\/+/, '/'))
+      if (/^\/[A-Za-z]:\//.test(path)) {
+        path = path.slice(1)
+      }
+    }
+    if (!utools.isMacOs()) {
+      path = path.replace(/\//g, '\\')
+    }
+    return path
+  }
+
+  const collectUriListPaths = (text = '') => {
+    return text
+      .split(/\r?\n/)
+      .map((line) => line.trim())
+      .filter((line) => line && !line.startsWith('#'))
+      .map((line) => normalizeFilePath(line))
+      .filter(Boolean)
+  }
+
+  const readClipboardSourcePaths = () => {
+    const paths = []
+    const addPath = (p) => {
+      if (p && !paths.includes(p)) paths.push(p)
+    }
+    const addPaths = (list = []) => list.forEach(addPath)
+    const formats = typeof clipboard.availableFormats === 'function' ? clipboard.availableFormats() : []
+
+    const tryReadText = (format) => {
+      try {
+        const text = clipboard.readText(format)
+        if (text) addPaths(collectUriListPaths(text))
+      } catch (e) {
+        return
+      }
+    }
+
+    const tryReadBuffer = (format) => {
+      try {
+        const buf = clipboard.readBuffer(format)
+        if (!buf || !buf.length) return
+        const text = buf.toString('ucs2')
+        const list = text.split('\u0000').filter(Boolean).map((p) => normalizeFilePath(p))
+        addPaths(list)
+      } catch (e) {
+        return
+      }
+    }
+
+    if (formats.includes('text/uri-list')) {
+      tryReadText('text/uri-list')
+    }
+    if (formats.includes('public.file-url')) {
+      tryReadText('public.file-url')
+    }
+    if (formats.includes('FileNameW')) {
+      tryReadBuffer('FileNameW')
+    }
+    if (!paths.length && formats.includes('FileName')) {
+      tryReadBuffer('FileName')
+    }
+
+    return paths
+  }
+
+  const readActiveWindowInfo = () => {
+    if (typeof utools?.shellExec !== 'function') {
+      return { sourceApp: '', sourceWindowTitle: '' }
+    }
+    try {
+      if (utools.isMacOs()) {
+        const appResult = utools.shellExec('osascript -e \'tell application "System Events" to get name of first application process whose frontmost is true\'')
+        const titleResult = utools.shellExec('osascript -e \'tell application "System Events" to get title of front window of (first application process whose frontmost is true)\'')
+        const sourceApp = (typeof appResult === 'string' ? appResult : appResult?.stdout || appResult?.output || '').trim()
+        const sourceWindowTitle = (typeof titleResult === 'string' ? titleResult : titleResult?.stdout || titleResult?.output || '').trim()
+        return { sourceApp, sourceWindowTitle }
+      }
+      const psCommand = [
+        'powershell',
+        '-NoProfile',
+        '-Command',
+        '"Add-Type @\'',
+        'using System;',
+        'using System.Runtime.InteropServices;',
+        'using System.Text;',
+        'public class Win32 {',
+        '  [DllImport(\\"user32.dll\\")] public static extern IntPtr GetForegroundWindow();',
+        '  [DllImport(\\"user32.dll\\", CharSet=CharSet.Auto)] public static extern int GetWindowText(IntPtr hWnd, StringBuilder text, int count);',
+        '}',
+        '\'@; ',
+        '$hwnd = [Win32]::GetForegroundWindow();',
+        '$sb = New-Object System.Text.StringBuilder 1024;',
+        '[Win32]::GetWindowText($hwnd, $sb, $sb.Capacity) | Out-Null;',
+        '$sb.ToString()"'
+      ].join(' ')
+      const titleResult = utools.shellExec(psCommand)
+      const sourceWindowTitle = (typeof titleResult === 'string' ? titleResult : titleResult?.stdout || titleResult?.output || '').trim()
+      return { sourceApp: '', sourceWindowTitle }
+    } catch (e) {
+      return { sourceApp: '', sourceWindowTitle: '' }
+    }
+  }
+
   const pbpaste = () => {
     console.log('[pbpaste] 开始读取剪贴板内容')
     // file
     const files = utools.getCopyedFiles() // null | Array
     console.log('[pbpaste] 检查文件:', files ? `找到 ${files.length} 个文件` : '无文件')
     if (files) {
+      const originPaths = files.map((f) => f.path).filter(Boolean)
+      const hasSourceInfo = originPaths.length > 0
       const result = {
         type: 'file',
         data: JSON.stringify(files),
-        originPaths: files.map((f) => f.path).filter(Boolean)
+        originPaths,
+        sourcePaths: originPaths,
+        fromFileSource: hasSourceInfo,
+        hasSourceInfo
       }
       console.log('[pbpaste] 返回文件类型, 数据长度:', result.data.length)
       return result
     }
+    const sourcePaths = readClipboardSourcePaths()
+    const hasSourceInfo = sourcePaths.length > 0
+    const { sourceApp, sourceWindowTitle } = hasSourceInfo ? readActiveWindowInfo() : { sourceApp: '', sourceWindowTitle: '' }
     // text
     const text = clipboard.readText()
     console.log('[pbpaste] 检查文本:', text ? `长度 ${text.length}` : '无文本')
     if (text && text.trim()) {
-      const result = { type: 'text', data: text }
+      const result = {
+        type: 'text',
+        data: text,
+        fromFileSource: hasSourceInfo,
+        hasSourceInfo,
+        sourceApp,
+        sourceWindowTitle
+      }
+      if (hasSourceInfo) {
+        result.sourcePaths = sourcePaths
+      }
       console.log('[pbpaste] 返回文本类型, 内容:', text.substring(0, 50))
       return result
     }
@@ -472,7 +597,14 @@ export default function initPlugin() {
       const data = image.toDataURL()
       const result = {
         type: 'image',
-        data: data
+        data: data,
+        fromFileSource: hasSourceInfo,
+        hasSourceInfo,
+        sourceApp,
+        sourceWindowTitle
+      }
+      if (hasSourceInfo) {
+        result.sourcePaths = sourcePaths
       }
       console.log('[pbpaste] 返回图片类型, 数据长度:', data.length)
       return result

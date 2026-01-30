@@ -76,6 +76,24 @@ const handleSelect = (op, meta = {}) => {
   emit('select', op, meta)
 }
 
+const handleOutsideClick = (event) => {
+  if (!props.show) return
+  const target = event?.target
+  if (!(target instanceof Element)) return
+  if (target.closest('.clip-drawer-menu')) return
+  emit('close')
+}
+
+const addOutsideListeners = () => {
+  document.addEventListener('mousedown', handleOutsideClick, true)
+  document.addEventListener('contextmenu', handleOutsideClick, true)
+}
+
+const removeOutsideListeners = () => {
+  document.removeEventListener('mousedown', handleOutsideClick, true)
+  document.removeEventListener('contextmenu', handleOutsideClick, true)
+}
+
 const onDragStart = (idx) => {
   draggingIndex.value = idx
 }
@@ -133,8 +151,10 @@ watch(
   (visible) => {
     if (visible) {
       activateLayer(layerName)
+      addOutsideListeners()
     } else {
       deactivateLayer(layerName)
+      removeOutsideListeners()
     }
   },
   { immediate: true }
@@ -142,13 +162,14 @@ watch(
 
 onUnmounted(() => {
   deactivateLayer(layerName)
+  removeOutsideListeners()
 })
 </script>
 
 <style lang="less" scoped>
 .clip-drawer-menu {
   position: fixed;
-  z-index: 20;
+  z-index: 300;
   background: rgba(30, 30, 30, 0.92);
   color: #fff;
   border-radius: 8px;

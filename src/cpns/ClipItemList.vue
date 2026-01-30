@@ -68,7 +68,13 @@
                   <div v-if="hasImageFiles(item)" class="image-files-section">
                     <div class="section-title">📷 图片文件 ({{ getImageFiles(item).length }})</div>
                     <div class="image-files-grid">
-                      <div v-for="imgFile in getImageFiles(item)" :key="imgFile.path" class="image-file-item">
+                      <div
+                        v-for="imgFile in getImageFiles(item)"
+                        :key="imgFile.path"
+                        class="image-file-item"
+                        @mouseenter="showImageFilePreview(imgFile.path)"
+                        @mouseleave="hideImagePreview"
+                      >
                         <div class="file-icon">🖼️</div>
                         <div class="file-name">{{ imgFile.path?.split('/').pop() || imgFile.name }}</div>
                       </div>
@@ -239,14 +245,14 @@ const showImagePreview = (event, item) => {
     imagePreviewHideTimer = null
   }
   
-  // 获取窗口尺寸
-  const windowWidth = window.innerWidth
-  const windowHeight = window.innerHeight
+  // 获取屏幕尺寸（不局限于插件窗口）
+  const screenWidth = window.screen?.width || window.innerWidth
+  const screenHeight = window.screen?.height || window.innerHeight
   
-  // 计算图片显示区域（留出边距）
-  const margin = 100
-  const maxWidth = windowWidth - margin * 2
-  const maxHeight = windowHeight - margin * 2
+  // 计算图片显示区域（约占屏幕 2/3）
+  const targetRatio = 0.66
+  const maxWidth = Math.floor(screenWidth * targetRatio)
+  const maxHeight = Math.floor(screenHeight * targetRatio)
   
   // 设置预览位置和样式
   imagePreview.value.src = item.data
@@ -289,6 +295,58 @@ const keepImagePreview = () => {
   if (imagePreviewHideTimer) {
     clearTimeout(imagePreviewHideTimer)
     imagePreviewHideTimer = null
+  }
+}
+
+const toFileUrl = (path) => {
+  if (!path) return ''
+  if (path.startsWith('file://')) return path
+  const normalized = path.replace(/\\/g, '/').replace(/^\/+/, '')
+  return `file:///${normalized}`
+}
+
+const showImageFilePreview = (path) => {
+  if (!path) return
+  const src = toFileUrl(path)
+  if (!src) return
+  textPreview.value.show = false
+  if (textPreviewHideTimer) {
+    clearTimeout(textPreviewHideTimer)
+    textPreviewHideTimer = null
+  }
+  if (imagePreviewHideTimer) {
+    clearTimeout(imagePreviewHideTimer)
+    imagePreviewHideTimer = null
+  }
+
+  const screenWidth = window.screen?.width || window.innerWidth
+  const screenHeight = window.screen?.height || window.innerHeight
+  const targetRatio = 0.66
+  const maxWidth = Math.floor(screenWidth * targetRatio)
+  const maxHeight = Math.floor(screenHeight * targetRatio)
+
+  imagePreview.value.src = src
+  imagePreview.value.show = true
+  imagePreview.value.style = {
+    position: 'fixed',
+    top: '50%',
+    left: '50%',
+    transform: 'translate(-50%, -50%)',
+    zIndex: 9999,
+    backgroundColor: 'rgba(0, 0, 0, 0.8)',
+    borderRadius: '8px',
+    padding: '20px',
+    boxShadow: '0 8px 32px rgba(0, 0, 0, 0.3)',
+    maxWidth: `${maxWidth}px`,
+    maxHeight: `${maxHeight}px`
+  }
+
+  imagePreview.value.imageStyle = {
+    maxWidth: `${maxWidth}px`,
+    maxHeight: `${maxHeight}px`,
+    objectFit: 'contain',
+    display: 'block',
+    borderRadius: '4px'
   }
 }
 
@@ -477,7 +535,7 @@ const applyDrawerOrder = (list) => {
 // 全部信息内的菜单：与主层 ClipOperate 一致，filterOperate + applyDrawerOrder，用于右侧抽屉
 const getDrawerFullMenuItems = (currentItem) => {
   if (!currentItem) return []
-  const available = operations.value.filter((op) => filterOperate(op, currentItem, false))
+  const available = operations.value.filter((op) => filterOperate(op, currentItem, false, 'drawer'))
   return applyDrawerOrder(available)
 }
 

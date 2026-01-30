@@ -2,6 +2,15 @@ import { ElMessage } from "element-plus";
 import setting from "../global/readSetting";
 
 export default function useClipOperate({ emit, currentActiveTab }) {
+  const getSourcePaths = (item) => {
+    const list = Array.isArray(item?.sourcePaths)
+      ? item.sourcePaths
+      : Array.isArray(item?.originPaths)
+        ? item.originPaths
+        : []
+    return list.filter(Boolean)
+  }
+
   return {
     handleOperateClick: (operation, item, meta = {}) => {
       const { id } = operation;
@@ -22,6 +31,11 @@ export default function useClipOperate({ emit, currentActiveTab }) {
         const { data } = item;
         const fl = JSON.parse(data);
         utools.shellShowItemInFolder(fl[0].path); // 取第一个文件的路径打开
+      } else if (id === "open-source") {
+        const paths = getSourcePaths(item)
+        if (paths.length) {
+          utools.shellShowItemInFolder(paths[0])
+        }
       } else if (id === "collect") {
         // 添加到收藏列表
         console.log("[useClipOperate] 收藏操作 - 项目ID:", item.id);
@@ -97,11 +111,12 @@ export default function useClipOperate({ emit, currentActiveTab }) {
       }
       emit("onOperateExecute");
     },
-    filterOperate: (operation, item, isFullData) => {
+    filterOperate: (operation, item, isFullData, context) => {
       const { id } = operation;
       if (!isFullData) {
         // 在非预览页 只展示setting.operation.shown中的功能按钮
-        if (!setting.operation.shown.includes(id)) {
+        const allowInDrawer = context === "drawer" && (id === "open-source" || id === "open-folder")
+        if (!setting.operation.shown.includes(id) && !allowInDrawer) {
           return false;
         }
       }
@@ -111,6 +126,8 @@ export default function useClipOperate({ emit, currentActiveTab }) {
         return !isFullData;
       } else if (id === "open-folder") {
         return item.type === "file";
+      } else if (id === "open-source") {
+        return getSourcePaths(item).length > 0;
       } else if (id === "collect") {
         return item.type !== "file" && !window.db.isCollected(item.id);
       } else if (id === "un-collect") {
