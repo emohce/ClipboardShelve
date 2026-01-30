@@ -842,6 +842,8 @@ const keyboardTriggeredPreview = ref(false)
 // 行悬浮 100ms 触发的预览（与 Shift 100ms 并列）
 let hoverPreviewTimer = null
 const hoverTriggeredPreview = ref(false)
+// 方向键生效后暂停悬浮预览，直到鼠标再次移动才重新启用
+const hoverPreviewSuspendedByKeyboard = ref(false)
 const activeIndex = ref(0) // 定义 activeIndex，需要在 defineExpose 之前
 const drawerShow = ref(false)
 const drawerPosition = ref({ top: 0, left: 0 })
@@ -982,7 +984,11 @@ const handleItemClick = (ev, item) => {
   }
 }
 const handleMouseOver = (event, index, item) => {
-  if (!props.isMultiple) {
+  // 方向键生效后挂起悬浮高亮与悬浮预览，鼠标移动时解除挂起（本次移入不更新高亮/不启预览，下次移入恢复正常）
+  const wasSuspended = hoverPreviewSuspendedByKeyboard.value
+  hoverPreviewSuspendedByKeyboard.value = false
+
+  if (!props.isMultiple && !wasSuspended) {
     activeIndex.value = index
   }
   // 从不同行移入时停止上一行的 hover 预览，避免同一行内移动造成闪烁
@@ -991,12 +997,12 @@ const handleMouseOver = (event, index, item) => {
   }
   hoverRowIndex.value = index
 
-  // 行级悬浮 100ms 触发预览（与 Shift 100ms 并列）
+  // 行级悬浮 100ms 触发预览；方向键生效后的第一次移入也不启动
   if (hoverPreviewTimer) {
     clearTimeout(hoverPreviewTimer)
     hoverPreviewTimer = null
   }
-  if (!keyboardTriggeredPreview.value) {
+  if (!keyboardTriggeredPreview.value && !wasSuspended) {
     hoverPreviewTimer = setTimeout(() => {
       hoverTriggeredPreview.value = true
       runPreviewForItem(item)
@@ -1086,34 +1092,49 @@ function registerListHotkeyFeatures() {
   }
 
   registerFeature('list-nav-up', () => {
-    if (activeIndex.value === 1) window.toTop()
+    if (activeIndex.value === 1) {
+      hoverPreviewSuspendedByKeyboard.value = true
+      window.toTop()
+    }
     if (activeIndex.value > 0) {
+      hoverPreviewSuspendedByKeyboard.value = true
       activeIndex.value--
-      const prevNode = document.querySelector('.clip-item.active')?.previousElementSibling?.previousElementSibling
-      prevNode?.scrollIntoView({ block: 'nearest', inline: 'nearest' })
+      nextTick(() => {
+        const activeNode = document.querySelector('.clip-item.active')
+        activeNode?.scrollIntoView({ block: 'nearest', inline: 'nearest', behavior: 'smooth' })
+      })
     }
     return true
   })
   registerFeature('list-nav-down', () => {
     if (props.showList.length === 0 || activeIndex.value >= props.showList.length - 1) return true
+    hoverPreviewSuspendedByKeyboard.value = true
     activeIndex.value++
-    const activeNode = document.querySelector('.clip-item.active')
-    activeNode?.scrollIntoView({ block: 'nearest', inline: 'nearest' })
+    nextTick(() => {
+      const activeNode = document.querySelector('.clip-item.active')
+      activeNode?.scrollIntoView({ block: 'nearest', inline: 'nearest', behavior: 'smooth' })
+    })
     return true
   })
   registerFeature('list-nav-left', () => {
     if (activeIndex.value > 0) {
+      hoverPreviewSuspendedByKeyboard.value = true
       activeIndex.value--
-      const prevNode = document.querySelector('.clip-item.active')?.previousElementSibling?.previousElementSibling
-      prevNode?.scrollIntoView({ block: 'nearest', inline: 'nearest' })
+      nextTick(() => {
+        const activeNode = document.querySelector('.clip-item.active')
+        activeNode?.scrollIntoView({ block: 'nearest', inline: 'nearest', behavior: 'smooth' })
+      })
     }
     return true
   })
   registerFeature('list-nav-right', () => {
     if (activeIndex.value < props.showList.length - 1) {
+      hoverPreviewSuspendedByKeyboard.value = true
       activeIndex.value++
-      const nextNode = document.querySelector('.clip-item.active+.clip-item')
-      nextNode?.scrollIntoView({ block: 'nearest', inline: 'nearest' })
+      nextTick(() => {
+        const activeNode = document.querySelector('.clip-item.active')
+        activeNode?.scrollIntoView({ block: 'nearest', inline: 'nearest', behavior: 'smooth' })
+      })
     }
     return true
   })
