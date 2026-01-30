@@ -11,6 +11,8 @@ const MODIFIER_ORDER = ['ctrl', 'alt', 'shift', 'meta']
  * @returns {string} shortcutId e.g. "Delete", "ctrl+Backspace", "ctrl+shift+Delete"
  */
 const KEY_ALIAS = { ' ': 'Space' }
+/** 仅修饰键按下时不再重复加入 key，使 shortcutId 为 "shift"/"ctrl" 等，与绑定 "Shift" 归一化后的 "shift" 一致 */
+const MODIFIER_KEYS = new Set(['Shift', 'Control', 'Alt', 'Meta'])
 
 export function eventToShortcutId(e) {
   const parts = []
@@ -19,6 +21,7 @@ export function eventToShortcutId(e) {
   if (e.shiftKey) parts.push('shift')
   if (e.metaKey) parts.push('meta')
   let key = e.key
+  if (key && MODIFIER_KEYS.has(key)) return parts.join('+') // 单按修饰键时只输出修饰符，便于匹配绑定 "Shift" 等
   if (key && KEY_ALIAS[key] !== undefined) key = KEY_ALIAS[key]
   else if (key && key.length === 1) key = key.toLowerCase()
   if (key) parts.push(key)

@@ -55,9 +55,41 @@
 
 ---
 
-## 3. 非本次范围（不核验）
+## 3. Shift 单按 100ms+ 预览（高亮 item 预览）
+
+### 3.1 识别与触发
+
+- **绑定**: `src/global/hotkeyBindings.js` 第 78 行  
+  - `{ layer: 'main', shortcutId: 'Shift', features: ['list-shift'] }`  
+- **单按 Shift 匹配**: 仅按 Shift 时 `eventToShortcutId(e)` 原为 `"shift+Shift"`，绑定 `"Shift"` 归一化后为 `"shift"`，二者不一致导致不触发。已在 `src/global/shortcutKey.js` 中为修饰键单独处理：当 `e.key` 为 `Shift/Control/Alt/Meta` 时只输出修饰符（如 `"shift"`），与绑定一致。
+- **100ms 定时**: `src/cpns/ClipItemList.vue` 第 295、316–325 行  
+  - `SHIFT_PREVIEW_HOLD_MS = 100`；`handleShiftKeyDown()` 设置 `setTimeout(..., 100)`，到期后取 `props.showList[activeIndex.value]` 为当前高亮 item，调用 `runPreviewForItem(currentItem)`。
+- **松开 Shift**: 第 327–344、896–904 行  
+  - `document.addEventListener('keyup', keyUpCallBack)`，`key === 'Shift'` 时调用 `handleShiftKeyUp()`，清除定时器并在已触发预览时 100ms 后关闭图片/文本预览。
+
+### 3.2 按类型的预览实现
+
+- **入口**: `runPreviewForItem(item)`（约 303–314 行）  
+  - `item.type === 'image' && isValidImageData(item.data)` → `showImagePreview(null, item)`（pic 预览）。  
+  - `item.type === 'text' && isLongText(item)` → `showTextPreview(item)`（长文本：长度 >80 或含换行）。  
+  - 其余类型注释“暂不处理”，后续可在此补充。
+- **长按后切换高亮**: `watch(activeIndex.value, ...)`（约 650–657 行）在 `keyboardTriggeredPreview.value === true` 时调用 `triggerKeyboardPreview()`，对新的高亮 item 再次执行 `runPreviewForItem`，实现上下键切换时刷新预览。
+
+### 3.3 手动核验（Shift 100ms 预览）
+
+| 序号 | 场景 | 操作 | 预期 |
+|-----|------|------|------|
+| 9 | 图片预览 | 高亮在一条图片项 → 按住 Shift 超过 100ms | 出现图片预览浮层；松开 Shift 后约 100ms 关闭 |
+| 10 | 长文本预览 | 高亮在一条长文本项（>80 字或含换行）→ 按住 Shift 超过 100ms | 出现长文本预览浮层；松开后关闭 |
+| 11 | 切换刷新 | 在 9 或 10 的预览显示时用上下键移动高亮 | 预览内容随高亮 item 切换为当前条（仅 txt/pic 有内容，其他类型暂无预览） |
+| 12 | 短按不预览 | 按住 Shift 不足 100ms 即松开 | 不出现预览（仅可能进入多选等其它逻辑） |
+
+---
+
+## 4. 非本次范围（不核验）
 
 - 其他 Tab 页（alt+1~9、抽屉 ctrl+1~9 等）的既有行为未改，不在此次核验内。  
-- 热键冲突、与 uTools 宿主快捷键的优先级未在本文档核验。
+- 热键冲突、与 uTools 宿主快捷键的优先级未在本文档核验。  
+- 除 txt、pic 外的类型（如 file 等）预览效果为后续补充，不在此次核验。
 
-完成上表 1–8 项且与预期一致，可视为本次修复执行效果核验通过。
+完成上表 1–12 项且与预期一致，可视为本次修复与 Shift 预览核验通过。
