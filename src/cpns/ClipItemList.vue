@@ -38,8 +38,6 @@
                 :alt="'Clipboard Image'"
                 @error="handleImageError"
                 @load="handleImageLoad"
-                @mouseenter="showImagePreview($event, item)"
-                @mouseleave="hideImagePreview"
               />
               <div v-else class="image-error-placeholder">
                 <span>🖼️ 无效图片</span>
@@ -160,13 +158,11 @@
       :placement="drawerPlacement"
       @select="handleDrawerSelect"
       @close="closeDrawer"
-      @reorder="handleDrawerReorder"
   />
 </template>
 
 <script setup>
 import { ref, onMounted, onUnmounted, watch, computed, nextTick } from 'vue'
-import { registerFeature } from '../global/hotkeyRegistry'
 import { ElMessage } from 'element-plus'
 import FileList from './FileList.vue'
 import ClipOperate from './ClipOperate.vue'
@@ -175,6 +171,8 @@ import { dateFormat, isUToolsPlugin, copyWithSearchFocus, copyOnly } from '../ut
 import defaultOperation from '../data/operation.json'
 import setting from '../global/readSetting'
 import useClipOperate from '../hooks/useClipOperate'
+import { desktopPreviewManager } from '../global/desktopPreview'
+import { registerFeature } from '../global/hotkeyRegistry'
 const props = defineProps({
   showList: {
     type: Array,
@@ -274,47 +272,22 @@ const showImagePreview = (event, item, footerText = '') => {
     imagePreviewHideTimer = null
   }
   
-  if (openExternalPreview(src, footerText, 0.66)) {
+  // 使用桌面预览管理器创建独立预览窗口，不改变插件窗口
+  const previewWindow = desktopPreviewManager.createPreview(src, footerText, {
+    ratio: 0.67, // 使用桌面2/3比例
+    title: '图片预览 - 超级剪贴板',
+    autoFit: true
+  })
+  
+  if (previewWindow) {
     imagePreview.value.show = false
+    console.log('[showImagePreview] 桌面预览窗口已创建，插件窗口大小不变')
     return
   }
 
-  // 获取屏幕尺寸（不局限于插件窗口）
-  const screenWidth = window.screen?.width || window.innerWidth
-  const screenHeight = window.screen?.height || window.innerHeight
-  
-  // 以桌面尺寸为准展示原始图片尺寸（超出则按屏幕缩放）
-  const maxWidth = Math.floor(screenWidth)
-  const maxHeight = Math.floor(screenHeight)
-  expandPreviewWindow(maxWidth, maxHeight)
-  
-  // 设置预览位置和样式
-  imagePreview.value.src = src
-  imagePreview.value.footer = footerText
-  imagePreview.value.show = true
-  imagePreview.value.style = {
-    position: 'fixed',
-    top: '50%',
-    left: '50%',
-    transform: 'translate(-50%, -50%)',
-    zIndex: 9999,
-    backgroundColor: 'rgba(0, 0, 0, 0.8)',
-    borderRadius: '8px',
-    padding: '8px',
-    boxShadow: '0 8px 32px rgba(0, 0, 0, 0.3)',
-    maxWidth: `${maxWidth}px`,
-    maxHeight: `${maxHeight}px`
-  }
-  
-  // 图片样式
-  imagePreview.value.imageStyle = {
-    width: 'auto',
-    height: 'auto',
-    maxWidth: `${maxWidth}px`,
-    maxHeight: `${maxHeight}px`,
-    display: 'block',
-    borderRadius: '4px'
-  }
+  // 如果桌面预览失败，也不改变插件窗口大小，直接返回
+  console.log('[showImagePreview] 桌面预览失败，不显示插件内预览')
+  imagePreview.value.show = false
 }
 
 // 隐藏图片预览
@@ -326,18 +299,23 @@ const stopImagePreview = (immediate = false) => {
   if (immediate) {
     imagePreview.value.show = false
     imagePreviewSource.value = ''
-    restorePreviewWindow()
+    // 不调用 restorePreviewWindow，保持插件窗口大小不变
     closeExternalPreview()
     return
   }
   imagePreviewHideTimer = setTimeout(() => {
     imagePreview.value.show = false
     imagePreviewSource.value = ''
-    restorePreviewWindow()
+    // 不调用 restorePreviewWindow，保持插件窗口大小不变
     closeExternalPreview()
     imagePreviewHideTimer = null
   }, 200)
 }
+
+// 组件卸载时清理预览窗口
+onUnmounted(() => {
+  desktopPreviewManager.closeAllPreviews()
+})
 
 const hideImagePreview = () => {
   // 延迟隐藏，允许鼠标移动到预览区域
@@ -363,10 +341,14 @@ const escapePreviewText = (value = '') =>
     .replace(/"/g, '&quot;')
     .replace(/'/g, '&#39;')
 
-const openExternalPreview = (src, footer = '', ratio = 0.66) => {
+const openExternalPreview = (src, footer = '', ratio = 0.9) => {
   if (!src) return false
-  const screenWidth = window.screen?.availWidth || window.screen?.width || window.innerWidth
-  const screenHeight = window.screen?.availHeight || window.screen?.height || window.innerHeight
+  
+  // 获取桌面屏幕尺寸
+  const screenWidth = window.screen?.availWidth || window.screen?.width || 1920
+  const screenHeight = window.screen?.availHeight || window.screen?.height || 1080
+  
+  // 使用更大的比例，提供更好的预览体验
   const width = Math.floor(screenWidth * ratio)
   const height = Math.floor(screenHeight * ratio)
   const left = Math.max(0, Math.floor((screenWidth - width) / 2))
@@ -374,40 +356,176 @@ const openExternalPreview = (src, footer = '', ratio = 0.66) => {
 
   let win = externalPreviewWindow
   if (!win || win.closed) {
-    win = window.open('', 'clip-image-preview', `width=${width},height=${height},left=${left},top=${top},resizable=yes`)
+    // 创建新的预览窗口，添加更多特性
+    win = window.open('', 'clip-image-preview', 
+      `width=${width},height=${height},left=${left},top=${top},resizable=yes,scrollbars=yes,status=yes,toolbar=no,menubar=no`
+    )
     externalPreviewWindow = win
   } else {
-    try { win.resizeTo(width, height) } catch (e) {}
-    try { win.moveTo(left, top) } catch (e) {}
+    try { 
+      win.resizeTo(width, height) 
+      win.moveTo(left, top)
+    } catch (e) {}
   }
+  
   if (!win) return false
 
   const footerHtml = footer
-    ? `<div class="footer">${escapePreviewText(footer).replace(/\n/g, '<br>')}</div>`
+    ? '<div class="footer">' + escapePreviewText(footer).replace(/\n/g, '<br>') + '</div>'
     : ''
-  const html = `<!DOCTYPE html>
-  <html>
-  <head>
-    <meta charset="utf-8" />
-    <title>图片预览</title>
-    <style>
-      html, body { margin: 0; padding: 0; width: 100%; height: 100%; background: #0f1115; color: #e5e7eb; }
-      body { display: flex; flex-direction: column; align-items: center; justify-content: center; }
-      .wrap { display: flex; flex-direction: column; align-items: center; justify-content: center; width: 100%; height: 100%; padding: 12px; box-sizing: border-box; }
-      img { width: auto; height: auto; max-width: 100%; max-height: 100%; object-fit: contain; border-radius: 6px; }
-      .footer { margin-top: 10px; font-size: 12px; color: #9ca3af; text-align: center; white-space: pre-wrap; word-break: break-all; }
-    </style>
-  </head>
-  <body>
-    <div class="wrap">
-      <img src="${src}" alt="preview" />
-      ${footerHtml}
-    </div>
-  </body>
-  </html>`
+    
+  const html = [
+    '<!DOCTYPE html>',
+    '<html>',
+    '<head>',
+    '  <meta charset="utf-8" />',
+    '  <title>图片预览 - 超级剪贴板</title>',
+    '  <style>',
+    '    html, body { ',
+    '      margin: 0; ',
+    '      padding: 0; ',
+    '      width: 100%; ',
+    '      height: 100%; ',
+    '      background: #0f1115; ',
+    '      color: #e5e7eb; ',
+    '      overflow: hidden;',
+    '    }',
+    '    body { ',
+    '      display: flex; ',
+    '      flex-direction: column; ',
+    '      align-items: center; ',
+    '      justify-content: center; ',
+    '    }',
+    '    .wrap { ',
+    '      display: flex; ',
+    '      flex-direction: column; ',
+    '      align-items: center; ',
+    '      justify-content: center; ',
+    '      width: 100%; ',
+    '      height: 100%; ',
+    '      padding: 20px; ',
+    '      box-sizing: border-box; ',
+    '      position: relative;',
+    '    }',
+    '    img { ',
+    '      width: auto; ',
+    '      height: auto; ',
+    '      max-width: 100%; ',
+    '      max-height: calc(100% - 40px); ',
+    '      object-fit: contain; ',
+    '      border-radius: 8px; ',
+    '      box-shadow: 0 10px 40px rgba(0, 0, 0, 0.5);',
+    '      transition: transform 0.2s ease;',
+    '    }',
+    '    img:hover {',
+    '      transform: scale(1.02);',
+    '    }',
+    '    .footer { ',
+    '      margin-top: 15px; ',
+    '      font-size: 13px; ',
+    '      color: #9ca3af; ',
+    '      text-align: center; ',
+    '      white-space: pre-wrap; ',
+    '      word-break: break-all; ',
+    '      max-width: 100%;',
+    '      opacity: 0.8;',
+    '    }',
+    '    .controls {',
+    '      position: absolute;',
+    '      top: 10px;',
+    '      right: 10px;',
+    '      display: flex;',
+    '      gap: 8px;',
+    '    }',
+    '    .control-btn {',
+    '      background: rgba(255, 255, 255, 0.1);',
+    '      border: 1px solid rgba(255, 255, 255, 0.2);',
+    '      color: #e5e7eb;',
+    '      padding: 6px 12px;',
+    '      border-radius: 4px;',
+    '      cursor: pointer;',
+    '      font-size: 12px;',
+    '      transition: all 0.2s ease;',
+    '    }',
+    '    .control-btn:hover {',
+    '      background: rgba(255, 255, 255, 0.2);',
+    '      border-color: rgba(255, 255, 255, 0.3);',
+    '    }',
+    '    .shortcuts {',
+    '      position: absolute;',
+    '      bottom: 10px;',
+    '      left: 10px;',
+    '      font-size: 11px;',
+    '      color: #6b7280;',
+    '      opacity: 0.6;',
+    '    }',
+    '  </style>',
+    '</head>',
+    '<body>',
+    '  <div class="wrap">',
+    '    <div class="controls">',
+    '      <button class="control-btn" onclick="window.close()">关闭 (ESC)</button>',
+    '    </div>',
+    '    <img src="' + src + '" alt="preview" />',
+    footerHtml,
+    '    <div class="shortcuts">ESC: 关闭窗口</div>',
+    '  </div>',
+    '  <script>',
+    '    // ESC键关闭窗口',
+    '    document.addEventListener("keydown", function(e) {',
+    '      if (e.key === "Escape") {',
+    '        window.close();',
+    '      }',
+    '    });',
+    '    ',
+    '    // 窗口失焦时也可以通过ESC关闭',
+    '    window.addEventListener("blur", function() {',
+    '      setTimeout(function() {',
+    '        window.focus();',
+    '      }, 100);',
+    '    });',
+    '    ',
+    '    // 自动调整窗口大小以适应图片',
+    '    const img = document.querySelector("img");',
+    '    if (img.complete) {',
+    '      adjustWindowSize();',
+    '    } else {',
+    '      img.onload = adjustWindowSize;',
+    '    }',
+    '    ',
+    '    function adjustWindowSize() {',
+    '      const imgWidth = img.naturalWidth;',
+    '      const imgHeight = img.naturalHeight;',
+    '      const screenWidth = screen.availWidth;',
+    '      const screenHeight = screen.availHeight;',
+    '      ',
+    '      // 如果图片比屏幕小，调整窗口大小以适应图片',
+    '      if (imgWidth < screenWidth * 0.8 && imgHeight < screenHeight * 0.8) {',
+    '        const newWidth = Math.min(imgWidth + 100, screenWidth * 0.8);',
+    '        const newHeight = Math.min(imgHeight + 150, screenHeight * 0.8);',
+    '        const left = Math.floor((screenWidth - newWidth) / 2);',
+    '        const top = Math.floor((screenHeight - newHeight) / 2);',
+    '        ',
+    '        try {',
+    '          window.resizeTo(newWidth, newHeight);',
+    '          window.moveTo(left, top);',
+    '        } catch(e) {}',
+    '      }',
+    '    }',
+    '  <\/script>',
+    '</body>',
+    '</html>'
+  ].join('\n')
+  
   win.document.open()
   win.document.write(html)
   win.document.close()
+  
+  // 聚焦到预览窗口
+  try {
+    win.focus()
+  } catch(e) {}
+  
   return true
 }
 
@@ -482,6 +600,7 @@ const showImageFilePreview = (path) => {
 
 // Shift 持续按下预览：按 item 类型封装的预览入口
 const SHIFT_PREVIEW_HOLD_MS = 100
+const HOVER_PREVIEW_DELAY_MS = 100
 const LONG_TEXT_THRESHOLD = 80
 
 const isLongText = (item) => {
@@ -528,6 +647,7 @@ const handleShiftKeyUp = () => {
 
   if (keyboardTriggeredPreview.value) {
     keyboardTriggeredPreview.value = false
+    hoverTriggeredPreview.value = false
     stopImagePreview(true)
     hideTextPreview()
   }
@@ -557,8 +677,8 @@ const showTextPreview = (item) => {
   textPreview.value.show = true
   textPreview.value.style = {
     position: 'fixed',
-    top: '50%',
-    left: '50%',
+    top: '50vh', // 使用视口高度单位
+    left: '50vw', // 使用视口宽度单位
     transform: 'translate(-50%, -50%)',
     zIndex: 9999,
     backgroundColor: 'rgba(0, 0, 0, 0.88)',
@@ -719,6 +839,9 @@ let textPreviewHideTimer = null
 let shiftKeyDownTime = 0
 let shiftKeyTimer = null
 const keyboardTriggeredPreview = ref(false)
+// 行悬浮 100ms 触发的预览（与 Shift 100ms 并列）
+let hoverPreviewTimer = null
+const hoverTriggeredPreview = ref(false)
 const activeIndex = ref(0) // 定义 activeIndex，需要在 defineExpose 之前
 const drawerShow = ref(false)
 const drawerPosition = ref({ top: 0, left: 0 })
@@ -862,18 +985,43 @@ const handleMouseOver = (event, index, item) => {
   if (!props.isMultiple) {
     activeIndex.value = index
   }
-  // 图片类型现在直接在图片元素上处理悬浮，这里不再处理
-  // 只有当从不同行移入时才停止预览，避免同一行内移动造成闪烁
+  // 从不同行移入时停止上一行的 hover 预览，避免同一行内移动造成闪烁
   if (imagePreviewSource.value === 'hover' && hoverRowIndex.value !== null && hoverRowIndex.value !== index) {
     stopImagePreview(true)
   }
   hoverRowIndex.value = index
+
+  // 行级悬浮 100ms 触发预览（与 Shift 100ms 并列）
+  if (hoverPreviewTimer) {
+    clearTimeout(hoverPreviewTimer)
+    hoverPreviewTimer = null
+  }
+  if (!keyboardTriggeredPreview.value) {
+    hoverPreviewTimer = setTimeout(() => {
+      hoverTriggeredPreview.value = true
+      runPreviewForItem(item)
+      hoverPreviewTimer = null
+    }, HOVER_PREVIEW_DELAY_MS)
+  }
 }
 
 const handleRowMouseLeave = (index) => {
+  if (hoverPreviewTimer) {
+    clearTimeout(hoverPreviewTimer)
+    hoverPreviewTimer = null
+  }
   if (hoverRowIndex.value === index) {
     hoverRowIndex.value = null
-    if (imagePreviewSource.value === 'hover') {
+    if (hoverTriggeredPreview.value) {
+      desktopPreviewManager.closeAllPreviews()
+      stopImagePreview(true)
+      if (textPreviewHideTimer) {
+        clearTimeout(textPreviewHideTimer)
+        textPreviewHideTimer = null
+      }
+      textPreview.value.show = false
+      hoverTriggeredPreview.value = false
+    } else if (imagePreviewSource.value === 'hover') {
       stopImagePreview(true)
     }
   }
@@ -947,11 +1095,10 @@ function registerListHotkeyFeatures() {
     return true
   })
   registerFeature('list-nav-down', () => {
-    if (activeIndex.value < props.showList.length - 1) {
-      activeIndex.value++
-      const activeNode = document.querySelector('.clip-item.active')
-      activeNode?.scrollIntoView({ block: 'nearest', inline: 'nearest' })
-    }
+    if (props.showList.length === 0 || activeIndex.value >= props.showList.length - 1) return true
+    activeIndex.value++
+    const activeNode = document.querySelector('.clip-item.active')
+    activeNode?.scrollIntoView({ block: 'nearest', inline: 'nearest' })
     return true
   })
   registerFeature('list-nav-left', () => {
@@ -1159,6 +1306,11 @@ onUnmounted(() => {
   if (shiftKeyTimer) {
     clearTimeout(shiftKeyTimer)
     shiftKeyTimer = null
+  }
+  // 清理行悬浮预览定时器
+  if (hoverPreviewTimer) {
+    clearTimeout(hoverPreviewTimer)
+    hoverPreviewTimer = null
   }
 
   // 清理长文本预览定时器

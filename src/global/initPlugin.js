@@ -11,9 +11,13 @@ const {
 } = window.exports
 import { copy, paste, createFile, getNativeId } from '../utils'
 import setting from './readSetting'
+import { initWindowManager, setPluginWindowSize } from './windowManager'
 
 export default function initPlugin() {
   console.log('[initPlugin] 开始初始化插件')
+  
+  // 初始化窗口管理器
+  initWindowManager()
   
   // 模块级变量：防止重复启动轮询模式
   let hasFallbackToPolling = false
@@ -764,6 +768,10 @@ export default function initPlugin() {
 
   utools.onPluginEnter(() => {
     console.log('[onPluginEnter] 插件进入事件触发')
+    
+    // 重新设置窗口大小（确保每次打开插件时都恢复到合适的大小）
+    setPluginWindowSize()
+    
     // 如果轮询模式已启动，不再尝试启动原生监听器
     if (pollingStarted) {
       console.log('[onPluginEnter] 轮询模式已运行，跳过监听器启动')

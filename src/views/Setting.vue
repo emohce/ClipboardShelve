@@ -96,7 +96,7 @@
             <div class="setting-section-title">展示主页功能</div>
             <el-divider></el-divider>
             <div class="setting-row">
-              <span>展示在主界面的功能</span>
+              <span style="width: 70px">可多选: </span>
               <el-select
                 class="operation-select"
                 v-model="shown"
