@@ -195,6 +195,17 @@ const handleMultiCopyBtnClick = (isPaste, options = {}) => {
   if (!Array.isArray(itemList) || itemList.length === 0) {
     return
   }
+  // 仅选一条且为图片时直接复制，不生成临时文件、不进入合并逻辑
+  if (itemList.length === 1 && itemList[0].type === 'image') {
+    window.copy(itemList[0])
+    ElMessage({ message: '复制成功', type: 'success' })
+    paste && window.paste()
+    if (exitMulti) {
+      ClipItemListRef.value.emptySelectItemList()
+      isMultiple.value = false
+    }
+    return
+  }
   // 如果包含了图片/文件 则转为文件合并 否则仅合并文本
   const isMergeFile =
     itemList.filter((item) => item.type === 'image' || item.type === 'file').length !== 0
@@ -226,16 +237,11 @@ const handleMultiCopyBtnClick = (isPaste, options = {}) => {
         filePathArray.push({
           path: textFile
         })
-      } else if (type === 'image') {
-        const imageFile = window.createFile(item)
-        filePathArray.push({
-          path: imageFile
-        })
-      } else {
-        // file
+      } else if (type === 'file') {
         const files = JSON.parse(item.data)
         filePathArray.push(...files)
       }
+      // type === 'image' 不生成临时图片，跳过
     })
     const fileData = JSON.stringify(filePathArray.reverse())
     window.copy({

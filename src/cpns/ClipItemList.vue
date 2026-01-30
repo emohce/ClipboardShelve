@@ -30,7 +30,7 @@
             </el-tooltip>
           </template>
           <template v-if="item.type === 'image'">
-            <div class="image-container" @click="handleImageClick(item)">
+            <div class="image-container" @click="handleImageClick($event, item)">
               <img 
                 v-if="getItemImageSrc(item)"
                 class="clip-data-image"
@@ -46,7 +46,7 @@
           </template>
           <template v-if="item.type === 'file'">
             <el-tooltip :content="formatFileNames(item)" placement="left" :show-after="200">
-              <el-popover placement="left" trigger="hover" width="320">
+              <el-popover placement="left" trigger="click" width="320">
                 <template #reference>
                   <div :class="{ 'clip-over-sized-content': isOverSizedContent(item) }">
                     <div v-if="hasImageFiles(item)" class="file-with-images">
@@ -71,6 +71,8 @@
                         v-for="imgFile in getImageFiles(item)"
                         :key="imgFile.path"
                         class="image-file-item"
+                        @mouseenter="showImageFilePreview(imgFile.path)"
+                        @mouseleave="showImageFilePreview(getImageFiles(item)[0]?.path)"
                       >
                         <img
                           class="image-file-preview"
@@ -217,9 +219,10 @@ const isValidImageData = (data) => {
   return data.startsWith('data:image/') && data.includes('base64,')
 }
 
-// 图片点击处理
-const handleImageClick = (item) => {
-  if (isValidImageData(item.data)) {
+// 图片点击处理（能展示就能复制，与悬浮一致）
+const handleImageClick = (ev, item) => {
+  if (ev) ev.stopPropagation()
+  if (getItemImageSrc(item)) {
     copyWithSearchFocus(item)
   }
 }
@@ -268,9 +271,10 @@ const showImagePreview = (event, item, footerText = '') => {
     imagePreviewHideTimer = null
   }
 
-  const margin = 40
-  const maxW = Math.min(window.innerWidth - margin * 2, 900)
-  const maxH = Math.min(window.innerHeight - margin * 2, 700)
+  // 与普通预览一致：大窗口、内部图片自适应展示（objectFit: contain）
+  const margin = 32
+  const maxW = window.innerWidth - margin * 2
+  const maxH = window.innerHeight - margin * 2
   imagePreview.value.src = src
   imagePreview.value.footer = footerText
   imagePreview.value.style = {
@@ -853,6 +857,8 @@ let hoverPreviewTimer = null
 const hoverTriggeredPreview = ref(false)
 // 方向键生效后暂停悬浮预览，直到鼠标再次移动才重新启用
 const hoverPreviewSuspendedByKeyboard = ref(false)
+// 点击（如打开文件 popover）后暂停悬浮预览，鼠标移动则解除
+const hoverPreviewSuspendedByClick = ref(false)
 const activeIndex = ref(0) // 定义 activeIndex，需要在 defineExpose 之前
 const drawerShow = ref(false)
 const drawerPosition = ref({ top: 0, left: 0 })
@@ -983,6 +989,14 @@ const handleItemClick = (ev, item) => {
     const { button } = ev
     if (button === 0) {
       // 左键 复制（不改变插件内位置，可粘贴到外部）
+      // 文件类型点击会打开 popover 做预览，此时禁用行级悬浮预览，鼠标移动后解除
+      if (item.type === 'file') {
+        hoverPreviewSuspendedByClick.value = true
+      }
+      // 图片类型：能展示就能复制（与悬浮预览一致，base64 或路径/file:// 均可）
+      if (item.type === 'image' && !getItemImageSrc(item)) {
+        return
+      }
       copyWithSearchFocus(item)
     } else if (button === 2) {
       // 右键 打开抽屉（与右方向键一致）
@@ -993,9 +1007,10 @@ const handleItemClick = (ev, item) => {
   }
 }
 const handleMouseOver = (event, index, item) => {
-  // 方向键生效后挂起悬浮高亮与悬浮预览，鼠标移动时解除挂起（本次移入不更新高亮/不启预览，下次移入恢复正常）
-  const wasSuspended = hoverPreviewSuspendedByKeyboard.value
+  // 方向键或点击后挂起悬浮高亮与悬浮预览，鼠标移动时解除挂起（本次移入不更新高亮/不启预览，下次移入恢复正常）
+  const wasSuspended = hoverPreviewSuspendedByKeyboard.value || hoverPreviewSuspendedByClick.value
   hoverPreviewSuspendedByKeyboard.value = false
+  hoverPreviewSuspendedByClick.value = false
 
   if (!props.isMultiple && !wasSuspended) {
     activeIndex.value = index

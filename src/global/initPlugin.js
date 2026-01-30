@@ -559,19 +559,26 @@ export default function initPlugin() {
     // file
     const files = utools.getCopyedFiles() // null | Array
     console.log('[pbpaste] 检查文件:', files ? `找到 ${files.length} 个文件` : '无文件')
-    if (files) {
-      const originPaths = files.map((f) => f.path).filter(Boolean)
-      const hasSourceInfo = originPaths.length > 0
-      const result = {
-        type: 'file',
-        data: JSON.stringify(files),
-        originPaths,
-        sourcePaths: originPaths,
-        fromFileSource: hasSourceInfo,
-        hasSourceInfo
+    if (files && files.length > 0) {
+      const sep = window.exports.sep
+      const tempDir = utools.getPath('temp') + sep + 'utools-clipboard-manager'
+      const norm = (p) => (p || '').replace(/\\/g, sep)
+      const allFromPluginTemp = files.every((f) => norm(f.path).startsWith(norm(tempDir)))
+      if (!allFromPluginTemp) {
+        const originPaths = files.map((f) => f.path).filter(Boolean)
+        const hasSourceInfo = originPaths.length > 0
+        const result = {
+          type: 'file',
+          data: JSON.stringify(files),
+          originPaths,
+          sourcePaths: originPaths,
+          fromFileSource: hasSourceInfo,
+          hasSourceInfo
+        }
+        console.log('[pbpaste] 返回文件类型, 数据长度:', result.data.length)
+        return result
       }
-      console.log('[pbpaste] 返回文件类型, 数据长度:', result.data.length)
-      return result
+      console.log('[pbpaste] 剪贴板文件均来自插件临时目录，跳过 file 类型，继续检查 text/image')
     }
     const sourcePaths = readClipboardSourcePaths()
     const hasSourceInfo = sourcePaths.length > 0
