@@ -636,12 +636,16 @@ export default function initPlugin() {
   const remove = (item, options = {}) => db.removeItemViaId(item.id, options)
 
   const focus = (isBlur = false) => {
-    return document.querySelector('.clip-search').style.display !== 'none'
-      ? isBlur
-        ? document.querySelector('.clip-search-input')?.blur()
-        : document.querySelector('.clip-search-input')?.focus()
-      : (document.querySelector('.clip-search-btn')?.click(),
-        document.querySelector('.clip-search-input')?.focus())
+    const searchEl = document.querySelector('.clip-search')
+    const inputEl = document.querySelector('.clip-search-input')
+    if (searchEl && searchEl.style.display !== 'none') {
+      return isBlur ? inputEl?.blur() : inputEl?.focus()
+    }
+    const mainEl = document.querySelector('.main')
+    if (!isBlur && mainEl) {
+      return mainEl.focus()
+    }
+    return undefined
   }
   const toTop = () => (document.scrollingElement.scrollTop = 0)
   const resetNav = () => document.querySelectorAll('.clip-switch-item')[0]?.click()
