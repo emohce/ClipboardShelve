@@ -141,6 +141,7 @@
       :items="drawerItems"
       :position="drawerPosition"
       :defaultActive="drawerDefaultActive"
+      :placement="drawerPlacement"
       @select="handleDrawerSelect"
       @close="closeDrawer"
       @reorder="handleDrawerReorder"
@@ -148,7 +149,7 @@
 </template>
 
 <script setup>
-import {ref, onMounted, onUnmounted, watch, computed} from 'vue'
+import { ref, onMounted, onUnmounted, watch, computed, nextTick } from 'vue'
 import { registerFeature } from '../global/hotkeyRegistry'
 import { ElMessage } from 'element-plus'
 import FileList from './FileList.vue'
@@ -472,6 +473,30 @@ const applyDrawerOrder = (list) => {
   const remaining = list.filter((op) => !orderSet.has(op.id))
   return [...ordered, ...remaining]
 }
+
+// 全部信息内的菜单：与主层 ClipOperate 一致，filterOperate + applyDrawerOrder，用于右侧抽屉
+const getDrawerFullMenuItems = (currentItem) => {
+  if (!currentItem) return []
+  const available = operations.value.filter((op) => filterOperate(op, currentItem, false))
+  return applyDrawerOrder(available)
+}
+
+// 打开当前 item 的快捷菜单抽屉（右侧抽屉，展示全部菜单；右方向键/鼠标右键/c-s-序号 调用）
+const openDrawerForCurrentItem = (ev, defaultActiveIndex = 0) => {
+  const currentItem = props.showList[activeIndex.value]
+  if (!currentItem) return
+  const fullMenu = getDrawerFullMenuItems(currentItem)
+  if (!fullMenu.length) return
+  nextTick(() => {
+    const el = ev?.target?.closest?.('.clip-item') || document.querySelector('.clip-item.active')
+    const rect = el?.getBoundingClientRect()
+    drawerPosition.value = rect ? { top: rect.bottom + 4, left: rect.left } : { top: 100, left: 100 }
+    drawerItems.value = fullMenu
+    drawerDefaultActive.value = Math.min(defaultActiveIndex, Math.max(0, fullMenu.length - 1))
+    drawerPlacement.value = 'right'
+    drawerShow.value = true
+  })
+}
 const isShiftDown = ref(false)
 const selectItemList = ref([])
 const allSelectedLocked = ref(false) // 临时标志：记录所有选中项是否都已锁定
@@ -504,9 +529,10 @@ let shiftKeyTimer = null
 const keyboardTriggeredPreview = ref(false)
 const activeIndex = ref(0) // 定义 activeIndex，需要在 defineExpose 之前
 const drawerShow = ref(false)
-const drawerPosition = ref({top: 0, left: 0})
+const drawerPosition = ref({ top: 0, left: 0 })
 const drawerItems = ref([])
 const drawerDefaultActive = ref(0)
+const drawerPlacement = ref('right')
 const drawerOrder = ref(Array.isArray(utools.dbStorage.getItem('drawer.order')) ? utools.dbStorage.getItem('drawer.order') : [])
 const operations = computed(() => [...defaultOperation, ...setting.operation.custom])
 const {handleOperateClick, filterOperate} = useClipOperate({emit, currentActiveTab: () => props.currentActiveTab})
@@ -633,12 +659,10 @@ const handleItemClick = (ev, item) => {
       // 左键 复制（不改变插件内位置，可粘贴到外部）
       copyWithSearchFocus(item)
     } else if (button === 2) {
-      // 右键 仅复制
-      window.copy(item)
-      ElMessage({
-        message: '复制成功',
-        type: 'success'
-      })
+      // 右键 打开抽屉（与右方向键一致）
+      activeIndex.value = props.showList.indexOf(item)
+      openDrawerForCurrentItem(ev)
+      ev.preventDefault()
     }
   }
 }
@@ -737,6 +761,10 @@ function registerListHotkeyFeatures() {
       const nextNode = document.querySelector('.clip-item.active+.clip-item')
       nextNode?.scrollIntoView({ block: 'nearest', inline: 'nearest' })
     }
+    return true
+  })
+  registerFeature('list-drawer-open', () => {
+    openDrawerForCurrentItem()
     return true
   })
   registerFeature('list-enter', (e) => {
@@ -881,14 +909,8 @@ function registerListHotkeyFeatures() {
     registerFeature(`list-drawer-sub-${num}`, () => {
       const currentItem = props.showList[activeIndex.value]
       if (!currentItem) return false
-      const available = operations.value.filter((op) => filterOperate(op, currentItem, false))
-      const ordered = applyDrawerOrder(available)
-      if (num >= 1 && num <= ordered.length) {
-        const target = ordered[num - 1]
-        handleOperateClick(target, currentItem, { sub: true })
-        return true
-      }
-      return false
+      openDrawerForCurrentItem(null, num - 1)
+      return true
     })
   }
 }

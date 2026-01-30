@@ -10,10 +10,20 @@
 </template>
 
 <script setup>
-import { ref } from 'vue'
+import { ref, watch } from 'vue'
 import Main from './views/Main.vue'
 import Setting from './views/Setting.vue'
 import HotkeyProvider from './cpns/HotkeyProvider.vue'
+import { activateLayer, deactivateLayer } from './global/hotkeyLayers'
 
 const settingShown = ref(false)
+const SETTING_LAYER = 'setting'
+watch(
+  settingShown,
+  (visible) => {
+    if (visible) activateLayer(SETTING_LAYER)
+    else deactivateLayer(SETTING_LAYER)
+  },
+  { immediate: true }
+)
 </script>

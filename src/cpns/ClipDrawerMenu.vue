@@ -1,9 +1,10 @@
 <template>
-  <Transition name="fade">
+  <Transition :name="placement === 'right' ? 'drawer-right' : 'fade'">
     <div
       v-if="show"
       class="clip-drawer-menu"
-      :style="{ top: position.top + 'px', left: position.left + 'px' }"
+      :class="{ 'clip-drawer-menu--right': placement === 'right' }"
+      :style="drawerStyle"
       @click.stop
     >
       <div
@@ -27,7 +28,7 @@
 </template>
 
 <script setup>
-import { ref, watch, onMounted, onUnmounted } from 'vue'
+import { ref, watch, computed, onMounted, onUnmounted } from 'vue'
 import { activateLayer, deactivateLayer } from '../global/hotkeyLayers'
 import { registerFeature } from '../global/hotkeyRegistry'
 
@@ -35,10 +36,19 @@ const props = defineProps({
   show: { type: Boolean, required: true },
   items: { type: Array, required: true },
   position: { type: Object, required: true },
-  defaultActive: { type: Number, default: 0 }
+  defaultActive: { type: Number, default: 0 },
+  /** 'popup' 浮层定位 | 'right' 右侧抽屉，保留主列表可见 */
+  placement: { type: String, default: 'right' }
 })
 
 const emit = defineEmits(['select', 'close', 'reorder'])
+
+const drawerStyle = computed(() => {
+  if (props.placement === 'right') {
+    return { right: 0, top: 0, bottom: 0, width: '260px', left: 'auto' }
+  }
+  return { top: props.position.top + 'px', left: props.position.left + 'px' }
+})
 
 const localItems = ref([])
 const activeIndex = ref(0)
@@ -147,6 +157,10 @@ onUnmounted(() => {
   padding: 6px 0;
   backdrop-filter: blur(8px);
 }
+.clip-drawer-menu--right {
+  border-radius: 8px 0 0 8px;
+  box-shadow: -4px 0 24px rgba(0, 0, 0, 0.2);
+}
 .drawer-item {
   display: flex;
   align-items: center;
@@ -180,5 +194,13 @@ onUnmounted(() => {
 .fade-leave-to {
   opacity: 0;
   transform: translateY(-4px);
+}
+.drawer-right-enter-active,
+.drawer-right-leave-active {
+  transition: transform 0.2s ease;
+}
+.drawer-right-enter-from,
+.drawer-right-leave-to {
+  transform: translateX(100%);
 }
 </style>

@@ -112,14 +112,22 @@ function findBinding(layer, state, shortcutId) {
  * @param {KeyboardEvent} e
  * @returns {boolean} true if a binding matched and at least one feature handled the event
  */
+const SETTING_LAYER = 'setting'
+
 export function dispatch(e) {
   if (e.__hotkeyHandled) return true
   if (ignoreRepeat && e.repeat) return false
 
   const shortcutId = eventToShortcutId(e)
   const lookupId = shortcutIdForLookup(shortcutId)
+  const currentLayer = getCurrentLayer()
   const layer = getEffectiveLayer()
   const state = mainStateRef.current
+
+  // 设置页：Del/Backspace 不进入其他层，保留正常文本编辑行为
+  if (currentLayer === SETTING_LAYER && (shortcutId === 'Delete' || shortcutId === 'Backspace')) {
+    return false
+  }
 
   const order = getLayerPriorityOrder()
   let binding = null

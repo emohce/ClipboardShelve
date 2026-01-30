@@ -26,20 +26,6 @@
       "command": "redirect:上传到图床"
     },
     {
-      "id": "custom.1663490859",
-      "title": "百度搜索",
-      "icon": "🔍",
-      "match": ["text"],
-      "command": "redirect:百度一下"
-    },
-    {
-      "id": "custom.1663490860",
-      "title": "统计文本字数",
-      "icon": "🧮",
-      "match": ["text"],
-      "command": "redirect:统计文本次数"
-    },
-    {
       "id": "custom.1663490861",
       "title": "颜色管理",
       "icon": "🎨",
@@ -64,13 +50,6 @@
       "icon": "📜",
       "match": ["image"],
       "command": "redirect:识别图片中二维码"
-    },
-    {
-      "id": "custom.1663490865",
-      "title": "翻译",
-      "icon": "🌎",
-      "match": ["text"],
-      "command": "redirect:翻译"
     }
   ]
 }
