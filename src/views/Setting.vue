@@ -2,7 +2,34 @@
   <div class="setting">
     <el-card class="setting-card">
       <div class="setting-card-content">
-        <el-space direction="vertical" :size="18" fill>
+        <div class="sub-tab-nav">
+          <el-button
+            class="sub-tab-btn"
+            :type="activeTab === 'basic' ? 'primary' : 'default'"
+            :plain="activeTab !== 'basic'"
+            @click="activeTab = 'basic'"
+          >
+            {{ activeTab === 'basic' ? '✅ ' : '' }}存储
+          </el-button>
+          <el-button
+            class="sub-tab-btn"
+            :type="activeTab === 'shortcut' ? 'primary' : 'default'"
+            :plain="activeTab !== 'shortcut'"
+            @click="activeTab = 'shortcut'"
+          >
+            {{ activeTab === 'shortcut' ? '✅ ' : '' }}快捷键
+          </el-button>
+          <el-button
+            class="sub-tab-btn"
+            :type="activeTab === 'feature' ? 'primary' : 'default'"
+            :plain="activeTab !== 'feature'"
+            @click="activeTab = 'feature'"
+          >
+            {{ activeTab === 'feature' ? '✅ ' : '' }}功能
+          </el-button>
+        </div>
+
+        <div class="sub-tab-content" v-show="activeTab === 'basic'">
           <div class="setting-card-content-item">
             <div class="setting-section-title">存储</div>
             <el-divider></el-divider>
@@ -13,7 +40,7 @@
               </el-tag>
             </div>
             <div class="setting-row">
-              <span>数据库路径</span>
+              <span>存储位置</span>
               <el-input class="path" v-model="path" :title="path" disabled></el-input>
               <el-button type="primary" @click="handlePathBtnClick('modify')">修改</el-button>
               <el-button @click="handlePathBtnClick('open')" v-show="path">打开</el-button>
@@ -28,7 +55,7 @@
               条
             </div>
             <div class="setting-row">
-              <span>最长保存时间</span>
+              <span>保存时间</span>
               <el-select class="number-select" v-model="maxage" fit-input-width placeholder="">
                 <el-option label="无限" :value="unlimitedVal" />
                 <el-option v-for="n in [1, 3, 5, 7, 14, 31]" :key="n" :value="n" />
@@ -36,9 +63,37 @@
               天
             </div>
           </div>
+        </div>
 
+        <div class="sub-tab-content" v-show="activeTab === 'shortcut'">
           <div class="setting-card-content-item">
-            <div class="setting-section-title">展示</div>
+            <div class="setting-section-title">当前快捷键列表</div>
+            <p class="shortcut-count">共 {{ shortcutDisplayRows.length }} 条</p>
+            <el-divider></el-divider>
+            <SettingPagedTable
+              :rows="shortcutDisplayRows"
+              :columns="shortcutColumns"
+              :total="shortcutDisplayRows.length"
+              empty-text="暂无快捷键数据"
+              :show-top-pager="false"
+              :show-bottom-pager="false"
+              :show-pagination="false"
+              :show-actions="false"
+              body-max-height="420px"
+            >
+              <template #cell-shortcutDisplay="{ row }">
+                <span class="shortcut-key-cell">{{ row.shortcutDisplay }}</span>
+              </template>
+              <template #cell-descDisplay="{ row }">
+                <span class="shortcut-desc-cell" :title="row.descFull">{{ row.descDisplay }}</span>
+              </template>
+            </SettingPagedTable>
+          </div>
+        </div>
+
+        <div class="sub-tab-content" v-show="activeTab === 'feature'">
+          <div class="setting-card-content-item">
+            <div class="setting-section-title">展示主页功能</div>
             <el-divider></el-divider>
             <div class="setting-row">
               <span>展示在主界面的功能</span>
@@ -46,91 +101,87 @@
                 class="operation-select"
                 v-model="shown"
                 multiple
-                :multiple-limit="5"
+                :multiple-limit="9"
                 placeholder="请选择"
               >
                 <el-option
-                  v-for="{ id, title, icon } in [
-                    ...defaultOperation,
-                    ...custom.map(({ id, title, icon }) => ({ id, title, icon }))
-                  ]"
-                  :key="id"
-                  :label="icon + ' ' + title"
-                  :value="id"
+                  v-for="o in allOperations"
+                  :key="o.id"
+                  :label="o.icon + ' ' + o.title"
+                  :value="o.id"
                 />
               </el-select>
             </div>
-          </div>
-
-          <div class="setting-card-content-item">
-            <div class="setting-section-title">快捷键说明</div>
+            <div class="setting-section-title" style="margin-top: 16px">功能列表</div>
+            <p class="shortcut-count">共 {{ featureRows.length }} 条</p>
             <el-divider></el-divider>
-            <div class="shortcut-list">
-              <div class="shortcut-item">
-                <span class="shortcut-key">↑ ↓</span>
-                <span class="shortcut-desc">上下导航选择项目</span>
-              </div>
-              <div class="shortcut-item">
-                <span class="shortcut-key">← →</span>
-                <span class="shortcut-desc">左右切换分页</span>
-              </div>
-              <div class="shortcut-item">
-                <span class="shortcut-key">Enter</span>
-                <span class="shortcut-desc">复制选中的剪贴板内容</span>
-              </div>
-              <div class="shortcut-item">
-                <span class="shortcut-key">Ctrl + Enter</span>
-                <span class="shortcut-desc">复制并锁定选中的内容</span>
-              </div>
-              <div class="shortcut-item">
-                <span class="shortcut-key">Space</span>
-                <span class="shortcut-desc">向下多选项目</span>
-              </div>
-              <div class="shortcut-item">
-                <span class="shortcut-key">Ctrl/Cmd + D</span>
-                <span class="shortcut-desc">收藏/取消收藏选中项目</span>
-              </div>
-              <div class="shortcut-item">
-                <span class="shortcut-key">Ctrl/Cmd + U</span>
-                <span class="shortcut-desc">锁定/解锁选中项目</span>
-              </div>
-              <div class="shortcut-item">
-                <span class="shortcut-key">Delete/Backspace</span>
-                <span class="shortcut-desc">删除选中项目</span>
-              </div>
-              <div class="shortcut-item">
-                <span class="shortcut-key">Shift + Delete</span>
-                <span class="shortcut-desc">强制删除（包括锁定项目）</span>
-              </div>
-              <div class="shortcut-item">
-                <span class="shortcut-key">Shift（按住）</span>
-                <span class="shortcut-desc">预览图片内容</span>
-              </div>
-              <div class="shortcut-item">
-                <span class="shortcut-key">数字键 1-9</span>
-                <span class="shortcut-desc">快速复制对应位置的项目</span>
-              </div>
-              <div class="shortcut-item">
-                <span class="shortcut-key">Esc</span>
-                <span class="shortcut-desc">退出设置页/关闭对话框</span>
-              </div>
-              <div class="shortcut-item">
-                <span class="shortcut-key">Tab</span>
-                <span class="shortcut-desc">在清除对话框中切换选项</span>
-              </div>
-              <div class="shortcut-item">
-                <span class="shortcut-key">Ctrl + Delete</span>
-                <span class="shortcut-desc">强制删除选中项目（包括锁定项）</span>
-              </div>
-            </div>
+            <SettingPagedTable
+              :rows="featureRows"
+              :columns="featureColumns"
+              :total="featureRows.length"
+              action-label="操作"
+              :action-width="140"
+              empty-text="暂无功能数据"
+              :show-pagination="false"
+              :draggable="true"
+              :move-guard="allowFeatureDrag"
+              body-max-height="420px"
+              @drag-end="handleFeatureDragEnd"
+            >
+              <template #cell-drag="{ row }">
+                <span class="drag-handle" title="拖拽排序">⋮⋮</span>
+              </template>
+              <template #cell-title="{ row }">
+                <span class="feature-icon">{{ row.icon }}</span>
+                <span class="feature-title">{{ row.title }}</span>
+              </template>
+              <template #cell-commandDisplay="{ row }">
+                <span>{{ row.commandDisplay || '-' }}</span>
+              </template>
+              <template #actions="{ row }">
+                <template v-if="row.isCustom">
+                  <el-button link type="primary" size="small" @click="openCustomEdit(row.raw)">编辑</el-button>
+                  <el-button link type="danger" size="small" @click="deleteCustom(row.raw)">删除</el-button>
+                </template>
+                <span v-else class="table-action-empty">-</span>
+              </template>
+            </SettingPagedTable>
+            <el-button class="feature-add-btn" type="primary" plain @click="openCustomAdd">新增</el-button>
+            <el-dialog
+              v-model="customDialogVisible"
+              :title="customDialogMode === 'add' ? '新增功能' : '编辑功能'"
+              :fullscreen="true"
+              :close-on-click-modal="false"
+              class="feature-dialog"
+              @closed="customFormRef?.resetFields?.()"
+            >
+              <el-form
+                ref="customFormRef"
+                class="feature-form"
+                :model="customForm"
+                :rules="customFormRules"
+                label-width="90px"
+              >
+                <el-form-item label="标题" prop="title">
+                  <el-input v-model="customForm.title" placeholder="功能标题" />
+                </el-form-item>
+                <el-form-item label="图标" prop="icon">
+                  <el-input v-model="customForm.icon" placeholder="如 📌" maxlength="4" show-word-limit />
+                </el-form-item>
+                <el-form-item label="匹配" prop="matchStr">
+                  <el-input v-model="customForm.matchStr" type="textarea" :rows="6" placeholder='JSON 数组，如 ["text","image"]' />
+                </el-form-item>
+                <el-form-item label="命令" prop="command">
+                  <el-input v-model="customForm.command" placeholder="如 redirect:插件名" />
+                </el-form-item>
+              </el-form>
+              <template #footer>
+                <el-button @click="customDialogVisible = false">取消</el-button>
+                <el-button type="primary" @click="submitCustomForm">确定</el-button>
+              </template>
+            </el-dialog>
           </div>
-
-          <div class="setting-card-content-item">
-            <div class="setting-section-title">自定义功能</div>
-            <el-divider></el-divider>
-            <el-input v-model="stringCustom" :rows="5" type="textarea" placeholder="请填写 JSON 数组" />
-          </div>
-        </el-space>
+        </div>
       </div>
       <div class="setting-card-footer">
         <el-button @click="handleRestoreBtnClick">重置</el-button>
@@ -142,74 +193,257 @@
 </template>
 
 <script setup>
-import { ref, onMounted, onUnmounted } from 'vue'
+import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import setting from '../global/readSetting'
 import restoreSetting from '../global/restoreSetting'
 import defaultOperation from '../data/operation.json'
+import { HOTKEY_BINDINGS, bindingKey } from '../global/hotkeyBindings'
+import { getLayerLabel, getFeatureLabel } from '../global/hotkeyLabels'
 import { getNativeId } from '../utils'
+import SettingPagedTable from '../cpns/SettingPagedTable.vue'
 
 const emit = defineEmits(['back'])
 const { database, operation } = setting
 const nativeId = getNativeId()
 
-// null 表示无限，下拉用占位值以便 el-select 能匹配并展示「无限」
 const unlimitedVal = 'unlimited'
 const path = ref(database.path[nativeId])
 const maxsize = ref(database.maxsize ?? unlimitedVal)
 const maxage = ref(database.maxage ?? unlimitedVal)
 
-const shown = ref(operation.shown)
-const custom = ref(operation.custom)
-const stringCustom = ref(JSON.stringify(operation.custom))
+const shown = ref([...operation.shown])
+const custom = ref(operation.custom.map((c) => ({ ...c })))
+const hotkeyOverrides = ref({ ...(setting.hotkeyOverrides || {}) })
 
+const activeTab = ref('basic')
 const listenStatus = ref(false)
 
+const allOperations = computed(() => [
+  ...defaultOperation,
+  ...custom.value.map(({ id, title, icon }) => ({ id, title, icon }))
+])
+
+const defaultOperationIds = defaultOperation.map((o) => o.id)
+
+function buildFeatureOrder(savedOrder, customIds) {
+  const allowed = new Set([...defaultOperationIds, ...customIds])
+  const base = Array.isArray(savedOrder) ? savedOrder.filter((id) => allowed.has(id)) : []
+  const rest = [...defaultOperationIds, ...customIds].filter((id) => !base.includes(id))
+  return [...base, ...rest]
+}
+
+const featureOrder = ref(buildFeatureOrder(setting.operation?.order, custom.value.map((c) => c.id)))
+const shortcutColumns = [
+  { key: 'shortcutDisplay', label: '快捷键', width: 140 },
+  { key: 'descDisplay', label: '描述', minWidth: 240 }
+]
+
+const shortcutDisplayRows = computed(() => {
+  const list = Array.isArray(HOTKEY_BINDINGS) ? HOTKEY_BINDINGS : []
+  const grouped = {}
+  list.filter((b) => b.shortcutId !== '*').forEach((b) => {
+    const key = bindingKey(b)
+    const ov = hotkeyOverrides.value[key]
+    if (ov === null) return
+    const shortcutDisplay = (ov || b.shortcutId)
+    if (!grouped[shortcutDisplay]) grouped[shortcutDisplay] = []
+    const featureLabels = (Array.isArray(b.features) ? b.features : [b.features]).map(getFeatureLabel)
+    const layerLabel = getLayerLabel(b.layer, b.state)
+    featureLabels.forEach((label) => {
+      grouped[shortcutDisplay].push(`[${layerLabel}-${label}]`)
+    })
+  })
+  const rows = Object.keys(grouped).sort().map((shortcut) => {
+    const descFull = grouped[shortcut].join(' ')
+    const maxLen = 30
+    const descDisplay = descFull.length > maxLen ? `${descFull.slice(0, maxLen)}...` : descFull
+    return {
+      shortcutDisplay: shortcut,
+      descDisplay,
+      descFull
+    }
+  })
+  return rows
+})
+
+const customDialogVisible = ref(false)
+const customDialogMode = ref('add')
+const customFormRef = ref(null)
+const customForm = ref({
+  id: '',
+  title: '',
+  icon: '📌',
+  matchStr: '["text"]',
+  command: ''
+})
+const customFormRules = {
+  title: [{ required: true, message: '请输入标题', trigger: 'blur' }],
+  icon: [{ required: true, message: '请输入图标', trigger: 'blur' }],
+  command: [{ required: true, message: '请输入命令', trigger: 'blur' }]
+}
+const customEditId = ref('')
+
+const featureColumns = [
+  { key: 'drag', label: '', width: 40, align: 'center' },
+  { key: 'typeLabel', label: '类型', width: 90 },
+  { key: 'title', label: '功能', minWidth: 200 },
+  { key: 'commandDisplay', label: '操作记录', minWidth: 220 }
+]
+
+const featureRows = computed(() => {
+  const defaults = defaultOperation.map((o) => ({
+    id: o.id,
+    title: o.title,
+    icon: o.icon,
+    typeLabel: '默认',
+    isCustom: false,
+    matchDisplay: '',
+    commandDisplay: '',
+    raw: o
+  }))
+  const customs = custom.value.map((o) => ({
+    id: o.id,
+    title: o.title,
+    icon: o.icon,
+    typeLabel: '自定义',
+    isCustom: true,
+    matchDisplay: Array.isArray(o.match) ? o.match.join(', ') : '',
+    commandDisplay: o.command || '',
+    raw: o
+  }))
+  const map = new Map([...defaults, ...customs].map((item) => [item.id, item]))
+  return featureOrder.value.map((id) => map.get(id)).filter(Boolean)
+})
+
+function allowFeatureDrag(evt) {
+  return true
+}
+
+function handleFeatureDragEnd({ rows }) {
+  if (!Array.isArray(rows) || !rows.length) return
+  featureOrder.value = rows.map((row) => row.id)
+  custom.value = rows.filter((row) => row.isCustom).map((row) => row.raw)
+}
+
+function openCustomAdd() {
+  customDialogMode.value = 'add'
+  customForm.value = {
+    id: '',
+    title: '',
+    icon: '📌',
+    matchStr: '["text"]',
+    command: ''
+  }
+  customEditId.value = ''
+  customDialogVisible.value = true
+}
+
+function openCustomEdit(item) {
+  customDialogMode.value = 'edit'
+  customEditId.value = item.id
+  customForm.value = {
+    id: item.id,
+    title: item.title,
+    icon: item.icon,
+    matchStr: Array.isArray(item.match) ? JSON.stringify(item.match, null, 2) : '[]',
+    command: item.command || ''
+  }
+  customDialogVisible.value = true
+}
+
+function parseMatch(str) {
+  if (!str || typeof str !== 'string') return []
+  const s = str.trim()
+  if (!s) return []
+  try {
+    const v = JSON.parse(s)
+    return Array.isArray(v) ? v : []
+  } catch (_) {
+    return []
+  }
+}
+
+function submitCustomForm() {
+  customFormRef.value?.validate?.((valid) => {
+    if (!valid) return
+    const match = parseMatch(customForm.value.matchStr)
+    const payload = {
+      id: customForm.value.id || `custom.${Date.now()}`,
+      title: customForm.value.title.trim(),
+      icon: (customForm.value.icon || '📌').trim(),
+      match,
+      command: (customForm.value.command || '').trim()
+    }
+    if (customDialogMode.value === 'add') {
+      custom.value.push(payload)
+    } else {
+      const idx = custom.value.findIndex((c) => c.id === customEditId.value)
+      if (idx !== -1) custom.value.splice(idx, 1, payload)
+    }
+    customDialogVisible.value = false
+    ElMessage.success('已更新，保存后生效')
+  })
+}
+
+function deleteCustom(item) {
+  ElMessageBox.confirm(`确定删除「${item.title}」吗？`, '删除', {
+    confirmButtonText: '确定',
+    cancelButtonText: '取消',
+    type: 'warning'
+  })
+    .then(() => {
+      custom.value = custom.value.filter((c) => c.id !== item.id)
+      if (shown.value.includes(item.id)) {
+        shown.value = shown.value.filter((id) => id !== item.id)
+      }
+      ElMessage.success('已删除，保存后生效')
+    })
+    .catch(() => {})
+}
+
+watch(
+  () => custom.value.map((c) => c.id),
+  (ids) => {
+    featureOrder.value = buildFeatureOrder(featureOrder.value, ids)
+  }
+)
+
+function validateCustom() {
+  for (const c of custom.value) {
+    if (!c.id || !c.title || !c.icon) {
+      ElMessage.error('自定义功能项须包含 id、标题、图标')
+      return false
+    }
+  }
+  return true
+}
+
 const handleSaveBtnClick = () => {
-  // 校验格式
   if (path.value === '') {
     ElMessage.error('数据库路径不能为空')
     return
-  } else if (path.value.indexOf('_utools_clipboard_manager_storage') === -1) {
+  }
+  if (path.value.indexOf('_utools_clipboard_manager_storage') === -1) {
     ElMessage.error('数据库路径不正确')
     return
   }
-  if (stringCustom.value === '') {
-    // 如果将全部清空 则默认为空数组
-    stringCustom.value = '[]'
+  if (!validateCustom()) return
+
+  const payload = {
+    database: {
+      path: { ...database.path, [nativeId]: path.value },
+      maxsize: maxsize.value === unlimitedVal ? null : maxsize.value,
+      maxage: maxage.value === unlimitedVal ? null : maxage.value
+    },
+    operation: {
+      shown: shown.value,
+      custom: custom.value,
+      order: featureOrder.value
+    },
+    hotkeyOverrides: hotkeyOverrides.value
   }
-  if (!/^\[.*\]$/.test(stringCustom.value)) {
-    ElMessage.error('自定义功能格式不正确')
-    return
-  }
-  try {
-    custom.value = JSON.parse(stringCustom.value)
-  } catch (error) {
-    custom.value = operation.custom
-    stringCustom.value = JSON.stringify(custom.value)
-    ElMessage.error('自定义功能格式不正确')
-    return
-  }
-  // 执行保存到utools本地数据库
-  utools.dbStorage.setItem(
-    'setting',
-    JSON.parse(
-      JSON.stringify({
-        database: {
-          path: {
-            ...database.path,
-            [nativeId]: path.value
-          },
-          maxsize: maxsize.value === unlimitedVal ? null : maxsize.value,
-          maxage: maxage.value === unlimitedVal ? null : maxage.value
-        },
-        operation: {
-          shown: shown.value,
-          custom: custom.value
-        }
-      })
-    )
-  )
+  utools.dbStorage.setItem('setting', JSON.parse(JSON.stringify(payload)))
   ElMessage.success('保存成功 重启插件生效')
 }
 
@@ -236,37 +470,37 @@ const handleRestoreBtnClick = () => {
     type: 'warning'
   })
     .then(() => {
-      restoreSetting()
-      ElMessage({
-        message: '重置成功 重启插件生效',
-        type: 'success'
-      })
+      const restored = restoreSetting()
+      path.value = restored.database.path[nativeId]
+      maxsize.value = restored.database.maxsize ?? unlimitedVal
+      maxage.value = restored.database.maxage ?? unlimitedVal
+      shown.value = [...(restored.operation?.shown || [])]
+      custom.value = (restored.operation?.custom || []).map((c) => ({ ...c }))
+      featureOrder.value = buildFeatureOrder(restored.operation?.order, custom.value.map((c) => c.id))
+      hotkeyOverrides.value = { ...(restored.hotkeyOverrides || {}) }
+      ElMessage.success('重置成功 重启插件生效')
     })
     .catch(() => {})
 }
 
-// 键盘监听事件 监听ESC按下 退出设置页
 const keyDownHandler = (e) => {
-  if (e.key === 'Escape') {
+  if (e.key === 'Escape' && !customDialogVisible.value) {
     emit('back')
     e.stopPropagation()
   }
 }
 
 onMounted(() => {
-  listenStatus.value = window.listener.listening
+  if (typeof window.listener !== 'undefined') listenStatus.value = window.listener.listening
   document.addEventListener('keydown', keyDownHandler)
 })
 
 onUnmounted(() => {
-  // 移除监听事件
   document.removeEventListener('keydown', keyDownHandler)
 })
 </script>
 
 <style lang="less" scoped>
-
-// 定义颜色变量以解决作用域问题
 @media (prefers-color-scheme: dark) {
   .setting {
     --primary-color: #448bd2;
@@ -295,23 +529,31 @@ onUnmounted(() => {
   }
 }
 
-// 使用CSS变量
 @primary-color: var(--primary-color);
-@primary-color-lighter: var(--primary-color-lighter);
 @text-color: var(--text-color);
-@text-color-lighter: var(--text-color-lighter);
 @text-bg-color: var(--text-bg-color);
 @text-bg-color-lighter: var(--text-bg-color-lighter);
-@nav-bg-color: var(--nav-bg-color);
-@nav-hover-bg-color: var(--nav-hover-bg-color);
-@bg-color: var(--bg-color);
 
-// 定义fade函数
-.fade(@color, @percent) {
-  @result: rgba(red(@color), green(@color), blue(@color), @percent);
-}
 .setting-card-content {
   padding: 12px 6px 4px;
+}
+.sub-tab-nav {
+  display: flex;
+  gap: 8px;
+  padding: 4px 0 12px;
+  border-bottom: 1px solid var(--text-bg-color-lighter);
+}
+.sub-tab-btn {
+  font-size: 14px;
+}
+.sub-tab-content {
+  padding: 16px 12px;
+  min-height: 280px;
+}
+.shortcut-count {
+  margin: 4px 0 0;
+  font-size: 13px;
+  color: var(--text-color-lighter);
 }
 .setting-section-title {
   font-size: 16px;
@@ -333,19 +575,8 @@ onUnmounted(() => {
 .operation-select {
   min-width: 240px;
 }
-.shortcut-list {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-.shortcut-item {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  padding: 4px 0;
-}
-.shortcut-key {
-  min-width: 120px;
+
+.shortcut-key-cell {
   padding: 4px 8px;
   background: var(--text-bg-color);
   border: 1px solid var(--text-bg-color-lighter);
@@ -353,10 +584,45 @@ onUnmounted(() => {
   font-family: 'Courier New', monospace;
   font-size: 12px;
   color: var(--primary-color);
-  text-align: center;
 }
-.shortcut-desc {
-  color: var(--text-color);
+.shortcut-desc-cell {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  display: inline-block;
+  max-width: 100%;
+}
+.drag-handle {
+  cursor: grab;
+  color: var(--text-color-lighter);
   font-size: 14px;
+  user-select: none;
+}
+.feature-icon {
+  font-size: 18px;
+}
+.feature-title {
+  flex: 1;
+  font-size: 14px;
+}
+.feature-add-btn {
+  align-self: flex-start;
+  margin-top: 10px;
+}
+.table-action-empty {
+  color: var(--text-color-lighter);
+}
+.feature-dialog :deep(.el-dialog__body) {
+  padding: 24px 32px 12px;
+}
+.feature-form {
+  max-width: 760px;
+  margin: 0 auto;
+}
+.feature-form :deep(.el-form-item) {
+  margin-bottom: 18px;
+}
+.feature-form :deep(.el-textarea__inner) {
+  min-height: 200px;
 }
 </style>
