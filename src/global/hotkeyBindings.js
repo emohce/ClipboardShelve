@@ -4,6 +4,47 @@
  * Use state 'search' for main layer when search panel is active; 'multi-select' when multi-select is on.
  */
 
+import { normalizeShortcutId } from './shortcutKey'
+
+/**
+ * Unique key for a binding row (for overrides map).
+ * @param {{ layer: string, state?: string, shortcutId: string, features: string[] }} b
+ * @returns {string}
+ */
+export function bindingKey(b) {
+  const state = b.state || ''
+  const features = Array.isArray(b.features) ? b.features : [b.features]
+  return `${b.layer}:${state}:${b.shortcutId}:${features.join(',')}`
+}
+
+/**
+ * Returns bindings with user overrides applied (from utools.dbStorage 'setting').
+ * Override null = remove binding; override string = replace shortcutId.
+ */
+export function getEffectiveBindings() {
+  let raw
+  try {
+    raw = typeof utools !== 'undefined' && utools?.dbStorage?.getItem?.('setting')
+  } catch (_) {
+    raw = null
+  }
+  const setting = raw && typeof raw === 'object' ? raw : {}
+  const overrides = setting.hotkeyOverrides && typeof setting.hotkeyOverrides === 'object' ? setting.hotkeyOverrides : {}
+  return HOTKEY_BINDINGS.filter((b) => {
+    const key = bindingKey(b)
+    const ov = overrides[key]
+    if (ov === null) return false
+    return true
+  }).map((b) => {
+    const key = bindingKey(b)
+    const ov = overrides[key]
+    if (ov != null && typeof ov === 'string') {
+      return { ...b, shortcutId: normalizeShortcutId(ov) }
+    }
+    return { ...b, shortcutId: normalizeShortcutId(b.shortcutId) }
+  })
+}
+
 export const HOTKEY_BINDINGS = [
   // ---- clear-dialog ----
   { layer: 'clear-dialog', shortcutId: 'Escape', features: ['clear-dialog-close'] },

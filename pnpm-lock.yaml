@@ -20,6 +20,9 @@ importers:
       vue:
         specifier: ^3.2.37
         version: 3.5.27
+      vuedraggable:
+        specifier: ^4.1.0
+        version: 4.1.0(vue@3.5.27)
       webpack:
         specifier: 4.37.0
         version: 4.37.0
@@ -3168,6 +3171,9 @@ packages:
   sockjs@0.3.24:
     resolution: {integrity: sha512-GJgLTZ7vYb/JtPSSZ10hsOYIvEYsjbNU+zPdIHcUaWVNUEPivzxku31865sSSud0Da0W4lEeOPlmw93zLQchuQ==}
 
+  sortablejs@1.14.0:
+    resolution: {integrity: sha512-pBXvQCs5/33fdN1/39pPL0NZF20LeRbLQ5jtnheIPN9JQAaufGjKdWduZn4U7wCtVuzKhmRkI0DFYHYRbB2H1w==}
+
   source-list-map@2.0.1:
     resolution: {integrity: sha512-qnQ7gVMxGNxsiL4lEuJwe/To8UnK7fAnmbGEEH8RpLouuKbeEm0lhbQVFIrNSuB+G7tVrAlVsZgETT5nljf+Iw==}
 
@@ -3586,6 +3592,11 @@ packages:
     peerDependenciesMeta:
       typescript:
         optional: true
+
+  vuedraggable@4.1.0:
+    resolution: {integrity: sha512-FU5HCWBmsf20GpP3eudURW3WdWTKIbEIQxh9/8GE806hydR9qZqRRxRE3RjqX7PkuLuMQG/A7n3cfj9rCEchww==}
+    peerDependencies:
+      vue: ^3.0.1
 
   watchpack-chokidar2@2.0.1:
     resolution: {integrity: sha512-nCFfBIPKr5Sh61s4LPpy1Wtfi0HE8isJ3d2Yb5/Ppw2P2B/3eVSEBjKfN0fmHJSK14+31KwMKmcrzs2GM4P0Ww==}
@@ -7304,6 +7315,8 @@ snapshots:
       uuid: 8.3.2
       websocket-driver: 0.7.4
 
+  sortablejs@1.14.0: {}
+
   source-list-map@2.0.1: {}
 
   source-map-js@1.2.1: {}
@@ -7781,6 +7794,11 @@ snapshots:
       '@vue/runtime-dom': 3.5.27
       '@vue/server-renderer': 3.5.27(vue@3.5.27)
       '@vue/shared': 3.5.27
+
+  vuedraggable@4.1.0(vue@3.5.27):
+    dependencies:
+      sortablejs: 1.14.0
+      vue: 3.5.27
 
   watchpack-chokidar2@2.0.1:
     dependencies:

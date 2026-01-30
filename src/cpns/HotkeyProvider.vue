@@ -5,14 +5,14 @@
 <script setup>
 import { onMounted, onUnmounted } from 'vue'
 import { dispatch, setBindings } from '../global/hotkeyRegistry'
-import { HOTKEY_BINDINGS } from '../global/hotkeyBindings'
+import { getEffectiveBindings } from '../global/hotkeyBindings'
 
 function keydownHandler(e) {
   dispatch(e)
 }
 
 onMounted(() => {
-  setBindings(HOTKEY_BINDINGS)
+  setBindings(getEffectiveBindings())
   document.addEventListener('keydown', keydownHandler, true)
 })
 
