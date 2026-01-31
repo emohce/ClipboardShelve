@@ -93,43 +93,63 @@ const getImageDataUrlForCopy = (item) => {
   }
 }
 
-const copyWithSearchFocus = (item) => {
-  // 复制到剪切板
+const copyAndPasteAndExit = (item, options = {}) => {
+  if (!item) return false
+  const {
+    exit = true,
+    paste: shouldPaste = true,
+    respectImageCopyGuard = true,
+    delayMs = 80
+  } = options
+
+  let didCopy = false
   switch (item.type) {
     case 'text':
       utools.copyText(item.data)
+      didCopy = true
       break
     case 'image': {
       const dataUrl = getImageDataUrlForCopy(item)
-      if (dataUrl) utools.copyImage(dataUrl)
+      if (!dataUrl) {
+        if (respectImageCopyGuard) {
+          console.warn('[copyAndPasteAndExit] 无可复制的图片数据，终止后续操作')
+          return false
+        }
+        break
+      }
+      utools.copyImage(dataUrl)
+      didCopy = true
       break
     }
-    case 'file':
+    case 'file': {
       const paths = JSON.parse(item.data).map((file) => file.path)
       utools.copyFile(paths)
+      didCopy = true
       break
-  }
-
-  // 图片无可用于复制的数据时未执行复制，不继续粘贴
-  if (item.type === 'image' && !getImageDataUrlForCopy(item)) {
-    return
-  }
-
-  // uTools 插件环境：主窗口(main)=插件内固定，只复制不粘贴；分离窗口(detach)=不固定，复制后自动粘贴到光标
-  if (isUToolsPlugin()) {
-    if (utools.getWindowType && utools.getWindowType() === 'main') {
-      return
     }
   }
 
-  // 非插件环境 或 分离窗口：先退出搜索焦点，再粘贴到外部光标位置
-  const searchInput = document.querySelector('.clip-search-input')
-  if (document.activeElement === searchInput) {
-    searchInput.blur()
-    setTimeout(() => paste(), 50)
-  } else {
-    paste()
+  if (!didCopy) return false
+
+  if (exit && typeof utools.hideMainWindow === 'function') {
+    utools.hideMainWindow()
   }
+
+  if (shouldPaste) {
+    setTimeout(() => paste(), delayMs)
+  }
+
+  return true
+}
+
+const copyWithSearchFocus = (item) => {
+  if (!item) return false
+
+  const searchInput = document.querySelector('.clip-search-input')
+  const isSearchFocused = document.activeElement === searchInput
+  if (isSearchFocused) searchInput.blur()
+
+  return copyAndPasteAndExit(item, { respectImageCopyGuard: true })
 }
 
 const copyOnly = (item) => {
@@ -178,4 +198,4 @@ const getNativeId = () => {
   return utools.getNativeId()
 }
 
-export { dateFormat, pointToObj, copy, paste, createFile, getNativeId, isUToolsPlugin, copyWithSearchFocus, copyOnly }
+export { dateFormat, pointToObj, copy, paste, createFile, getNativeId, isUToolsPlugin, copyWithSearchFocus, copyOnly, copyAndPasteAndExit }

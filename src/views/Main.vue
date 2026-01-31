@@ -123,6 +123,7 @@ import { ref, watch, onMounted, onUnmounted, computed, nextTick } from 'vue'
 import { ElMessage, ElMessageBox, ElButton, ElRadioGroup, ElRadioButton, ElTooltip } from 'element-plus'
 import { activateLayer, deactivateLayer } from '../global/hotkeyLayers'
 import { registerFeature, setMainState } from '../global/hotkeyRegistry'
+import { copyAndPasteAndExit } from '../utils'
 import ClipItemList from '../cpns/ClipItemList.vue'
 import ClipFullData from '../cpns/ClipFullData.vue'
 import ClipSearch from '../cpns/ClipSearch.vue'
@@ -211,9 +212,10 @@ const handleMultiCopyBtnClick = (isPaste, options = {}) => {
   }
   // 仅选一条且为图片时直接复制，不生成临时文件、不进入合并逻辑
   if (itemList.length === 1 && itemList[0].type === 'image') {
-    window.copy(itemList[0])
-    ElMessage({ message: '复制成功', type: 'success' })
-    paste && window.paste()
+    const ok = copyAndPasteAndExit(itemList[0], { paste, exit: true, respectImageCopyGuard: true })
+    if (ok) {
+      ElMessage({ message: '复制成功', type: 'success' })
+    }
     if (exitMulti) {
       ClipItemListRef.value.emptySelectItemList()
       isMultiple.value = false
@@ -258,10 +260,7 @@ const handleMultiCopyBtnClick = (isPaste, options = {}) => {
       // type === 'image' 不生成临时图片，跳过
     })
     const fileData = JSON.stringify(filePathArray.reverse())
-    window.copy({
-      type: 'file',
-      data: fileData
-    })
+    copyAndPasteAndExit({ type: 'file', data: fileData }, { paste, exit: true, respectImageCopyGuard: true })
     if (persist) {
       addMergedItemToDb({
         type: 'file',
@@ -277,10 +276,7 @@ const handleMultiCopyBtnClick = (isPaste, options = {}) => {
       .map((item) => item.data)
       .reverse()
       .join(eol)
-    window.copy({
-      type: 'text',
-      data: result
-    })
+    copyAndPasteAndExit({ type: 'text', data: result }, { paste, exit: true, respectImageCopyGuard: true })
     if (persist) {
       addMergedItemToDb({ type: 'text', data: result })
     }
@@ -289,7 +285,7 @@ const handleMultiCopyBtnClick = (isPaste, options = {}) => {
     message: '复制成功',
     type: 'success'
   })
-  paste && window.paste()
+  // 粘贴逻辑已经在 copyAndPasteAndExit 内按 paste 参数执行
   if (exitMulti) {
     ClipItemListRef.value.emptySelectItemList()
     isMultiple.value = false

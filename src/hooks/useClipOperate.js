@@ -1,4 +1,5 @@
 import { ElMessage } from "element-plus";
+import { copyAndPasteAndExit } from "../utils";
 import setting from "../global/readSetting";
 
 export default function useClipOperate({ emit, currentActiveTab }) {
@@ -20,11 +21,13 @@ export default function useClipOperate({ emit, currentActiveTab }) {
         image: "img",
       };
       if (id === "copy") {
-        window.copy(item, false);
-        ElMessage({
-          message: "复制成功",
-          type: "success",
-        });
+        const ok = copyAndPasteAndExit(item, { respectImageCopyGuard: true });
+        if (ok) {
+          ElMessage({
+            message: "复制成功",
+            type: "success",
+          });
+        }
       } else if (id === "view") {
         emit("onDataChange", item);
       } else if (id === "open-folder") {

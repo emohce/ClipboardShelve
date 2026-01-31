@@ -167,7 +167,7 @@ import { ElMessage } from 'element-plus'
 import FileList from './FileList.vue'
 import ClipOperate from './ClipOperate.vue'
 import ClipDrawerMenu from './ClipDrawerMenu.vue'
-import { dateFormat, isUToolsPlugin, copyWithSearchFocus, copyOnly } from '../utils'
+import { dateFormat, isUToolsPlugin, copyOnly, copyAndPasteAndExit } from '../utils'
 import defaultOperation from '../data/operation.json'
 import setting from '../global/readSetting'
 import useClipOperate from '../hooks/useClipOperate'
@@ -223,7 +223,7 @@ const isValidImageData = (data) => {
 const handleImageClick = (ev, item) => {
   if (ev) ev.stopPropagation()
   if (getItemImageSrc(item)) {
-    copyWithSearchFocus(item)
+    copyAndPasteAndExit(item, { respectImageCopyGuard: true })
   }
 }
 
@@ -997,7 +997,7 @@ const handleItemClick = (ev, item) => {
       if (item.type === 'image' && !getItemImageSrc(item)) {
         return
       }
-      copyWithSearchFocus(item)
+      copyAndPasteAndExit(item, { respectImageCopyGuard: true })
     } else if (button === 2) {
       // 右键 打开抽屉（与右方向键一致）
       activeIndex.value = props.showList.indexOf(item)
@@ -1179,13 +1179,13 @@ function registerListHotkeyFeatures() {
       emit('onMultiCopyExecute', { paste: false, persist: true, exit: true })
       return true
     }
-    if (props.showList[activeIndex.value]) copyWithSearchFocus(props.showList[activeIndex.value])
+    if (props.showList[activeIndex.value]) copyAndPasteAndExit(props.showList[activeIndex.value], { respectImageCopyGuard: true })
     return true
   })
   registerFeature('list-ctrl-enter', () => {
     if (!props.isMultiple && props.showList[activeIndex.value]) {
       const current = props.showList[activeIndex.value]
-      copyWithSearchFocus(current)
+      copyAndPasteAndExit(current, { respectImageCopyGuard: true })
       window.setLock(current.id, true)
       return true
     }
@@ -1197,7 +1197,7 @@ function registerListHotkeyFeatures() {
       return true
     }
     if (!props.isMultiple && props.showList[activeIndex.value]) {
-      copyWithSearchFocus(props.showList[activeIndex.value])
+      copyAndPasteAndExit(props.showList[activeIndex.value], { respectImageCopyGuard: true })
       ElMessage({ message: '复制成功', type: 'success' })
       return true
     }
@@ -1318,7 +1318,7 @@ function registerListHotkeyFeatures() {
   for (let n = 1; n <= 9; n++) {
     registerFeature(`list-quick-copy-${n}`, () => {
       const targetItem = props.showList[n - 1]
-      if (targetItem) { copyWithSearchFocus(targetItem); selectItemList.value = []; return true }
+      if (targetItem) { copyAndPasteAndExit(targetItem, { respectImageCopyGuard: true }); selectItemList.value = []; return true }
       return false
     })
   }
