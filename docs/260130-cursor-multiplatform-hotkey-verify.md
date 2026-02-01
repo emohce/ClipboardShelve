@@ -52,14 +52,14 @@
 
 ### 2.1 仅 Ctrl、无 Meta 的绑定（影响 macOS 习惯）
 
-- 主层：`ctrl+f` 聚焦搜索，`ctrl+c` 复制，`ctrl+d` 收藏，`ctrl+u` 锁定，`ctrl+Enter` 复制并锁定，`ctrl+Delete`/`ctrl+Backspace` 强制删除，`ctrl+1`～`ctrl+9` 快速复制，`ctrl+shift+1`～`9` 抽屉子项，`ctrl+k`/`ctrl+j` 上下移动。
+- 主层：`ctrl+f` 聚焦搜索，`ctrl+c` 复制，`ctrl+d` 收藏，`ctrl+u` 锁定，`ctrl+Enter` 复制并锁定，`ctrl+Delete`/`ctrl+Backspace` 强制删除，`ctrl+1`～`ctrl+9` 切换标签页，`ctrl+shift+1`～`9` 抽屉子项，`ctrl+k`/`ctrl+j` 上下移动。
 - 搜索状态：`ctrl+Delete`/`ctrl+Backspace` 删除，`ctrl+shift+Delete` 强制删除。
 - 抽屉层：`ctrl+1`～`ctrl+9` 选择。
 - 清除弹窗：无 ctrl/meta，数字/Enter/Tab 等，各平台一致。
 
 ### 2.2 Alt 键（alt+1～9）
 
-- 绑定：`main` 层 `alt+1`～`alt+9` 切换 Tab。
+- 绑定：`main` 层 `alt+1`～`alt+9` 快速复制第 1～9 项。
 - 多系统：Alt 在 macOS 上多为 Option，键位存在，一般能正常触发；少数输入法或系统可能占用 alt+数字，属环境冲突，非代码错误。
 
 ### 2.3 无修饰键或 Shift
