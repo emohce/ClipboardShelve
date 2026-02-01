@@ -16,17 +16,25 @@ import { initWindowManager, setPluginWindowSize } from './windowManager'
 
 // 忽略 ResizeObserver 噪声错误，避免 dev overlay 反复弹出
 const RESIZE_OBSERVER_ERROR = 'ResizeObserver loop limit exceeded'
+const isResizeObserverError = (event) => {
+  const msg = event?.message || event?.error?.message || event?.reason?.message
+  return msg === RESIZE_OBSERVER_ERROR
+}
+
+// 捕获阶段也拦截，避免 overlay 先处理
 window.addEventListener('error', (event) => {
-  if (event?.message === RESIZE_OBSERVER_ERROR) {
+  if (isResizeObserverError(event)) {
+    event.preventDefault()
     event.stopImmediatePropagation()
   }
-})
+}, true)
+
 window.addEventListener('unhandledrejection', (event) => {
-  const msg = event?.reason?.message
-  if (msg === RESIZE_OBSERVER_ERROR) {
+  if (isResizeObserverError(event)) {
     event.preventDefault()
+    event.stopImmediatePropagation?.()
   }
-})
+}, true)
 
 export default function initPlugin() {
   console.log('[initPlugin] 开始初始化插件')
