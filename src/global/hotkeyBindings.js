@@ -109,7 +109,7 @@ export const HOTKEY_BINDINGS = [
   { layer: 'main', shortcutId: 'Enter', features: ['list-enter'] },
   { layer: 'main', shortcutId: 'ctrl+Enter', features: ['list-ctrl-enter'] },
   { layer: 'main', shortcutId: 'ctrl+c', features: ['list-copy'] },
-  { layer: 'main', shortcutId: 'ctrl+d', features: ['list-collect'] },
+  { layer: 'main', shortcutId: 'ctrl+s', features: ['list-collect'] },
   { layer: 'main', shortcutId: 'ctrl+u', features: ['list-lock'] },
   { layer: 'main', shortcutId: 'shift+Delete', features: ['open-clear-dialog'] },
   { layer: 'main', shortcutId: 'shift+Backspace', features: ['open-clear-dialog'] },
