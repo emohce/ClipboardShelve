@@ -44,9 +44,7 @@ class ClipboardEventListener extends EventEmitter {
       
       this.child.stdout.on('data', (data) => {
         const dataStr = data.toString().trim()
-        console.log('[listener.stdout] 收到数据:', dataStr)
         if (dataStr === 'CLIPBOARD_CHANGE') {
-          console.log('[listener.stdout] 检测到剪贴板变化事件')
           this.emit('change')
         }
       })

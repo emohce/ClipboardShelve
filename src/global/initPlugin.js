@@ -36,6 +36,7 @@ export default function initPlugin() {
   
   // 模块级变量：防止重复启动轮询模式
   let hasFallbackToPolling = false
+  let isEventListenerRegistered = false // 防止重复注册事件监听器
   let pollingStarted = false
   
   // 防抖写磁盘定时器
@@ -612,13 +613,11 @@ export default function initPlugin() {
       if (hasSourceInfo) {
         result.sourcePaths = sourcePaths
       }
-      console.log('[pbpaste] 返回文本类型, 内容:', text.substring(0, 50))
       return result
     }
     // image
     const image = clipboard.readImage() // 大图卡顿来源
     const isEmpty = image.isEmpty()
-    console.log('[pbpaste] 检查图片:', isEmpty ? '无图片' : '有图片')
     if (!isEmpty) {
       const data = image.toDataURL()
       const result = {
@@ -632,10 +631,8 @@ export default function initPlugin() {
       if (hasSourceInfo) {
         result.sourcePaths = sourcePaths
       }
-      console.log('[pbpaste] 返回图片类型, 数据长度:', data.length)
       return result
     }
-    console.log('[pbpaste] 剪贴板为空, 返回 undefined')
     return undefined
   }
 
@@ -664,47 +661,97 @@ export default function initPlugin() {
   const toTop = () => (document.scrollingElement.scrollTop = 0)
   const resetNav = () => document.querySelectorAll('.clip-switch-item')[0]?.click()
 
+  // 防止剪贴板写回循环的标志
+  let isRestoringClipboard = false
+  let lastRestoredItemId = null
+  let lastRestoredItemHash = null
+  let restoreCount = 0
+  const RESTORE_GUARD_TIMEOUT = 500 // 增加到 500ms 防护窗口
+  const MAX_RESTORE_COUNT = 3 // 最大连续恢复次数，超过则暂停
+
   /** 将刚入库的内容写回剪贴板，避免常驻时复制后剪贴板被清空、无法在其他应用粘贴 */
   const restoreClipboard = (item) => {
     if (!item || !item.type) return
+    if (isRestoringClipboard) {
+      console.log('[restoreClipboard] 正在恢复中，跳过防止循环')
+      return
+    }
+    
+    // 检查连续恢复次数，防止无限循环
+    if (restoreCount >= MAX_RESTORE_COUNT) {
+      console.warn('[restoreClipboard] 达到最大恢复次数，暂停恢复以防止循环')
+      setTimeout(() => { restoreCount = 0 }, 2000) // 2秒后重置计数
+      return
+    }
+    
     try {
+      isRestoringClipboard = true
+      lastRestoredItemId = item.id
+      // 计算内容哈希用于后续比较
+      lastRestoredItemHash = crypto.createHash('md5').update(item.data + item.type).digest('hex')
+      restoreCount++
+      
       if (item.type === 'text' && typeof item.data === 'string') {
         clipboard.writeText(item.data)
-        console.log('[restoreClipboard] 已写回文本')
       } else if (item.type === 'image' && item.data && typeof nativeImage?.createFromDataURL === 'function') {
         const img = nativeImage.createFromDataURL(item.data)
         if (img && !img.isEmpty()) {
           clipboard.writeImage(img)
-          console.log('[restoreClipboard] 已写回图片')
         }
       }
       // file 类型写回依赖系统格式，暂不处理
     } catch (e) {
       console.warn('[restoreClipboard] 写回剪贴板失败', e)
+    } finally {
+      // 延迟重置标志，防止竞态条件
+      setTimeout(() => {
+        isRestoringClipboard = false
+        lastRestoredItemId = null
+        lastRestoredItemHash = null
+        // 只有在没有连续恢复时才重置计数
+        if (restoreCount < MAX_RESTORE_COUNT) {
+          restoreCount = 0
+        }
+      }, RESTORE_GUARD_TIMEOUT)
     }
   }
 
   const handleClipboardChange = (item = pbpaste()) => {
-    console.log('[handleClipboardChange] 处理剪贴板变化, item:', item ? `类型: ${item.type}` : 'null')
-    if (!item) {
-      console.log('[handleClipboardChange] item 为空, 退出')
+    
+    // 防止循环：如果正在恢复剪贴板，跳过处理
+    if (isRestoringClipboard) {
       return
     }
-    item.id = crypto.createHash('md5').update(item.data).digest('hex')
-    console.log('[handleClipboardChange] 计算ID:', item.id)
-    if (db.updateItemViaId(item.id)) {
+    
+    if (!item) {
+      return
+    }
+    
+    // 计算项目ID
+    const itemId = crypto.createHash('md5').update(item.data).digest('hex')
+    item.id = itemId
+    
+    // 额外防护：如果是刚恢复的项目，跳过处理
+    if (lastRestoredItemId === itemId) {
+      return
+    }
+    
+    // 计算内容哈希进行比较
+    const currentHash = crypto.createHash('md5').update(item.data + item.type).digest('hex')
+    if (lastRestoredItemHash === currentHash) {
+      return
+    }
+    
+    if (db.updateItemViaId(itemId)) {
       // 在库中 由 updateItemViaId 更新 updateTime
-      console.log('[handleClipboardChange] 记录已存在, 已更新')
       restoreClipboard(item)
       return
     }
     // 不在库中 由 addItem 添加
-    console.log('[handleClipboardChange] 新记录, 准备添加')
     item.createTime = new Date().getTime()
     item.updateTime = new Date().getTime()
     item.locked = false
     db.addItem(item)
-    console.log('[handleClipboardChange] 处理完成')
     restoreClipboard(item)
   }
 
@@ -720,61 +767,53 @@ export default function initPlugin() {
     let loopCount = 0
     function loop() {
       loopCount++
-      if (loopCount % 10 === 0) {
-        console.log('[addCommonListener] 轮询循环中, 次数:', loopCount)
-      }
       time.sleep(300).then(loop)
       const item = pbpaste()
       if (!item) {
-        if (loopCount % 10 === 0) {
-          console.log('[addCommonListener] 本次轮询: 剪贴板为空')
-        }
         return
       }
       item.id = crypto.createHash('md5').update(item.data).digest('hex')
       if (item && prev.id != item.id) {
         // 剪切板元素 与最近一次复制内容不同
-        console.log('[addCommonListener] 检测到变化! prev ID:', prev.id || '无', 'new ID:', item.id)
         prev = item
         handleClipboardChange(item)
-      } else {
-        // 剪切板元素 与上次复制内容相同
-        if (loopCount % 10 === 0) {
-          console.log('[addCommonListener] 本次轮询: 内容未变化')
-        }
       }
     }
     loop()
   }
 
   const registerClipEvent = (listener) => {
+    if (isEventListenerRegistered) {
+      console.log('[registerClipEvent] 事件监听器已注册，跳过重复注册')
+      return
+    }
+    
     console.log('[registerClipEvent] 注册剪贴板事件监听器')
+    isEventListenerRegistered = true
+    
     const exitHandler = () => {
       console.error('[registerClipEvent] 监听器异常退出')
       if (!hasFallbackToPolling) {
         hasFallbackToPolling = true
-        console.log('[registerClipEvent] 监听器退出，降级到轮询模式')
+        console.log('[registerClipEvent] 降级到轮询模式')
         utools.showNotification('剪贴板监听程序不可用，已切换到轮询模式')
         addCommonListener()
-      } else {
-        console.log('[registerClipEvent] 轮询模式已在运行，忽略退出事件')
       }
     }
     const errorHandler = (error) => {
       console.error('[registerClipEvent] 监听器错误:', error)
       if (!hasFallbackToPolling) {
         hasFallbackToPolling = true
-        // const info = '请到设置页检查剪贴板监听程序状态'
-        // utools.showNotification('启动剪贴板监听程序启动出错: ' + error + info)
         console.log('[registerClipEvent] 降级到轮询模式')
         addCommonListener()
-      } else {
-        console.log('[registerClipEvent] 轮询模式已在运行，忽略错误事件')
       }
     }
     listener
       .on('change', () => {
-        console.log('[registerClipEvent] 收到 change 事件')
+        // 防止循环：如果正在恢复剪贴板，跳过处理
+        if (isRestoringClipboard) {
+          return
+        }
         handleClipboardChange()
       })
       .on('close', () => {
@@ -786,9 +825,9 @@ export default function initPlugin() {
         exitHandler()
       })
       .on('error', (error) => {
-        console.error('[registerClipEvent] 收到 error 事件:', error)
         errorHandler(error)
       })
+    
     console.log('[registerClipEvent] 事件监听器注册完成')
   }
 
