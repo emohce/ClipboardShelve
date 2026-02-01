@@ -746,6 +746,7 @@ onMounted(() => {
       if (!isSearchPanelExpand.value && !isMultiple.value) {
         isSearchPanelExpand.value = true
         focusSearchInput(key)
+        e.preventDefault()
         return
       }
       window.focus()
