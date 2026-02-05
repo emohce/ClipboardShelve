@@ -7,7 +7,9 @@ export const LAYER_LABELS = {
   'main-search': '主界面（搜索中）',
   'clear-dialog': '清除对话框',
   'clip-drawer': '剪贴板抽屉',
-  'full-data-overlay': '全文预览'
+  'full-data-overlay': '全文预览',
+  'tag-search': '标签搜索',
+  'tag-edit': '标签编辑'
 }
 
 export const FEATURE_LABELS = {

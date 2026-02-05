@@ -62,26 +62,12 @@
         <div class="sub-tab-content" v-show="activeTab === 'shortcut'">
           <div class="setting-card-content-item">
             <div class="setting-section-title">当前快捷键列表</div>
-            <p class="shortcut-count">共 {{ shortcutDisplayRows.length }} 条</p>
+            <p class="shortcut-count">共 {{ shortcutCount }} 条快捷键</p>
             <el-divider></el-divider>
-            <SettingPagedTable
-              :rows="shortcutDisplayRows"
-              :columns="shortcutColumns"
-              :total="shortcutDisplayRows.length"
-              empty-text="暂无快捷键数据"
-              :show-top-pager="false"
-              :show-bottom-pager="false"
-              :show-pagination="false"
-              :show-actions="false"
+            <HotkeyTreeView
+              :tree-data="hotkeyTreeRoot"
               body-max-height="420px"
-            >
-              <template #cell-shortcutDisplay="{ row }">
-                <span class="shortcut-key-cell">{{ row.shortcutDisplay }}</span>
-              </template>
-              <template #cell-descDisplay="{ row }">
-                <span class="shortcut-desc-cell" :title="row.descFull">{{ row.descDisplay }}</span>
-              </template>
-            </SettingPagedTable>
+            />
           </div>
         </div>
 
@@ -192,10 +178,12 @@ import { ElMessage, ElMessageBox } from 'element-plus'
 import setting from '../global/readSetting'
 import restoreSetting from '../global/restoreSetting'
 import defaultOperation from '../data/operation.json'
-import { HOTKEY_BINDINGS, bindingKey } from '../global/hotkeyBindings'
+import { getEffectiveBindings } from '../global/hotkeyBindings'
 import { getLayerLabel, getFeatureLabel } from '../global/hotkeyLabels'
+import { buildHotkeyTree } from '../global/hotkeyGraph'
 import { getNativeId } from '../utils'
 import SettingPagedTable from '../cpns/SettingPagedTable.vue'
+import HotkeyTreeView from '../cpns/HotkeyTreeView.vue'
 
 const emit = defineEmits(['back'])
 const { database, operation } = setting
@@ -229,41 +217,16 @@ function buildFeatureOrder(savedOrder, customIds) {
 
 const featureOrder = ref(buildFeatureOrder(setting.operation?.order, custom.value.map((c) => c.id)))
 const shown = ref(sortShownByOrder(operation.shown, featureOrder.value))
-const shortcutColumns = [
-  { key: 'index', label: '序号', width: 70, align: 'center' },
-  { key: 'shortcutDisplay', label: '快捷键', width: 140 },
-  { key: 'descDisplay', label: '描述', minWidth: 240 }
-]
+const hotkeyTreeRoot = computed(() => {
+  const bindings = getEffectiveBindings()
+  return buildHotkeyTree(bindings)
+})
 
-const shortcutDisplayRows = computed(() => {
-  const list = Array.isArray(HOTKEY_BINDINGS) ? HOTKEY_BINDINGS : []
-  const grouped = {}
-  list.filter((b) => b.shortcutId !== '*').forEach((b) => {
-    const key = bindingKey(b)
-    const ov = hotkeyOverrides.value[key]
-    if (ov === null) return
-    const shortcutDisplay = (ov || b.shortcutId)
-    if (!grouped[shortcutDisplay]) grouped[shortcutDisplay] = []
-    const featureLabels = (Array.isArray(b.features) ? b.features : [b.features]).map(getFeatureLabel)
-    const layerLabel = getLayerLabel(b.layer, b.state)
-    featureLabels.forEach((label) => {
-      grouped[shortcutDisplay].push(`[${layerLabel}-${label}]`)
-    })
-  })
-  const rows = Object.keys(grouped)
-    .sort()
-    .map((shortcut, idx) => {
-      const descFull = grouped[shortcut].join(' ')
-      const maxLen = 30
-      const descDisplay = descFull.length > maxLen ? `${descFull.slice(0, maxLen)}...` : descFull
-      return {
-        index: idx + 1,
-        shortcutDisplay: shortcut,
-        descDisplay,
-        descFull
-      }
-    })
-  return rows
+const shortcutCount = computed(() => {
+  if (!Array.isArray(hotkeyTreeRoot.value)) return 0
+  return hotkeyTreeRoot.value.reduce((total, layerNode) => {
+    return total + (layerNode.shortcuts ? layerNode.shortcuts.length : 0)
+  }, 0)
 })
 
 const customDialogVisible = ref(false)
