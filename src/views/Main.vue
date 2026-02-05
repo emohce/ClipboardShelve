@@ -6,6 +6,7 @@
       :fullData="fullData"
       @onDataRemove="handleDataRemove"
       @onOverlayClick="toggleFullData({ type: 'text', data: '' })"
+      @openTagEdit="openTagEditModal"
     ></ClipFullData>
     <ClipSwitch ref="ClipSwitchRef">
       <template #SidePanel>
@@ -52,14 +53,18 @@
           @onEmpty="handleSearchEmpty"
           v-model="filterText"
           :itemCount="list.length"
+          :placeholderOverride="searchPlaceholder"
         ></ClipSearch>
       </template>
     </ClipSwitch>
-    <div class="clip-break"></div>
-    <div class="clip-empty-status" v-if="showList.length === 0">📪 无记录</div>
+    <div class="clip-break" :class="{ 'clip-break--with-sub': activeTab === 'collect' }"></div>
+    <div class="clip-empty-status" v-if="currentShowList.length === 0">📪 无记录</div>
+
+    <div class="collect-block-header" v-if="collectBlockList.length > 0 && activeTab !== 'collect'">收藏结果</div>
     <ClipItemList
       ref="ClipItemListRef"
-      :showList="showList"
+      :showList="currentShowList"
+      :collectedIds="collectedIds"
       :fullData="fullData"
       :isMultiple="isMultiple"
       :currentActiveTab="activeTab"
@@ -70,6 +75,7 @@
       @onDataRemove="handleDataRemove"
       @onItemDelete="handleItemDelete"
       @openCleanDialog="handleOpenCleanDialog"
+      @openTagEdit="openTagEditModal"
     >
     </ClipItemList>
 
@@ -115,6 +121,22 @@
       v-show="isClearDialogVisible"
       @click="closeClearDialog"
     ></div>
+    
+    <!-- 标签编辑模态框 -->
+    <TagEditModal
+      :visible="tagEditModalVisible"
+      :item="tagEditItem"
+      @close="closeTagEditModal"
+      @save="handleTagEditSave"
+      @uncollect="handleTagEditUncollect"
+    />
+    
+    <!-- 标签搜索模态框 -->
+    <TagSearchModal
+      :visible="tagSearchModalVisible"
+      @close="closeTagSearchModal"
+      @selectTag="handleTagSelect"
+    />
   </div>
 </template>
 
@@ -129,6 +151,8 @@ import ClipFullData from '../cpns/ClipFullData.vue'
 import ClipSearch from '../cpns/ClipSearch.vue'
 import ClipSwitch from '../cpns/ClipSwitch.vue'
 import ClipFloatBtn from '../cpns/ClipFloatBtn.vue'
+import TagEditModal from '../cpns/TagEditModal.vue'
+import TagSearchModal from '../cpns/TagSearchModal.vue'
 import notify from '../data/notify.json'
 
 const CLEAR_RANGE_OPTIONS = [
@@ -167,6 +191,13 @@ const CLEAR_DIALOG_LAYER = 'clear-dialog'
 const clearRange = ref('1h')
 const isClearing = ref(false)
 const clearDialogBodyRef = ref(null)
+
+// 标签编辑模态框
+const tagEditModalVisible = ref(false)
+const tagEditItem = ref(null)
+
+// 标签搜索模态框
+const tagSearchModalVisible = ref(false)
 
 const handleSearchBtnClick = () => {
   // 展开搜索框
@@ -297,26 +328,45 @@ const offset = ref(0) // 懒加载 偏移量
 const filterText = ref('') // 搜索框绑定值
 const list = ref([]) // 全部数据
 const showList = ref([]) // 展示的数据
+const collectBlockList = ref([]) // 非收藏 tab 且 * 前缀时，上方展示的收藏匹配结果
+const collectVersion = ref(0) // 收藏列表变更时自增，用于驱动星标等 UI 更新
+
+/** 普通 tab 下收藏块仅在此条件下展示：输入第一个字符为 *。* 后紧跟着的非空格到第一个空格为标签条件；* 后紧跟空格则搜索全部收藏。 */
+const parseStarFilter = (raw) => {
+  const s = raw ?? ''
+  if (s.length === 0 || s[0] !== '*') return { isStar: false, tagKeyword: '', bodyKeyword: '' }
+  const afterStar = s.slice(1)
+  const firstNonSpace = afterStar.search(/\S/)
+  if (firstNonSpace === -1) return { isStar: true, tagKeyword: '', bodyKeyword: '' }
+  const rest = afterStar.slice(firstNonSpace)
+  const spaceIdx = rest.indexOf(' ')
+  const tagKeyword = spaceIdx === -1 ? rest : rest.slice(0, spaceIdx)
+  const bodyKeyword = spaceIdx === -1 ? '' : rest.slice(spaceIdx + 1).trim()
+  return { isStar: true, tagKeyword, bodyKeyword }
+}
+
+const bodyFilterCallBack = (item, bodyKeyword) => {
+  if (!bodyKeyword) return true
+  if (item.type === 'image') return false
+  const data = (item.data || '').toLowerCase()
+  if (bodyKeyword.indexOf(' ') !== -1) {
+    const parts = bodyKeyword.split(' ')
+    return parts.every((f) => data.indexOf(f.toLowerCase()) !== -1)
+  }
+  return data.indexOf(bodyKeyword.toLowerCase()) !== -1
+}
+
+const tagMatch = (item, tagKeyword) => {
+  if (!tagKeyword) return true
+  const tags = Array.isArray(item.tags) ? item.tags : []
+  const k = tagKeyword.toLowerCase()
+  return tags.some((t) => String(t).toLowerCase().indexOf(k) !== -1)
+}
 
 const textFilterCallBack = (item) => {
-  // filterText & item
-  if (filterText.value.trim()) {
-    if (filterText.value.trim().indexOf(' ') !== -1) {
-      // 有过滤词 有空格
-      const hitArray = []
-      for (const f of filterText.value.trim().split(' ')) {
-        hitArray.push(item.data.toLowerCase().indexOf(f.toLowerCase()) !== -1)
-      }
-      // 只返回全命中的 只要存在 false即不返回
-      return hitArray.indexOf(false) === -1
-    } else {
-      // 有过滤词 无空格 不区分大小写检索
-      return item.data.toLowerCase().indexOf(filterText.value.trim().toLowerCase()) !== -1
-    }
-  } else {
-    // 无过滤词 返回全部
-    return true
-  }
+  const parsed = parseStarFilter(filterText.value)
+  const bodyPart = parsed.isStar ? parsed.bodyKeyword : filterText.value.trim()
+  return bodyFilterCallBack(item, bodyPart)
 }
 
 const getClearDialogFocusables = () => {
@@ -385,33 +435,72 @@ watch(
   { immediate: true }
 )
 
+const getCollectSubTab = () => {
+  const ref = ClipSwitchRef.value?.collectSubTab
+  return ref?.value ?? ref ?? '*全部*'
+}
+
+const COLLECT_BLOCK_CAP = 20
+
 const updateShowList = (type, toTop = true) => {
-  // 更新显示列表
-  // 切换标签页时重置offset
   offset.value = 0
+  const parsed = parseStarFilter(filterText.value)
 
-  let filteredList = list.value
   if (type === 'collect') {
-    // 收藏标签页：从收藏列表中获取项目
-    filteredList = window.db.getCollects()
-  } else if (type === 'all') {
-    // 全部标签页：显示所有数据（不受收藏影响）
-    filteredList = list.value
+    const subTab = getCollectSubTab()
+    let baseList = subTab === '*全部*'
+      ? window.db.getCollects()
+      : window.db.getCollectsByTag(subTab)
+    if (parsed.isStar) {
+      baseList = baseList.filter(
+        (item) =>
+          (filterText.value ? item.type !== 'image' : true) &&
+          tagMatch(item, parsed.tagKeyword) &&
+          bodyFilterCallBack(item, parsed.bodyKeyword)
+      )
+    } else {
+      baseList = baseList
+        .filter((item) => (filterText.value ? item.type !== 'image' : item))
+        .filter((item) => textFilterCallBack(item))
+    }
+    collectBlockList.value = []
+    showList.value = baseList.slice(0, GAP)
   } else {
-    // 其他类型标签页：按类型过滤
-    filteredList = list.value.filter((item) => item.type === type)
+    const mainBase = getItemsByTab(type)
+    if (parsed.isStar) {
+      const collectMatches = window.db
+        .getCollects()
+        .filter(
+          (item) =>
+            (filterText.value ? item.type !== 'image' : true) &&
+            tagMatch(item, parsed.tagKeyword) &&
+            bodyFilterCallBack(item, parsed.bodyKeyword)
+        )
+      collectBlockList.value = collectMatches.slice(0, COLLECT_BLOCK_CAP)
+      const mainFiltered = mainBase
+        .filter((item) => (filterText.value ? item.type !== 'image' : item))
+        .filter((item) => bodyFilterCallBack(item, parsed.bodyKeyword))
+      showList.value = mainFiltered.slice(0, GAP)
+    } else {
+      collectBlockList.value = []
+      showList.value = mainBase
+        .filter((item) => !window.db.isCollected(item.id))
+        .filter((item) => (filterText.value ? item.type !== 'image' : item))
+        .filter((item) => textFilterCallBack(item))
+        .slice(0, GAP)
+    }
   }
-
-  showList.value = filteredList
-    .filter((item) => (filterText.value ? item.type !== 'image' : item)) // 有过滤词 排除掉图片 DataURL
-    .filter((item) => textFilterCallBack(item))
-    .slice(0, GAP) // 重新切分懒加载列表
+  nextTick(() => {
+    if (ClipItemListRef.value) setActiveIndex(0)
+  })
   toTop && window.toTop()
 }
 
 const getItemsByTab = (tabType) => {
   if (tabType === 'collect') {
-    return window.db.getCollects()
+    const subTab = getCollectSubTab()
+    if (subTab === '*全部*') return window.db.getCollects()
+    return window.db.getCollectsByTag(subTab)
   }
   const data = window.db.dataBase.data || []
   if (tabType === 'all') return [...data]
@@ -447,8 +536,12 @@ const clearRegularTabItems = (tabType, rangeValue) => {
   return { removed, skippedLocked }
 }
 
-const clearCollectTabItems = (rangeValue) => {
-  const candidates = filterItemsByRange(window.db.getCollects(), rangeValue, {
+const clearCollectTabItems = (rangeValue, collectSubTab) => {
+  const subTab = collectSubTab ?? getCollectSubTab()
+  const baseItems = subTab === '*全部*'
+    ? window.db.getCollects()
+    : window.db.getCollectsByTag(subTab)
+  const candidates = filterItemsByRange(baseItems, rangeValue, {
     preferCollectTime: true
   })
   let removed = 0
@@ -498,7 +591,7 @@ const handleClearConfirm = () => {
   try {
     const { removed: removedCount, skippedLocked } =
       tabType === 'collect'
-        ? clearCollectTabItems(clearRange.value)
+        ? clearCollectTabItems(clearRange.value, getCollectSubTab())
         : clearRegularTabItems(tabType, clearRange.value)
 
     if (removedCount > 0) {
@@ -524,6 +617,53 @@ const handleClearConfirm = () => {
   }
 }
 
+// 标签编辑模态框函数
+const openTagEditModal = (item) => {
+  let target = item
+  // 优先使用收藏数据中的最新记录，保证包含 tags/remark
+  if (window.db && item?.id) {
+    const found = window.db.dataBase?.collectData?.find((c) => c.id === item.id)
+    if (found) {
+      target = { ...found }
+    }
+  }
+  if (!Array.isArray(target?.tags)) target.tags = []
+  if (typeof target?.remark !== 'string') target.remark = ''
+
+  tagEditItem.value = target
+  tagEditModalVisible.value = true
+}
+
+const closeTagEditModal = () => {
+  tagEditModalVisible.value = false
+  tagEditItem.value = null
+}
+
+const handleTagEditSave = () => {
+  handleDataRemove()
+  updateShowList(activeTab.value, false)
+}
+
+const handleTagEditUncollect = () => {
+  handleDataRemove()
+}
+
+// 标签搜索模态框函数
+const openTagSearchModal = () => {
+  tagSearchModalVisible.value = true
+}
+
+const closeTagSearchModal = () => {
+  tagSearchModalVisible.value = false
+}
+
+const handleTagSelect = (tagName) => {
+  if (!ClipSwitchRef.value) return
+  ClipSwitchRef.value.toggleNav('collect')
+  ClipSwitchRef.value.setCollectSubTab(tagName)
+  updateShowList('collect')
+}
+
 const fullData = ref({ type: 'text', data: '' })
 const fullDataShow = ref(false)
 const toggleFullData = (item) => {
@@ -534,12 +674,38 @@ const toggleFullData = (item) => {
 
 const ClipSwitchRef = ref()
 
+const displayList = computed(() => {
+  if (collectBlockList.value.length === 0) return showList.value
+  return [...collectBlockList.value, ...showList.value]
+})
+
+const currentShowList = computed(() => {
+  if (collectBlockList.value.length > 0 && activeTab.value !== 'collect') return displayList.value
+  return showList.value
+})
+
+const collectedIds = computed(() => {
+  collectVersion.value
+  const list = window.db?.getCollects?.() ?? []
+  return new Set(list.map((i) => i.id))
+})
+
+const searchPlaceholder = computed(() => {
+  if (activeTab.value === 'collect') {
+    const n = window.db?.getCollects?.()?.length ?? 0
+    return `🔍 在${n}条收藏中检索，按 * 标签筛选`
+  }
+  if (parseStarFilter(filterText.value).isStar) return '🔍 按 * 标签+正文筛选'
+  return ''
+})
+
 const handleDataRemove = () => {
-  // 此函数须在挂载后执行
   list.value = window.db.dataBase.data
-  // 重置offset以便重新加载
   offset.value = 0
-  updateShowList(ClipSwitchRef.value.activeTab, false)
+  collectVersion.value++
+  const tab = ClipSwitchRef.value?.activeTab
+  const type = tab?.value ?? tab ?? activeTab.value
+  updateShowList(type, false)
 }
 
 const getActiveIndex = () => {
@@ -560,7 +726,7 @@ const setActiveIndex = (val) => {
 const adjustActiveIndexAfterDelete = (baseIndex) => {
   nextTick(() => {
     if (!ClipItemListRef.value) return
-    const newListLength = showList.value.length
+    const newListLength = currentShowList.value.length
     if (newListLength === 0) return
     const normalizedIndex = Math.min(
       Math.max(typeof baseIndex === 'number' ? baseIndex : getActiveIndex(), 0),
@@ -622,7 +788,12 @@ const emit = defineEmits(['showSetting'])
 const activeTab = ref('all')
 const activeTabLabel = computed(() => {
   const tabs = ClipSwitchRef.value?.tabs || []
-  return tabs.find((tab) => tab.type === activeTab.value)?.name || '全部'
+  const baseName = tabs.find((tab) => tab.type === activeTab.value)?.name || '全部'
+  if (activeTab.value === 'collect') {
+    const subTab = getCollectSubTab()
+    return subTab === '*全部*' ? baseName : `${baseName} · ${subTab}`
+  }
+  return baseName
 })
 const isClearingCollectTab = computed(() => activeTab.value === 'collect')
 
@@ -639,7 +810,6 @@ onMounted(() => {
     () => {
       const switchRef = ClipSwitchRef.value
       if (!switchRef || !switchRef.activeTab) return 'all'
-      // activeTab 是一个 ref，需要获取其 .value
       return switchRef.activeTab.value || switchRef.activeTab
     },
     (newVal) => {
@@ -647,6 +817,17 @@ onMounted(() => {
       updateShowList(newVal)
     },
     { immediate: true }
+  )
+  watch(
+    () => {
+      const switchRef = ClipSwitchRef.value
+      if (!switchRef || activeTab.value !== 'collect') return null
+      const sub = switchRef.collectSubTab
+      return sub?.value ?? sub
+    },
+    () => {
+      if (activeTab.value === 'collect') updateShowList('collect', false)
+    }
   )
 
   // 多选已选择的条数（用 watch 更新，避免 computed 赋给 ref 导致运行时 null 引用）
@@ -714,21 +895,35 @@ onMounted(() => {
     const { scrollTop, clientHeight, scrollHeight } = e.target.scrollingElement
     if (scrollTop + clientHeight + 5 >= scrollHeight) {
       offset.value += GAP
+      const parsed = parseStarFilter(filterText.value)
       let addition = []
       if (activeTab.value === 'collect') {
-        // 收藏标签页：从收藏列表中获取
-        const collectItems = window.db.getCollects()
-        addition = collectItems.filter((item) => textFilterCallBack(item))
-      } else if (activeTab.value !== 'all') {
-        // 其他类型标签页：按类型过滤
-        addition = list.value
-          .filter((item) => item.type === activeTab.value)
-          .filter((item) => textFilterCallBack(item))
+        const subTab = getCollectSubTab()
+        let collectItems = subTab === '*全部*'
+          ? window.db.getCollects()
+          : window.db.getCollectsByTag(subTab)
+        if (parsed.isStar) {
+          collectItems = collectItems.filter(
+            (item) =>
+              tagMatch(item, parsed.tagKeyword) &&
+              bodyFilterCallBack(item, parsed.bodyKeyword)
+          )
+        } else {
+          collectItems = collectItems.filter((item) => textFilterCallBack(item))
+        }
+        addition = collectItems.slice(offset.value, offset.value + GAP)
       } else {
-        // 全部标签页：显示所有数据
-        addition = list.value.filter((item) => textFilterCallBack(item))
+        const mainBase = getItemsByTab(activeTab.value)
+        const mainFiltered = parsed.isStar
+          ? mainBase.filter((item) =>
+              (filterText.value ? item.type !== 'image' : true) &&
+              bodyFilterCallBack(item, parsed.bodyKeyword)
+            )
+          : mainBase
+              .filter((item) => !window.db.isCollected(item.id))
+              .filter((item) => textFilterCallBack(item))
+        addition = mainFiltered.slice(offset.value, offset.value + GAP)
       }
-      addition = addition.slice(offset.value, offset.value + GAP)
       if (addition.length) {
         showList.value.push(...addition)
       }
@@ -803,6 +998,28 @@ onMounted(() => {
       updateShowList(target)
       return true
     })
+    registerFeature('collect-sub-tab-next', () => {
+      if (activeTab.value !== 'collect') return false
+      const list = switchRef.collectSubTabsList?.value ?? switchRef.collectSubTabsList ?? []
+      if (list.length === 0) return false
+      const current = switchRef.collectSubTab?.value ?? switchRef.collectSubTab ?? '*全部*'
+      const idx = list.findIndex((s) => s.type === current)
+      const nextIdx = idx < 0 ? 0 : (idx + 1) % list.length
+      switchRef.setCollectSubTab(list[nextIdx].type)
+      updateShowList('collect')
+      return true
+    })
+    registerFeature('collect-sub-tab-prev', () => {
+      if (activeTab.value !== 'collect') return false
+      const list = switchRef.collectSubTabsList?.value ?? switchRef.collectSubTabsList ?? []
+      if (list.length === 0) return false
+      const current = switchRef.collectSubTab?.value ?? switchRef.collectSubTab ?? '*全部*'
+      const idx = list.findIndex((s) => s.type === current)
+      const prevIdx = idx <= 0 ? list.length - 1 : idx - 1
+      switchRef.setCollectSubTab(list[prevIdx].type)
+      updateShowList('collect')
+      return true
+    })
     registerFeature('main-focus-search', () => {
       if (!isSearchPanelExpand.value) isSearchPanelExpand.value = true
       focusSearchInput()
@@ -818,6 +1035,10 @@ onMounted(() => {
     }
     registerFeature('open-clear-dialog', () => {
       handleOpenCleanDialog()
+      return true
+    })
+    registerFeature('tag-search', () => {
+      openTagSearchModal()
       return true
     })
     registerFeature('main-escape', (e) => {
@@ -838,7 +1059,7 @@ onMounted(() => {
     })
     registerFeature('search-delete-normal', () => {
       if (!filterText.value.trim()) return false
-      const candidates = showList.value.filter((item) => textFilterCallBack(item))
+      const candidates = displayList.value.filter((item) => textFilterCallBack(item))
       if (!candidates.length) {
         ElMessage({ message: '没有符合条件的搜索结果', type: 'info' })
         return true
@@ -869,7 +1090,7 @@ onMounted(() => {
     })
     registerFeature('search-delete-force', () => {
       if (!filterText.value.trim()) return false
-      const candidates = showList.value.filter((item) => textFilterCallBack(item))
+      const candidates = displayList.value.filter((item) => textFilterCallBack(item))
       if (!candidates.length) {
         ElMessage({ message: '没有符合条件的搜索结果', type: 'info' })
         return true
@@ -899,6 +1120,9 @@ onMounted(() => {
 @import '../style';
 .clip-break {
   height: 60px;
+}
+.clip-break--with-sub {
+  height: 100px;
 }
 .clip-empty-status {
   height: 100%;

@@ -3,41 +3,55 @@
  * Single dispatch: normalize -> find binding by layer priority -> run features in order.
  */
 
-import { eventToShortcutId } from './shortcutKey'
-import { normalizeShortcutId } from './shortcutKey'
-import { getCurrentLayer } from './hotkeyLayers'
+import { eventToShortcutId } from "./shortcutKey";
+import { normalizeShortcutId } from "./shortcutKey";
+import { getCurrentLayer } from "./hotkeyLayers";
 
-const MAIN_LAYER = 'main'
+const MAIN_LAYER = "main";
 
 /** Mac 上 Cmd 与 Ctrl 同根：匹配时把 meta 当作 ctrl，使现有 ctrl 绑定对 Cmd 生效 */
 function isMac() {
-  if (typeof window !== 'undefined' && window.exports?.utools?.isMacOs?.()) return true
-  if (typeof navigator !== 'undefined' && /Mac/i.test(navigator.platform)) return true
-  return false
+  if (typeof window !== "undefined" && window.exports?.utools?.isMacOs?.())
+    return true;
+  if (typeof navigator !== "undefined" && /Mac/i.test(navigator.platform))
+    return true;
+  return false;
 }
 
 /** 用于查找的 shortcutId：Mac 上 meta 视为 ctrl，与 hotkeyBindings 中 ctrl 绑定统一 */
 function shortcutIdForLookup(shortcutId) {
-  if (!shortcutId || !isMac()) return shortcutId
-  return shortcutId.split('+').map((p) => (p === 'meta' ? 'ctrl' : p)).join('+')
+  if (!shortcutId || !isMac()) return shortcutId;
+  return shortcutId
+    .split("+")
+    .map((p) => (p === "meta" ? "ctrl" : p))
+    .join("+");
 }
 
-const features = new Map()
-let bindings = []
-const mainStateRef = { current: 'normal' }
-let ignoreRepeat = true
+const features = new Map();
+let bindings = [];
+const mainStateRef = { current: "normal" };
+let ignoreRepeat = true;
 
 /**
  * @param {string} featureId
- * @param {(e: KeyboardEvent, ctx: object) => boolean} handler - return true if handled (stops running more features)
+ * @param {(e: KeyboardEvent, ctx: object) => boolean | object} handler
+ * Return true if handled (prevents default + stops propagation).
+ * Or return an object:
+ * {
+ *   handled: true,
+ *   preventDefault: false,
+ *   stopPropagation: false,
+ *   stopImmediatePropagation: false,
+ *   markHandled: true
+ * }
  */
 export function registerFeature(featureId, handler) {
-  if (!featureId || typeof handler !== 'function') return
-  features.set(featureId, { handler })
+  if (!featureId || typeof handler !== "function") return;
+  features.set(featureId, { handler });
 }
 
 export function unregisterFeature(featureId) {
-  features.delete(featureId)
+  features.delete(featureId);
 }
 
 /**
@@ -48,41 +62,41 @@ export function setBindings(list) {
     layer: b.layer,
     shortcutId: normalizeShortcutId(b.shortcutId),
     state: b.state,
-    features: Array.isArray(b.features) ? b.features : [b.features]
-  }))
+    features: Array.isArray(b.features) ? b.features : [b.features],
+  }));
 }
 
 export function getBindings() {
-  return bindings
+  return bindings;
 }
 
 export function setMainState(state) {
-  mainStateRef.current = state || 'normal'
+  mainStateRef.current = state || "normal";
 }
 
 export function getMainState() {
-  return mainStateRef.current
+  return mainStateRef.current;
 }
 
 export function setIgnoreRepeat(value) {
-  ignoreRepeat = Boolean(value)
+  ignoreRepeat = Boolean(value);
 }
 
 /**
  * Resolve current layer for lookup: stack top or MAIN_LAYER when no overlay.
  */
 function getEffectiveLayer() {
-  const top = getCurrentLayer()
-  return top || MAIN_LAYER
+  const top = getCurrentLayer();
+  return top || MAIN_LAYER;
 }
 
 /**
  * Layers to check in priority order: current top layer first, then main.
  */
 function getLayerPriorityOrder() {
-  const top = getCurrentLayer()
-  if (top && top !== MAIN_LAYER) return [top, MAIN_LAYER]
-  return [MAIN_LAYER]
+  const top = getCurrentLayer();
+  if (top && top !== MAIN_LAYER) return [top, MAIN_LAYER];
+  return [MAIN_LAYER];
 }
 
 /**
@@ -93,72 +107,128 @@ function getLayerPriorityOrder() {
  */
 function findBinding(layer, state, shortcutId) {
   for (const b of bindings) {
-    if (b.layer !== layer) continue
-    if (b.shortcutId !== shortcutId) continue
-    if (b.state != null && b.state !== state) continue
-    return b
+    if (b.layer !== layer) continue;
+    if (b.shortcutId !== shortcutId) continue;
+    if (b.state != null && b.state !== state) continue;
+    return b;
   }
   if (layer !== MAIN_LAYER) {
     for (const b of bindings) {
-      if (b.layer !== layer || b.shortcutId !== '*') continue
-      if (b.state != null && b.state !== state) continue
-      return b
+      if (b.layer !== layer || b.shortcutId !== "*") continue;
+      if (b.state != null && b.state !== state) continue;
+      return b;
     }
   }
-  return null
+  return null;
 }
 
 /**
  * @param {KeyboardEvent} e
  * @returns {boolean} true if a binding matched and at least one feature handled the event
  */
-const SETTING_LAYER = 'setting'
+const SETTING_LAYER = "setting";
 
 export function dispatch(e) {
-  if (e.__hotkeyHandled) return true
-  if (ignoreRepeat && e.repeat) return false
+  if (e.__hotkeyHandled) return true;
+  if (ignoreRepeat && e.repeat) return false;
 
-  const shortcutId = eventToShortcutId(e)
-  const lookupId = shortcutIdForLookup(shortcutId)
-  const currentLayer = getCurrentLayer()
-  const layer = getEffectiveLayer()
-  const state = mainStateRef.current
+  const shortcutId = eventToShortcutId(e);
+  const lookupId = shortcutIdForLookup(shortcutId);
+  const currentLayer = getCurrentLayer();
+  const layer = getEffectiveLayer();
+  const state = mainStateRef.current;
 
   // 设置页：Del/Backspace 不进入其他层，保留正常文本编辑行为
-  if (currentLayer === SETTING_LAYER && (shortcutId === 'Delete' || shortcutId === 'Backspace')) {
-    return false
+  if (
+    currentLayer === SETTING_LAYER &&
+    (shortcutId === "Delete" || shortcutId === "Backspace")
+  ) {
+    return false;
   }
 
-  const order = getLayerPriorityOrder()
-  let binding = null
-  let bindingLayer = null
+  const order = getLayerPriorityOrder();
+  let binding = null;
+  let bindingLayer = null;
   for (const L of order) {
-    binding = findBinding(L, state, lookupId)
+    binding = findBinding(L, state, lookupId);
     if (binding) {
-      bindingLayer = L
-      break
+      bindingLayer = L;
+      break;
     }
   }
-  if (!binding) return false
+  if (!binding) return false;
 
-  const ctx = { layer: bindingLayer, state }
-  let handled = false
+  const ctx = { layer: bindingLayer, state };
+  let handled = false;
+  let handleOptions = null;
   for (const featureId of binding.features) {
-    const entry = features.get(featureId)
-    if (!entry || typeof entry.handler !== 'function') continue
-    if (entry.handler(e, ctx)) {
-      handled = true
-      break
+    const entry = features.get(featureId);
+    if (!entry || typeof entry.handler !== "function") continue;
+    const result = entry.handler(e, ctx);
+    if (result === true) {
+      handled = true;
+      handleOptions = {
+        preventDefault: true,
+        stopPropagation: true,
+        stopImmediatePropagation: false,
+        markHandled: true,
+      };
+      break;
+    }
+    if (result && typeof result === "object") {
+      const isHandled = result.handled !== false;
+      if (isHandled) {
+        handled = true;
+        handleOptions = {
+          preventDefault: result.preventDefault !== false,
+          stopPropagation: result.stopPropagation !== false,
+          stopImmediatePropagation: result.stopImmediatePropagation === true,
+          markHandled: result.markHandled !== false,
+        };
+        break;
+      }
+    }
+    if (result === false) {
+      continue;
+    }
+    if (result == null) {
+      continue;
+    }
+    if (result) {
+      handled = true;
+      handleOptions = {
+        preventDefault: true,
+        stopPropagation: true,
+        stopImmediatePropagation: false,
+        markHandled: true,
+      };
+      break;
     }
   }
   if (handled) {
-    e.preventDefault()
-    e.stopPropagation()
-    e.__hotkeyHandled = true
+    const opts = handleOptions || {
+      preventDefault: true,
+      stopPropagation: true,
+      stopImmediatePropagation: false,
+      markHandled: true,
+    };
+    if (opts.preventDefault) e.preventDefault();
+    if (opts.stopImmediatePropagation) e.stopImmediatePropagation();
+    else if (opts.stopPropagation) e.stopPropagation();
+    if (opts.markHandled) e.__hotkeyHandled = true;
   }
-  return handled
+  return handled;
 }
 
 export function getRegistry() {
-  return { features, bindings, setBindings, registerFeature, unregisterFeature, dispatch, setMainState, getMainState }
+  return {
+    features,
+    bindings,
+    setBindings,
+    registerFeature,
+    unregisterFeature,
+    dispatch,
+    setMainState,
+    getMainState,
+  };
 }

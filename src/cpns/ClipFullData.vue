@@ -1,13 +1,14 @@
 <template>
   <div class="clip-full-data">
     <Transition name="fade">
-      <div class="clip-full-wrapper" v-show="isShow">
+      <div ref="wrapperRef" class="clip-full-wrapper" v-show="isShow">
         <div class="clip-full-operate-list">
           <ClipOperate
             :item="fullData"
             :isFullData="true"
             @onDataRemove="emit('onDataRemove')"
             @onOperateExecute="emit('onOverlayClick')"
+            @openTagEdit="(item) => emit('openTagEdit', item)"
           ></ClipOperate>
         </div>
         <template v-if="fullData.type === 'text'">
@@ -30,9 +31,11 @@
 <script setup>
 import FileList from './FileList.vue'
 import ClipOperate from './ClipOperate.vue'
-import { watch, onMounted, onUnmounted } from 'vue'
+import { ref, watch, onMounted, onUnmounted } from 'vue'
 import { activateLayer, deactivateLayer } from '../global/hotkeyLayers'
 import { registerFeature } from '../global/hotkeyRegistry'
+
+const wrapperRef = ref(null)
 
 const props = defineProps({
   isShow: {
@@ -45,7 +48,7 @@ const props = defineProps({
   }
 })
 
-const emit = defineEmits(['onOverlayClick', 'onDataRemove'])
+const emit = defineEmits(['onOverlayClick', 'onDataRemove', 'openTagEdit'])
 
 const onOverlayClick = () => {
   emit('onOverlayClick')
@@ -60,6 +63,20 @@ function registerFullDataFeatures() {
       return true
     }
     return false
+  })
+  registerFeature('full-data-scroll-up', () => {
+    const el = wrapperRef.value
+    if (!el) return false
+    const half = el.clientHeight / 2
+    el.scrollTop = Math.max(0, el.scrollTop - half)
+    return true
+  })
+  registerFeature('full-data-scroll-down', () => {
+    const el = wrapperRef.value
+    if (!el) return false
+    const half = el.clientHeight / 2
+    el.scrollTop = Math.min(el.scrollHeight - el.clientHeight, el.scrollTop + half)
+    return true
   })
   registerFeature('full-data-block', () => true)
 }

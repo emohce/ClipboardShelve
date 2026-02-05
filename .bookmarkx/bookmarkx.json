@@ -1,0 +1,17 @@
+{
+    "root": {
+        "uuid": "root",
+        "name": "Bookmarks",
+        "createdAt": 1769946343475,
+        "modifiedAt": 1769946343475,
+        "children": [
+            {
+                "type": "group",
+                "uuid": "bbf741b4-8ac8-40e0-86bd-c251662e28b5",
+                "name": "Clipboad",
+                "createdAt": 1769946361025,
+                "modifiedAt": 1769946361025
+            }
+        ]
+    }
+}

@@ -9,6 +9,11 @@ if (!setting.hotkeyOverrides || typeof setting.hotkeyOverrides !== 'object') {
   setting.hotkeyOverrides = {}
 }
 
+// 迁移：确保操作列表包含编辑标签功能
+if (Array.isArray(setting.operation?.shown) && !setting.operation.shown.includes('edit-tags')) {
+  setting.operation.shown.splice(setting.operation.shown.indexOf('un-collect') + 1 || setting.operation.shown.length, 0, 'edit-tags')
+}
+
 // 迁移：旧默认「14天」或缺失时改为「不限制」(null)，与初始代码默认一致；null 在设置页展示为「无限」
 if (setting.database.maxage == null || setting.database.maxage === 14) {
   setting.database.maxage = null

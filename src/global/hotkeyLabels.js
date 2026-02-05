@@ -37,12 +37,16 @@ export const FEATURE_LABELS = {
   'drawer-block': '拦截其他按键',
 
   'full-data-close': '关闭全文预览',
+  'full-data-scroll-up': '全文预览半页上滚',
+  'full-data-scroll-down': '全文预览半页下滚',
   'full-data-block': '拦截其他按键',
 
   'search-delete-normal': '搜索中删除选中项',
   'search-delete-force': '搜索中强制删除选中项',
 
   'main-tab': '左右切换分页',
+  'collect-sub-tab-next': '收藏子 tab 下一个 (Ctrl+Tab)',
+  'collect-sub-tab-prev': '收藏子 tab 上一个 (Ctrl+Shift+Tab)',
   'main-focus-search': '聚焦搜索',
   'main-alt-tab-1': 'Ctrl+1 切换到第 1 个标签页',
   'main-alt-tab-2': 'Ctrl+2 切换到第 2 个标签页',
@@ -59,6 +63,8 @@ export const FEATURE_LABELS = {
   'list-nav-down': '下移选择',
   'list-nav-left': '左移/上一页',
   'list-drawer-open': '打开操作抽屉',
+  'list-view-full': '查看全部',
+  'list-tag-edit': '标签编辑',
   'list-enter': '复制选中的剪贴板内容',
   'list-ctrl-enter': '复制并锁定选中的内容',
   'list-copy': '复制选中项',
@@ -86,7 +92,8 @@ export const FEATURE_LABELS = {
   'list-drawer-sub-6': '抽屉内执行第 6 个功能',
   'list-drawer-sub-7': '抽屉内执行第 7 个功能',
   'list-drawer-sub-8': '抽屉内执行第 8 个功能',
-  'list-drawer-sub-9': '抽屉内执行第 9 个功能'
+  'list-drawer-sub-9': '抽屉内执行第 9 个功能',
+  'tag-search': '打开标签搜索'
 }
 
 /**

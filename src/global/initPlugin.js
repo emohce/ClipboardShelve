@@ -26,6 +26,14 @@ window.addEventListener('error', (event) => {
   if (isResizeObserverError(event)) {
     event.preventDefault()
     event.stopImmediatePropagation()
+    // 静默 console.error 输出
+    if (event.error && console.error) {
+      const originalConsoleError = console.error
+      console.error = () => {}
+      setTimeout(() => {
+        console.error = originalConsoleError
+      }, 0)
+    }
   }
 }, true)
 
@@ -35,6 +43,18 @@ window.addEventListener('unhandledrejection', (event) => {
     event.stopImmediatePropagation?.()
   }
 }, true)
+
+// 额外拦截 console.error 中的 ResizeObserver 错误
+if (typeof console !== 'undefined') {
+  const originalConsoleError = console.error
+  console.error = (...args) => {
+    const errorMsg = args[0]
+    if (typeof errorMsg === 'string' && errorMsg.includes('ResizeObserver loop limit exceeded')) {
+      return // 静默处理
+    }
+    originalConsoleError.apply(console, args)
+  }
+}
 
 export default function initPlugin() {
   console.log('[initPlugin] 开始初始化插件')
@@ -70,6 +90,8 @@ export default function initPlugin() {
         data: [], // 普通历史记录
         collects: [], // 收藏的项目ID数组
         collectData: [], // 收藏的完整项目数据（单独存储，不可删除）
+        tags: [], // 所有使用过的标签
+        tagUsage: {}, // 标签使用统计 {tagName: count}
         createTime: this.createTime,
         updateTime: this.updateTime
       }
@@ -111,6 +133,14 @@ export default function initPlugin() {
             this.dataBase.collectData = []
           }
           
+          // 确保tags和tagUsage字段存在
+          if (!Array.isArray(this.dataBase.tags)) {
+            this.dataBase.tags = []
+          }
+          if (!this.dataBase.tagUsage || typeof this.dataBase.tagUsage !== 'object') {
+            this.dataBase.tagUsage = {}
+          }
+          
           // 数据迁移：如果collectData为空但collects不为空，从data中复制收藏数据
           if (this.dataBase.collectData.length === 0 && this.dataBase.collects.length > 0 && this.dataBase.data) {
             const collectIds = new Set(this.dataBase.collects)
@@ -127,17 +157,31 @@ export default function initPlugin() {
             console.log('[DB.init] 数据迁移：从data复制收藏数据到collectData, 数量:', this.dataBase.collectData.length)
           }
           
-          // 为已有收藏数据补充collectTime字段（如果没有）
+          // 为已有收藏数据补充collectTime、tags和remarks字段（如果没有）
           if (this.dataBase.collectData && this.dataBase.collectData.length > 0) {
             let addedCount = 0
+            let tagsAddedCount = 0
             this.dataBase.collectData.forEach((item) => {
               if (!item.collectTime) {
                 item.collectTime = item.updateTime || item.createTime || new Date().getTime()
                 addedCount++
               }
+              // 为已有收藏数据添加tags和remarks字段
+              if (!Array.isArray(item.tags)) {
+                item.tags = []
+                tagsAddedCount++
+              }
+              if (typeof item.remark !== 'string') {
+                item.remark = ''
+              }
             })
             if (addedCount > 0) {
               console.log('[DB.init] 为已有收藏数据补充collectTime字段, 数量:', addedCount)
+            }
+            if (tagsAddedCount > 0) {
+              console.log('[DB.init] 为已有收藏数据补充tags和remarks字段, 数量:', tagsAddedCount)
+            }
+            if (addedCount > 0 || tagsAddedCount > 0) {
               this.updateDataBaseLocal()
             }
           }
@@ -389,6 +433,13 @@ export default function initPlugin() {
       if (itemToCollect) {
         // 添加收藏时间
         itemToCollect.collectTime = new Date().getTime()
+        // 初始化标签与备注字段
+        if (!Array.isArray(itemToCollect.tags)) {
+          itemToCollect.tags = []
+        }
+        if (typeof itemToCollect.remark !== 'string') {
+          itemToCollect.remark = ''
+        }
         this.dataBase.collects.push(itemId)
         // 保持最新收藏在最前（避免 getCollects 每次排序）
         this.dataBase.collectData.unshift(itemToCollect)
@@ -467,6 +518,211 @@ export default function initPlugin() {
         return []
       }
       return [...this.dataBase.collectData]
+    }
+
+    // 标签管理方法
+    // 获取所有标签
+    getTags() {
+      if (!Array.isArray(this.dataBase.tags)) {
+        this.dataBase.tags = []
+      }
+      return [...this.dataBase.tags]
+    }
+
+    // 获取标签使用统计
+    getTagUsage() {
+      if (!this.dataBase.tagUsage || typeof this.dataBase.tagUsage !== 'object') {
+        this.dataBase.tagUsage = {}
+      }
+      return { ...this.dataBase.tagUsage }
+    }
+
+    // 添加标签到全局标签列表
+    addGlobalTag(tagName) {
+      if (!tagName || typeof tagName !== 'string') return false
+      
+      tagName = tagName.trim()
+      if (!tagName) return false
+      
+      if (!Array.isArray(this.dataBase.tags)) {
+        this.dataBase.tags = []
+      }
+      
+      // 避免重复标签
+      if (!this.dataBase.tags.includes(tagName)) {
+        this.dataBase.tags.push(tagName)
+        console.log('[DB.addGlobalTag] 添加新标签:', tagName)
+      }
+      
+      // 更新使用统计
+      if (!this.dataBase.tagUsage || typeof this.dataBase.tagUsage !== 'object') {
+        this.dataBase.tagUsage = {}
+      }
+      this.dataBase.tagUsage[tagName] = (this.dataBase.tagUsage[tagName] || 0) + 1
+      
+      return true
+    }
+
+    // 从全局标签列表移除标签
+    removeGlobalTag(tagName) {
+      if (!tagName || typeof tagName !== 'string') return false
+      
+      tagName = tagName.trim()
+      if (!tagName) return false
+      
+      if (!Array.isArray(this.dataBase.tags)) {
+        return false
+      }
+      
+      const index = this.dataBase.tags.indexOf(tagName)
+      if (index === -1) return false
+      
+      this.dataBase.tags.splice(index, 1)
+      
+      // 清理使用统计
+      if (this.dataBase.tagUsage && typeof this.dataBase.tagUsage === 'object') {
+        delete this.dataBase.tagUsage[tagName]
+      }
+      
+      console.log('[DB.removeGlobalTag] 移除标签:', tagName)
+      return true
+    }
+
+    // 更新收藏项目的标签
+    updateItemTags(itemId, tags) {
+      if (!Array.isArray(tags)) {
+        console.error('[DB.updateItemTags] tags必须是数组')
+        return false
+      }
+      
+      // 查找收藏项目
+      const collectItem = this.dataBase.collectData.find(item => item.id === itemId)
+      if (!collectItem) {
+        console.error('[DB.updateItemTags] 未找到收藏项目:', itemId)
+        return false
+      }
+      
+      // 获取旧标签
+      const oldTags = Array.isArray(collectItem.tags) ? [...collectItem.tags] : []
+      
+      // 更新标签
+      collectItem.tags = [...new Set(tags.map(tag => String(tag).trim()).filter(tag => tag))]
+      
+      // 更新全局标签统计
+      oldTags.forEach(tag => {
+        if (this.dataBase.tagUsage && typeof this.dataBase.tagUsage === 'object') {
+          this.dataBase.tagUsage[tag] = Math.max((this.dataBase.tagUsage[tag] || 0) - 1, 0)
+        }
+      })
+      
+      collectItem.tags.forEach(tag => {
+        this.addGlobalTag(tag)
+      })
+      
+      // 清理未使用的标签
+      this.cleanupUnusedTags()
+      
+      this.updateDataBaseLocal()
+      console.log('[DB.updateItemTags] 更新项目标签:', itemId, collectItem.tags)
+      return true
+    }
+
+    // 更新收藏项目的备注
+    updateItemRemark(itemId, remark) {
+      if (typeof remark !== 'string') {
+        console.error('[DB.updateItemRemark] remark必须是字符串')
+        return false
+      }
+      
+      // 查找收藏项目
+      const collectItem = this.dataBase.collectData.find(item => item.id === itemId)
+      if (!collectItem) {
+        console.error('[DB.updateItemRemark] 未找到收藏项目:', itemId)
+        return false
+      }
+      
+      collectItem.remark = remark
+      this.updateDataBaseLocal()
+      console.log('[DB.updateItemRemark] 更新项目备注:', itemId)
+      return true
+    }
+
+    // 更新收藏项目的原始内容（仅 text 类型）
+    updateItemData(itemId, data) {
+      if (typeof data !== 'string') {
+        console.error('[DB.updateItemData] data必须是字符串')
+        return false
+      }
+      const collectItem = this.dataBase.collectData.find(item => item.id === itemId)
+      if (!collectItem) {
+        console.error('[DB.updateItemData] 未找到收藏项目:', itemId)
+        return false
+      }
+      if (collectItem.type !== 'text') {
+        console.error('[DB.updateItemData] 仅支持 text 类型')
+        return false
+      }
+      collectItem.data = data
+      collectItem.updateTime = new Date().getTime()
+      this.updateDataBaseLocal()
+      return true
+    }
+
+    // 根据标签获取收藏项目
+    getCollectsByTag(tagName) {
+      if (!tagName || typeof tagName !== 'string') return []
+      
+      tagName = tagName.trim()
+      if (!tagName) return []
+      
+      if (!Array.isArray(this.dataBase.collectData)) {
+        return []
+      }
+      
+      return this.dataBase.collectData.filter(item => 
+        Array.isArray(item.tags) && item.tags.includes(tagName)
+      )
+    }
+
+    // 清理未使用的标签
+    cleanupUnusedTags() {
+      if (!Array.isArray(this.dataBase.tags) || !Array.isArray(this.dataBase.collectData)) {
+        return
+      }
+      
+      // 统计实际使用的标签
+      const usedTags = new Set()
+      this.dataBase.collectData.forEach(item => {
+        if (Array.isArray(item.tags)) {
+          item.tags.forEach(tag => usedTags.add(tag))
+        }
+      })
+      
+      // 移除未使用的标签
+      const unusedTags = this.dataBase.tags.filter(tag => !usedTags.has(tag))
+      unusedTags.forEach(tag => {
+        this.removeGlobalTag(tag)
+      })
+      
+      if (unusedTags.length > 0) {
+        console.log('[DB.cleanupUnusedTags] 清理未使用标签:', unusedTags)
+      }
+    }
+
+    // 获取标签自动补全建议
+    getTagSuggestions(query) {
+      if (!query || typeof query !== 'string') return []
+      
+      query = query.toLowerCase().trim()
+      if (!query) return []
+      
+      const tags = this.getTags()
+      const usage = this.getTagUsage()
+      
+      return tags
+        .filter(tag => tag.toLowerCase().includes(query))
+        .sort((a, b) => (usage[b] || 0) - (usage[a] || 0)) // 按使用频率排序
+        .slice(0, 10) // 限制建议数量
     }
   }
 

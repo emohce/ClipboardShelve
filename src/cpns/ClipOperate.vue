@@ -19,7 +19,7 @@ import defaultOperation from '../data/operation.json'
 import setting from '../global/readSetting'
 import useClipOperate from '../hooks/useClipOperate'
 
-const emit = defineEmits(['onDataChange', 'onDataRemove', 'onOperateExecute'])
+const emit = defineEmits(['onDataChange', 'onDataRemove', 'onOperateExecute', 'openTagEdit'])
 const props = defineProps({
   item: {
     type: Object,

@@ -5,6 +5,7 @@
   { "id": "open-source", "title": "打开原始位置", "icon": "📍" },
   { "id": "collect", "title": "收藏", "icon": "⭐" },
   { "id": "un-collect", "title": "移出收藏", "icon": "📤" },
+  { "id": "edit-tags", "title": "编辑标签", "icon": "🏷️" },
   { "id": "remove", "title": "删除", "icon": "❌" },
   { "id": "word-break", "title": "分词", "icon": "💣" },
   { "id": "save-file", "title": "保存", "icon": "💾" }

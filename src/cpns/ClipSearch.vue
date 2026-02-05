@@ -6,7 +6,7 @@
       @keydown="handleKeyDown"
       v-model="filterText"
       type="text"
-      :placeholder="itemCount ? `🔍 在${itemCount}条历史中检索...` : '🔍 检索剪贴板历史...'"
+      :placeholder="placeholderOverride || (itemCount ? `🔍 在${itemCount}条历史中检索...` : '🔍 检索剪贴板历史...')"
     />
     <span v-show="filterText" @click="clear" class="clip-search-suffix" title="清空搜索">✖</span>
   </div>
@@ -21,6 +21,10 @@ const props = defineProps({
   },
   itemCount: {
     type: Number
+  },
+  placeholderOverride: {
+    type: String,
+    default: ''
   }
 })
 

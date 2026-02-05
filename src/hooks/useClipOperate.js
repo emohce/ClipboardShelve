@@ -49,6 +49,10 @@ export default function useClipOperate({ emit, currentActiveTab }) {
         console.log("[useClipOperate] 取消收藏操作 - 项目ID:", item.id);
         window.db.removeCollect(item.id);
         emit("onDataRemove"); // 触发视图更新
+      } else if (id === "edit-tags") {
+        // 编辑标签和备注
+        console.log("[useClipOperate] 编辑标签操作 - 项目ID:", item.id);
+        emit("openTagEdit", item);
       } else if (id === "word-break") {
         utools.redirect("超级分词", item.data);
       } else if (id === "save-file") {
@@ -134,6 +138,8 @@ export default function useClipOperate({ emit, currentActiveTab }) {
       } else if (id === "collect") {
         return item.type !== "file" && !window.db.isCollected(item.id);
       } else if (id === "un-collect") {
+        return item.type !== "file" && window.db.isCollected(item.id);
+      } else if (id === "edit-tags") {
         return item.type !== "file" && window.db.isCollected(item.id);
       } else if (id === "word-break") {
         return (

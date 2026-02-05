@@ -33,7 +33,7 @@
       transform: translateX(2px);
       transition: all 0.2s ease-in-out;
       position: relative;
-      
+
       &::before {
         content: '';
         position: absolute;
@@ -44,14 +44,14 @@
         background: @primary-color;
         border-radius: 0 2px 2px 0;
       }
-      
+
       &:hover {
         transform: translateX(3px);
         box-shadow: 0 3px 12px fade(@primary-color, 30%);
         background: linear-gradient(90deg, fade(@primary-color, 20%) 0%, fade(@primary-color, 10%) 100%);
       }
     }
-    
+
     // Merged style for items that are both active/multi-active AND selected
     &.active.select,
     &.multi-active.select {
@@ -63,7 +63,7 @@
       transform: translateX(4px) scale(1.02);
       transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
       position: relative;
-      
+
       &::before {
         content: '';
         position: absolute;
@@ -75,7 +75,7 @@
         border-radius: 0 3px 3px 0;
         box-shadow: 0 0 8px fade(@primary-color, 40%);
       }
-      
+
       &::after {
         content: '';
         position: absolute;
@@ -86,7 +86,7 @@
         background: linear-gradient(90deg, @primary-color 0%, transparent 100%);
         border-radius: 0 3px 0 0;
       }
-      
+
       &:hover {
         transform: translateX(6px) scale(1.03);
         box-shadow: 0 6px 24px fade(@primary-color, 45%), inset 0 1px 0 fade(@primary-color, 30%);
@@ -105,13 +105,19 @@
         justify-content: center;
         align-items: center;
         min-width: 95px;
-        max-width: 100px;
+        max-width: 220px;
         border: 0px solid @text-bg-color-lighter;
         border-color: @text-bg-color-lighter;
         border-style: solid;
         border-width: 0px 2px 0px 0px;
         margin: 0px 5px 0px 0px;
         gap: 4px;
+        .clip-collect-icon,
+        .clip-lock {
+          font-size: 14px;
+          line-height: 1;
+          flex-shrink: 0;
+        }
         .relative-date {
           display: flex;
           justify-content: center;
@@ -122,6 +128,30 @@
           border-radius: 5px;
           min-width: 50px;
           padding: 5px 7px;
+        }
+        .clip-tags {
+          display: flex;
+          align-items: center;
+          gap: 4px;
+          flex-wrap: wrap;
+          max-width: 120px;
+          overflow: hidden;
+        }
+        .clip-tag {
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+          max-width: 80px;
+          padding: 2px 6px;
+          border-radius: 10px;
+          font-size: 11px;
+          line-height: 1.2;
+          color: @primary-color;
+          background: fade(@primary-color, 12%);
+          border: 1px solid fade(@primary-color, 35%);
+          white-space: nowrap;
+          overflow: hidden;
+          text-overflow: ellipsis;
         }
       }
       .clip-data {
@@ -142,20 +172,20 @@
           border-radius: 4px;
           cursor: pointer;
           transition: transform 0.2s ease;
-          
+
           &:hover {
             transform: scale(1.05);
             box-shadow: 0px 2px 8px fade(@primary-color, 30%);
           }
         }
-        
+
         .image-container {
           display: flex;
           align-items: center;
           justify-content: center;
           min-height: 60px;
           cursor: pointer;
-          
+
           .image-error-placeholder {
             display: flex;
             align-items: center;
@@ -166,19 +196,19 @@
             color: @text-color-lighter;
             font-size: 12px;
             border: 1px dashed fade(@primary-color, 30%);
-            
+
             span {
               margin-right: 4px;
             }
           }
         }
-        
+
         .image-preview {
           display: flex;
           align-items: center;
           justify-content: center;
           padding: 10px;
-          
+
           .preview-error {
             display: flex;
             align-items: center;
@@ -188,7 +218,7 @@
             font-size: 14px;
           }
         }
-      
+
       .image-preview-footer {
         margin-top: 8px;
         font-size: 12px;
@@ -200,7 +230,7 @@
         .clip-over-sized-content {
           color: @primary-color;
         }
-        
+
         // 文件中的图片处理样式
         .file-with-images {
           .image-files-preview {
@@ -211,12 +241,12 @@
             padding: 2px 4px;
             background: fade(@primary-color, 10%);
             border-radius: 3px;
-            
+
             .image-file-indicator {
               font-size: 10px;
               opacity: 0.8;
             }
-            
+
             .more-images {
               font-size: 9px;
               color: @primary-color;
@@ -224,24 +254,24 @@
             }
           }
         }
-        
+
         .image-files-section {
           margin-bottom: 12px;
           padding-bottom: 8px;
           border-bottom: 1px solid fade(@text-bg-color-lighter, 50%);
-          
+
           .section-title {
             font-size: 12px;
             font-weight: bold;
             color: @primary-color;
             margin-bottom: 6px;
           }
-          
+
           .image-files-grid {
             display: grid;
             grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
             gap: 6px;
-            
+
             .image-file-item {
               display: flex;
               flex-direction: column;
@@ -251,7 +281,7 @@
               background: fade(@text-bg-color, 30%);
               border-radius: 3px;
               font-size: 11px;
-              
+
               .image-file-preview {
                 width: 100%;
                 height: auto;
@@ -259,7 +289,7 @@
                 border-radius: 3px;
                 background: fade(@text-bg-color, 40%);
               }
-              
+
               .file-name {
                 overflow: hidden;
                 text-overflow: ellipsis;
@@ -270,7 +300,7 @@
             }
           }
         }
-        
+
         .all-files-section {
           .section-title {
             font-size: 12px;
