@@ -1,4 +1,4 @@
-# 超级剪贴板（uTools 插件）
+# 剪贴板（uTools 插件 `eClipboard`）
 
 多类型剪贴板历史管理（文本/图片/文件）、收藏分组、快速粘贴、多选合并、操作抽屉、桌面预览、可配置快捷键与主页功能。
 
@@ -35,7 +35,7 @@
   - 功能：主页功能勾选/排序，自定义功能新增/编辑/删除（匹配条件 + 跳转命令）。
 
 ## 快捷键（默认）
-- 主界面：Tab/Shift+Tab 切分页；Ctrl+1~9 切标签；Ctrl+F 搜索；Esc 退出；↑/↓/Ctrl+K/J 导航；← 全文预览；→ 操作抽屉；Enter 复制；Ctrl+Enter 复制并锁定；Ctrl+C 复制；Ctrl+S 收藏；Ctrl+U 锁定；Shift+Del/Backspace 开清除框；Del/Backspace 删除；Ctrl+Del/Backspace 强制删锁定；空格多选；Shift 预览图片；Ctrl+1~9 快速复制；Ctrl+Shift+1~9 抽屉子功能 @src/global/hotkeyBindings.js#84-139.
+- 主界面：Tab/Shift+Tab 切分页；Ctrl+1~9 切标签；Ctrl+F 搜索；Ctrl+alt+F 搜索收藏标签; Esc 退出；↑/↓/Ctrl+K/J 导航；← 全文预览；→ 操作抽屉；Enter 复制；Ctrl+Enter 复制并锁定；Ctrl+C 复制；Ctrl+S 收藏；Ctrl+U 锁定；Shift+Del/Backspace 开清除框；Del/Backspace 删除；Ctrl+Del/Backspace 强制删锁定；空格多选；Shift 预览图片/文字；Alt+1~9 快速复制；Ctrl+Shift+1~9 抽屉子功能 @src/global/hotkeyBindings.js#84-139.
 - 搜索态：Ctrl+Del/Backspace 删除，Ctrl+Shift+Del 强删 @src/global/hotkeyBindings.js#84-88.
 - 抽屉：Esc/← 关闭；↑/↓ 导航；Enter/Ctrl+Enter 选中；Ctrl+1~9 直选 @src/global/hotkeyBindings.js#61-77.
 - 全文预览：Esc/→ 关闭 @src/global/hotkeyBindings.js#79-83.
