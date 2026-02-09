@@ -67,8 +67,16 @@
 
 ## 已知限制
 - 文件写回剪贴板暂未实现；文本/图片已支持 @src/global/initPlugin.js#667-685.
-- 文件写回剪贴板暂未实现；文本/图片已支持 @src/global/initPlugin.js#667-685。
-- 原生监听不可用时降级为 300ms 轮询，可能有轻微性能消耗。
+
+## 参考项目
+
+### ClipboardManager
+- **项目地址**: [https://github.com/ZiuChen/ClipboardManager](https://github.com/ZiuChen/ClipboardManager)
+- **技术栈**: Vue 3 + Element Plus + uTools
+- **核心功能**: 剪贴板历史管理、多类型支持（文本/图片/文件）
+- **特点**: 基于 Vue 3 框架，使用 Element Plus UI 组件库，支持 uTools 插件生态
+- **官网**: [https://ziuchen.gitee.io/project/ClipboardManager/](https://ziuchen.gitee.io/project/ClipboardManager/)
+- **贡献指南**: [CONTRIBUTE.md](https://github.com/ZiuChen/ClipboardManager/blob/main/docs/CONTRIBUTE.md)
 
 ## 测试建议
 - 正常：文本/图片/文件入库与去重；收藏/取消收藏；锁定与强制删除；多选合并粘贴；快捷键导航。
