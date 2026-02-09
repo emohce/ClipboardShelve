@@ -84,8 +84,17 @@ export const HOTKEY_BINDINGS = [
   {
     layer: "clear-dialog",
     shortcutId: "5",
+    features: ["clear-dialog-range-7d"],
+  },
+  {
+    layer: "clear-dialog",
+    shortcutId: "6",
     features: ["clear-dialog-range-all"],
   },
+  { layer: "clear-dialog", shortcutId: "ArrowUp", features: ["clear-dialog-arrow-nav"] },
+  { layer: "clear-dialog", shortcutId: "ArrowDown", features: ["clear-dialog-arrow-nav"] },
+  { layer: "clear-dialog", shortcutId: "ArrowLeft", features: ["clear-dialog-arrow-nav"] },
+  { layer: "clear-dialog", shortcutId: "ArrowRight", features: ["clear-dialog-arrow-nav"] },
   { layer: "clear-dialog", shortcutId: "Tab", features: ["clear-dialog-tab"] },
   {
     layer: "clear-dialog",

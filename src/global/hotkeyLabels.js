@@ -19,7 +19,9 @@ export const FEATURE_LABELS = {
   'clear-dialog-range-5h': '清除 5 小时内',
   'clear-dialog-range-8h': '清除 8 小时内',
   'clear-dialog-range-24h': '清除 24 小时内',
+  'clear-dialog-range-7d': '清除 7 天内',
   'clear-dialog-range-all': '清除全部',
+  'clear-dialog-arrow-nav': '方向键切换清除范围',
   'clear-dialog-tab': '切换清除范围选项',
   'clear-dialog-block': '拦截其他按键',
 

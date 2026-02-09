@@ -251,6 +251,7 @@ const CLEAR_RANGE_OPTIONS = [
     { label: "5 小时内", value: "5h" },
     { label: "8 小时内", value: "8h" },
     { label: "24 小时内", value: "24h" },
+    { label: "7 天内", value: "7d" },
     { label: "全部", value: "all" },
 ];
 
@@ -259,6 +260,7 @@ const RANGE_DURATION_MAP = {
     "5h": 5 * 60 * 60 * 1000,
     "8h": 8 * 60 * 60 * 1000,
     "24h": 24 * 60 * 60 * 1000,
+    "7d": 7 * 24 * 60 * 60 * 1000,
     all: null,
 };
 
@@ -525,6 +527,7 @@ watch(clearRange, (newValue) => {
     }
 });
 
+const CLEAR_GRID_COLS = 2;
 const handleRangeKeydown = (e, value) => {
     const { key } = e;
     if (key === "Enter" || key === " ") {
@@ -1172,9 +1175,26 @@ onMounted(() => {
             focusRangeButton("24h");
             return true;
         });
+        registerFeature("clear-dialog-range-7d", () => {
+            clearRange.value = "7d";
+            focusRangeButton("7d");
+            return true;
+        });
         registerFeature("clear-dialog-range-all", () => {
             clearRange.value = "all";
             focusRangeButton("all");
+            return true;
+        });
+        registerFeature("clear-dialog-arrow-nav", (e) => {
+            const arrowMap = { ArrowLeft: -1, ArrowRight: 1, ArrowUp: -CLEAR_GRID_COLS, ArrowDown: CLEAR_GRID_COLS };
+            const delta = arrowMap[e.key];
+            if (delta === undefined) return false;
+            const idx = CLEAR_RANGE_OPTIONS.findIndex((o) => o.value === clearRange.value);
+            const next = idx + delta;
+            if (next >= 0 && next < CLEAR_RANGE_OPTIONS.length) {
+                clearRange.value = CLEAR_RANGE_OPTIONS[next].value;
+                focusRangeButton(CLEAR_RANGE_OPTIONS[next].value);
+            }
             return true;
         });
         registerFeature("clear-dialog-tab", (e) => {
