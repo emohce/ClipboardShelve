@@ -1,17 +1,23 @@
 <template>
   <div class="shortcut-node">
-    <div class="shortcut-header" @click="handleToggle">
-      <span v-if="hasChildren" class="expand-icon">{{ isExpanded ? '−' : '+' }}</span>
-      <span v-else class="expand-placeholder"></span>
+    <div class="shortcut-header">
       <span class="shortcut-key">{{ shortcut.shortcutId }}</span>
-      <span class="shortcut-features">{{ featureDisplay }}</span>
+      <div class="shortcut-features">
+        <span
+          v-for="feature in featureLabels"
+          :key="feature"
+          class="shortcut-feature-chip"
+        >
+          {{ feature }}
+        </span>
+      </div>
     </div>
   </div>
 </template>
 
 <script setup>
 import { computed } from 'vue'
-import { getFeatureLabel, getLayerLabel } from '../global/hotkeyLabels'
+import { getFeatureLabel } from '../global/hotkeyLabels'
 
 const props = defineProps({
   shortcut: {
@@ -37,88 +43,64 @@ const props = defineProps({
 })
 
 const emit = defineEmits(['toggle-expand'])
-
-const nodeKey = computed(() => `shortcut-${props.layer}-${props.state || ''}-${props.shortcut.shortcutId}`)
-const hasChildren = computed(() => false)
-const isExpanded = computed(() => false)
-
-const featureDisplay = computed(() => {
-  const layerLabel = getLayerLabel(props.layer, props.state)
-  const featureLabels = props.shortcut.features.map(getFeatureLabel)
-  return featureLabels.map((label) => `[${layerLabel}-${label}]`).join(' ')
-})
-
-function handleToggle() {
-  // No children, no toggle needed
-}
+const featureLabels = computed(() => props.shortcut.features.map(getFeatureLabel))
 </script>
 
 <style lang="less" scoped>
 .shortcut-node {
-  margin-bottom: 2px;
+  margin-bottom: 8px;
 }
 
 .shortcut-header {
   display: flex;
-  align-items: center;
-  padding: 4px 8px;
-  cursor: pointer;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 10px 12px;
   user-select: none;
-  border-radius: 4px;
-  transition: background-color 0.2s;
+  border-radius: 12px;
+  border: 1px solid var(--border-color, var(--text-bg-color-lighter));
+  background: var(--bg-elevated-color, #fff);
+  transition: all 0.18s ease;
   min-height: 28px;
 }
 
 .shortcut-header:hover {
-  background-color: var(--text-bg-color);
-}
-
-.expand-icon {
-  display: inline-block;
-  width: 18px;
-  text-align: center;
-  font-weight: bold;
-  font-size: 14px;
-  color: var(--primary-color);
-  margin-right: 4px;
-}
-
-.expand-placeholder {
-  display: inline-block;
-  width: 18px;
-  margin-right: 4px;
+  border-color: var(--primary-color);
+  box-shadow: 0 10px 22px rgba(37, 99, 235, 0.08);
 }
 
 .shortcut-key {
   font-family: 'Courier New', monospace;
   font-size: 12px;
-  padding: 2px 6px;
-  background: var(--text-bg-color);
-  border: 1px solid var(--text-bg-color-lighter);
-  border-radius: 3px;
+  line-height: 1.4;
+  padding: 4px 8px;
+  background: var(--bg-soft-color, var(--text-bg-color));
+  border: 1px solid var(--border-color, var(--text-bg-color-lighter));
+  border-radius: 8px;
   color: var(--primary-color);
-  margin-right: 8px;
   min-width: 80px;
   text-align: center;
+  flex-shrink: 0;
 }
 
 .shortcut-features {
   flex: 1;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding-top: 1px;
+}
+
+.shortcut-feature-chip {
+  display: inline-flex;
+  align-items: center;
+  min-height: 24px;
+  padding: 2px 10px;
+  border-radius: 999px;
   font-size: 12px;
-  color: var(--text-color-lighter);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.shortcut-children {
-  margin-left: 22px;
-  margin-top: 4px;
-  padding-left: 8px;
-  border-left: 2px solid var(--text-bg-color-lighter);
-}
-
-.child-layer-wrapper {
-  margin-bottom: 4px;
+  line-height: 1.4;
+  color: var(--text-color);
+  background: var(--bg-soft-color, var(--text-bg-color));
+  border: 1px solid var(--border-color, var(--text-bg-color-lighter));
 }
 </style>

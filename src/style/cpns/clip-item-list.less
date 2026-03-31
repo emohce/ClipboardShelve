@@ -4,93 +4,77 @@
   .clip-item {
     display: flex;
     justify-content: space-between;
-    margin: 0px 2px;
-    /* 占用px 但是不显示(与背景同色) */
-    border-style: solid hidden hidden hidden;
-    border-width: 1px 0px 0px 0px;
-    border-color: @text-bg-color-lighter @bg-color @bg-color @bg-color;
+    margin: 6px 8px 0;
+    border: 1px solid @border-color;
+    border-radius: 16px;
+    background-color: fade(@bg-elevated-color, 88%);
+    box-shadow: 0 8px 24px fade(@shadow-color, 28%);
     cursor: pointer;
+    transition: transform 0.18s ease, box-shadow 0.18s ease,
+      border-color 0.18s ease, background-color 0.18s ease;
+    &:hover {
+      transform: translateY(-1px);
+      border-color: @border-color-strong;
+      box-shadow: 0 12px 28px fade(@shadow-color, 34%);
+    }
     &.active {
-      border-style: solid hidden hidden solid;
-      border-width: 1px 0px 0px 6px;
-      border-color: @text-bg-color-lighter @bg-color @bg-color @primary-color;
-      background-color: @text-bg-color-lighter;
-      transition: all 0.15s;
+      border-color: fade(@primary-color, 28%);
+      background-color: fade(@primary-color, 8%);
+      box-shadow: 0 14px 30px fade(@shadow-color, 36%);
     }
     &.multi-active {
-      border-style: solid hidden hidden solid; // TODO: 会导致左侧提示块上部被切下去一块
-      border-width: 1px 0px 0px 6px;
-      border-color: @text-bg-color-lighter @bg-color @bg-color @primary-color;
-      background-color: @text-bg-color-lighter;
-      transition: all 0.15s;
+      border-color: fade(@primary-color, 28%);
+      background-color: fade(@primary-color, 8%);
+      box-shadow: 0 14px 30px fade(@shadow-color, 36%);
     }
     &.select {
-      background: linear-gradient(90deg, fade(@primary-color, 15%) 0%, fade(@primary-color, 8%) 100%);
-      border-style: solid hidden hidden solid;
-      border-width: 2px 0px 2px 8px;
-      border-color: @primary-color @bg-color @primary-color @primary-color;
-      box-shadow: 0 2px 8px fade(@primary-color, 20%);
+      background: linear-gradient(90deg, fade(@primary-color, 12%) 0%, fade(@primary-color, 5%) 100%);
+      border-color: fade(@primary-color, 36%);
+      box-shadow: 0 16px 28px fade(@primary-color, 12%);
       transform: translateX(2px);
-      transition: all 0.2s ease-in-out;
       position: relative;
 
       &::before {
         content: '';
         position: absolute;
-        left: -2px;
-        top: 0;
-        bottom: 0;
-        width: 4px;
+        left: 0;
+        top: 10px;
+        bottom: 10px;
+        width: 3px;
         background: @primary-color;
-        border-radius: 0 2px 2px 0;
+        border-radius: 999px;
       }
 
       &:hover {
-        transform: translateX(3px);
-        box-shadow: 0 3px 12px fade(@primary-color, 30%);
-        background: linear-gradient(90deg, fade(@primary-color, 20%) 0%, fade(@primary-color, 10%) 100%);
+        transform: translateX(3px) translateY(-1px);
+        box-shadow: 0 18px 30px fade(@primary-color, 14%);
+        background: linear-gradient(90deg, fade(@primary-color, 14%) 0%, fade(@primary-color, 6%) 100%);
       }
     }
 
-    // Merged style for items that are both active/multi-active AND selected
     &.active.select,
     &.multi-active.select {
-      background: linear-gradient(135deg, fade(@primary-color, 25%) 0%, fade(@primary-color, 15%) 50%, fade(@primary-color, 8%) 100%);
-      border-style: solid hidden hidden solid;
-      border-width: 3px 0px 3px 12px;
-      border-color: @primary-color-lighter @bg-color @primary-color-lighter @primary-color;
-      box-shadow: 0 4px 16px fade(@primary-color, 35%), inset 0 1px 0 fade(@primary-color, 20%);
-      transform: translateX(4px) scale(1.02);
-      transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+      background: linear-gradient(135deg, fade(@primary-color, 18%) 0%, fade(@primary-color, 9%) 100%);
+      border-color: fade(@primary-color-lighter, 46%);
+      box-shadow: 0 18px 34px fade(@primary-color, 16%);
+      transform: translateX(4px);
       position: relative;
 
       &::before {
         content: '';
         position: absolute;
-        left: -3px;
-        top: -1px;
-        bottom: -1px;
-        width: 6px;
+        left: 0;
+        top: 8px;
+        bottom: 8px;
+        width: 4px;
         background: linear-gradient(180deg, @primary-color-lighter 0%, @primary-color 100%);
-        border-radius: 0 3px 3px 0;
-        box-shadow: 0 0 8px fade(@primary-color, 40%);
-      }
-
-      &::after {
-        content: '';
-        position: absolute;
-        top: -3px;
-        left: 12px;
-        right: 0;
-        height: 3px;
-        background: linear-gradient(90deg, @primary-color 0%, transparent 100%);
-        border-radius: 0 3px 0 0;
+        border-radius: 999px;
       }
 
       &:hover {
-        transform: translateX(6px) scale(1.03);
-        box-shadow: 0 6px 24px fade(@primary-color, 45%), inset 0 1px 0 fade(@primary-color, 30%);
-        background: linear-gradient(135deg, fade(@primary-color, 30%) 0%, fade(@primary-color, 20%) 50%, fade(@primary-color, 12%) 100%);
+        transform: translateX(5px) translateY(-1px);
+        box-shadow: 0 20px 36px fade(@primary-color, 18%);
+        background: linear-gradient(135deg, fade(@primary-color, 20%) 0%, fade(@primary-color, 10%) 100%);
       }
     }
     .clip-info {
@@ -98,7 +82,7 @@
       justify-content: center;
       align-items: center;
       font-size: 14px;
-      padding: 10px 10px 10px 5px;
+      padding: 10px 12px 10px 8px;
       .clip-time {
         display: flex;
         flex-direction: row;
@@ -106,11 +90,9 @@
         align-items: center;
         min-width: 95px;
         max-width: 220px;
-        border: 0px solid @text-bg-color-lighter;
-        border-color: @text-bg-color-lighter;
-        border-style: solid;
-        border-width: 0px 2px 0px 0px;
-        margin: 0px 5px 0px 0px;
+        border-right: 1px solid @border-color;
+        margin: 0 8px 0 0;
+        padding-right: 8px;
         gap: 4px;
         .clip-collect-icon,
         .clip-lock {
@@ -122,12 +104,12 @@
           display: flex;
           justify-content: center;
           align-items: center;
-          font-size: 13px;
+          font-size: 12px;
           color: @text-color;
-          background-color: @text-bg-color;
-          border-radius: 5px;
+          background-color: @bg-soft-color;
+          border-radius: 999px;
           min-width: 50px;
-          padding: 5px 7px;
+          padding: 5px 9px;
         }
         .clip-tags {
           display: flex;
@@ -143,7 +125,7 @@
           justify-content: center;
           max-width: 80px;
           padding: 2px 6px;
-          border-radius: 10px;
+          border-radius: 999px;
           font-size: 11px;
           line-height: 1.2;
           color: @primary-color;
@@ -160,22 +142,21 @@
         word-break: break-all;
         max-height: 120px;
         max-width: 460px;
-        padding: 5px 5px 5px 10px;
+        padding: 6px 8px 6px 10px;
         white-space: pre-wrap;
         flex-direction: column;
         color: @text-color;
         img.clip-data-image {
-          // 此 class用于区分 file的 image
-          max-height: 100px; // 比外框 max-height少一点 因为有 5px的边框
+          max-height: 100px;
           max-width: 85%;
-          box-shadow: 0px 0px 3px @text-color;
-          border-radius: 4px;
+          box-shadow: 0 6px 18px fade(@shadow-color, 32%);
+          border-radius: 10px;
           cursor: pointer;
           transition: transform 0.2s ease;
 
           &:hover {
-            transform: scale(1.05);
-            box-shadow: 0px 2px 8px fade(@primary-color, 30%);
+            transform: scale(1.03);
+            box-shadow: 0 10px 20px fade(@primary-color, 16%);
           }
         }
 
@@ -192,7 +173,7 @@
             justify-content: center;
             padding: 10px;
             background: fade(@text-bg-color, 50%);
-            border-radius: 4px;
+            border-radius: 10px;
             color: @text-color-lighter;
             font-size: 12px;
             border: 1px dashed fade(@primary-color, 30%);
@@ -240,7 +221,7 @@
             margin-bottom: 4px;
             padding: 2px 4px;
             background: fade(@primary-color, 10%);
-            border-radius: 3px;
+            border-radius: 999px;
 
             .image-file-indicator {
               font-size: 10px;
@@ -279,14 +260,14 @@
               gap: 6px;
               padding: 4px 6px;
               background: fade(@text-bg-color, 30%);
-              border-radius: 3px;
+              border-radius: 10px;
               font-size: 11px;
 
               .image-file-preview {
                 width: 100%;
                 height: auto;
                 display: block;
-                border-radius: 3px;
+                border-radius: 8px;
                 background: fade(@text-bg-color, 40%);
               }
 
@@ -316,10 +297,9 @@
       align-items: center;
       justify-content: center;
       min-width: 50px;
-      padding: 10px;
-      font-size: 13px;
+      padding: 10px 12px;
+      font-size: 12px;
       color: @text-color-lighter;
-      padding: 10px;
     }
   }
 }

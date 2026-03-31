@@ -9,7 +9,7 @@
             :plain="activeTab !== 'basic'"
             @click="activeTab = 'basic'"
           >
-            {{ activeTab === 'basic' ? '✅ ' : '' }}存储
+            {{ activeTab === 'basic' ? '当前 · ' : '' }}存储
           </el-button>
           <el-button
             class="sub-tab-btn"
@@ -17,7 +17,7 @@
             :plain="activeTab !== 'shortcut'"
             @click="activeTab = 'shortcut'"
           >
-            {{ activeTab === 'shortcut' ? '✅ ' : '' }}快捷键
+            {{ activeTab === 'shortcut' ? '当前 · ' : '' }}快捷键
           </el-button>
           <el-button
             class="sub-tab-btn"
@@ -25,7 +25,7 @@
             :plain="activeTab !== 'feature'"
             @click="activeTab = 'feature'"
           >
-            {{ activeTab === 'feature' ? '✅ ' : '' }}功能
+            {{ activeTab === 'feature' ? '当前 · ' : '' }}功能
           </el-button>
         </div>
 
@@ -63,17 +63,74 @@
           <div class="setting-card-content-item">
             <div class="setting-section-title">当前快捷键列表</div>
             <p class="shortcut-count">共 {{ shortcutCount }} 条快捷键</p>
+            <div class="shortcut-summary">
+              <div class="shortcut-summary-card">
+                <span class="shortcut-summary-label">展示规则</span>
+                <strong>默认展开</strong>
+                <p>首次进入时展开所有层级，优先看到主界面和弹窗层的实际生效快捷键。</p>
+              </div>
+              <div class="shortcut-summary-card">
+                <span class="shortcut-summary-label">说明来源</span>
+                <strong>与实现同源</strong>
+                <p>说明文本直接来自 `hotkeyBindings.js` 与 `hotkeyLabels.js`，后续功能变更时应同步更新这里的说明。</p>
+              </div>
+            </div>
+            <div class="setting-search-row">
+              <el-input
+                v-model="shortcutQuery"
+                clearable
+                placeholder="搜索层级、键位或功能说明"
+              />
+            </div>
+            <div class="filter-chip-row">
+              <button
+                type="button"
+                class="filter-chip"
+                :class="{ active: shortcutScope === 'all' }"
+                @click="shortcutScope = 'all'"
+              >
+                全部
+              </button>
+              <button
+                type="button"
+                class="filter-chip"
+                :class="{ active: shortcutScope === 'main' }"
+                @click="shortcutScope = 'main'"
+              >
+                主界面
+              </button>
+              <button
+                type="button"
+                class="filter-chip"
+                :class="{ active: shortcutScope === 'dialog' }"
+                @click="shortcutScope = 'dialog'"
+              >
+                弹窗层
+              </button>
+            </div>
             <el-divider></el-divider>
             <HotkeyTreeView
-              :tree-data="hotkeyTreeRoot"
+              :tree-data="filteredHotkeyTreeRoot"
               body-max-height="420px"
+              :default-expand-all="true"
             />
           </div>
         </div>
-
         <div class="sub-tab-content" v-show="activeTab === 'feature'">
           <div class="setting-card-content-item">
             <div class="setting-section-title">展示主页功能</div>
+            <div class="shortcut-summary feature-summary">
+              <div class="shortcut-summary-card">
+                <span class="shortcut-summary-label">来源</span>
+                <strong>默认功能与配置同源</strong>
+                <p>默认功能标题与图标来自 `src/data/operation.json`，自定义功能来自当前设置数据。</p>
+              </div>
+              <div class="shortcut-summary-card">
+                <span class="shortcut-summary-label">维护约定</span>
+                <strong>功能变更同步更新</strong>
+                <p>后续你调整功能、标题、命令或匹配范围时，我会同步更新 Settings 展示与说明，保证看到的内容与实际实现一致。</p>
+              </div>
+            </div>
             <el-divider></el-divider>
             <div class="setting-row">
               <span style="width: 70px">可多选: </span>
@@ -92,18 +149,28 @@
                 />
               </el-select>
             </div>
+            <div class="setting-search-row">
+              <el-input
+                v-model="featureQuery"
+                clearable
+                placeholder="搜索功能标题、类型或命令"
+              />
+            </div>
+            <p v-if="isFeatureFilterActive" class="filter-hint">
+              当前处于过滤状态，已禁用拖拽排序，清空搜索后恢复全量排序。
+            </p>
             <div class="setting-section-title" style="margin-top: 16px">功能列表</div>
-            <p class="shortcut-count">共 {{ featureRows.length }} 条</p>
+            <p class="shortcut-count">共 {{ filteredFeatureRows.length }} / {{ featureRows.length }} 条</p>
             <el-divider></el-divider>
             <SettingPagedTable
-              :rows="featureRows"
+              :rows="filteredFeatureRows"
               :columns="featureColumns"
-              :total="featureRows.length"
+              :total="filteredFeatureRows.length"
               action-label="操作"
               :action-width="140"
               empty-text="暂无功能数据"
               :show-pagination="false"
-              :draggable="true"
+              :draggable="!isFeatureFilterActive"
               :move-guard="allowFeatureDrag"
               body-max-height="420px"
               @drag-end="handleFeatureDragEnd"
@@ -198,6 +265,9 @@ const custom = ref(operation.custom.map((c) => ({ ...c })))
 const hotkeyOverrides = ref({ ...(setting.hotkeyOverrides || {}) })
 
 const activeTab = ref('basic')
+const shortcutQuery = ref('')
+const featureQuery = ref('')
+const shortcutScope = ref('all')
 
 function sortShownByOrder(shownIds, order) {
   const orderMap = new Map(order.map((id, idx) => [id, idx]))
@@ -220,6 +290,41 @@ const shown = ref(sortShownByOrder(operation.shown, featureOrder.value))
 const hotkeyTreeRoot = computed(() => {
   const bindings = getEffectiveBindings()
   return buildHotkeyTree(bindings)
+})
+
+const filteredHotkeyTreeRoot = computed(() => {
+  const keyword = shortcutQuery.value.trim().toLowerCase()
+  const scope = shortcutScope.value
+  const scopedRows = (hotkeyTreeRoot.value || []).filter((layerNode) => {
+    if (scope === 'all') return true
+    if (scope === 'main') return layerNode.layer === 'main'
+    return layerNode.layer !== 'main'
+  })
+  if (!keyword) return scopedRows
+
+  return scopedRows
+    .map((layerNode) => {
+      const layerLabel = getLayerLabel(layerNode.layer, layerNode.state).toLowerCase()
+      const matchedShortcuts = (layerNode.shortcuts || []).filter((shortcut) => {
+        const shortcutId = String(shortcut.shortcutId || '').toLowerCase()
+        const featureText = (shortcut.features || [])
+          .map((feature) => getFeatureLabel(feature))
+          .join(' ')
+          .toLowerCase()
+        return (
+          layerLabel.includes(keyword) ||
+          shortcutId.includes(keyword) ||
+          featureText.includes(keyword)
+        )
+      })
+
+      if (layerLabel.includes(keyword)) {
+        return layerNode
+      }
+      if (!matchedShortcuts.length) return null
+      return { ...layerNode, shortcuts: matchedShortcuts }
+    })
+    .filter(Boolean)
 })
 
 const shortcutCount = computed(() => {
@@ -285,6 +390,22 @@ const featureRows = computed(() => {
     .filter(Boolean)
 })
 
+const filteredFeatureRows = computed(() => {
+  const keyword = featureQuery.value.trim().toLowerCase()
+  if (!keyword) return featureRows.value
+  return featureRows.value.filter((row) => {
+    return [
+      row.title,
+      row.typeLabel,
+      row.commandDisplay,
+      row.id
+    ]
+      .filter(Boolean)
+      .some((field) => String(field).toLowerCase().includes(keyword))
+  })
+})
+const isFeatureFilterActive = computed(() => Boolean(featureQuery.value.trim()))
+
 const orderedOperations = computed(() =>
   featureRows.value.map((row) => ({ id: row.id, title: row.title, icon: row.icon, index: row.index }))
 )
@@ -298,6 +419,7 @@ function syncShownOrder() {
 }
 
 function allowFeatureDrag(evt) {
+  if (isFeatureFilterActive.value) return false
   return true
 }
 
@@ -492,38 +614,11 @@ onUnmounted(() => {
 </script>
 
 <style lang="less" scoped>
-@media (prefers-color-scheme: dark) {
-  .setting {
-    --primary-color: #448bd2;
-    --primary-color-lighter: #4997e1;
-    --text-color: #e8e6e3;
-    --text-color-lighter: rgb(181, 181, 181);
-    --text-bg-color: #656565;
-    --text-bg-color-lighter: #4e4e4e;
-    --nav-bg-color: #222426;
-    --nav-hover-bg-color: #2b2e30;
-    --bg-color: #181a1b;
-  }
+.setting {
+  min-height: 100%;
+  color: var(--text-color);
+  background: var(--bg-color);
 }
-
-@media (prefers-color-scheme: light) {
-  .setting {
-    --primary-color: #3271ae;
-    --primary-color-lighter: #4997e1;
-    --text-color: #333;
-    --text-color-lighter: rgb(138, 138, 138);
-    --text-bg-color: #f2f2f2;
-    --text-bg-color-lighter: #eeeaf3;
-    --nav-bg-color: #eeeeee;
-    --nav-hover-bg-color: #dedede;
-    --bg-color: #fff;
-  }
-}
-
-@primary-color: var(--primary-color);
-@text-color: var(--text-color);
-@text-bg-color: var(--text-bg-color);
-@text-bg-color-lighter: var(--text-bg-color-lighter);
 
 .setting-card-content {
   padding: 12px 6px 4px;
@@ -532,7 +627,7 @@ onUnmounted(() => {
   display: flex;
   gap: 8px;
   padding: 4px 0 12px;
-  border-bottom: 1px solid var(--text-bg-color-lighter);
+  border-bottom: 1px solid var(--border-color);
 }
 .sub-tab-btn {
   font-size: 14px;
@@ -546,16 +641,95 @@ onUnmounted(() => {
   font-size: 13px;
   color: var(--text-color-lighter);
 }
+.shortcut-summary {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+  margin-top: 14px;
+}
+.feature-summary {
+  margin: 12px 0 0;
+}
+.shortcut-summary-card {
+  padding: 14px 16px;
+  border-radius: 16px;
+  border: 1px solid var(--border-color);
+  background: var(--bg-elevated-color);
+  box-shadow: 0 14px 28px var(--shadow-color);
+  strong {
+    display: block;
+    margin-top: 4px;
+    font-size: 15px;
+    color: var(--text-color);
+  }
+  p {
+    margin: 8px 0 0;
+    font-size: 12px;
+    line-height: 1.6;
+    color: var(--text-color-lighter);
+  }
+}
+.shortcut-summary-label {
+  display: inline-flex;
+  align-items: center;
+  min-height: 22px;
+  padding: 0 8px;
+  border-radius: 999px;
+  font-size: 11px;
+  letter-spacing: 0.06em;
+  color: var(--primary-color);
+  background: var(--bg-soft-color);
+}
 .setting-section-title {
   font-size: 16px;
   font-weight: 600;
-  color: #2b2f3a;
+  color: var(--text-color);
+}
+.setting-search-row {
+  margin-top: 14px;
+}
+.filter-chip-row {
+  display: flex;
+  gap: 8px;
+  margin-top: 12px;
+  flex-wrap: wrap;
+}
+.filter-chip {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 30px;
+  padding: 0 12px;
+  border: 1px solid var(--border-color);
+  border-radius: 999px;
+  background: var(--bg-elevated-color);
+  color: var(--text-color-lighter);
+  font-size: 12px;
+  cursor: pointer;
+  transition: all 0.18s ease;
+  &:hover {
+    color: var(--text-color);
+    border-color: var(--border-color-strong);
+    background: var(--nav-hover-bg-color);
+  }
+  &.active {
+    color: var(--primary-color);
+    border-color: rgba(53, 95, 157, 0.26);
+    background: var(--bg-soft-color);
+    font-weight: 600;
+  }
+}
+.filter-hint {
+  margin: 10px 0 0;
+  font-size: 12px;
+  color: var(--text-color-lighter);
 }
 .setting-row {
   display: flex;
   align-items: center;
   gap: 10px;
   margin: 10px 0;
+  color: var(--text-color);
 }
 .path {
   flex: 1;
@@ -603,6 +777,128 @@ onUnmounted(() => {
 .table-action-empty {
   color: var(--text-color-lighter);
 }
+.setting :deep(.el-card__body) {
+  padding: 18px 20px 16px;
+}
+.setting :deep(.el-divider) {
+  border-color: var(--border-color);
+}
+.setting :deep(.el-input),
+.setting :deep(.el-select),
+.setting :deep(.el-textarea) {
+  --el-border-radius-base: 14px;
+  --el-border-radius-small: 12px;
+}
+.setting :deep(.el-input__wrapper),
+.setting :deep(.el-select__wrapper),
+.setting :deep(.el-textarea__inner) {
+  background: var(--bg-elevated-color);
+  box-shadow: 0 0 0 1px var(--border-color) inset;
+  border-radius: 14px;
+  transition: box-shadow 0.18s ease, background-color 0.18s ease;
+}
+.setting :deep(.el-input__wrapper:hover),
+.setting :deep(.el-select__wrapper:hover),
+.setting :deep(.el-textarea__inner:hover) {
+  box-shadow: 0 0 0 1px var(--border-color-strong) inset;
+}
+.setting :deep(.el-input__wrapper.is-focus),
+.setting :deep(.el-select__wrapper.is-focused),
+.setting :deep(.el-textarea__inner:focus) {
+  box-shadow:
+    0 0 0 1px var(--primary-color) inset,
+    0 0 0 4px rgba(53, 95, 157, 0.10);
+}
+.setting :deep(.el-input__inner),
+.setting :deep(.el-textarea__inner) {
+  color: var(--text-color);
+}
+.setting :deep(.el-input__inner::placeholder),
+.setting :deep(.el-textarea__inner::placeholder) {
+  color: var(--text-color-lighter);
+}
+.setting :deep(.el-card) {
+  background: var(--bg-elevated-color);
+  border-color: var(--border-color);
+  border-radius: 20px;
+  box-shadow: 0 20px 40px var(--shadow-color);
+}
+.setting :deep(.el-button:not(.is-link)) {
+  min-height: 38px;
+  padding: 0 16px;
+  border-radius: 12px;
+  border-color: var(--border-color);
+  background: var(--bg-elevated-color);
+  color: var(--text-color);
+  transition: all 0.18s ease;
+}
+.setting :deep(.el-button:not(.is-link):hover) {
+  border-color: var(--border-color-strong);
+  background: var(--nav-hover-bg-color);
+  color: var(--text-color);
+}
+.setting :deep(.el-button.is-plain) {
+  background: var(--bg-elevated-color);
+}
+.setting :deep(.el-button--primary) {
+  border-color: var(--primary-color);
+  background: var(--primary-color);
+  color: #fff;
+  box-shadow: 0 12px 24px rgba(53, 95, 157, 0.18);
+}
+.setting :deep(.el-button--primary:hover) {
+  border-color: var(--primary-color-lighter);
+  background: var(--primary-color-lighter);
+  color: #fff;
+}
+.setting :deep(.el-button.is-link) {
+  color: var(--primary-color);
+}
+.setting :deep(.el-button.is-link:hover) {
+  color: var(--primary-color-lighter);
+}
+.setting :deep(.el-pagination) {
+  --el-pagination-bg-color: var(--bg-elevated-color);
+  --el-pagination-text-color: var(--text-color-lighter);
+  --el-pagination-button-color: var(--text-color);
+  --el-pagination-button-disabled-color: var(--text-color-lighter);
+  --el-pagination-button-disabled-bg-color: var(--bg-soft-color);
+  --el-pagination-hover-color: var(--primary-color);
+}
+.setting :deep(.el-pagination .btn-prev),
+.setting :deep(.el-pagination .btn-next),
+.setting :deep(.el-pagination .el-pager li) {
+  border-radius: 10px;
+  border: 1px solid var(--border-color);
+  background: var(--bg-elevated-color);
+}
+.setting :deep(.el-pagination .el-pager li:hover),
+.setting :deep(.el-pagination .btn-prev:hover),
+.setting :deep(.el-pagination .btn-next:hover) {
+  border-color: var(--border-color-strong);
+  background: var(--nav-hover-bg-color);
+}
+.setting :deep(.el-pagination .el-pager li.is-active) {
+  border-color: var(--primary-color);
+  background: rgba(53, 95, 157, 0.12);
+  color: var(--primary-color);
+}
+.setting :deep(.el-dialog) {
+  border-radius: 22px;
+  border: 1px solid var(--border-color);
+  background: var(--bg-elevated-color);
+  box-shadow: 0 28px 60px var(--shadow-color);
+}
+.setting :deep(.el-dialog__header) {
+  padding: 20px 24px 0;
+}
+.setting :deep(.el-dialog__title) {
+  color: var(--text-color);
+  font-weight: 600;
+}
+.setting :deep(.el-dialog__footer) {
+  padding: 8px 24px 24px;
+}
 .feature-dialog :deep(.el-dialog__body) {
   padding: 24px 32px 12px;
 }
@@ -615,5 +911,11 @@ onUnmounted(() => {
 }
 .feature-form :deep(.el-textarea__inner) {
   min-height: 200px;
+}
+
+@media (max-width: 900px) {
+  .shortcut-summary {
+    grid-template-columns: 1fr;
+  }
 }
 </style>

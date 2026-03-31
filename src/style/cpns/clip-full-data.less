@@ -5,25 +5,29 @@
   height: -webkit-fill-available;
   width: 80%;
   color: @text-color;
-  background: @bg-color;
-  margin: 0px 0px;
-  padding: 10px 20px;
+  background: fade(@bg-color, 96%);
+  margin: 0;
+  padding: 18px 24px;
+  box-sizing: border-box;
   overflow-y: scroll;
   word-break: break-all;
   white-space: pre-wrap;
+  box-shadow: 24px 0 48px fade(@shadow-color, 55%);
+  backdrop-filter: blur(14px);
   .clip-full-operate-list {
     position: fixed;
     right: 20%;
     z-index: 102;
-    box-shadow: 0 0 10px 0 rgba(0, 0, 0, 0.2);
+    box-shadow: 0 12px 24px fade(@shadow-color, 36%);
     display: flex;
     align-items: center;
     justify-content: center;
     color: @text-color;
-    background-color: @text-bg-color;
-    padding: 5px 5px;
+    background-color: fade(@bg-elevated-color, 92%);
+    border: 1px solid @border-color;
+    padding: 8px 10px;
     margin-bottom: 5px;
-    border-radius: 5px;
+    border-radius: 14px;
   }
   .clip-full-content {
     display: flex;
@@ -31,12 +35,15 @@
     justify-content: center;
     position: relative;
     top: 50px;
-    padding: 20px;
+    padding: 22px;
     margin-bottom: 55px;
-    border-radius: 5px;
-    background-color: @text-bg-color;
+    border-radius: 18px;
+    border: 1px solid @border-color;
+    background-color: fade(@bg-elevated-color, 94%);
+    box-shadow: 0 18px 40px fade(@shadow-color, 24%);
     img {
       max-width: 100%;
+      border-radius: 12px;
     }
   }
   &::-webkit-scrollbar {
@@ -45,14 +52,14 @@
   }
   &::-webkit-scrollbar-track {
     border-radius: 2px;
-    background-color: @text-bg-color;
+    background-color: @bg-soft-color;
     &-piece {
       border-radius: 2px;
-      background-color: @text-bg-color;
+      background-color: @bg-soft-color;
     }
   }
   &::-webkit-scrollbar-thumb {
-    background: @text-color-lighter;
+    background: fade(@text-color-lighter, 70%);
     border-radius: 5px;
     &:hover {
       background: @text-color;
@@ -65,5 +72,33 @@
   top: 0;
   height: 100%;
   width: 100%;
-  background: rgba(0, 0, 0, 0.5);
+  background: @overlay-color;
+  backdrop-filter: blur(4px);
+}
+
+@media (max-width: 900px) {
+  .clip-full-wrapper {
+    width: min(88%, 720px);
+    padding: 16px 18px;
+    .clip-full-operate-list {
+      right: 12%;
+    }
+  }
+}
+
+@media (max-width: 720px) {
+  .clip-full-wrapper {
+    width: 100%;
+    padding: 14px 12px 18px;
+    .clip-full-operate-list {
+      right: 12px;
+      top: 12px;
+      max-width: calc(100vw - 24px);
+    }
+    .clip-full-content {
+      top: 44px;
+      padding: 16px;
+      border-radius: 16px;
+    }
+  }
 }

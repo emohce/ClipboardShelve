@@ -1,15 +1,21 @@
 .clip-switch {
   z-index: 100;
   position: fixed;
-  top: 0px;
+  top: 0;
   display: flex;
   justify-content: space-between;
   align-items: center;
+  gap: 14px;
   flex-direction: row;
   width: 100%;
+  box-sizing: border-box;
+  padding: 10px 12px 8px;
   color: @text-color;
   background-color: @nav-bg-color;
-  transition: all 0.15s;
+  border-bottom: 1px solid @border-color;
+  box-shadow: 0 10px 28px @shadow-color;
+  backdrop-filter: blur(18px);
+  transition: background-color 0.2s ease, box-shadow 0.2s ease;
   .clip-switch-left {
     display: flex;
     flex-direction: column;
@@ -20,34 +26,36 @@
     display: flex;
     align-items: center;
     flex-wrap: wrap;
-    margin-left: 5px;
-    margin-bottom: 6px;
-    gap: 6px;
+    margin-left: 2px;
+    margin-bottom: 2px;
+    gap: 8px;
   }
   .clip-switch-sub-item {
     min-width: 52px;
-    padding: 8px 14px;
-    border-radius: 5px;
-    font-size: 14px;
+    padding: 7px 14px;
+    border-radius: 999px;
+    font-size: 12px;
+    line-height: 1;
     cursor: pointer;
-    color: @text-color;
-    background-color: @bg-color;
-    border: 1px solid @text-bg-color;
-    transition: all 0.15s;
+    color: @text-color-lighter;
+    background-color: fade(@bg-elevated-color, 82%);
+    border: 1px solid @border-color;
+    transition: all 0.18s ease;
     &:hover {
+      color: @text-color;
       background-color: @nav-hover-bg-color;
-      border-color: @text-color-lighter;
+      border-color: @border-color-strong;
     }
     &.active {
       color: @primary-color;
-      background-color: @bg-color;
-      border-color: @primary-color;
+      background-color: fade(@primary-color, 12%);
+      border-color: fade(@primary-color, 35%);
       font-weight: 500;
     }
   }
   .active {
     color: @primary-color;
-    background-color: @bg-color;
+    background-color: fade(@primary-color, 10%);
     transition: all 0.15s ease-in-out;
     svg {
       fill: @primary-color;
@@ -58,48 +66,112 @@
     justify-content: left;
     align-items: center;
     flex-direction: row;
-    margin-left: 5px;
+    gap: 6px;
+    margin-left: 0;
     .clip-switch-item {
       display: flex;
       align-items: center;
       justify-content: center;
-      min-width: 58px;
-      padding: 10px 15px 10px 15px;
-      margin: 10px 0px 10px 5px;
+      gap: 6px;
+      min-width: 64px;
+      padding: 10px 14px;
+      margin: 0;
       cursor: pointer;
-      border-radius: 5px;
-      font-size: 14px;
-      transition: all 0.15s;
+      border-radius: 14px;
+      font-size: 13px;
+      line-height: 1;
+      color: @text-color-lighter;
+      border: 1px solid transparent;
+      background-color: transparent;
+      transition: all 0.18s ease;
       &:hover {
         background-color: @nav-hover-bg-color;
-        transition: all 0.15s ease-in-out;
+        color: @text-color;
+        border-color: @border-color;
       }
       svg {
-        margin-right: 5px;
-        max-width: 30%;
+        width: 14px;
+        height: 14px;
+        margin-right: 0;
         fill: @text-color-lighter;
+      }
+      &.active {
+        color: @text-color;
+        border-color: fade(@primary-color, 20%);
+        background-color: @bg-elevated-color;
+        box-shadow: 0 8px 22px fade(@shadow-color, 60%);
       }
     }
   }
   .clip-switch-btn-list {
-    margin-right: 5px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin-right: 0;
     .clip-switch-btn {
-      width: 25px;
-      height: 25px;
-      padding: 10px;
-      border-radius: 5px;
-      margin: 5px 2px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-width: 40px;
+      height: 36px;
+      padding: 0 12px;
+      border-radius: 12px;
+      margin: 0;
       cursor: pointer;
-      color: @text-color;
-      background-color: @nav-bg-color;
+      font-size: 12px;
+      color: @text-color-lighter;
+      background-color: fade(@bg-elevated-color, 88%);
+      border: 1px solid @border-color;
+      box-sizing: border-box;
+      transition: all 0.18s ease;
       &:hover {
         background-color: @nav-hover-bg-color;
-        transition: all 0.15s ease-in-out;
+        color: @text-color;
+        border-color: @border-color-strong;
       }
       &.clip-select-count {
-        background-color: @primary-color;
-        color: @bg-color;
+        min-width: 36px;
+        padding: 0 10px;
+        background-color: fade(@primary-color, 14%);
+        border-color: fade(@primary-color, 28%);
+        color: @primary-color;
+        font-weight: 600;
       }
+      &.clip-search-btn {
+        min-width: 64px;
+      }
+      &.is-primary {
+        color: @bg-elevated-color;
+        background-color: @primary-color;
+        border-color: fade(@primary-color, 10%);
+        box-shadow: 0 10px 20px fade(@primary-color, 22%);
+        &:hover {
+          background-color: @primary-color-lighter;
+          color: @bg-elevated-color;
+          border-color: fade(@primary-color-lighter, 10%);
+        }
+      }
+    }
+  }
+}
+
+@media (max-width: 720px) {
+  .clip-switch {
+    align-items: flex-start;
+    flex-direction: column;
+
+    .clip-switch-left,
+    .clip-switch-btn-list,
+    .clip-search {
+      width: 100%;
+    }
+
+    .clip-switch-btn-list {
+      flex-wrap: wrap;
+    }
+
+    .clip-switch-items {
+      flex-wrap: wrap;
     }
   }
 }

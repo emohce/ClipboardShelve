@@ -1,9 +1,12 @@
 <template>
   <div class="layer-node">
-    <div class="layer-header" @click="handleToggle">
-      <span class="expand-icon">{{ isExpanded ? '−' : '+' }}</span>
-      <span class="layer-label">{{ getLayerLabel(node.layer, node.state) }}</span>
-      <span v-if="node.state" class="layer-state">（状态: {{ getStateLabel(node.state) }}）</span>
+    <div class="layer-header" :class="{ expanded: isExpanded }" @click="handleToggle">
+      <div class="layer-header-main">
+        <span class="expand-icon">{{ isExpanded ? '−' : '+' }}</span>
+        <span class="layer-label">{{ getLayerLabel(node.layer, node.state) }}</span>
+        <span v-if="node.state" class="layer-state">{{ getStateLabel(node.state) }}</span>
+      </div>
+      <span class="layer-count">{{ shortcutCount }} 项</span>
     </div>
     <div v-if="isExpanded" class="layer-content">
       <div v-for="(shortcut, idx) in node.shortcuts" :key="`${node.layer}-${shortcut.shortcutId}-${idx}`" class="shortcut-node">
@@ -44,6 +47,7 @@ const emit = defineEmits(['toggle-expand'])
 
 const nodeKey = computed(() => `layer-${props.node.layer}-${props.node.state || ''}`)
 const isExpanded = computed(() => props.expandedKeys.has(nodeKey.value))
+const shortcutCount = computed(() => props.node.shortcuts?.length || 0)
 
 function getStateLabel(state) {
   const labels = {
@@ -71,46 +75,73 @@ function handleShortcutToggle(key) {
 .layer-header {
   display: flex;
   align-items: center;
-  padding: 6px 8px;
+  justify-content: space-between;
+  padding: 12px 14px;
   cursor: pointer;
   user-select: none;
-  border-radius: 4px;
-  transition: background-color 0.2s;
+  border-radius: 14px;
+  border: 1px solid var(--border-color, var(--text-bg-color-lighter));
+  background: var(--bg-soft-color, var(--text-bg-color));
+  transition: all 0.2s;
 }
 
 .layer-header:hover {
-  background-color: var(--text-bg-color);
+  background-color: var(--nav-hover-bg-color, var(--text-bg-color));
 }
 
-.layer-header {
-  font-weight: 600;
-  font-size: 15px;
+.layer-header.expanded {
+  border-color: var(--primary-color);
+  background: var(--bg-elevated-color, #fff);
+  box-shadow: 0 14px 28px rgba(37, 99, 235, 0.08);
+}
+
+.layer-header-main {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
 }
 
 .expand-icon {
   display: inline-block;
-  width: 18px;
+  width: 20px;
+  height: 20px;
+  line-height: 20px;
   text-align: center;
   font-weight: bold;
   font-size: 14px;
   color: var(--primary-color);
-  margin-right: 4px;
+  border-radius: 999px;
+  background: var(--bg-elevated-color, #fff);
 }
 
 .layer-label {
-  font-weight: 500;
+  font-weight: 600;
+  font-size: 14px;
   color: var(--text-color);
 }
 
 .layer-state {
-  margin-left: 4px;
+  display: inline-flex;
+  align-items: center;
+  height: 22px;
+  padding: 0 8px;
+  border-radius: 999px;
+  font-size: 11px;
+  color: var(--primary-color);
+  background: var(--bg-elevated-color, #fff);
+}
+
+.layer-count {
+  flex-shrink: 0;
   font-size: 12px;
   color: var(--text-color-lighter);
 }
 
 .layer-content {
-  margin-left: 22px;
-  padding-left: 8px;
-  border-left: 2px solid var(--text-bg-color-lighter);
+  margin-left: 14px;
+  margin-top: 10px;
+  padding-left: 12px;
+  border-left: 2px solid var(--border-color, var(--text-bg-color-lighter));
 }
 </style>

@@ -24,7 +24,7 @@
 </template>
 
 <script setup>
-import { ref, computed } from 'vue'
+import { ref, computed, watch } from 'vue'
 import LayerNode from './HotkeyTreeViewLayer.vue'
 
 const props = defineProps({
@@ -35,6 +35,10 @@ const props = defineProps({
   bodyMaxHeight: {
     type: [Number, String],
     default: ''
+  },
+  defaultExpandAll: {
+    type: Boolean,
+    default: true
   }
 })
 
@@ -71,6 +75,21 @@ const groupedLayers = computed(() => {
   return groups
 })
 
+watch(
+  groupedLayers,
+  (groups) => {
+    if (!props.defaultExpandAll) return
+    const keys = new Set()
+    for (const group of groups) {
+      for (const layerNode of group.layers) {
+        keys.add(`layer-${layerNode.layer}-${layerNode.state || ''}`)
+      }
+    }
+    expandedKeys.value = keys
+  },
+  { immediate: true }
+)
+
 function handleToggleExpand(key) {
   if (expandedKeys.value.has(key)) {
     expandedKeys.value.delete(key)
@@ -92,18 +111,22 @@ function handleToggleExpand(key) {
 }
 
 .tree-container {
-  border: 1px solid var(--text-bg-color-lighter);
-  border-radius: 4px;
-  padding: 8px;
+  border: 1px solid var(--border-color, var(--text-bg-color-lighter));
+  border-radius: 18px;
+  padding: 12px;
+  background: var(--bg-elevated-color, #fff);
+  box-shadow: 0 16px 30px rgba(15, 23, 42, 0.08);
 }
 
 .group-title {
-  font-size: 16px;
+  font-size: 14px;
   font-weight: 600;
   color: var(--primary-color);
-  padding: 8px 4px;
-  margin: 16px 0 8px;
-  border-bottom: 2px solid var(--primary-color);
+  padding: 8px 6px;
+  margin: 16px 0 10px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  border-bottom: 1px solid var(--border-color, var(--text-bg-color-lighter));
 }
 
 .group-title:first-child {
@@ -111,7 +134,7 @@ function handleToggleExpand(key) {
 }
 
 .layer-group {
-  margin-bottom: 12px;
+  margin-bottom: 14px;
 }
 
 .layer-group:last-child {

@@ -13,30 +13,72 @@
 
 @media (prefers-color-scheme: dark) {
   #app {
-    @primary-color: #448bd2;
-    @primary-color-lighter: #4997e1;
-    @text-color: #e8e6e3;
-    @text-color-lighter: rgb(181, 181, 181);
-    @text-bg-color: #656565;
-    @text-bg-color-lighter: #4e4e4e;
-    @nav-bg-color: #222426;
-    @nav-hover-bg-color: #2b2e30;
-    @bg-color: #181a1b;
+    @primary-color: #6b8fd6;
+    @primary-color-lighter: #8ca7df;
+    @text-color: #edf1f7;
+    @text-color-lighter: #9aa6bc;
+    @text-bg-color: #1f2530;
+    @text-bg-color-lighter: #171c25;
+    @nav-bg-color: rgba(15, 19, 27, 0.9);
+    @nav-hover-bg-color: #222938;
+    @bg-color: #0f131b;
+    @bg-elevated-color: #151b24;
+    @bg-soft-color: #1b2230;
+    @border-color: fade(#d7e0f2, 8%);
+    @border-color-strong: fade(#d7e0f2, 16%);
+    @shadow-color: rgba(0, 0, 0, 0.42);
+    @overlay-color: rgba(6, 10, 16, 0.62);
+    --primary-color: @primary-color;
+    --primary-color-lighter: @primary-color-lighter;
+    --text-color: @text-color;
+    --text-color-lighter: @text-color-lighter;
+    --text-bg-color: @text-bg-color;
+    --text-bg-color-lighter: @text-bg-color-lighter;
+    --nav-bg-color: @nav-bg-color;
+    --nav-hover-bg-color: @nav-hover-bg-color;
+    --bg-color: @bg-color;
+    --bg-elevated-color: @bg-elevated-color;
+    --bg-soft-color: @bg-soft-color;
+    --border-color: @border-color;
+    --border-color-strong: @border-color-strong;
+    --shadow-color: @shadow-color;
+    --overlay-color: @overlay-color;
     .import();
   }
 }
 
 @media (prefers-color-scheme: light) {
   #app {
-    @primary-color: #3271ae;
-    @primary-color-lighter: #4997e1;
-    @text-color: #333;
-    @text-color-lighter: rgb(138, 138, 138);
-    @text-bg-color: #f2f2f2;
-    @text-bg-color-lighter: #eeeaf3;
-    @nav-bg-color: #eeeeee;
-    @nav-hover-bg-color: #dedede;
-    @bg-color: #fff;
+    @primary-color: #355f9d;
+    @primary-color-lighter: #4e78b6;
+    @text-color: #1f2937;
+    @text-color-lighter: #7b8798;
+    @text-bg-color: #eef2f6;
+    @text-bg-color-lighter: #f7f9fb;
+    @nav-bg-color: rgba(249, 251, 253, 0.92);
+    @nav-hover-bg-color: #e9eef5;
+    @bg-color: #f5f7fa;
+    @bg-elevated-color: #ffffff;
+    @bg-soft-color: #f1f4f8;
+    @border-color: rgba(31, 41, 55, 0.08);
+    @border-color-strong: rgba(53, 72, 91, 0.14);
+    @shadow-color: rgba(15, 23, 42, 0.12);
+    @overlay-color: rgba(15, 23, 42, 0.34);
+    --primary-color: @primary-color;
+    --primary-color-lighter: @primary-color-lighter;
+    --text-color: @text-color;
+    --text-color-lighter: @text-color-lighter;
+    --text-bg-color: @text-bg-color;
+    --text-bg-color-lighter: @text-bg-color-lighter;
+    --nav-bg-color: @nav-bg-color;
+    --nav-hover-bg-color: @nav-hover-bg-color;
+    --bg-color: @bg-color;
+    --bg-elevated-color: @bg-elevated-color;
+    --bg-soft-color: @bg-soft-color;
+    --border-color: @border-color;
+    --border-color-strong: @border-color-strong;
+    --shadow-color: @shadow-color;
+    --overlay-color: @overlay-color;
     .import();
   }
 }

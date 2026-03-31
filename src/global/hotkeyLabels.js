@@ -45,6 +45,12 @@ export const FEATURE_LABELS = {
   'full-data-scroll-down': '全文预览半页下滚',
   'full-data-block': '拦截其他按键',
 
+  'tag-search-close': '关闭标签搜索',
+  'tag-search-block': '拦截其他按键',
+
+  'tag-edit-focus-tab': '在标签编辑项之间切换焦点',
+  'tag-edit-block': '拦截其他按键',
+
   'search-delete-normal': '搜索中删除选中项',
   'search-delete-force': '搜索中强制删除选中项',
 

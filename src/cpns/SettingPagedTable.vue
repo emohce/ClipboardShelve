@@ -251,7 +251,7 @@ function handleDragEnd(evt) {
 .setting-paged-table {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 10px;
 }
 
 .table-header,
@@ -261,19 +261,31 @@ function handleDragEnd(evt) {
 }
 
 .table-header {
-  border: 1px solid var(--text-bg-color-lighter);
+  border: 1px solid var(--border-color, var(--text-bg-color-lighter));
   border-bottom: none;
-  background: var(--text-bg-color);
+  border-radius: 16px 16px 0 0;
+  background: var(--bg-soft-color, var(--text-bg-color));
   font-weight: 600;
+  color: var(--text-color);
+  box-shadow: 0 10px 24px var(--shadow-color, rgba(15, 23, 42, 0.08));
 }
 
 .table-body {
-  border: 1px solid var(--text-bg-color-lighter);
+  border: 1px solid var(--border-color, var(--text-bg-color-lighter));
   border-top: none;
+  border-radius: 0 0 16px 16px;
+  overflow: hidden;
+  background: var(--bg-elevated-color, #fff);
+  box-shadow: 0 16px 32px var(--shadow-color, rgba(15, 23, 42, 0.08));
 }
 
 .table-row {
-  border-bottom: 1px solid var(--text-bg-color-lighter);
+  border-bottom: 1px solid var(--border-color, var(--text-bg-color-lighter));
+  transition: background-color 0.18s ease;
+}
+
+.table-row:hover {
+  background: var(--nav-hover-bg-color, var(--text-bg-color));
 }
 
 .table-row:last-child {
@@ -281,11 +293,13 @@ function handleDragEnd(evt) {
 }
 
 .table-cell {
-  padding: 8px 10px;
-  border-right: 1px solid var(--text-bg-color-lighter);
+  min-height: 44px;
+  padding: 10px 12px;
+  border-right: 1px solid var(--border-color, var(--text-bg-color-lighter));
   display: flex;
   align-items: center;
   gap: 6px;
+  box-sizing: border-box;
 }
 
 .table-cell:last-child {
@@ -298,16 +312,19 @@ function handleDragEnd(evt) {
 }
 
 .table-empty {
-  border: 1px solid var(--text-bg-color-lighter);
-  padding: 16px;
+  border: 1px dashed var(--border-color, var(--text-bg-color-lighter));
+  border-radius: 16px;
+  background: var(--bg-elevated-color, #fff);
+  padding: 24px 16px;
   text-align: center;
   color: var(--text-color-lighter);
+  box-shadow: 0 14px 28px var(--shadow-color, rgba(15, 23, 42, 0.08));
 }
 
 .table-pagination {
   display: flex;
   justify-content: flex-end;
-  margin: 4px 0 0;
+  margin: 6px 0 0;
 }
 .table-pagination-top {
   justify-content: space-between;

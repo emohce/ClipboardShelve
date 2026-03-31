@@ -1,7 +1,7 @@
 <template>
     <div class="main" tabindex="-1">
         <ClipFloatBtn
-            :icon="'🧭'"
+            :icon="'清理'"
             @onBtnClick="handleClearBtnClick"
         ></ClipFloatBtn>
         <ClipFullData
@@ -36,7 +36,7 @@
                             v-show="isMultiple"
                             @click="handleMultiCopyBtnClick(false)"
                         >
-                            📄 复制
+                            复制
                         </span>
                     </el-tooltip>
                     <el-tooltip
@@ -49,7 +49,7 @@
                             v-show="isMultiple"
                             @click="handleMultiCopyBtnClick(true)"
                         >
-                            📑 粘贴
+                            粘贴
                         </span>
                     </el-tooltip>
                     <el-tooltip
@@ -62,7 +62,7 @@
                         <span
                             class="clip-switch-btn"
                             @click="isMultiple = !isMultiple"
-                            >{{ isMultiple ? "❌ 退出多选" : "👆" }}</span
+                            >{{ isMultiple ? "退出多选" : "多选" }}</span
                         >
                     </el-tooltip>
                     <el-tooltip
@@ -74,7 +74,7 @@
                             class="clip-switch-btn"
                             v-show="!isMultiple"
                             @click="emit('showSetting')"
-                            >💡</span
+                            >设置</span
                         >
                     </el-tooltip>
                     <el-tooltip
@@ -86,7 +86,7 @@
                             class="clip-switch-btn"
                             v-show="!isMultiple"
                             @click="handleOpenCleanDialog"
-                            >🗑️</span
+                            >清空</span
                         >
                     </el-tooltip>
                     <el-tooltip
@@ -95,11 +95,11 @@
                         :show-after="150"
                     >
                         <span
-                            class="clip-switch-btn clip-search-btn"
+                            class="clip-switch-btn clip-search-btn is-primary"
                             v-show="!isMultiple"
                             @click="handleSearchBtnClick"
                         >
-                            🔍
+                            搜索
                         </span>
                     </el-tooltip>
                 </div>
@@ -118,7 +118,7 @@
             :class="{ 'clip-break--with-sub': activeTab === 'collect' }"
         ></div>
         <div class="clip-empty-status" v-if="currentShowList.length === 0">
-            📪 无记录
+            暂无记录
         </div>
 
         <div
@@ -849,10 +849,10 @@ const collectedIds = computed(() => {
 const searchPlaceholder = computed(() => {
     if (activeTab.value === "collect") {
         const n = window.db?.getCollects?.()?.length ?? 0;
-        return `🔍 在${n}条收藏中检索，按 * 标签筛选`;
+        return `在 ${n} 条收藏中检索，按 * 标签筛选`;
     }
     if (parseStarFilter(filterText.value).isStar)
-        return "🔍 按 * 标签+正文筛选";
+        return "按 * 标签与正文筛选";
     return "";
 });
 
@@ -1379,31 +1379,39 @@ onMounted(() => {
 <style lang="less" scoped>
 @import "../style";
 .clip-break {
-    height: 60px;
+    height: 10px;
 }
 .clip-break--with-sub {
-    height: 100px;
+    height: 60px;
 }
 .clip-empty-status {
-    height: 100%;
-    width: 100%;
+    width: calc(100% - 24px);
+    min-height: calc(100vh - 132px);
     display: flex;
     justify-content: center;
     align-items: center;
-    margin-top: 50px;
+    margin: 8px 12px 0;
+    border: 1px dashed var(--border-color-strong);
+    border-radius: 20px;
+    background: var(--bg-elevated-color);
+    color: var(--text-color-lighter);
+    opacity: 0.84;
+    letter-spacing: 0.08em;
 }
 
 :deep(.el-overlay) {
-    background-color: rgba(16, 20, 37, 0.55);
+    background-color: var(--overlay-color);
+    backdrop-filter: blur(4px);
 }
 
 :deep(.el-dialog) {
     border-radius: 16px;
     padding: 0 8px 12px;
-    background: #fff;
+    background: var(--bg-elevated-color);
+    border: 1px solid var(--border-color);
     box-shadow:
-        0 30px 80px rgba(25, 34, 68, 0.18),
-        0 10px 30px rgba(25, 34, 68, 0.12);
+        0 30px 80px var(--shadow-color),
+        0 10px 30px var(--shadow-color);
 }
 
 :deep(.el-dialog__header) {
@@ -1415,8 +1423,8 @@ onMounted(() => {
 .clear-panel-overlay {
     position: fixed;
     inset: 0;
-    background: rgba(22, 27, 45, 0.45);
-    backdrop-filter: blur(2px);
+    background: var(--overlay-color);
+    backdrop-filter: blur(4px);
     z-index: 180;
 }
 
@@ -1426,14 +1434,16 @@ onMounted(() => {
     left: 0;
     bottom: 0;
     width: 360px;
-    background: #fff;
-    box-shadow: 12px 0 28px rgba(15, 23, 42, 0.18);
+    background: var(--bg-elevated-color);
+    border-right: 1px solid var(--border-color);
+    box-shadow: 18px 0 36px var(--shadow-color);
     z-index: 190;
     display: flex;
     flex-direction: column;
     padding: 22px 20px 18px;
     border-top-right-radius: 16px;
     border-bottom-right-radius: 16px;
+    backdrop-filter: blur(18px);
 }
 
 .clear-panel-header {
@@ -1445,24 +1455,29 @@ onMounted(() => {
         margin: 0;
         font-size: 18px;
         font-weight: 600;
-        color: #2b2f3a;
+        color: var(--text-color);
     }
     .clear-panel-sub {
         display: block;
         margin-top: 2px;
         font-size: 13px;
-        color: #7d8597;
+        color: var(--text-color-lighter);
     }
 }
 
 .clear-panel-close {
     border: none;
-    background: #f2f4ff;
-    border-radius: 50%;
+    background: var(--bg-soft-color);
+    border-radius: 999px;
     width: 28px;
     height: 28px;
     cursor: pointer;
-    color: #5c6c94;
+    color: var(--text-color-lighter);
+    transition: all 0.18s ease;
+    &:hover {
+        color: var(--text-color);
+        background: var(--nav-hover-bg-color);
+    }
 }
 
 .clear-panel-body {
@@ -1473,7 +1488,7 @@ onMounted(() => {
     gap: 12px;
     .clear-panel-tip {
         margin-bottom: 12px;
-        color: #9094a6;
+        color: var(--text-color-lighter);
         font-size: 13px;
         line-height: 1.5;
     }
@@ -1489,53 +1504,18 @@ onMounted(() => {
 .range-button {
     width: 100%;
     text-align: center;
-    border: none;
+    border: 1px solid var(--border-color);
     border-radius: 12px !important;
-    background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%);
-    color: #64748b;
-    box-shadow:
-        inset 0 1px 0 rgba(255, 255, 255, 0.8),
-        0 1px 3px rgba(0, 0, 0, 0.1),
-        0 0 0 1px rgba(148, 163, 184, 0.1);
-    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    background: var(--bg-soft-color);
+    color: var(--text-color-lighter);
+    box-shadow: 0 8px 18px var(--shadow-color);
+    transition: all 0.2s ease;
     cursor: pointer;
     outline: none;
     padding: 10px 16px;
     font-size: 13px;
     font-weight: 500;
     position: relative;
-    overflow: hidden;
-
-    &::before {
-        content: "";
-        position: absolute;
-        top: 0;
-        left: 0;
-        right: 0;
-        bottom: 0;
-        background: linear-gradient(
-            135deg,
-            rgba(99, 102, 241, 0.1) 0%,
-            rgba(139, 92, 246, 0.1) 100%
-        );
-        opacity: 0;
-        transition: opacity 0.3s ease;
-    }
-
-    &::after {
-        content: "";
-        position: absolute;
-        top: 50%;
-        left: 50%;
-        width: 0;
-        height: 0;
-        border-radius: 50%;
-        background: rgba(255, 255, 255, 0.3);
-        transform: translate(-50%, -50%);
-        transition:
-            width 0.6s ease,
-            height 0.6s ease;
-    }
 
     span {
         position: relative;
@@ -1543,59 +1523,31 @@ onMounted(() => {
     }
 
     &:hover {
-        background: linear-gradient(135deg, #eef2ff 0%, #e0e7ff 100%);
-        color: #4f46e5;
+        background: var(--nav-hover-bg-color);
+        color: var(--text-color);
         transform: translateY(-1px);
-        box-shadow:
-            inset 0 1px 0 rgba(255, 255, 255, 0.9),
-            0 4px 12px rgba(99, 102, 241, 0.15),
-            0 0 0 1px rgba(99, 102, 241, 0.2);
-
-        &::before {
-            opacity: 1;
-        }
+        border-color: var(--border-color-strong);
+        box-shadow: 0 12px 20px var(--shadow-color);
     }
 
     &:focus-visible {
-        outline: 2px solid #6366f1;
+        outline: 2px solid var(--primary-color);
         outline-offset: 2px;
-        box-shadow:
-            0 0 0 4px rgba(99, 102, 241, 0.1),
-            inset 0 1px 0 rgba(255, 255, 255, 0.9),
-            0 4px 12px rgba(99, 102, 241, 0.15);
+        box-shadow: 0 0 0 4px rgba(53, 95, 157, 0.12);
     }
 
     &.active {
-        background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%);
-        color: #ffffff;
+        background: rgba(53, 95, 157, 0.14);
+        color: var(--primary-color);
         font-weight: 600;
         transform: translateY(-1px);
-        box-shadow:
-            inset 0 1px 0 rgba(255, 255, 255, 0.3),
-            0 8px 25px rgba(99, 102, 241, 0.4),
-            0 0 0 1px rgba(99, 102, 241, 0.3);
-
-        &::before {
-            background: linear-gradient(
-                135deg,
-                rgba(255, 255, 255, 0.2) 0%,
-                rgba(255, 255, 255, 0.1) 100%
-            );
-            opacity: 1;
-        }
-
-        &::after {
-            width: 300px;
-            height: 300px;
-        }
+        border-color: rgba(53, 95, 157, 0.34);
+        box-shadow: 0 12px 24px rgba(53, 95, 157, 0.16);
 
         &:hover {
-            background: linear-gradient(135deg, #7c3aed 0%, #a855f7 100%);
-            transform: translateY(-2px);
-            box-shadow:
-                inset 0 1px 0 rgba(255, 255, 255, 0.4),
-                0 12px 35px rgba(124, 58, 237, 0.5),
-                0 0 0 1px rgba(124, 58, 237, 0.4);
+            background: rgba(53, 95, 157, 0.18);
+            transform: translateY(-1px);
+            box-shadow: 0 14px 26px rgba(53, 95, 157, 0.18);
         }
     }
 
@@ -1613,7 +1565,7 @@ onMounted(() => {
 }
 
 .clear-panel :focus-visible {
-    outline: 2px solid #5c7cfa;
+    outline: 2px solid var(--primary-color);
     outline-offset: 2px;
     border-radius: 8px;
 }
@@ -1628,5 +1580,29 @@ onMounted(() => {
 .clear-panel-leave-to {
     transform: translateX(-40px);
     opacity: 0;
+}
+
+@media (max-width: 900px) {
+    .clip-break {
+        height: 78px;
+    }
+    .clip-break--with-sub {
+        height: 118px;
+    }
+}
+
+@media (max-width: 720px) {
+    .clip-break {
+        height: 132px;
+    }
+    .clip-break--with-sub {
+        height: 172px;
+    }
+    .clip-empty-status {
+        min-height: calc(100vh - 224px);
+    }
+    .clear-panel {
+        width: min(360px, calc(100vw - 16px));
+    }
 }
 </style>

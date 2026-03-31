@@ -1,6 +1,6 @@
 <template>
   <div class="clip-operate">
-    <template v-for="o of operation">
+    <template v-for="o of operation" :key="o.id">
       <div
         v-if="filterOperate(o, item, isFullData)"
         :class="o.id"

@@ -1,16 +1,21 @@
 @import '../style';
 
 .collect-block-header {
-  font-size: 14px;
-  font-weight: 500;
+  display: flex;
+  align-items: center;
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
   color: @primary-color;
-  margin: 10px 15px 5px;
-  padding: 5px 0;
-  border-bottom: 1px dashed @text-bg-color;
+  margin: 14px 12px 8px;
+  padding: 8px 12px;
+  border: 1px solid fade(@primary-color, 18%);
+  border-radius: 999px;
+  background: fade(@primary-color, 8%);
 }
 
 .collect-block-separator {
   height: 10px;
   margin-top: 10px;
-  border-bottom: 1px solid @text-bg-color;
+  border-bottom: 1px solid @border-color;
 }

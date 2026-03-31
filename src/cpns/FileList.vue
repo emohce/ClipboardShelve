@@ -3,6 +3,7 @@
     <div
       class="clip-file"
       v-for="file of data.slice(0, 8)"
+      :key="file.path"
       @click.stop="openFile(file.path)"
       :title="file.path"
     >

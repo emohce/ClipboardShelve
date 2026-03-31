@@ -1,29 +1,36 @@
 .setting-card {
-  margin: 10px;
+  margin: 12px;
+  border: 1px solid @border-color;
+  border-radius: 18px;
+  background: fade(@bg-elevated-color, 94%);
+  box-shadow: 0 16px 32px fade(@shadow-color, 24%);
   &-content {
-    padding: 10px;
+    padding: 14px;
     &-item {
       display: flex;
       justify-content: flex-start;
       align-items: center;
-      margin: 10px;
+      margin: 10px 6px;
+      padding: 10px 12px;
+      border-radius: 14px;
+      background: fade(@bg-soft-color, 72%);
       .el-select {
         &.number-select {
           width: 85px;
         }
         &.operation-select {
-          width: 520px;
+          width: min(520px, 100%);
         }
       }
       .el-textarea {
-        width: 70%;
+        width: min(70%, 100%);
       }
       .el-tag {
         margin: 0 10px;
         cursor: pointer;
       }
       .path {
-        width: 65%;
+        width: min(65%, 100%);
       }
       & div {
         padding: 5px 10px;
@@ -34,5 +41,28 @@
     display: flex;
     justify-content: flex-end;
     align-items: center;
+    padding: 0 14px 14px;
+  }
+}
+
+@media (max-width: 900px) {
+  .setting-card {
+    &-content {
+      &-item {
+        flex-direction: column;
+        align-items: stretch;
+
+        .el-select.number-select,
+        .el-select.operation-select,
+        .el-textarea,
+        .path {
+          width: 100%;
+        }
+      }
+    }
+    &-footer {
+      flex-wrap: wrap;
+      gap: 8px;
+    }
   }
 }
