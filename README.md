@@ -52,8 +52,8 @@
 - 自定义功能：类型/正则匹配 + redirect 命令，设置页维护，默认示例见 `setting.json` @src/data/setting.json#12-78.
 
 ## 构建与发布
-1) 开发：`npm install`，`npm run serve`（dev server 8081，对应 plugin.json development.main）。
-2) 生产：`npm run build` 生成 `dist/`（相对 publicPath），包含 plugin.json 与静态资源。
+1) 开发：`pnpm install`，`pnpm run serve`（dev server 8081，对应 plugin.json development.main）。
+2) 生产：`pnpm run build` 生成 `dist/`（相对 publicPath），包含 plugin.json 与静态资源。
 3) 打包：确保 `dist/plugin.json` 在根，压缩为 zip 并改名 `.upx` 后上传 uTools 后台。
 4) 本地调试：uTools 开发者工具加载 `dist/` 或 `.upx`.
 
