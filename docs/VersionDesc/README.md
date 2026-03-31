@@ -1,6 +1,6 @@
-# VersionDesc 说明
+# docs/VersionDesc 说明
 
-本目录用于记录 EzClipboard 的版本演进说明，统一沉淀：
+本目录 `docs/VersionDesc/` 用于记录 EzClipboard 的版本演进说明，统一沉淀：
 
 - 当前版本基线说明
 - 每次版本更新的增量记录
