@@ -211,6 +211,11 @@ export const HOTKEY_BINDINGS = [
   { layer: "main", shortcutId: "ctrl+Tab", features: ["collect-sub-tab-next"] },
   { layer: "main", shortcutId: "ctrl+shift+Tab", features: ["collect-sub-tab-prev"] },
   { layer: "main", shortcutId: "ctrl+f", features: ["main-focus-search"] },
+  {
+    layer: "main",
+    shortcutId: "ctrl+shift+u",
+    features: ["main-toggle-locked-search"],
+  },
   { layer: "main", shortcutId: "ctrl+1", features: ["main-alt-tab-1"] },
   { layer: "main", shortcutId: "ctrl+2", features: ["main-alt-tab-2"] },
   { layer: "main", shortcutId: "ctrl+3", features: ["main-alt-tab-3"] },

@@ -35,7 +35,7 @@
   - 功能：主页功能勾选/排序，自定义功能新增/编辑/删除（匹配条件 + 跳转命令）。
 
 ## 快捷键（默认）
-- 主界面：Tab/Shift+Tab 切分页；Ctrl+1~9 切标签；Ctrl+F 搜索；Ctrl+alt+F 搜索收藏标签; Esc 退出；↑/↓/Ctrl+K/J 导航；← 全文预览；→ 操作抽屉；Enter 复制；Ctrl+Enter 复制并锁定；Ctrl+C 复制；Ctrl+S 收藏；Ctrl+U 锁定；Shift+Del/Backspace 开清除框；Del/Backspace 删除；Ctrl+Del/Backspace 强制删锁定；空格多选；Shift 预览图片/文字；Alt+1~9 快速复制；Ctrl+Shift+1~9 抽屉子功能 @src/global/hotkeyBindings.js#84-139.
+- 主界面：Tab/Shift+Tab 切分页；Ctrl+1~9 切标签；Ctrl+F 搜索；Ctrl+Shift+U 触发/取消“有锁”条件搜索并继续文字检索；Ctrl+Alt+F 搜索收藏标签；Esc 退出；↑/↓/Ctrl+K/J 导航；← 全文预览；→ 操作抽屉；Enter 复制；Ctrl+Enter 复制并锁定；Ctrl+C 复制；Ctrl+S 收藏；Ctrl+U 锁定；Shift+Del/Backspace 开清除框；Del/Backspace 删除；Ctrl+Del/Backspace 强制删锁定；空格多选；Shift 预览图片/文字；Alt+1~9 快速复制；Ctrl+Shift+1~9 抽屉子功能 @src/global/hotkeyBindings.js#84-139.
 - 搜索态：Ctrl+Del/Backspace 删除，Ctrl+Shift+Del 强删 @src/global/hotkeyBindings.js#84-88.
 - 抽屉：Esc/← 关闭；↑/↓ 导航；Enter/Ctrl+Enter 选中；Ctrl+1~9 直选 @src/global/hotkeyBindings.js#61-77.
 - 全文预览：Esc/→ 关闭 @src/global/hotkeyBindings.js#79-83.
@@ -91,7 +91,8 @@
 3) 空格开启多选，批量复制/粘贴；含文件/图片自动合并处理。
 4) Shift 预览图片；← 查看全文；→ 打开操作抽屉。
 5) Shift+Del 打开清除对话框，数字键选清理范围。
-6) 设置页可改存储、上限、快捷键、主页功能与自定义跳转。
+6) `Ctrl+Shift+U` 可在“全部 / 有锁”条件搜索间快速切换，再继续输入关键字缩小范围。
+7) 设置页可改存储、上限、快捷键、主页功能与自定义跳转。
 
 ## 已知限制
 - 文件写回剪贴板暂未实现；文本/图片已支持 @src/global/initPlugin.js#667-685.

@@ -71,7 +71,7 @@
                 marker="!"
                 button-class="setting-help-btn"
                 aria-label="查看快捷键列表说明"
-                content="默认展开实际生效的快捷键；说明文本与实现同源。输入关键词后按 Enter 搜索，Ctrl/Cmd+F 可快速定位到搜索框。"
+                content="默认展开实际生效的快捷键；说明文本与实现同源。输入关键词后按 Enter 搜索，Ctrl/Cmd+F 可快速定位到搜索框，也可搜索 Ctrl/Cmd+Shift+U 查看有锁条件搜索切换。"
               />
             </div>
             <p class="shortcut-count">共 {{ shortcutCount }} 条快捷键</p>

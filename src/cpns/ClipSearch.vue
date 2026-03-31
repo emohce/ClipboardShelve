@@ -1,14 +1,29 @@
 <template>
   <div class="clip-search">
-    <input
-      class="clip-search-input"
-      @focusout="handleFocusOut"
-      @keydown="handleKeyDown"
-      v-model="filterText"
-      type="text"
-      :placeholder="placeholderOverride || (itemCount ? `在 ${itemCount} 条历史中检索` : '检索剪贴板历史')"
-    />
-    <span v-show="filterText" @click="clear" class="clip-search-suffix" title="清空搜索">×</span>
+    <div class="clip-search-input-wrap">
+      <input
+        class="clip-search-input"
+        @focusout="handleFocusOut"
+        @keydown="handleKeyDown"
+        v-model="filterText"
+        type="text"
+        :placeholder="placeholderOverride || (itemCount ? `在 ${itemCount} 条历史中检索` : '检索剪贴板历史')"
+      />
+      <span v-show="filterText" @click="clear" class="clip-search-suffix" title="清空搜索">×</span>
+    </div>
+    <div class="clip-search-lock-filter" role="tablist" aria-label="锁定状态筛选">
+      <button
+        v-for="option in lockOptions"
+        :key="option.value"
+        class="clip-search-filter-chip"
+        :class="{ 'is-active': lockFilterValue === option.value }"
+        type="button"
+        @mousedown.prevent
+        @click="setLockFilter(option.value)"
+      >
+        {{ option.label }}
+      </button>
+    </div>
   </div>
 </template>
 
@@ -25,15 +40,25 @@ const props = defineProps({
   placeholderOverride: {
     type: String,
     default: ''
+  },
+  lockFilter: {
+    type: String,
+    default: 'all'
   }
 })
 
+const lockOptions = [
+  { label: '全部', value: 'all' },
+  { label: '有锁', value: 'locked' }
+]
+
 const filterText = ref('')
-const emit = defineEmits(['update:modelValue', 'onPanelHide', 'onEmpty'])
+const lockFilterValue = ref('all')
+const emit = defineEmits(['update:modelValue', 'update:lockFilter', 'onPanelHide', 'onEmpty'])
 // filterText变了 通知父组件修改 modelValue的值
 watch(filterText, (val, prev) => {
   emit('update:modelValue', val)
-  if (prev && !val) {
+  if (prev && !val && lockFilterValue.value === 'all') {
     // 删除到空字符串时，通知父组件退出搜索
     emit('onEmpty')
   }
@@ -41,7 +66,7 @@ watch(filterText, (val, prev) => {
 
 const handleFocusOut = () => {
   // 失去焦点时 如果没有输入内容 则隐藏输入框
-  if (!filterText.value) {
+  if (!filterText.value && lockFilterValue.value === 'all') {
     emit('onPanelHide')
   }
 }
@@ -52,8 +77,20 @@ watch(
   (val) => (filterText.value = val)
 )
 
+watch(
+  () => props.lockFilter,
+  (val) => (lockFilterValue.value = val || 'all'),
+  { immediate: true }
+)
+
 const clear = () => {
   emit('update:modelValue', '')
+  nextTick(() => window.focus())
+}
+
+const setLockFilter = (value) => {
+  lockFilterValue.value = value
+  emit('update:lockFilter', value)
   nextTick(() => window.focus())
 }
 

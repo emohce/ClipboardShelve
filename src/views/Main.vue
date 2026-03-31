@@ -108,7 +108,8 @@
                     @onPanelHide="isSearchPanelExpand = false"
                     @onEmpty="handleSearchEmpty"
                     v-model="filterText"
-                    :itemCount="list.length"
+                    v-model:lockFilter="lockFilter"
+                    :itemCount="currentSearchItemCount"
                     :placeholderOverride="searchPlaceholder"
                 ></ClipSearch>
             </template>
@@ -297,7 +298,7 @@ const tagSearchModalVisible = ref(false);
 const handleSearchBtnClick = () => {
     // 展开搜索框
     isSearchPanelExpand.value = true;
-    nextTick(() => window.focus());
+    focusSearchInput(filterText.value);
 };
 
 const focusSearchInput = (initialValue = "") => {
@@ -305,7 +306,7 @@ const focusSearchInput = (initialValue = "") => {
         const input = document.querySelector(".clip-search-input");
         if (input) {
             input.focus();
-            if (initialValue) {
+            if (typeof initialValue === "string") {
                 input.value = initialValue;
                 filterText.value = initialValue;
                 input.setSelectionRange(
@@ -438,6 +439,7 @@ const handleMultiCopyBtnClick = (isPaste, options = {}) => {
 const GAP = 15; // 懒加载 每次添加的条数
 const offset = ref(0); // 懒加载 偏移量
 const filterText = ref(""); // 搜索框绑定值
+const lockFilter = ref("all"); // 锁定状态筛选
 const list = ref([]); // 全部数据
 const showList = ref([]); // 展示的数据
 const collectBlockList = ref([]); // 非收藏 tab 且 * 前缀时，上方展示的收藏匹配结果
@@ -475,6 +477,34 @@ const tagMatch = (item, tagKeyword) => {
     const tags = Array.isArray(item.tags) ? item.tags : [];
     const k = tagKeyword.toLowerCase();
     return tags.some((t) => String(t).toLowerCase().indexOf(k) !== -1);
+};
+
+const matchLockFilter = (item) => {
+    if (lockFilter.value === "locked") return item.locked === true;
+    return true;
+};
+
+const matchSearchableItemType = (item, keyword) =>
+    keyword ? item.type !== "image" : true;
+
+const filterNonImageWhenSearching = (items, keyword) =>
+    items.filter((item) => matchSearchableItemType(item, keyword));
+
+const matchMainTabItem = (item, bodyKeyword) =>
+    matchSearchableItemType(item, bodyKeyword) &&
+    matchLockFilter(item) &&
+    bodyFilterCallBack(item, bodyKeyword);
+
+const applyCollectFilters = (items, parsed) => {
+    if (parsed.isStar) {
+        return filterNonImageWhenSearching(items, filterText.value)
+            .filter((item) => matchLockFilter(item))
+            .filter((item) => tagMatch(item, parsed.tagKeyword))
+            .filter((item) => bodyFilterCallBack(item, parsed.bodyKeyword));
+    }
+    return filterNonImageWhenSearching(items, filterText.value)
+        .filter((item) => matchLockFilter(item))
+        .filter((item) => textFilterCallBack(item));
 };
 
 const textFilterCallBack = (item) => {
@@ -583,20 +613,7 @@ const updateShowList = (type, toTop = true) => {
             subTab === "*全部*"
                 ? window.db.getCollects()
                 : window.db.getCollectsByTag(subTab);
-        if (parsed.isStar) {
-            baseList = baseList.filter(
-                (item) =>
-                    (filterText.value ? item.type !== "image" : true) &&
-                    tagMatch(item, parsed.tagKeyword) &&
-                    bodyFilterCallBack(item, parsed.bodyKeyword),
-            );
-        } else {
-            baseList = baseList
-                .filter((item) =>
-                    filterText.value ? item.type !== "image" : item,
-                )
-                .filter((item) => textFilterCallBack(item));
-        }
+        baseList = applyCollectFilters(baseList, parsed);
         collectBlockList.value = [];
         showList.value = baseList.slice(0, GAP);
     } else {
@@ -604,26 +621,20 @@ const updateShowList = (type, toTop = true) => {
         if (parsed.isStar) {
             const collectMatches = window.db
                 .getCollects()
-                .filter(
-                    (item) =>
-                        (filterText.value ? item.type !== "image" : true) &&
-                        tagMatch(item, parsed.tagKeyword) &&
-                        bodyFilterCallBack(item, parsed.bodyKeyword),
-                );
+                .filter((item) => matchLockFilter(item))
+                .filter((item) => filterText.value ? item.type !== "image" : true)
+                .filter((item) => tagMatch(item, parsed.tagKeyword))
+                .filter((item) => bodyFilterCallBack(item, parsed.bodyKeyword));
             collectBlockList.value = collectMatches.slice(0, COLLECT_BLOCK_CAP);
             const mainFiltered = mainBase
-                .filter((item) =>
-                    filterText.value ? item.type !== "image" : item,
-                )
-                .filter((item) => bodyFilterCallBack(item, parsed.bodyKeyword));
+                .filter((item) => !window.db.isCollected(item.id))
+                .filter((item) => matchMainTabItem(item, parsed.bodyKeyword));
             showList.value = mainFiltered.slice(0, GAP);
         } else {
             collectBlockList.value = [];
             showList.value = mainBase
                 .filter((item) => !window.db.isCollected(item.id))
-                .filter((item) =>
-                    filterText.value ? item.type !== "image" : item,
-                )
+                .filter((item) => matchLockFilter(item))
                 .filter((item) => textFilterCallBack(item))
                 .slice(0, GAP);
         }
@@ -856,6 +867,15 @@ const searchPlaceholder = computed(() => {
     return "";
 });
 
+const currentSearchItemCount = computed(() => {
+    if (activeTab.value === "collect") {
+        return getItemsByTab("collect").length;
+    }
+    return getItemsByTab(activeTab.value)
+        .filter((item) => !window.db.isCollected(item.id))
+        .length;
+});
+
 const handleDataRemove = () => {
     list.value = window.db.dataBase.data;
     offset.value = 0;
@@ -1053,8 +1073,8 @@ onMounted(() => {
         updateShowList(activeTab.value);
     });
 
-    // 监听搜索框
-    watch(filterText, (val) => updateShowList(activeTab.value));
+    // 监听搜索与筛选
+    watch([filterText, lockFilter], () => updateShowList(activeTab.value));
 
     // 展示通知
     if (notifyShown.value) {
@@ -1085,30 +1105,19 @@ onMounted(() => {
                     subTab === "*全部*"
                         ? window.db.getCollects()
                         : window.db.getCollectsByTag(subTab);
-                if (parsed.isStar) {
-                    collectItems = collectItems.filter(
-                        (item) =>
-                            tagMatch(item, parsed.tagKeyword) &&
-                            bodyFilterCallBack(item, parsed.bodyKeyword),
-                    );
-                } else {
-                    collectItems = collectItems.filter((item) =>
-                        textFilterCallBack(item),
-                    );
-                }
+                collectItems = applyCollectFilters(collectItems, parsed);
                 addition = collectItems.slice(offset.value, offset.value + GAP);
             } else {
                 const mainBase = getItemsByTab(activeTab.value);
                 const mainFiltered = parsed.isStar
                     ? mainBase.filter(
                           (item) =>
-                              (filterText.value
-                                  ? item.type !== "image"
-                                  : true) &&
-                              bodyFilterCallBack(item, parsed.bodyKeyword),
+                              !window.db.isCollected(item.id) &&
+                              matchMainTabItem(item, parsed.bodyKeyword),
                       )
                     : mainBase
                           .filter((item) => !window.db.isCollected(item.id))
+                          .filter((item) => matchLockFilter(item))
                           .filter((item) => textFilterCallBack(item));
                 addition = mainFiltered.slice(offset.value, offset.value + GAP);
             }
@@ -1270,6 +1279,15 @@ onMounted(() => {
             focusSearchInput();
             return true;
         });
+        registerFeature("main-toggle-locked-search", () => {
+            lockFilter.value =
+                lockFilter.value === "locked" ? "all" : "locked";
+            if (!isSearchPanelExpand.value) {
+                isSearchPanelExpand.value = true;
+            }
+            focusSearchInput(filterText.value);
+            return true;
+        });
         for (let i = 1; i <= 9; i++) {
             const n = i;
             registerFeature(`main-alt-tab-${n}`, () => {
@@ -1293,6 +1311,11 @@ onMounted(() => {
         registerFeature("main-escape", (e) => {
             if (filterText.value) {
                 filterText.value = "";
+                window.focus();
+                return true;
+            }
+            if (lockFilter.value !== "all") {
+                lockFilter.value = "all";
                 window.focus();
                 return true;
             }

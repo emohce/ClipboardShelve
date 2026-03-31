@@ -60,6 +60,7 @@ export const FEATURE_LABELS = {
   'collect-sub-tab-next': '收藏子 tab 下一个 (Ctrl+Tab)',
   'collect-sub-tab-prev': '收藏子 tab 上一个 (Ctrl+Shift+Tab)',
   'main-focus-search': '聚焦搜索',
+  'main-toggle-locked-search': '切换全部/有锁条件搜索',
   'main-alt-tab-1': 'Ctrl+1 切换到第 1 个标签页',
   'main-alt-tab-2': 'Ctrl+2 切换到第 2 个标签页',
   'main-alt-tab-3': 'Ctrl+3 切换到第 3 个标签页',
