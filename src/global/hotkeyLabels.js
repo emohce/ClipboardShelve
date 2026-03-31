@@ -2,6 +2,8 @@
  * Layer and feature labels for hotkey binding display in settings.
  */
 
+import { formatShortcutTextForPlatform } from './shortcutKey'
+
 export const LAYER_LABELS = {
   main: '主界面',
   'main-search': '主界面（搜索中）',
@@ -103,7 +105,7 @@ export const FEATURE_LABELS = {
   'list-drawer-sub-7': '抽屉内执行第 7 个功能',
   'list-drawer-sub-8': '抽屉内执行第 8 个功能',
   'list-drawer-sub-9': '抽屉内执行第 9 个功能',
-  'tag-search': '打开标签搜索'
+  'tag-search': '打开收藏标签搜索（跳转收藏子 tab）'
 }
 
 /**
@@ -121,5 +123,5 @@ export function getLayerLabel(layer, state) {
  * @returns {string}
  */
 export function getFeatureLabel(featureId) {
-  return FEATURE_LABELS[featureId] || featureId
+  return formatShortcutTextForPlatform(FEATURE_LABELS[featureId] || featureId)
 }

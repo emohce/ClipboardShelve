@@ -319,7 +319,10 @@ import {
     copyAndPasteAndExit,
 } from "../utils";
 import defaultOperation from "../data/operation.json";
-import setting from "../global/readSetting";
+import setting, {
+    getHoverPreviewConfig,
+    SETTING_UPDATED_EVENT,
+} from "../global/readSetting";
 import useClipOperate from "../hooks/useClipOperate";
 import { desktopPreviewManager } from "../global/desktopPreview";
 import { registerFeature } from "../global/hotkeyRegistry";
@@ -782,8 +785,8 @@ const showImageFilePreview = (path) => {
 
 // Shift 持续按下预览：按 item 类型封装的预览入口
 const SHIFT_PREVIEW_HOLD_MS = 100;
-const HOVER_PREVIEW_DELAY_MS = 500;
 const LONG_TEXT_THRESHOLD = 80;
+const hoverPreviewConfig = ref(getHoverPreviewConfig(setting));
 
 const isLongText = (item) => {
     if (!item || item.type !== "text" || typeof item.data !== "string")
@@ -1051,7 +1054,7 @@ let textPreviewHideTimer = null;
 let shiftKeyDownTime = 0;
 let shiftKeyTimer = null;
 const keyboardTriggeredPreview = ref(false);
-// 行悬浮 100ms 触发的预览（与 Shift 100ms 并列）
+// 行悬浮预览：默认关闭，开启后按用户配置的 delay 触发
 let hoverPreviewTimer = null;
 const hoverTriggeredPreview = ref(false);
 // 方向键生效后暂停悬浮预览，直到鼠标再次移动才重新启用
@@ -1078,6 +1081,29 @@ const { handleOperateClick, filterOperate } = useClipOperate({
     currentActiveTab: () => props.currentActiveTab,
 });
 const emptySelectItemList = () => (selectItemList.value = []);
+const applyHoverPreviewConfig = (nextSetting = setting) => {
+    hoverPreviewConfig.value = getHoverPreviewConfig(nextSetting);
+
+    if (hoverPreviewConfig.value.enabled) return;
+
+    if (hoverPreviewTimer) {
+        clearTimeout(hoverPreviewTimer);
+        hoverPreviewTimer = null;
+    }
+    hoverTriggeredPreview.value = false;
+    hoverRowIndex.value = null;
+    desktopPreviewManager.closeAllPreviews();
+    stopImagePreview(true);
+    if (textPreviewHideTimer) {
+        clearTimeout(textPreviewHideTimer);
+        textPreviewHideTimer = null;
+    }
+    textPreview.value.show = false;
+};
+
+const handleSettingUpdated = (event) => {
+    applyHoverPreviewConfig(event?.detail || setting);
+};
 
 // 打开标签编辑模态框
 const openTagEditModal = (item) => {
@@ -1254,17 +1280,21 @@ const handleMouseOver = (event, index, item) => {
     }
     hoverRowIndex.value = index;
 
-    // 行级悬浮 100ms 触发预览；方向键生效后的第一次移入也不启动
+    // 行级悬浮预览；方向键生效后的第一次移入也不启动
     if (hoverPreviewTimer) {
         clearTimeout(hoverPreviewTimer);
         hoverPreviewTimer = null;
     }
-    if (!keyboardTriggeredPreview.value && !wasSuspended) {
+    if (
+        hoverPreviewConfig.value.enabled &&
+        !keyboardTriggeredPreview.value &&
+        !wasSuspended
+    ) {
         hoverPreviewTimer = setTimeout(() => {
             hoverTriggeredPreview.value = true;
             runPreviewForItem(item);
             hoverPreviewTimer = null;
-        }, HOVER_PREVIEW_DELAY_MS);
+        }, hoverPreviewConfig.value.delay);
     }
 };
 
@@ -1716,14 +1746,17 @@ const keyUpCallBack = (e) => {
 };
 
 onMounted(() => {
+    applyHoverPreviewConfig(setting);
     registerListHotkeyFeatures();
     document.addEventListener("keydown", keyDownCallBack);
     document.addEventListener("keyup", keyUpCallBack);
+    window.addEventListener(SETTING_UPDATED_EVENT, handleSettingUpdated);
 });
 
 onUnmounted(() => {
     document.removeEventListener("keydown", keyDownCallBack);
     document.removeEventListener("keyup", keyUpCallBack);
+    window.removeEventListener(SETTING_UPDATED_EVENT, handleSettingUpdated);
 
     // 清理图片预览定时器
     if (imagePreviewHideTimer) {

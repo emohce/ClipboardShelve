@@ -68,7 +68,7 @@
                                 class="action-button primary"
                                 @click.stop="jumpToTag"
                             >
-                                跳转到收藏子 tab (Enter)
+                                跳转
                             </button>
                         </div>
                     </div>
@@ -76,10 +76,10 @@
 
                 <!-- 快捷键提示 -->
                 <div class="shortcuts-hint">
-                    <div class="hint-item"><kbd>↑</kbd><kbd>↓</kbd> 选择</div>
-                    <div class="hint-item"><kbd>Enter</kbd> 跳转到收藏子 tab</div>
-                    <div class="hint-item"><kbd>Ctrl+Enter</kbd> 跳转</div>
-                    <div class="hint-item"><kbd>Esc</kbd> 关闭</div>
+                    <div class="hint-item"><kbd>↑</kbd><kbd>↓</kbd><span>选择</span></div>
+                    <div class="hint-item"><kbd>Enter</kbd><span>跳转</span></div>
+<!--                    <div class="hint-item"><kbd>Ctrl+Enter</kbd><span>快速跳转</span></div>-->
+                    <div class="hint-item"><kbd>Esc</kbd><span>关闭</span></div>
                 </div>
             </div>
         </div>
@@ -160,10 +160,15 @@ watch(searchQuery, () => {
 // 监听键盘事件
 const handleKeydown = (e) => {
     const results = filteredTags.value;
+    const stopEvent = () => {
+        e.preventDefault();
+        e.stopPropagation();
+        e.stopImmediatePropagation?.();
+    };
 
     switch (e.key) {
         case "ArrowUp":
-            e.preventDefault();
+            stopEvent();
             if (results.length > 0) {
                 selectedIndex.value =
                     selectedIndex.value <= 0
@@ -173,7 +178,7 @@ const handleKeydown = (e) => {
             break;
 
         case "ArrowDown":
-            e.preventDefault();
+            stopEvent();
             if (results.length > 0) {
                 selectedIndex.value =
                     selectedIndex.value >= results.length - 1
@@ -183,7 +188,7 @@ const handleKeydown = (e) => {
             break;
 
         case "Enter":
-            e.preventDefault();
+            stopEvent();
             if (selectedIndex.value >= 0 && results[selectedIndex.value]) {
                 selectTag(results[selectedIndex.value].name);
                 jumpToTag();
@@ -194,13 +199,14 @@ const handleKeydown = (e) => {
             break;
 
         case "Escape":
+            stopEvent();
             close();
             break;
     }
 
     // Ctrl+Enter 也触发跳转
-    if (e.ctrlKey && e.key === "Enter") {
-        e.preventDefault();
+    if ((e.ctrlKey || e.metaKey) && e.key === "Enter") {
+        stopEvent();
         if (selectedTag.value) {
             jumpToTag();
         }
@@ -307,9 +313,9 @@ onUnmounted(() => {
 
 .tag-search-modal {
     background: #fff;
-    border-radius: 16px;
+    border-radius: 18px;
     box-shadow: 0 30px 80px rgba(25, 34, 68, 0.18);
-    width: 480px;
+    width: 520px;
     max-width: 90vw;
     max-height: 80vh;
     display: flex;
@@ -320,13 +326,13 @@ onUnmounted(() => {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    padding: 20px 24px 16px;
+    padding: 18px 22px 14px;
     border-bottom: 1px solid #e5e7eb;
 
     h3 {
         margin: 0;
-        font-size: 18px;
-        font-weight: 600;
+        font-size: 17px;
+        font-weight: 700;
         color: #1f2937;
     }
 }
@@ -347,24 +353,25 @@ onUnmounted(() => {
 }
 
 .tag-search-modal-body {
-    padding: 20px 24px;
+    padding: 18px 22px;
     flex: 1;
     overflow: hidden;
     display: flex;
     flex-direction: column;
+    gap: 14px;
 }
 
 .search-input-container {
     position: relative;
-    margin-bottom: 20px;
 }
 
 .search-input {
     width: 100%;
-    padding: 12px 40px 12px 16px;
+    height: 44px;
+    padding: 0 40px 0 14px;
     border: 1px solid #d1d5db;
-    border-radius: 8px;
-    font-size: 16px;
+    border-radius: 12px;
+    font-size: 15px;
     background: #f9fafb;
 
     &:focus {
@@ -391,7 +398,7 @@ onUnmounted(() => {
 .search-results {
     flex: 1;
     overflow-y: auto;
-    margin-bottom: 16px;
+    min-height: 0;
 }
 
 .no-results,
@@ -422,8 +429,9 @@ onUnmounted(() => {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    padding: 12px 16px;
-    border-radius: 8px;
+    gap: 12px;
+    padding: 10px 12px;
+    border-radius: 12px;
     cursor: pointer;
     transition: all 0.2s;
     border: 1px solid transparent;
@@ -445,6 +453,7 @@ onUnmounted(() => {
 
 .tag-info {
     flex: 1;
+    min-width: 0;
 }
 
 .tag-name {
@@ -469,13 +478,16 @@ onUnmounted(() => {
 .tag-actions {
     display: flex;
     gap: 8px;
+    flex: 0 0 auto;
 }
 
 .action-button {
-    padding: 6px 12px;
-    border-radius: 6px;
+    min-width: 56px;
+    height: 30px;
+    padding: 0 12px;
+    border-radius: 999px;
     font-size: 12px;
-    font-weight: 500;
+    font-weight: 600;
     cursor: pointer;
     border: none;
     transition: all 0.2s;
@@ -492,27 +504,62 @@ onUnmounted(() => {
 
 .shortcuts-hint {
     display: flex;
-    gap: 16px;
-    justify-content: center;
-    padding: 12px 0 0;
+    flex-wrap: wrap;
+    gap: 8px;
+    justify-content: flex-start;
+    padding-top: 14px;
     border-top: 1px solid #e5e7eb;
     font-size: 12px;
     color: #6b7280;
 }
 
 .hint-item {
-    display: flex;
+    display: inline-flex;
     align-items: center;
-    gap: 4px;
+    gap: 6px;
+    min-height: 30px;
+    padding: 6px 10px;
+    border-radius: 999px;
+    background: #f8fafc;
+    border: 1px solid #e5e7eb;
+    white-space: nowrap;
+}
+
+.hint-item span {
+    color: #4b5563;
 }
 
 kbd {
     background: #f3f4f6;
     border: 1px solid #d1d5db;
-    border-radius: 3px;
+    border-radius: 6px;
     padding: 2px 6px;
     font-family: monospace;
     font-size: 11px;
     color: #374151;
+}
+
+@media (max-width: 560px) {
+    .tag-search-modal {
+        width: min(92vw, 520px);
+    }
+
+    .tag-search-modal-header,
+    .tag-search-modal-body {
+        padding-left: 16px;
+        padding-right: 16px;
+    }
+
+    .tag-result-item {
+        align-items: flex-start;
+    }
+
+    .tag-actions {
+        align-self: center;
+    }
+
+    .hint-item {
+        white-space: normal;
+    }
 }
 </style>

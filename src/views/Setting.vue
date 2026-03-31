@@ -5,27 +5,31 @@
         <div class="sub-tab-nav">
           <el-button
             class="sub-tab-btn"
-            :type="activeTab === 'basic' ? 'primary' : 'default'"
-            :plain="activeTab !== 'basic'"
+            :class="{ 'is-current': activeTab === 'basic' }"
             @click="activeTab = 'basic'"
           >
-            {{ activeTab === 'basic' ? '当前 · ' : '' }}存储
+            存储
           </el-button>
           <el-button
             class="sub-tab-btn"
-            :type="activeTab === 'shortcut' ? 'primary' : 'default'"
-            :plain="activeTab !== 'shortcut'"
+            :class="{ 'is-current': activeTab === 'shortcut' }"
             @click="activeTab = 'shortcut'"
           >
-            {{ activeTab === 'shortcut' ? '当前 · ' : '' }}快捷键
+            快捷键
           </el-button>
           <el-button
             class="sub-tab-btn"
-            :type="activeTab === 'feature' ? 'primary' : 'default'"
-            :plain="activeTab !== 'feature'"
+            :class="{ 'is-current': activeTab === 'feature' }"
             @click="activeTab = 'feature'"
           >
-            {{ activeTab === 'feature' ? '当前 · ' : '' }}功能
+            功能
+          </el-button>
+          <el-button
+            class="sub-tab-btn"
+            :class="{ 'is-current': activeTab === 'feature-config' }"
+            @click="activeTab = 'feature-config'"
+          >
+            功能配置
           </el-button>
         </div>
 
@@ -34,52 +38,51 @@
             <div class="setting-section-title">存储</div>
             <el-divider></el-divider>
             <div class="setting-row">
-              <span>存储位置</span>
+              <span class="setting-label">存储位置</span>
               <el-input class="path" v-model="path" :title="path" disabled></el-input>
               <el-button type="primary" @click="handlePathBtnClick('modify')">修改</el-button>
               <el-button @click="handlePathBtnClick('open')" v-show="path">打开</el-button>
               <input type="file" id="database-path" :style="{ display: 'none' }" />
             </div>
             <div class="setting-row">
-              <span>最大历史条数</span>
+              <span class="setting-label">最大历史条数</span>
               <el-select class="number-select" v-model="maxsize" fit-input-width placeholder="">
                 <el-option label="无限" :value="unlimitedVal" />
                 <el-option v-for="n in [500, 1000, 5000, 50000]" :key="n" :value="n" />
               </el-select>
-              条
+              <span class="setting-unit">条</span>
             </div>
             <div class="setting-row">
-              <span>保存时间</span>
+              <span class="setting-label">保存时间</span>
               <el-select class="number-select" v-model="maxage" fit-input-width placeholder="">
                 <el-option label="无限" :value="unlimitedVal" />
                 <el-option v-for="n in [1, 5, 7, 15, 30, 60, 90, 360]" :key="n" :value="n" />
               </el-select>
-              天
+              <span class="setting-unit">天</span>
             </div>
           </div>
         </div>
 
         <div class="sub-tab-content" v-show="activeTab === 'shortcut'">
           <div class="setting-card-content-item">
-            <div class="setting-section-title">当前快捷键列表</div>
-            <p class="shortcut-count">共 {{ shortcutCount }} 条快捷键</p>
-            <div class="shortcut-summary">
-              <div class="shortcut-summary-card">
-                <span class="shortcut-summary-label">展示规则</span>
-                <strong>默认展开</strong>
-                <p>首次进入时展开所有层级，优先看到主界面和弹窗层的实际生效快捷键。</p>
-              </div>
-              <div class="shortcut-summary-card">
-                <span class="shortcut-summary-label">说明来源</span>
-                <strong>与实现同源</strong>
-                <p>说明文本直接来自 `hotkeyBindings.js` 与 `hotkeyLabels.js`，后续功能变更时应同步更新这里的说明。</p>
-              </div>
+            <div class="setting-section-head">
+              <div class="setting-section-title">当前快捷键列表</div>
+              <HelpHint
+                marker="!"
+                button-class="setting-help-btn"
+                aria-label="查看快捷键列表说明"
+                content="默认展开实际生效的快捷键；说明文本与实现同源。输入关键词后按 Enter 搜索，Ctrl/Cmd+F 可快速定位到搜索框。"
+              />
             </div>
+            <p class="shortcut-count">共 {{ shortcutCount }} 条快捷键</p>
             <div class="setting-search-row">
               <el-input
-                v-model="shortcutQuery"
+                ref="shortcutSearchInputRef"
+                v-model="shortcutQueryInput"
                 clearable
                 placeholder="搜索层级、键位或功能说明"
+                @clear="applyShortcutSearch"
+                @keydown.enter.prevent="applyShortcutSearch"
               />
             </div>
             <div class="filter-chip-row">
@@ -112,28 +115,24 @@
             <HotkeyTreeView
               :tree-data="filteredHotkeyTreeRoot"
               body-max-height="420px"
-              :default-expand-all="true"
+              :default-expand-all="false"
             />
           </div>
         </div>
         <div class="sub-tab-content" v-show="activeTab === 'feature'">
           <div class="setting-card-content-item">
-            <div class="setting-section-title">展示主页功能</div>
-            <div class="shortcut-summary feature-summary">
-              <div class="shortcut-summary-card">
-                <span class="shortcut-summary-label">来源</span>
-                <strong>默认功能与配置同源</strong>
-                <p>默认功能标题与图标来自 `src/data/operation.json`，自定义功能来自当前设置数据。</p>
-              </div>
-              <div class="shortcut-summary-card">
-                <span class="shortcut-summary-label">维护约定</span>
-                <strong>功能变更同步更新</strong>
-                <p>后续你调整功能、标题、命令或匹配范围时，我会同步更新 Settings 展示与说明，保证看到的内容与实际实现一致。</p>
-              </div>
+            <div class="setting-section-head">
+              <div class="setting-section-title">展示主页功能</div>
+              <HelpHint
+                marker="!"
+                button-class="setting-help-btn"
+                aria-label="查看功能列表说明"
+                content="默认功能标题与图标来自 src/data/operation.json，自定义功能来自当前设置数据。后续调整功能、标题、命令或匹配范围时，应同步更新 Settings 展示与说明。"
+              />
             </div>
             <el-divider></el-divider>
             <div class="setting-row">
-              <span style="width: 70px">可多选: </span>
+              <span class="setting-label">可多选</span>
               <el-select
                 class="operation-select"
                 v-model="shown"
@@ -229,6 +228,72 @@
             </el-dialog>
           </div>
         </div>
+        <div class="sub-tab-content" v-show="activeTab === 'feature-config'">
+          <div class="setting-card-content-item">
+            <div class="setting-section-head">
+              <div class="setting-section-title">预览配置</div>
+              <HelpHint
+                marker="!"
+                button-class="setting-help-btn"
+                aria-label="查看预览配置说明"
+                content="保存后当前窗口会立即同步，无需重启插件；配置存储路径：userConfig.preview.hover"
+              />
+            </div>
+            <el-divider></el-divider>
+            <div class="feature-config-panel">
+              <div class="feature-config-row">
+                <div class="feature-config-meta">
+                  <div class="feature-config-title-row">
+                    <strong>启用鼠标悬浮预览</strong>
+                    <HelpHint
+                      aria-label="查看悬浮预览说明"
+                      content="关闭后，列表项悬浮不再触发图片或长文本预览；Shift 长按预览不受影响"
+                    />
+                  </div>
+                </div>
+                <div class="feature-config-control">
+                  <div class="feature-config-inline-row">
+                    <div
+                      class="feature-config-input inline"
+                      :class="{ 'is-hidden': !hoverPreviewEnabled }"
+                    >
+                      <span class="feature-config-inline-label">触发时间</span>
+                      <input
+                        v-model.number="hoverPreviewDelay"
+                        class="feature-config-native-input"
+                        type="number"
+                        :min="0"
+                        :max="5000"
+                        :step="50"
+                        :disabled="!hoverPreviewEnabled"
+                        :tabindex="hoverPreviewEnabled ? 0 : -1"
+                      >
+                      <span class="feature-config-unit">ms</span>
+                    </div>
+                  </div>
+                  <div class="feature-toggle-group is-fixed-right">
+                    <button
+                      type="button"
+                      class="toggle-pill"
+                      :class="{ 'is-on': hoverPreviewEnabled, 'is-off': !hoverPreviewEnabled }"
+                      :aria-pressed="hoverPreviewEnabled"
+                      @click="toggleHoverPreview"
+                    >
+                      <span class="toggle-pill-track">
+                        <span class="toggle-pill-knob"></span>
+                      </span>
+                      <span class="toggle-pill-text">{{ hoverPreviewEnabled ? '开' : '关' }}</span>
+                    </button>
+                    <HelpHint
+                      aria-label="查看开关说明"
+                      content="绿色表示已启用悬浮预览，红色表示已禁用；点击按钮可直接切换状态"
+                    />
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
       </div>
       <div class="setting-card-footer">
         <el-button @click="handleRestoreBtnClick">重置</el-button>
@@ -240,17 +305,19 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
+import { ref, computed, onMounted, onUnmounted, watch, nextTick } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import setting from '../global/readSetting'
+import setting, { saveSetting, syncSetting, getHoverPreviewConfig } from '../global/readSetting'
 import restoreSetting from '../global/restoreSetting'
 import defaultOperation from '../data/operation.json'
 import { getEffectiveBindings } from '../global/hotkeyBindings'
+import { activateLayer, deactivateLayer } from '../global/hotkeyLayers'
 import { getLayerLabel, getFeatureLabel } from '../global/hotkeyLabels'
 import { buildHotkeyTree } from '../global/hotkeyGraph'
 import { getNativeId } from '../utils'
 import SettingPagedTable from '../cpns/SettingPagedTable.vue'
 import HotkeyTreeView from '../cpns/HotkeyTreeView.vue'
+import HelpHint from '../cpns/HelpHint.vue'
 
 const emit = defineEmits(['back'])
 const { database, operation } = setting
@@ -263,11 +330,16 @@ const maxage = ref(database.maxage ?? unlimitedVal)
 
 const custom = ref(operation.custom.map((c) => ({ ...c })))
 const hotkeyOverrides = ref({ ...(setting.hotkeyOverrides || {}) })
+const initialHoverPreviewConfig = getHoverPreviewConfig(setting)
+const hoverPreviewEnabled = ref(initialHoverPreviewConfig.enabled)
+const hoverPreviewDelay = ref(initialHoverPreviewConfig.delay)
 
 const activeTab = ref('basic')
 const shortcutQuery = ref('')
+const shortcutQueryInput = ref('')
 const featureQuery = ref('')
 const shortcutScope = ref('all')
+const shortcutSearchInputRef = ref(null)
 
 function sortShownByOrder(shownIds, order) {
   const orderMap = new Map(order.map((id, idx) => [id, idx]))
@@ -326,6 +398,16 @@ const filteredHotkeyTreeRoot = computed(() => {
     })
     .filter(Boolean)
 })
+
+function applyShortcutSearch() {
+  shortcutQuery.value = shortcutQueryInput.value.trim()
+}
+
+function focusShortcutSearch() {
+  nextTick(() => {
+    shortcutSearchInputRef.value?.focus?.()
+  })
+}
 
 const shortcutCount = computed(() => {
   if (!Array.isArray(hotkeyTreeRoot.value)) return 0
@@ -405,6 +487,23 @@ const filteredFeatureRows = computed(() => {
   })
 })
 const isFeatureFilterActive = computed(() => Boolean(featureQuery.value.trim()))
+
+function normalizeHoverPreviewDelay(value = hoverPreviewDelay.value) {
+  const numeric = Number(value)
+  if (!Number.isFinite(numeric) || numeric < 0) return 500
+  return Math.round(numeric)
+}
+
+function ensureHoverPreviewDelay() {
+  hoverPreviewDelay.value = normalizeHoverPreviewDelay()
+}
+
+function toggleHoverPreview() {
+  if (!hoverPreviewEnabled.value) {
+    ensureHoverPreviewDelay()
+  }
+  hoverPreviewEnabled.value = !hoverPreviewEnabled.value
+}
 
 const orderedOperations = computed(() =>
   featureRows.value.map((row) => ({ id: row.id, title: row.title, icon: row.icon, index: row.index }))
@@ -532,6 +631,17 @@ function validateCustom() {
   return true
 }
 
+function validateFeatureConfig() {
+  if (!hoverPreviewEnabled.value) return true
+  const delay = Number(hoverPreviewDelay.value)
+  if (!Number.isFinite(delay) || delay < 0) {
+    ElMessage.error('预览触发时间需为不小于 0 的数字')
+    return false
+  }
+  hoverPreviewDelay.value = Math.round(delay)
+  return true
+}
+
 const handleSaveBtnClick = () => {
   if (path.value === '') {
     ElMessage.error('数据库路径不能为空')
@@ -542,6 +652,7 @@ const handleSaveBtnClick = () => {
     return
   }
   if (!validateCustom()) return
+  if (!validateFeatureConfig()) return
 
   const payload = {
     database: {
@@ -554,10 +665,18 @@ const handleSaveBtnClick = () => {
       custom: custom.value,
       order: featureOrder.value
     },
-    hotkeyOverrides: hotkeyOverrides.value
+    hotkeyOverrides: hotkeyOverrides.value,
+    userConfig: {
+      preview: {
+        hover: {
+          enabled: hoverPreviewEnabled.value,
+          delay: hoverPreviewEnabled.value ? normalizeHoverPreviewDelay() : normalizeHoverPreviewDelay()
+        }
+      }
+    }
   }
-  utools.dbStorage.setItem('setting', JSON.parse(JSON.stringify(payload)))
-  ElMessage.success('保存成功 重启插件生效')
+  saveSetting(payload)
+  ElMessage.success('保存成功，配置已热更新')
 }
 
 const handlePathBtnClick = (param) => {
@@ -584,6 +703,7 @@ const handleRestoreBtnClick = () => {
   })
     .then(() => {
       const restored = restoreSetting()
+      syncSetting(restored)
       path.value = restored.database.path[nativeId]
       maxsize.value = restored.database.maxsize ?? unlimitedVal
       maxage.value = restored.database.maxage ?? unlimitedVal
@@ -592,12 +712,22 @@ const handleRestoreBtnClick = () => {
       featureOrder.value = buildFeatureOrder(restored.operation?.order, custom.value.map((c) => c.id))
       syncShownOrder()
       hotkeyOverrides.value = { ...(restored.hotkeyOverrides || {}) }
-      ElMessage.success('重置成功 重启插件生效')
+      const restoredHoverPreviewConfig = getHoverPreviewConfig(restored)
+      hoverPreviewEnabled.value = restoredHoverPreviewConfig.enabled
+      hoverPreviewDelay.value = restoredHoverPreviewConfig.delay
+      ElMessage.success('重置成功，配置已热更新')
     })
     .catch(() => {})
 }
 
 const keyDownHandler = (e) => {
+  const isSearchShortcut = (e.ctrlKey || e.metaKey) && String(e.key).toLowerCase() === 'f'
+  if (isSearchShortcut && activeTab.value === 'shortcut') {
+    e.preventDefault()
+    e.stopPropagation()
+    focusShortcutSearch()
+    return
+  }
   if (e.key === 'Escape' && !customDialogVisible.value) {
     emit('back')
     e.stopPropagation()
@@ -605,11 +735,19 @@ const keyDownHandler = (e) => {
 }
 
 onMounted(() => {
+  activateLayer('setting')
   document.addEventListener('keydown', keyDownHandler)
+})
+
+watch(hoverPreviewEnabled, (enabled) => {
+  if (enabled) {
+    ensureHoverPreviewDelay()
+  }
 })
 
 onUnmounted(() => {
   document.removeEventListener('keydown', keyDownHandler)
+  deactivateLayer('setting')
 })
 </script>
 
@@ -617,24 +755,76 @@ onUnmounted(() => {
 .setting {
   min-height: 100%;
   color: var(--text-color);
-  background: var(--bg-color);
+  background:
+    radial-gradient(circle at top left, rgba(53, 95, 157, 0.08), transparent 280px),
+    linear-gradient(180deg, #f7fafe 0%, var(--bg-color) 100%);
 }
 
 .setting-card-content {
-  padding: 12px 6px 4px;
+  padding: 18px 18px 8px;
 }
 .sub-tab-nav {
-  display: flex;
+  display: inline-flex;
+  flex-wrap: nowrap;
   gap: 8px;
-  padding: 4px 0 12px;
-  border-bottom: 1px solid var(--border-color);
+  padding: 6px;
+  border: 1px solid var(--border-color-strong);
+  border-radius: 18px;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.92), rgba(232, 238, 245, 0.88));
+  box-shadow:
+    0 12px 28px rgba(15, 23, 42, 0.06),
+    inset 0 1px 0 rgba(255, 255, 255, 0.95);
+  overflow-x: auto;
+  overflow-y: hidden;
+  scrollbar-width: none;
+  &::-webkit-scrollbar {
+    display: none;
+  }
 }
 .sub-tab-btn {
+  position: relative;
   font-size: 14px;
+  font-weight: 600;
+  min-height: 42px;
+  min-width: 84px;
+  border-color: transparent;
+  background: transparent;
+  color: var(--text-color);
+  &.is-current {
+    border-color: rgba(53, 95, 157, 0.30);
+    background: linear-gradient(180deg, #ffffff 0%, #eef4fb 100%);
+    color: var(--primary-color);
+    box-shadow:
+      0 10px 22px rgba(53, 95, 157, 0.14),
+      0 0 0 1px rgba(53, 95, 157, 0.10) inset;
+  }
+  &.is-current::after {
+    content: '';
+    position: absolute;
+    left: 14px;
+    right: 14px;
+    bottom: 4px;
+    height: 2px;
+    border-radius: 999px;
+    background: currentColor;
+    opacity: 0.9;
+  }
 }
 .sub-tab-content {
-  padding: 16px 12px;
-  min-height: 280px;
+  padding: 22px 4px 12px;
+  min-height: 0;
+}
+.setting-card-content-item {
+  display: block;
+  margin: 0;
+  padding: 0 10px;
+  background: transparent;
+  box-shadow: none;
+}
+.setting-section-head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
 }
 .shortcut-count {
   margin: 4px 0 0;
@@ -646,9 +836,6 @@ onUnmounted(() => {
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 12px;
   margin-top: 14px;
-}
-.feature-summary {
-  margin: 12px 0 0;
 }
 .shortcut-summary-card {
   padding: 14px 16px;
@@ -681,9 +868,10 @@ onUnmounted(() => {
   background: var(--bg-soft-color);
 }
 .setting-section-title {
-  font-size: 16px;
-  font-weight: 600;
+  font-size: 18px;
+  font-weight: 700;
   color: var(--text-color);
+  letter-spacing: 0.01em;
 }
 .setting-search-row {
   margin-top: 14px;
@@ -727,9 +915,19 @@ onUnmounted(() => {
 .setting-row {
   display: flex;
   align-items: center;
-  gap: 10px;
-  margin: 10px 0;
+  gap: 12px;
+  margin: 14px 0;
   color: var(--text-color);
+}
+.setting-label {
+  min-width: 92px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-color);
+}
+.setting-unit {
+  font-size: 13px;
+  color: var(--text-color-lighter);
 }
 .path {
   flex: 1;
@@ -774,61 +972,258 @@ onUnmounted(() => {
   align-self: flex-start;
   margin-top: 10px;
 }
+.feature-config-panel {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+.feature-config-row {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  flex-wrap: nowrap;
+  width: 100%;
+  padding: 18px 20px;
+  border: 1px solid var(--border-color-strong);
+  border-radius: 20px;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.98), rgba(245, 249, 253, 0.98));
+  box-shadow:
+    0 18px 36px rgba(15, 23, 42, 0.08),
+    inset 0 1px 0 rgba(255, 255, 255, 0.96);
+  transition: border-color 0.18s ease, box-shadow 0.18s ease, background-color 0.18s ease;
+  &:hover {
+    border-color: var(--border-color-strong);
+    box-shadow: 0 22px 42px var(--shadow-color);
+  }
+}
+.feature-config-meta {
+  flex: 0 0 auto;
+  min-width: 0;
+}
+.feature-config-title-row {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  white-space: nowrap;
+  strong {
+    display: block;
+    font-size: 15px;
+    color: var(--text-color);
+  }
+}
+.feature-config-control {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 12px;
+  flex-wrap: nowrap;
+  flex: 1 1 auto;
+  min-width: 0;
+  margin-left: auto;
+}
+.feature-config-inline-row {
+  display: inline-flex;
+  align-items: center;
+  min-width: 0;
+  flex: 0 1 auto;
+  width: 152px;
+  justify-content: flex-end;
+}
+.feature-toggle-group {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  flex: 0 0 auto;
+}
+.feature-toggle-group.is-fixed-right {
+  min-width: 96px;
+  justify-content: flex-end;
+}
+.toggle-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 84px;
+  height: 38px;
+  padding: 0 10px 0 8px;
+  border: 1px solid transparent;
+  border-radius: 999px;
+  color: #fff;
+  box-shadow:
+    0 12px 20px rgba(15, 23, 42, 0.16),
+    inset 0 1px 0 rgba(255, 255, 255, 0.18);
+  font-size: 14px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.18s ease;
+  &.is-on {
+    background: linear-gradient(180deg, #42c86f 0%, #249e4f 100%);
+  }
+  &.is-off {
+    background: linear-gradient(180deg, #f15a5a 0%, #cb3030 100%);
+  }
+  &:hover {
+    transform: translateY(-1px);
+  }
+}
+.toggle-pill-track {
+  position: relative;
+  width: 36px;
+  height: 20px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.34);
+  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.12);
+}
+.toggle-pill-knob {
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.18);
+  transition: transform 0.18s ease;
+}
+.toggle-pill.is-off .toggle-pill-knob {
+  transform: translateX(16px);
+}
+.toggle-pill-text {
+  min-width: 20px;
+  text-align: center;
+}
+.feature-config-input {
+  display: inline-flex;
+  align-items: center;
+  gap: 0;
+  min-width: 0;
+  &.inline {
+    padding: 7px 10px 7px 12px;
+    border: 1px solid var(--border-color-strong);
+    border-radius: 14px;
+    background: linear-gradient(180deg, #f5f9fd 0%, #edf3f9 100%);
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.96),
+      0 10px 18px rgba(15, 23, 42, 0.04);
+  }
+  &.is-hidden {
+    visibility: hidden;
+    pointer-events: none;
+  }
+}
+.feature-config-inline-label {
+  font-size: 12px;
+  color: var(--text-color);
+  margin-right: 8px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+.feature-config-unit {
+  font-size: 12px;
+  color: var(--text-color-lighter);
+  margin-left: 8px;
+  min-width: 20px;
+}
+.feature-config-native-input {
+  width: 88px;
+  height: 32px;
+  padding: 0 8px;
+  border: 1px solid var(--border-color-strong);
+  border-radius: 12px;
+  background: #fff;
+  color: var(--text-color);
+  font-size: 13px;
+  font-weight: 600;
+  outline: none;
+  transition: border-color 0.18s ease, box-shadow 0.18s ease;
+  &:hover {
+    border-color: rgba(53, 95, 157, 0.24);
+  }
+  &:focus {
+    border-color: var(--primary-color);
+    box-shadow: 0 0 0 3px rgba(53, 95, 157, 0.12);
+  }
+}
 .table-action-empty {
   color: var(--text-color-lighter);
 }
 .setting :deep(.el-card__body) {
-  padding: 18px 20px 16px;
+  padding: 0;
 }
 .setting :deep(.el-divider) {
   border-color: var(--border-color);
+  margin: 18px 0 22px;
 }
 .setting :deep(.el-input),
 .setting :deep(.el-select),
-.setting :deep(.el-textarea) {
+.setting :deep(.el-textarea),
+.setting :deep(.el-input-number) {
   --el-border-radius-base: 14px;
   --el-border-radius-small: 12px;
 }
 .setting :deep(.el-input__wrapper),
 .setting :deep(.el-select__wrapper),
-.setting :deep(.el-textarea__inner) {
-  background: var(--bg-elevated-color);
-  box-shadow: 0 0 0 1px var(--border-color) inset;
+.setting :deep(.el-textarea__inner),
+.setting :deep(.el-input-number) {
+  background: #fff;
+  box-shadow:
+    0 0 0 1px var(--border-color-strong) inset,
+    0 2px 4px rgba(15, 23, 42, 0.04);
   border-radius: 14px;
   transition: box-shadow 0.18s ease, background-color 0.18s ease;
 }
 .setting :deep(.el-input__wrapper:hover),
 .setting :deep(.el-select__wrapper:hover),
-.setting :deep(.el-textarea__inner:hover) {
-  box-shadow: 0 0 0 1px var(--border-color-strong) inset;
+.setting :deep(.el-textarea__inner:hover),
+.setting :deep(.el-input-number:hover) {
+  box-shadow:
+    0 0 0 1px rgba(53, 95, 157, 0.24) inset,
+    0 4px 10px rgba(53, 95, 157, 0.06);
 }
 .setting :deep(.el-input__wrapper.is-focus),
 .setting :deep(.el-select__wrapper.is-focused),
-.setting :deep(.el-textarea__inner:focus) {
+.setting :deep(.el-textarea__inner:focus),
+.setting :deep(.el-input-number.is-controls-right .el-input__wrapper.is-focus) {
   box-shadow:
     0 0 0 1px var(--primary-color) inset,
     0 0 0 4px rgba(53, 95, 157, 0.10);
 }
 .setting :deep(.el-input__inner),
-.setting :deep(.el-textarea__inner) {
+.setting :deep(.el-textarea__inner),
+.setting :deep(.el-input-number .el-input__inner) {
   color: var(--text-color);
+  font-weight: 500;
 }
 .setting :deep(.el-input__inner::placeholder),
 .setting :deep(.el-textarea__inner::placeholder) {
   color: var(--text-color-lighter);
 }
 .setting :deep(.el-card) {
-  background: var(--bg-elevated-color);
-  border-color: var(--border-color);
-  border-radius: 20px;
-  box-shadow: 0 20px 40px var(--shadow-color);
+  overflow: hidden;
+  background: rgba(255, 255, 255, 0.94);
+  border-color: var(--border-color-strong);
+  border-radius: 24px;
+  box-shadow:
+    0 26px 56px var(--shadow-color),
+    inset 0 1px 0 rgba(255, 255, 255, 0.96);
+}
+.setting-card-footer {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 12px;
+  padding: 18px 20px 20px;
+  border-top: 1px solid var(--border-color);
+  background: linear-gradient(180deg, rgba(247, 250, 254, 0.92), rgba(239, 244, 249, 0.96));
 }
 .setting :deep(.el-button:not(.is-link)) {
-  min-height: 38px;
-  padding: 0 16px;
-  border-radius: 12px;
-  border-color: var(--border-color);
-  background: var(--bg-elevated-color);
+  min-height: 40px;
+  padding: 0 18px;
+  border-radius: 14px;
+  border-color: var(--border-color-strong);
+  background: linear-gradient(180deg, #ffffff 0%, #f6f9fc 100%);
   color: var(--text-color);
   transition: all 0.18s ease;
 }
@@ -838,11 +1233,11 @@ onUnmounted(() => {
   color: var(--text-color);
 }
 .setting :deep(.el-button.is-plain) {
-  background: var(--bg-elevated-color);
+  background: #fff;
 }
 .setting :deep(.el-button--primary) {
   border-color: var(--primary-color);
-  background: var(--primary-color);
+  background: linear-gradient(180deg, var(--primary-color-lighter) 0%, var(--primary-color) 100%);
   color: #fff;
   box-shadow: 0 12px 24px rgba(53, 95, 157, 0.18);
 }
@@ -913,9 +1308,22 @@ onUnmounted(() => {
   min-height: 200px;
 }
 
-@media (max-width: 900px) {
+@media (max-width: 640px) {
   .shortcut-summary {
     grid-template-columns: 1fr;
+  }
+  .feature-config-row {
+    flex-wrap: wrap;
+    align-items: flex-start;
+  }
+  .feature-config-control {
+    width: 100%;
+    justify-content: flex-start;
+    margin-left: 0;
+    flex-wrap: wrap;
+  }
+  .feature-config-inline-row {
+    width: auto;
   }
 }
 </style>

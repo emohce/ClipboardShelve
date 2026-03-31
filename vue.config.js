@@ -4,7 +4,15 @@ module.exports = {
   publicPath: './',
   productionSourceMap: false,
   devServer: {
-    port: 8081
+    port: 8081,
+    client: {
+      overlay: {
+        runtimeErrors: (error) => {
+          const message = error?.message || ''
+          return !message.includes('ResizeObserver loop limit exceeded')
+        }
+      }
+    }
   },
   chainWebpack: (config) => {
     config.optimization.minimizer('uglify-plugin').use(UglifyJsPlugin, [

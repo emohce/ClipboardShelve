@@ -7,9 +7,14 @@ const defaultPath = `${utools.isMacOs() ? utools.getPath('userData') : utools.ge
 
 const nativeId = getNativeId()
 
+function normalizeDefaultSetting(rawSetting) {
+  const hasPointKey = Object.keys(rawSetting || {}).some((key) => key.includes('.'))
+  if (hasPointKey) return pointToObj(rawSetting)
+  return JSON.parse(JSON.stringify(rawSetting || {}))
+}
+
 export default function restoreSetting() {
-  // 将defaultSetting的key点语法转换为对象
-  const setting = pointToObj(defaultSetting)
+  const setting = normalizeDefaultSetting(defaultSetting)
   setting.database.path[nativeId] = defaultPath // 根据不同设备设置不同的默认路径
   setting.hotkeyOverrides = {}
   utools.dbStorage.setItem('setting', setting)

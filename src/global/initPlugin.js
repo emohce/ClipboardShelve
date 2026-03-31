@@ -15,10 +15,26 @@ import setting from './readSetting'
 import { initWindowManager, setPluginWindowSize } from './windowManager'
 
 // 忽略 ResizeObserver 噪声错误，避免 dev overlay 反复弹出
-const RESIZE_OBSERVER_ERROR = 'ResizeObserver loop limit exceeded'
+const RESIZE_OBSERVER_ERROR_PATTERNS = [
+  'ResizeObserver loop limit exceeded',
+  'ResizeObserver loop completed with undelivered notifications'
+]
+
+const getResizeObserverErrorMessage = (event) => {
+  return [
+    event?.message,
+    event?.error?.message,
+    event?.reason?.message,
+    typeof event?.reason === 'string' ? event.reason : '',
+    typeof event === 'string' ? event : ''
+  ]
+    .filter(Boolean)
+    .join(' | ')
+}
+
 const isResizeObserverError = (event) => {
-  const msg = event?.message || event?.error?.message || event?.reason?.message
-  return msg === RESIZE_OBSERVER_ERROR
+  const msg = getResizeObserverErrorMessage(event)
+  return RESIZE_OBSERVER_ERROR_PATTERNS.some((pattern) => msg.includes(pattern))
 }
 
 // 捕获阶段也拦截，避免 overlay 先处理
@@ -44,12 +60,25 @@ window.addEventListener('unhandledrejection', (event) => {
   }
 }, true)
 
+window.onerror = function(message, source, lineno, colno, error) {
+  if (isResizeObserverError({ message, error })) {
+    return true
+  }
+  return false
+}
+
 // 额外拦截 console.error 中的 ResizeObserver 错误
 if (typeof console !== 'undefined') {
   const originalConsoleError = console.error
   console.error = (...args) => {
-    const errorMsg = args[0]
-    if (typeof errorMsg === 'string' && errorMsg.includes('ResizeObserver loop limit exceeded')) {
+    const errorMsg = args
+      .map((arg) => {
+        if (typeof arg === 'string') return arg
+        return arg?.message || ''
+      })
+      .filter(Boolean)
+      .join(' | ')
+    if (RESIZE_OBSERVER_ERROR_PATTERNS.some((pattern) => errorMsg.includes(pattern))) {
       return // 静默处理
     }
     originalConsoleError.apply(console, args)

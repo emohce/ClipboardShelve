@@ -1,7 +1,7 @@
 <template>
   <div class="shortcut-node">
     <div class="shortcut-header">
-      <span class="shortcut-key">{{ shortcut.shortcutId }}</span>
+      <span class="shortcut-key">{{ shortcutDisplay }}</span>
       <div class="shortcut-features">
         <span
           v-for="feature in featureLabels"
@@ -18,6 +18,7 @@
 <script setup>
 import { computed } from 'vue'
 import { getFeatureLabel } from '../global/hotkeyLabels'
+import { formatShortcutDisplay } from '../global/shortcutKey'
 
 const props = defineProps({
   shortcut: {
@@ -44,6 +45,7 @@ const props = defineProps({
 
 const emit = defineEmits(['toggle-expand'])
 const featureLabels = computed(() => props.shortcut.features.map(getFeatureLabel))
+const shortcutDisplay = computed(() => formatShortcutDisplay(props.shortcut.shortcutId))
 </script>
 
 <style lang="less" scoped>

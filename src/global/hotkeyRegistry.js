@@ -21,10 +21,12 @@ function isMac() {
 /** 用于查找的 shortcutId：Mac 上 meta 视为 ctrl，与 hotkeyBindings 中 ctrl 绑定统一 */
 function shortcutIdForLookup(shortcutId) {
   if (!shortcutId || !isMac()) return shortcutId;
-  return shortcutId
+  return normalizeShortcutId(
+    shortcutId
     .split("+")
     .map((p) => (p === "meta" ? "ctrl" : p))
-    .join("+");
+    .join("+")
+  );
 }
 
 const features = new Map();
@@ -128,6 +130,16 @@ function findBinding(layer, state, shortcutId) {
  */
 const SETTING_LAYER = "setting";
 
+function isEditableTarget(target) {
+  if (!target || typeof target.closest !== "function") return false;
+  if (target.isContentEditable) return true;
+  return Boolean(
+    target.closest(
+      'input, textarea, [contenteditable="true"], .el-input, .el-textarea, .el-select'
+    )
+  );
+}
+
 export function dispatch(e) {
   if (e.__hotkeyHandled) return true;
   if (ignoreRepeat && e.repeat) return false;
@@ -143,6 +155,11 @@ export function dispatch(e) {
     currentLayer === SETTING_LAYER &&
     (shortcutId === "Delete" || shortcutId === "Backspace")
   ) {
+    return false;
+  }
+
+  // 设置页输入控件聚焦时，不把按键继续分发给主界面热键，避免 Enter/Ctrl+数字等误触发。
+  if (currentLayer === SETTING_LAYER && isEditableTarget(e.target)) {
     return false;
   }
 

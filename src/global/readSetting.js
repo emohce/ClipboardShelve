@@ -2,11 +2,36 @@ import restoreSetting from './restoreSetting'
 import { defaultPath } from './restoreSetting'
 import { getNativeId } from '../utils'
 
+export const SETTING_UPDATED_EVENT = 'ezclipboard:setting-updated'
+
 const setting = utools.dbStorage.getItem('setting') || restoreSetting()
 const nativeId = getNativeId()
 
 if (!setting.hotkeyOverrides || typeof setting.hotkeyOverrides !== 'object') {
   setting.hotkeyOverrides = {}
+}
+
+if (!setting.userConfig || typeof setting.userConfig !== 'object') {
+  setting.userConfig = {}
+}
+
+if (!setting.userConfig.preview || typeof setting.userConfig.preview !== 'object') {
+  setting.userConfig.preview = {}
+}
+
+if (!setting.userConfig.preview.hover || typeof setting.userConfig.preview.hover !== 'object') {
+  setting.userConfig.preview.hover = {}
+}
+
+if (typeof setting.userConfig.preview.hover.enabled !== 'boolean') {
+  setting.userConfig.preview.hover.enabled = false
+}
+
+const hoverDelay = Number(setting.userConfig.preview.hover.delay)
+if (!Number.isFinite(hoverDelay) || hoverDelay < 0) {
+  setting.userConfig.preview.hover.delay = 500
+} else {
+  setting.userConfig.preview.hover.delay = Math.round(hoverDelay)
 }
 
 // 迁移：确保操作列表包含编辑标签功能
@@ -33,5 +58,38 @@ if (typeof setting.database.path === 'string') {
 
 // 将设置更新到数据库
 utools.dbStorage.setItem('setting', setting)
+
+export function syncSetting(nextSetting) {
+  const currentKeys = Object.keys(setting)
+  const nextKeys = Object.keys(nextSetting || {})
+
+  currentKeys.forEach((key) => {
+    if (!nextKeys.includes(key)) delete setting[key]
+  })
+
+  nextKeys.forEach((key) => {
+    setting[key] = nextSetting[key]
+  })
+
+  window.dispatchEvent(new CustomEvent(SETTING_UPDATED_EVENT, { detail: setting }))
+  return setting
+}
+
+export function saveSetting(nextSetting) {
+  const cloned = JSON.parse(JSON.stringify(nextSetting))
+  utools.dbStorage.setItem('setting', cloned)
+  return syncSetting(cloned)
+}
+
+export function getHoverPreviewConfig(source = setting) {
+  const enabled = Boolean(source?.userConfig?.preview?.hover?.enabled)
+  const delayValue = Number(source?.userConfig?.preview?.hover?.delay)
+  const delay = Number.isFinite(delayValue) && delayValue >= 0 ? Math.round(delayValue) : 500
+
+  return {
+    enabled,
+    delay
+  }
+}
 
 export default setting
