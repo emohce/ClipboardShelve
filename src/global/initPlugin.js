@@ -294,6 +294,11 @@ export default function initPlugin() {
       // 更新内存数据
       this.dataBase.updateTime = new Date().getTime()
     }
+    queuePersist() {
+      this.updateDataBase()
+      debouncedWriteLocal()
+      return true
+    }
     updateDataBaseLocal(dataBase) {
       // 更新文件数据
       writeFileSync(this.path, JSON.stringify(dataBase || this.dataBase), (err) => {
@@ -403,10 +408,26 @@ export default function initPlugin() {
         this.dataBase.collectData.find((item) => item.id === itemId)
       if (!target) return false
       target.locked = locked
-      this.updateDataBase()
-      if (!skipFileWrite) {
-        debouncedWriteLocal()
+      if (skipFileWrite) this.updateDataBase()
+      else this.queuePersist()
+      return true
+    }
+    setLocks(itemIds = [], locked = true, skipFileWrite = false) {
+      const idSet = new Set((Array.isArray(itemIds) ? itemIds : []).filter(Boolean))
+      if (!idSet.size) return false
+      let changed = false
+      const updateItems = (items = []) => {
+        items.forEach((item) => {
+          if (!idSet.has(item.id) || item.locked === locked) return
+          item.locked = locked
+          changed = true
+        })
       }
+      updateItems(this.dataBase.data)
+      updateItems(this.dataBase.collectData)
+      if (!changed) return false
+      if (skipFileWrite) this.updateDataBase()
+      else this.queuePersist()
       return true
     }
     isLocked(itemId) {
@@ -1195,6 +1216,8 @@ export default function initPlugin() {
   window.paste = paste
   window.remove = remove
   window.setLock = (id, locked, skipFileWrite) => db.setLock(id, locked, skipFileWrite)
+  window.setLocks = (ids, locked, skipFileWrite) => db.setLocks(ids, locked, skipFileWrite)
+  window.queuePersistDb = () => db.queuePersist()
   window.isLocked = (id) => db.isLocked(id)
   window.createFile = createFile
   window.focus = focus

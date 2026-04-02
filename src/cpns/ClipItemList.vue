@@ -4,236 +4,40 @@
         ref="listRootRef"
         @mousemove.passive="handleListMouseMove"
     >
-        <div
-            class="clip-item"
+        <ClipItemRow
             v-for="(item, index) in showList"
             :key="item.id"
-            :data-index="index"
-            @click.left="handleItemClick($event, item)"
-            @click.right="handleItemClick($event, item)"
-            @mouseenter.prevent="handleMouseOver($event, index, item)"
-            @mouseleave="handleRowMouseLeave(index, item)"
-            :class="{
-                active: !isMultiple && index === activeIndex,
-                'multi-active': isMultiple && index === activeIndex,
-                select: selectItemList.indexOf(item) !== -1,
-            }"
-        >
-            <div class="clip-info">
-                <div class="clip-time">
-                    <span
-                        v-if="collectedIds ? collectedIds.has(item.id) : (window?.db?.isCollected?.(item.id))"
-                        class="clip-collect-icon"
-                        >⭐</span
-                    >
-                    <span
-                        v-if="item.locked"
-                        class="clip-lock"
-                        :key="`lock-${item.id}-${lockUpdateKey}`"
-                        >🔒</span
-                    >
-                    <span class="relative-date">{{
-                        dateFormat(item.updateTime)
-                    }}</span>
-                    <div
-                        v-if="Array.isArray(item.tags) && item.tags.length"
-                        class="clip-tags"
-                    >
-                        <span
-                            v-for="tag in item.tags"
-                            :key="`${item.id}-${tag}`"
-                            class="clip-tag"
-                            >{{ tag }}</span
-                        >
-                    </div>
-                </div>
-                <div class="clip-data">
-                    <template v-if="item.type === 'text'">
-                        <div
-                            :class="{
-                                'clip-over-sized-content':
-                                    isOverSizedContent(item),
-                            }"
-                        >
-                            {{
-                                item.data
-                                    .split(`\n`)
-                                    .slice(0, 6)
-                                    .join(`\n`)
-                                    .trim()
-                            }}
-                        </div>
-                    </template>
-                    <template v-if="item.type === 'image'">
-                        <div
-                            class="image-container"
-                            @click="handleImageClick($event, item)"
-                        >
-                            <img
-                                v-if="getItemImageSrc(item)"
-                                class="clip-data-image"
-                                :src="getItemImageSrc(item)"
-                                :alt="'Clipboard Image'"
-                                @error="handleImageError"
-                                @load="handleImageLoad"
-                            />
-                            <div v-else class="image-error-placeholder">
-                                <span>🖼️ 无效图片</span>
-                            </div>
-                        </div>
-                    </template>
-                    <template v-if="item.type === 'file'">
-                        <el-popover
-                            placement="left"
-                            trigger="click"
-                            width="320"
-                        >
-                            <template #reference>
-                                <div
-                                    :class="{
-                                        'clip-over-sized-content':
-                                            isOverSizedContent(item),
-                                    }"
-                                >
-                                    <div
-                                        v-if="hasImageFiles(item)"
-                                        class="file-with-images"
-                                    >
-                                        <div class="image-files-preview">
-                                            <span
-                                                v-for="(
-                                                    imgFile, index
-                                                ) in getImageFiles(item).slice(
-                                                    0,
-                                                    3,
-                                                )"
-                                                :key="imgFile.path"
-                                                class="image-file-indicator"
-                                            >
-                                                🖼️
-                                            </span>
-                                            <span
-                                                v-if="
-                                                    getImageFiles(item).length >
-                                                    3
-                                                "
-                                                class="more-images"
-                                            >
-                                                +{{
-                                                    getImageFiles(item).length -
-                                                    3
-                                                }}
-                                            </span>
-                                        </div>
-                                        <FileList
-                                            :data="
-                                                JSON.parse(item.data).slice(
-                                                    0,
-                                                    6,
-                                                )
-                                            "
-                                        />
-                                    </div>
-                                    <FileList
-                                        v-else
-                                        :data="
-                                            JSON.parse(item.data).slice(0, 6)
-                                        "
-                                    />
-                                </div>
-                            </template>
-                            <div style="max-height: 260px; overflow: auto">
-                                <div
-                                    v-if="hasImageFiles(item)"
-                                    class="image-files-section"
-                                >
-                                    <div class="section-title">
-                                        📷 图片文件 ({{
-                                            getImageFiles(item).length
-                                        }})
-                                    </div>
-                                    <div class="image-files-grid">
-                                        <div
-                                            v-for="imgFile in getImageFiles(
-                                                item,
-                                            )"
-                                            :key="imgFile.path"
-                                            class="image-file-item"
-                                            @mouseenter="
-                                                showImageFilePreview(
-                                                    imgFile.path,
-                                                )
-                                            "
-                                            @mouseleave="
-                                                showImageFilePreview(
-                                                    getImageFiles(item)[0]
-                                                        ?.path,
-                                                )
-                                            "
-                                        >
-                                            <img
-                                                class="image-file-preview"
-                                                :src="toFileUrl(imgFile.path)"
-                                                :alt="
-                                                    imgFile.name ||
-                                                    'image-file'
-                                                "
-                                                @error="handleImageError"
-                                                @load="handleImageLoad"
-                                            />
-                                            <div class="file-name">
-                                                {{
-                                                    imgFile.path
-                                                        ?.split("/")
-                                                        .pop() || imgFile.name
-                                                }}
-                                            </div>
-                                        </div>
-                                    </div>
-                                </div>
-                                <div class="all-files-section">
-                                    <div class="section-title">📁 所有文件</div>
-                                    <FileList :data="JSON.parse(item.data)" />
-                                </div>
-                                <div
-                                    v-if="
-                                        Array.isArray(item.originPaths) &&
-                                        item.originPaths.length
-                                    "
-                                    style="margin-top: 8px; opacity: 0.75"
-                                >
-                                    <div>原始路径</div>
-                                    <div
-                                        v-for="p in item.originPaths"
-                                        :key="p"
-                                        style="
-                                            font-size: 12px;
-                                            word-break: break-all;
-                                        "
-                                    >
-                                        {{ p }}
-                                    </div>
-                                </div>
-                            </div>
-                        </el-popover>
-                    </template>
-                </div>
-            </div>
-            <ClipOperate
-                v-show="!isMultiple && activeIndex === index"
-                :item="item"
-                :currentActiveTab="currentActiveTab"
-                @onDataChange="() => emit('onDataChange', item)"
-                @onDataRemove="() => emit('onDataRemove')"
-                @openTagEdit="openTagEditModal"
-            ></ClipOperate>
-            <div
-                class="clip-count"
-                v-show="isMultiple || activeIndex !== index"
-            >
-                {{ index + 1 }}
-            </div>
-        </div>
+            v-memo="[
+                item,
+                item.locked,
+                isMultiple,
+                activeIndex === index,
+                selectedItemIdSet.has(item.id),
+                isItemCollected(item),
+            ]"
+            :item="item"
+            :index="index"
+            :is-multiple="isMultiple"
+            :is-active="activeIndex === index"
+            :is-selected="selectedItemIdSet.has(item.id)"
+            :is-collected="isItemCollected(item)"
+            :show-operate="!isMultiple && activeIndex === index"
+            :current-active-tab="currentActiveTab"
+            :is-over-sized-content="isOverSizedContent"
+            :get-item-image-src="getItemImageSrc"
+            :has-image-files="hasImageFiles"
+            :get-image-files="getImageFiles"
+            :to-file-url="toFileUrl"
+            :show-image-file-preview="showImageFilePreview"
+            @row-click-left="handleItemClick($event, item)"
+            @row-click-right="handleItemClick($event, item)"
+            @row-mouseenter="handleMouseOver($event, index, item)"
+            @row-mouseleave="handleRowMouseLeave(index)"
+            @row-data-change="emit('onDataChange', item)"
+            @row-data-remove="emit('onDataRemove')"
+            @row-open-tag-edit="openTagEditModal"
+            @row-image-click="handleImageClick($event, item)"
+        />
     </div>
 
     <!-- Custom Image Preview -->
@@ -288,11 +92,9 @@
 <script setup>
 import { ref, onMounted, onUnmounted, watch, computed, nextTick } from "vue";
 import { ElMessage } from "element-plus";
-import FileList from "./FileList.vue";
-import ClipOperate from "./ClipOperate.vue";
+import ClipItemRow from "./ClipItemRow.vue";
 import ClipDrawerMenu from "./ClipDrawerMenu.vue";
 import {
-    dateFormat,
     isUToolsPlugin,
     copyOnly,
     copyAndPasteAndExit,
@@ -340,6 +142,10 @@ const emit = defineEmits([
     "openCleanDialog",
     "openTagEdit",
 ]);
+const isItemCollected = (item) =>
+    props.collectedIds
+        ? props.collectedIds.has(item.id)
+        : Boolean(window?.db?.isCollected?.(item.id));
 const isOverSizedContent = (item) => {
     const { type, data } = item;
     if (type === "text") {
@@ -1037,8 +843,7 @@ const openDrawerForCurrentItem = (ev, defaultActiveIndex = 0) => {
 const isShiftDown = ref(false);
 const selectItemList = ref([]);
 const allSelectedLocked = ref(false); // 临时标志：记录所有选中项是否都已锁定
-const pendingLockOperations = ref(false); // 标记是否有待处理的锁定操作
-const lockUpdateKey = ref(0); // 用于强制更新锁图标
+let lockPersistTimer = null;
 
 // 图片预览相关
 const imagePreview = ref({
@@ -1096,7 +901,50 @@ const { handleOperateClick, filterOperate } = useClipOperate({
     emit,
     currentActiveTab: () => props.currentActiveTab,
 });
-const emptySelectItemList = () => (selectItemList.value = []);
+const selectedItemIds = ref([]);
+const selectedItemIdSet = ref(new Set());
+const syncSelectedItemIdSet = () => {
+    selectedItemIdSet.value = new Set(
+        selectItemList.value.map((item) => item?.id).filter(Boolean),
+    );
+};
+const replaceSelectedItems = (items) => {
+    selectItemList.value = Array.isArray(items) ? items : [];
+    syncSelectedItemIdSet();
+};
+const appendSelectedItems = (items) => {
+    if (!Array.isArray(items) || items.length === 0) return;
+    const next = [...selectItemList.value];
+    const ids = new Set(selectedItemIdSet.value);
+    items.forEach((item) => {
+        if (!item?.id || ids.has(item.id)) return;
+        ids.add(item.id);
+        next.push(item);
+    });
+    selectItemList.value = next;
+    selectedItemIdSet.value = ids;
+};
+const removeSelectedItemById = (itemId) => {
+    if (!itemId || !selectedItemIdSet.value.has(itemId)) return;
+    replaceSelectedItems(
+        selectItemList.value.filter((item) => item?.id !== itemId),
+    );
+};
+const emptySelectItemList = () => {
+    replaceSelectedItems([]);
+    selectedItemIds.value = [];
+};
+const showItemIndexMap = computed(() => {
+    const map = new Map();
+    props.showList.forEach((item, index) => {
+        if (item?.id) map.set(item.id, index);
+    });
+    return map;
+});
+const getShowItemIndex = (item) => {
+    if (!item?.id) return -1;
+    return showItemIndexMap.value.get(item.id) ?? -1;
+};
 const applyHoverPreviewConfig = (nextSetting = setting) => {
     hoverPreviewConfig.value = getHoverPreviewConfig(nextSetting);
 
@@ -1124,10 +972,7 @@ watch(
     (val) => {
         if (!val) {
             emptySelectItemList(); // 退出多选状态 清空列表
-            // 只有在没有待处理的锁定操作时才重置标志
-            if (!pendingLockOperations.value) {
-                allSelectedLocked.value = false; // 重置锁定状态标志
-            }
+            allSelectedLocked.value = false; // 重置锁定状态标志
         } else if (val && selectItemList.value.length > 0) {
             // 进入多选模式且已有选中项时，初始化锁定状态标志
             updateAllSelectedLockedFlag();
@@ -1145,8 +990,6 @@ const updateAllSelectedLockedFlag = () => {
     );
 };
 
-// 保存选中项的ID列表，用于在数据更新后恢复选择
-const selectedItemIds = ref([]);
 // 多选普通删除后：用于在 showList 更新时恢复高亮（若高亮项被删则下移，最后一个则上移）
 const pendingHighlightedItemId = ref(null);
 const pendingActiveIndexAfterDelete = ref(null);
@@ -1158,12 +1001,21 @@ const preserveSelection = () => {
 const restoreSelection = () => {
     if (!props.isMultiple || selectedItemIds.value.length === 0) return;
 
+    const selectedIds = new Set(selectedItemIds.value);
     const newSelection = props.showList.filter((item) =>
-        selectedItemIds.value.includes(item.id),
+        selectedIds.has(item.id),
     );
-    selectItemList.value = newSelection;
+    replaceSelectedItems(newSelection);
     selectedItemIds.value = [];
     updateAllSelectedLockedFlag();
+};
+
+const scheduleLockPersist = () => {
+    if (lockPersistTimer) return;
+    lockPersistTimer = setTimeout(() => {
+        lockPersistTimer = null;
+        window.queuePersistDb?.();
+    }, 0);
 };
 
 // 多选列表为空时自动退出多选状态
@@ -1181,66 +1033,37 @@ watch(
 );
 const handleItemClick = (ev, item) => {
     if (props.isMultiple === true) {
-        const i = selectItemList.value.indexOf(item); // 在已选中列表中的位置
-        const index = props.showList.indexOf(item); // 在全部列表中的位置
+        const isSelected = selectedItemIdSet.value.has(item.id);
+        const index = getShowItemIndex(item);
         activeIndex.value = index;
         if (selectItemList.value.length !== 0 && isShiftDown.value) {
-            // 列表不为空 且 Shift按下 多选
-            // 找到selectList的最高位与最低位
-            // 如果index大于最高位/小于最低位 则将二者之间的全部历史都选中
-            // 区分不同标签
-            const tmpArray = selectItemList.value
+            const selectedIndices = selectItemList.value
                 .filter((item) =>
                     props.currentActiveTab === "all"
                         ? true
                         : item.type === props.currentActiveTab,
                 )
-                .sort(
-                    (a, b) =>
-                        selectItemList.value.indexOf(a) -
-                        selectItemList.value.indexOf(b),
-                );
-            const h = props.showList.indexOf(tmpArray[0]); // 已选中的index最高位 实际上index是最小的
-            const l = props.showList.indexOf(tmpArray[tmpArray.length - 1]); // 已选中的最低位 实际上index是最大的
+                .map((item) => getShowItemIndex(item))
+                .filter((idx) => idx !== -1)
+                .sort((a, b) => a - b);
+            const h = selectedIndices[0];
+            const l = selectedIndices[selectedIndices.length - 1];
+            if (h == null || l == null) {
+                if (isSelected) removeSelectedItemById(item.id);
+                else appendSelectedItems([item]);
+                return;
+            }
             if (index < h) {
-                // 更高: index从0开始计算
-                // selectItemList.value = []
-                for (let i = index; i <= h; i++) {
-                    selectItemList.value.push(props.showList[i]);
-                }
-                // 数组去重
-                selectItemList.value = selectItemList.value.filter(
-                    function (item, index) {
-                        return selectItemList.value.indexOf(item) === index;
-                    },
-                );
+                appendSelectedItems(props.showList.slice(index, h + 1));
             } else if (index > l) {
-                // 更低
-                // selectItemList.value = []
-                for (let i = h; i <= index; i++) {
-                    selectItemList.value.push(props.showList[i]);
-                }
-                // 数组去重
-                selectItemList.value = selectItemList.value.filter(
-                    function (item, index) {
-                        return selectItemList.value.indexOf(item) === index;
-                    },
-                );
+                appendSelectedItems(props.showList.slice(h, index + 1));
             } else if (index <= l && index >= h) {
-                // 单选操作 与下面代码相同
-                if (i !== -1) {
-                    selectItemList.value.splice(i, 1); // 已经存在 点击移除
-                } else {
-                    selectItemList.value.push(item); // 添加到已选列表中
-                }
+                if (isSelected) removeSelectedItemById(item.id);
+                else appendSelectedItems([item]);
             }
         } else {
-            // Shift未按下 单选
-            if (i !== -1) {
-                selectItemList.value.splice(i, 1); // 已经存在 点击移除
-            } else {
-                selectItemList.value.push(item); // 添加到已选列表中
-            }
+            if (isSelected) removeSelectedItemById(item.id);
+            else appendSelectedItems([item]);
         }
     } else {
         const { button } = ev;
@@ -1257,7 +1080,7 @@ const handleItemClick = (ev, item) => {
             copyAndPasteAndExit(item, { respectImageCopyGuard: true });
         } else if (button === 2) {
             // 右键 打开抽屉（与右方向键一致）
-            activeIndex.value = props.showList.indexOf(item);
+            activeIndex.value = getShowItemIndex(item);
             openDrawerForCurrentItem(ev);
             ev.preventDefault();
         }
@@ -1413,7 +1236,6 @@ watch(
             }
         }
     },
-    { deep: true },
 );
 
 // 父组件中改变了引用类型的地址 故要用 getter返回
@@ -1555,6 +1377,14 @@ function registerListHotkeyFeatures() {
             window.setLock(current.id, true);
             return true;
         }
+        if (props.isMultiple && selectItemList.value.length) {
+            emit("onMultiCopyExecute", {
+                paste: true,
+                persist: true,
+                exit: true,
+            });
+            return true;
+        }
         return false;
     });
     registerFeature("list-copy", () => {
@@ -1611,32 +1441,14 @@ function registerListHotkeyFeatures() {
         if (props.isMultiple && targets.length) {
             preserveSelection();
             const shouldLock = !allSelectedLocked.value;
-            const dataMap = new Map(
-                [
-                    ...window.db.dataBase.data,
-                    ...window.db.dataBase.collectData,
-                ].map((dbItem) => [dbItem.id, dbItem]),
-            );
-            let changed = false;
             targets.forEach((item) => {
-                const target = dataMap.get(item.id);
-                if (target && target.locked !== shouldLock) {
-                    target.locked = shouldLock;
-                    item.locked = shouldLock;
-                    changed = true;
-                }
+                item.locked = shouldLock;
             });
-            if (changed) {
-                // 延迟持久化，先让 UI 立即响应
-                setTimeout(() => window.db.updateDataBase(), 0);
+            if (window.setLocks?.(targets.map((item) => item.id), shouldLock, true)) {
+                // 合并到单次异步持久化，避免锁定连续触发时重复刷新列表
+                scheduleLockPersist();
             }
             allSelectedLocked.value = shouldLock;
-            pendingLockOperations.value = true;
-            lockUpdateKey.value++;
-            setTimeout(() => {
-                pendingLockOperations.value = false;
-                if (!props.isMultiple) allSelectedLocked.value = false;
-            }, 50);
         } else {
             targets.forEach((item) =>
                 window.setLock(item.id, item.locked !== true),
@@ -1665,9 +1477,7 @@ function registerListHotkeyFeatures() {
                     (item) => !deletableItems.includes(item),
                 );
                 selectedItemIds.value = toKeep.map((item) => item.id);
-                selectItemList.value = selectItemList.value.filter(
-                    (item) => !deletableItems.includes(item),
-                );
+                replaceSelectedItems(toKeep);
                 const highlighted = props.showList[activeIndex.value];
                 if (highlighted) {
                     pendingHighlightedItemId.value = highlighted.id;
@@ -1702,9 +1512,9 @@ function registerListHotkeyFeatures() {
               : [];
         if (itemsToDelete.length) {
             if (props.isMultiple) {
-                selectItemList.value = selectItemList.value.filter(
+                replaceSelectedItems(selectItemList.value.filter(
                     (item) => !itemsToDelete.includes(item),
-                );
+                ));
                 itemsToDelete.forEach((item, index) =>
                     emit("onItemDelete", item, {
                         anchorIndex: activeIndex.value,
@@ -1713,7 +1523,7 @@ function registerListHotkeyFeatures() {
                         force: true,
                     }),
                 );
-                selectItemList.value = [];
+                replaceSelectedItems([]);
                 emit("toggleMultiSelect", false);
             } else {
                 itemsToDelete.forEach((item, index) =>
@@ -1734,12 +1544,10 @@ function registerListHotkeyFeatures() {
         if (!props.isMultiple) emit("toggleMultiSelect", true);
         const currentItem = props.showList[activeIndex.value];
         if (!currentItem) return true;
-        const i = selectItemList.value.findIndex(
-            (item) => item === currentItem,
-        );
-        if (i !== -1) selectItemList.value.splice(i, 1);
-        else {
-            selectItemList.value.push(currentItem);
+        if (selectedItemIdSet.value.has(currentItem.id)) {
+            removeSelectedItemById(currentItem.id);
+        } else {
+            appendSelectedItems([currentItem]);
             activeIndex.value++;
             document
                 .querySelector(".clip-item.multi-active+.clip-item")
@@ -1759,7 +1567,7 @@ function registerListHotkeyFeatures() {
                 copyAndPasteAndExit(targetItem, {
                     respectImageCopyGuard: true,
                 });
-                selectItemList.value = [];
+                replaceSelectedItems([]);
                 return true;
             }
             return false;
@@ -1807,6 +1615,10 @@ onUnmounted(() => {
     document.removeEventListener("keydown", keyDownCallBack);
     document.removeEventListener("keyup", keyUpCallBack);
     window.removeEventListener(SETTING_UPDATED_EVENT, handleSettingUpdated);
+    if (lockPersistTimer) {
+        clearTimeout(lockPersistTimer);
+        lockPersistTimer = null;
+    }
 
     // 清理图片预览定时器
     if (imagePreviewHideTimer) {

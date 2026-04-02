@@ -361,7 +361,8 @@ const handleMultiCopyBtnClick = (isPaste, options = {}) => {
     const isMergeFile =
         itemList.filter((item) => item.type === "image" || item.type === "file")
             .length !== 0;
-    const addMergedItemToDb = (item) => {
+    const addMergedItemToDb = (item, options = {}) => {
+        const { locked = false } = options;
         const crypto = window.exports?.crypto;
         if (!window.db || !crypto || !item?.data) return false;
         const id = crypto.createHash("md5").update(item.data).digest("hex");
@@ -377,6 +378,7 @@ const handleMultiCopyBtnClick = (isPaste, options = {}) => {
         window.db.addItem({
             ...item,
             id,
+            locked,
             createTime: now,
             updateTime: now,
         });
@@ -408,7 +410,7 @@ const handleMultiCopyBtnClick = (isPaste, options = {}) => {
                 type: "file",
                 data: fileData,
                 originPaths: filePathArray.map((f) => f.path).filter(Boolean),
-            });
+            }, { locked: paste });
         }
     } else {
         const eol =
@@ -423,7 +425,7 @@ const handleMultiCopyBtnClick = (isPaste, options = {}) => {
             { paste, exit: true, respectImageCopyGuard: true },
         );
         if (persist) {
-            addMergedItemToDb({ type: "text", data: result });
+            addMergedItemToDb({ type: "text", data: result }, { locked: paste });
         }
     }
     ElMessage({
@@ -1078,7 +1080,7 @@ onMounted(() => {
     window.listener.on("view-change", () => {
         // 检查到change事件 更新展示数据
         list.value = window.db.dataBase.data;
-        updateShowList(activeTab.value);
+        updateShowList(activeTab.value, false);
     });
 
     // 监听搜索与筛选
