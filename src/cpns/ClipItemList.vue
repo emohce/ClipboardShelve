@@ -19,21 +19,17 @@
                     <span
                         v-if="collectedIds ? collectedIds.has(item.id) : (window?.db?.isCollected?.(item.id))"
                         class="clip-collect-icon"
-                        title="已收藏"
                         >⭐</span
                     >
                     <span
                         v-if="item.locked"
                         class="clip-lock"
-                        title="已锁定"
                         :key="`lock-${item.id}-${lockUpdateKey}`"
                         >🔒</span
                     >
-                    <span
-                        class="relative-date"
-                        :title="new Date(item.updateTime).toLocaleString()"
-                        >{{ dateFormat(item.updateTime) }}</span
-                    >
+                    <span class="relative-date">{{
+                        dateFormat(item.updateTime)
+                    }}</span>
                     <div
                         v-if="Array.isArray(item.tags) && item.tags.length"
                         class="clip-tags"
@@ -48,26 +44,20 @@
                 </div>
                 <div class="clip-data">
                     <template v-if="item.type === 'text'">
-                        <el-tooltip
-                            :content="item.data"
-                            placement="left"
-                            :show-after="200"
+                        <div
+                            :class="{
+                                'clip-over-sized-content':
+                                    isOverSizedContent(item),
+                            }"
                         >
-                            <div
-                                :class="{
-                                    'clip-over-sized-content':
-                                        isOverSizedContent(item),
-                                }"
-                            >
-                                {{
-                                    item.data
-                                        .split(`\n`)
-                                        .slice(0, 6)
-                                        .join(`\n`)
-                                        .trim()
-                                }}
-                            </div>
-                        </el-tooltip>
+                            {{
+                                item.data
+                                    .split(`\n`)
+                                    .slice(0, 6)
+                                    .join(`\n`)
+                                    .trim()
+                            }}
+                        </div>
                     </template>
                     <template v-if="item.type === 'image'">
                         <div
@@ -88,63 +78,49 @@
                         </div>
                     </template>
                     <template v-if="item.type === 'file'">
-                        <el-tooltip
-                            :content="formatFileNames(item)"
+                        <el-popover
                             placement="left"
-                            :show-after="200"
+                            trigger="click"
+                            width="320"
                         >
-                            <el-popover
-                                placement="left"
-                                trigger="click"
-                                width="320"
-                            >
-                                <template #reference>
+                            <template #reference>
+                                <div
+                                    :class="{
+                                        'clip-over-sized-content':
+                                            isOverSizedContent(item),
+                                    }"
+                                >
                                     <div
-                                        :class="{
-                                            'clip-over-sized-content':
-                                                isOverSizedContent(item),
-                                        }"
+                                        v-if="hasImageFiles(item)"
+                                        class="file-with-images"
                                     >
-                                        <div
-                                            v-if="hasImageFiles(item)"
-                                            class="file-with-images"
-                                        >
-                                            <div class="image-files-preview">
-                                                <span
-                                                    v-for="(
-                                                        imgFile, index
-                                                    ) in getImageFiles(
-                                                        item,
-                                                    ).slice(0, 3)"
-                                                    :key="imgFile.path"
-                                                    class="image-file-indicator"
-                                                >
-                                                    🖼️
-                                                </span>
-                                                <span
-                                                    v-if="
-                                                        getImageFiles(item)
-                                                            .length > 3
-                                                    "
-                                                    class="more-images"
-                                                >
-                                                    +{{
-                                                        getImageFiles(item)
-                                                            .length - 3
-                                                    }}
-                                                </span>
-                                            </div>
-                                            <FileList
-                                                :data="
-                                                    JSON.parse(item.data).slice(
-                                                        0,
-                                                        6,
-                                                    )
+                                        <div class="image-files-preview">
+                                            <span
+                                                v-for="(
+                                                    imgFile, index
+                                                ) in getImageFiles(item).slice(
+                                                    0,
+                                                    3,
+                                                )"
+                                                :key="imgFile.path"
+                                                class="image-file-indicator"
+                                            >
+                                                🖼️
+                                            </span>
+                                            <span
+                                                v-if="
+                                                    getImageFiles(item).length >
+                                                    3
                                                 "
-                                            />
+                                                class="more-images"
+                                            >
+                                                +{{
+                                                    getImageFiles(item).length -
+                                                    3
+                                                }}
+                                            </span>
                                         </div>
                                         <FileList
-                                            v-else
                                             :data="
                                                 JSON.parse(item.data).slice(
                                                     0,
@@ -153,90 +129,88 @@
                                             "
                                         />
                                     </div>
-                                </template>
-                                <div style="max-height: 260px; overflow: auto">
-                                    <div
-                                        v-if="hasImageFiles(item)"
-                                        class="image-files-section"
-                                    >
-                                        <div class="section-title">
-                                            📷 图片文件 ({{
-                                                getImageFiles(item).length
-                                            }})
-                                        </div>
-                                        <div class="image-files-grid">
-                                            <div
-                                                v-for="imgFile in getImageFiles(
-                                                    item,
-                                                )"
-                                                :key="imgFile.path"
-                                                class="image-file-item"
-                                                @mouseenter="
-                                                    showImageFilePreview(
-                                                        imgFile.path,
-                                                    )
+                                    <FileList
+                                        v-else
+                                        :data="
+                                            JSON.parse(item.data).slice(0, 6)
+                                        "
+                                    />
+                                </div>
+                            </template>
+                            <div style="max-height: 260px; overflow: auto">
+                                <div
+                                    v-if="hasImageFiles(item)"
+                                    class="image-files-section"
+                                >
+                                    <div class="section-title">
+                                        📷 图片文件 ({{
+                                            getImageFiles(item).length
+                                        }})
+                                    </div>
+                                    <div class="image-files-grid">
+                                        <div
+                                            v-for="imgFile in getImageFiles(
+                                                item,
+                                            )"
+                                            :key="imgFile.path"
+                                            class="image-file-item"
+                                            @mouseenter="
+                                                showImageFilePreview(
+                                                    imgFile.path,
+                                                )
+                                            "
+                                            @mouseleave="
+                                                showImageFilePreview(
+                                                    getImageFiles(item)[0]
+                                                        ?.path,
+                                                )
+                                            "
+                                        >
+                                            <img
+                                                class="image-file-preview"
+                                                :src="toFileUrl(imgFile.path)"
+                                                :alt="
+                                                    imgFile.name ||
+                                                    'image-file'
                                                 "
-                                                @mouseleave="
-                                                    showImageFilePreview(
-                                                        getImageFiles(item)[0]
-                                                            ?.path,
-                                                    )
-                                                "
-                                            >
-                                                <img
-                                                    class="image-file-preview"
-                                                    :src="
-                                                        toFileUrl(imgFile.path)
-                                                    "
-                                                    :alt="
-                                                        imgFile.name ||
-                                                        'image-file'
-                                                    "
-                                                    @error="handleImageError"
-                                                    @load="handleImageLoad"
-                                                />
-                                                <div class="file-name">
-                                                    {{
-                                                        imgFile.path
-                                                            ?.split("/")
-                                                            .pop() ||
-                                                        imgFile.name
-                                                    }}
-                                                </div>
+                                                @error="handleImageError"
+                                                @load="handleImageLoad"
+                                            />
+                                            <div class="file-name">
+                                                {{
+                                                    imgFile.path
+                                                        ?.split("/")
+                                                        .pop() || imgFile.name
+                                                }}
                                             </div>
                                         </div>
                                     </div>
-                                    <div class="all-files-section">
-                                        <div class="section-title">
-                                            📁 所有文件
-                                        </div>
-                                        <FileList
-                                            :data="JSON.parse(item.data)"
-                                        />
-                                    </div>
+                                </div>
+                                <div class="all-files-section">
+                                    <div class="section-title">📁 所有文件</div>
+                                    <FileList :data="JSON.parse(item.data)" />
+                                </div>
+                                <div
+                                    v-if="
+                                        Array.isArray(item.originPaths) &&
+                                        item.originPaths.length
+                                    "
+                                    style="margin-top: 8px; opacity: 0.75"
+                                >
+                                    <div>原始路径</div>
                                     <div
-                                        v-if="
-                                            Array.isArray(item.originPaths) &&
-                                            item.originPaths.length
+                                        v-for="p in item.originPaths"
+                                        :key="p"
+                                        style="
+                                            font-size: 12px;
+                                            word-break: break-all;
                                         "
-                                        style="margin-top: 8px; opacity: 0.75"
                                     >
-                                        <div>原始路径</div>
-                                        <div
-                                            v-for="p in item.originPaths"
-                                            :key="p"
-                                            :title="p"
-                                            style="
-                                                font-size: 12px;
-                                                word-break: break-all;
-                                            "
-                                        >
-                                            {{ p }}
-                                        </div>
+                                        {{ p }}
                                     </div>
                                 </div>
-                            </el-popover>
-                        </el-tooltip>
+                            </div>
+                        </el-popover>
                     </template>
                 </div>
             </div>
@@ -1769,31 +1743,17 @@ const keyUpCallBack = (e) => {
     }
 };
 
-const blurCallBack = () => {
-    resetTransientPreviewState();
-};
-
-const visibilityChangeCallBack = () => {
-    if (document.hidden) {
-        resetTransientPreviewState();
-    }
-};
-
 onMounted(() => {
     applyHoverPreviewConfig(setting);
     registerListHotkeyFeatures();
     document.addEventListener("keydown", keyDownCallBack);
     document.addEventListener("keyup", keyUpCallBack);
-    window.addEventListener("blur", blurCallBack);
-    document.addEventListener("visibilitychange", visibilityChangeCallBack);
     window.addEventListener(SETTING_UPDATED_EVENT, handleSettingUpdated);
 });
 
 onUnmounted(() => {
     document.removeEventListener("keydown", keyDownCallBack);
     document.removeEventListener("keyup", keyUpCallBack);
-    window.removeEventListener("blur", blurCallBack);
-    document.removeEventListener("visibilitychange", visibilityChangeCallBack);
     window.removeEventListener(SETTING_UPDATED_EVENT, handleSettingUpdated);
 
     // 清理图片预览定时器
