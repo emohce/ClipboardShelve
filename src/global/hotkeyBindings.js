@@ -106,6 +106,7 @@ export const HOTKEY_BINDINGS = [
   // ---- clip-drawer ----
   { layer: "clip-drawer", shortcutId: "Escape", features: ["drawer-close"] },
   { layer: "clip-drawer", shortcutId: "ArrowLeft", features: ["drawer-close"] },
+  { layer: "clip-drawer", shortcutId: "ctrl+ArrowLeft", features: ["drawer-close"] },
   {
     layer: "clip-drawer",
     shortcutId: "ArrowDown",
@@ -138,6 +139,11 @@ export const HOTKEY_BINDINGS = [
   {
     layer: "full-data-overlay",
     shortcutId: "ArrowRight",
+    features: ["full-data-close"],
+  },
+  {
+    layer: "full-data-overlay",
+    shortcutId: "ctrl+ArrowRight",
     features: ["full-data-close"],
   },
   {
@@ -234,8 +240,10 @@ export const HOTKEY_BINDINGS = [
   { layer: "main", shortcutId: "ctrl+ArrowDown", features: ["list-page-down"] },
   { layer: "main", shortcutId: "Home", features: ["list-home"] },
   { layer: "main", shortcutId: "End", features: ["list-end"] },
-  { layer: "main", shortcutId: "ArrowLeft", features: ["list-view-full"] },
-  { layer: "main", shortcutId: "ArrowRight", features: ["list-drawer-open"] },
+  { layer: "main", shortcutId: "ArrowLeft", features: ["main-tab-prev"] },
+  { layer: "main", shortcutId: "ArrowRight", features: ["main-tab-next"] },
+  { layer: "main", shortcutId: "ctrl+ArrowLeft", features: ["list-view-full"] },
+  { layer: "main", shortcutId: "ctrl+ArrowRight", features: ["list-drawer-open"] },
   { layer: "main", shortcutId: "F2", features: ["list-tag-edit"] },
   { layer: "main", shortcutId: "shift+F2", features: ["list-view-full"] },
   { layer: "main", shortcutId: "Enter", features: ["list-enter"] },

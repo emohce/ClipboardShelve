@@ -25,9 +25,32 @@ const LAYER_ORDER = [
 
 /**
  * @typedef {Object} ShortcutNode
- * @property {string} shortcutId
+ * @property {string[]} shortcutIds
  * @property {string[]} features
  */
+
+function getNumericShortcutGroupKey(binding) {
+  const features = Array.isArray(binding.features) ? binding.features : [binding.features]
+  if (features.length !== 1) return null
+  const featureMatch = String(features[0] || '').match(/^(.*)-(\d+)$/)
+  const shortcutMatch = String(binding.shortcutId || '').match(/^(.*?)(\d+)$/)
+  if (!featureMatch || !shortcutMatch) return null
+  const [, featureBase, featureNum] = featureMatch
+  const [, shortcutBase, shortcutNum] = shortcutMatch
+  if (featureNum !== shortcutNum) return null
+  return `numeric:${featureBase}:${shortcutBase}`
+}
+
+function getFeatureFamilyGroupKey(binding) {
+  const features = Array.isArray(binding.features) ? binding.features : [binding.features]
+  if (features.length !== 1) return null
+  const featureId = String(features[0] || '')
+  const shortcutId = String(binding.shortcutId || '')
+  if (/^clear-dialog-range-/.test(featureId) && /^\d+$/.test(shortcutId)) {
+    return 'family:clear-dialog-range:number'
+  }
+  return null
+}
 
 /**
  * @typedef {Object} LayerNode
@@ -73,20 +96,26 @@ export function buildHotkeyTree(bindings) {
     
     const shortcutMap = new Map()
     for (const b of layerBindings) {
-      const shortcutId = b.shortcutId
-      if (!shortcutMap.has(shortcutId)) {
-        shortcutMap.set(shortcutId, {
-          shortcutId,
+      const features = Array.isArray(b.features) ? [...b.features] : [b.features]
+      const groupKey =
+        getFeatureFamilyGroupKey(b) ||
+        getNumericShortcutGroupKey(b) ||
+        features.slice().sort().join('|')
+      if (!shortcutMap.has(groupKey)) {
+        shortcutMap.set(groupKey, {
+          shortcutIds: [],
           features: []
         })
       }
-      const node = shortcutMap.get(shortcutId)
-      const features = Array.isArray(b.features) ? b.features : [b.features]
+      const node = shortcutMap.get(groupKey)
+      if (!node.shortcutIds.includes(b.shortcutId)) node.shortcutIds.push(b.shortcutId)
       node.features.push(...features)
     }
     
     layerNode.shortcuts = Array.from(shortcutMap.values()).sort((a, b) => {
-      return a.shortcutId.localeCompare(b.shortcutId)
+      const aKey = (a.shortcutIds && a.shortcutIds[0]) || ''
+      const bKey = (b.shortcutIds && b.shortcutIds[0]) || ''
+      return aKey.localeCompare(bKey)
     })
   }
   

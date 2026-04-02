@@ -1248,6 +1248,18 @@ onMounted(() => {
             updateShowList(target);
             return true;
         });
+        const switchMainTabByOffset = (delta) => {
+            if (isSearchPanelExpand.value) return false;
+            const index = tabTypes.indexOf(activeTab.value);
+            if (index === -1 || tabTypes.length === 0) return false;
+            const nextIndex = (index + delta + tabTypes.length) % tabTypes.length;
+            const target = tabTypes[nextIndex];
+            toggleNav(target);
+            updateShowList(target);
+            return true;
+        };
+        registerFeature("main-tab-prev", () => switchMainTabByOffset(-1));
+        registerFeature("main-tab-next", () => switchMainTabByOffset(1));
         registerFeature("collect-sub-tab-next", () => {
             if (activeTab.value !== "collect") return false;
             const list =

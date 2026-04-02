@@ -9,7 +9,7 @@
       <span class="layer-count">{{ shortcutCount }} 项</span>
     </div>
     <div v-if="isExpanded" class="layer-content">
-      <div v-for="(shortcut, idx) in node.shortcuts" :key="`${node.layer}-${shortcut.shortcutId}-${idx}`" class="shortcut-node">
+      <div v-for="(shortcut, idx) in node.shortcuts" :key="`${node.layer}-${(shortcut.shortcutIds || []).join('-')}-${idx}`" class="shortcut-node">
         <ShortcutNode
           :shortcut="shortcut"
           :layer="node.layer"

@@ -335,11 +335,30 @@ const hoverPreviewEnabled = ref(initialHoverPreviewConfig.enabled)
 const hoverPreviewDelay = ref(initialHoverPreviewConfig.delay)
 
 const activeTab = ref('basic')
+const settingTabs = ['basic', 'shortcut', 'feature', 'feature-config']
 const shortcutQuery = ref('')
 const shortcutQueryInput = ref('')
 const featureQuery = ref('')
 const shortcutScope = ref('all')
 const shortcutSearchInputRef = ref(null)
+
+function isEditableTarget(target) {
+  if (!target || typeof target.closest !== 'function') return false
+  if (target.isContentEditable) return true
+  return Boolean(
+    target.closest(
+      'input, textarea, [contenteditable="true"], .el-input, .el-textarea, .el-select, .el-input-number'
+    )
+  )
+}
+
+function switchSettingTabByOffset(delta) {
+  const index = settingTabs.indexOf(activeTab.value)
+  if (index === -1 || settingTabs.length === 0) return false
+  const nextIndex = (index + delta + settingTabs.length) % settingTabs.length
+  activeTab.value = settingTabs[nextIndex]
+  return true
+}
 
 function sortShownByOrder(shownIds, order) {
   const orderMap = new Map(order.map((id, idx) => [id, idx]))
@@ -378,7 +397,9 @@ const filteredHotkeyTreeRoot = computed(() => {
     .map((layerNode) => {
       const layerLabel = getLayerLabel(layerNode.layer, layerNode.state).toLowerCase()
       const matchedShortcuts = (layerNode.shortcuts || []).filter((shortcut) => {
-        const shortcutId = String(shortcut.shortcutId || '').toLowerCase()
+        const shortcutId = (shortcut.shortcutIds || [])
+          .map((id) => String(id || '').toLowerCase())
+          .join(' ')
         const featureText = (shortcut.features || [])
           .map((feature) => getFeatureLabel(feature))
           .join(' ')
@@ -721,11 +742,26 @@ const handleRestoreBtnClick = () => {
 }
 
 const keyDownHandler = (e) => {
+  if (isEditableTarget(e.target)) return
   const isSearchShortcut = (e.ctrlKey || e.metaKey) && String(e.key).toLowerCase() === 'f'
   if (isSearchShortcut && activeTab.value === 'shortcut') {
     e.preventDefault()
     e.stopPropagation()
     focusShortcutSearch()
+    return
+  }
+  if (e.key === 'ArrowLeft') {
+    if (switchSettingTabByOffset(-1)) {
+      e.preventDefault()
+      e.stopPropagation()
+    }
+    return
+  }
+  if (e.key === 'ArrowRight') {
+    if (switchSettingTabByOffset(1)) {
+      e.preventDefault()
+      e.stopPropagation()
+    }
     return
   }
   if (e.key === 'Escape' && !customDialogVisible.value) {
