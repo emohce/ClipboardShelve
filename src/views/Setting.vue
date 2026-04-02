@@ -122,7 +122,10 @@
         <div class="sub-tab-content" v-show="activeTab === 'feature'">
           <div class="setting-card-content-item">
             <div class="setting-section-head">
-              <div class="setting-section-title">展示主页功能</div>
+              <div class="setting-section-head-main">
+                <div class="setting-section-title">展示主页功能</div>
+                <p class="setting-section-subtitle">用更少的配置管理常用动作，默认与自定义功能统一排序。</p>
+              </div>
               <HelpHint
                 marker="!"
                 button-class="setting-help-btn"
@@ -130,37 +133,66 @@
                 content="默认功能标题与图标来自 src/data/operation.json，自定义功能来自当前设置数据。后续调整功能、标题、命令或匹配范围时，应同步更新 Settings 展示与说明。"
               />
             </div>
-            <el-divider></el-divider>
-            <div class="setting-row">
-              <span class="setting-label">可多选</span>
-              <el-select
-                class="operation-select"
-                v-model="shown"
-                multiple
-                :multiple-limit="9"
-                placeholder="请选择"
-              >
-                <el-option
-                  v-for="o in allOperations"
-                  :key="o.id"
-                  :label="`${o.index}. ${o.icon} ${o.title}`"
-                  :value="o.id"
-                />
-              </el-select>
-            </div>
-            <div class="setting-search-row">
-              <el-input
-                v-model="featureQuery"
-                clearable
-                placeholder="搜索功能标题、类型或命令"
-              />
+            <div class="feature-toolbar">
+              <div class="feature-toolbar-main">
+                <div class="feature-quick-card">
+                  <div class="feature-quick-card-head">
+                    <span class="feature-field-label">主页展示</span>
+                    <el-popover
+                      placement="bottom-start"
+                      :width="320"
+                      trigger="click"
+                      popper-class="feature-select-popover"
+                    >
+                      <template #reference>
+                        <button type="button" class="feature-inline-trigger">
+                          已选 {{ shown.length }}/9
+                        </button>
+                      </template>
+                      <div class="feature-select-popover-body">
+                        <div class="feature-select-popover-title">选择显示在主页的功能</div>
+                        <el-select
+                          class="operation-select operation-select--popover"
+                          v-model="shown"
+                          multiple
+                          :multiple-limit="9"
+                          collapse-tags
+                          collapse-tags-tooltip
+                          placeholder="选择显示在主页的功能"
+                        >
+                          <el-option
+                            v-for="o in allOperations"
+                            :key="o.id"
+                            :label="`${o.index}. ${o.icon} ${o.title}`"
+                            :value="o.id"
+                          />
+                        </el-select>
+                      </div>
+                    </el-popover>
+                  </div>
+                  <p class="feature-quick-card-desc">点击查看并调整主页展示功能，最多保留 9 个。</p>
+                </div>
+                <div class="feature-field feature-field-search">
+                  <span class="feature-field-label">快速筛选</span>
+                  <el-input
+                    v-model="featureQuery"
+                    clearable
+                    placeholder="搜索功能标题、类型或命令"
+                  />
+                </div>
+              </div>
+              <el-button class="feature-add-btn" type="primary" plain @click="openCustomAdd">新增自定义功能</el-button>
             </div>
             <p v-if="isFeatureFilterActive" class="filter-hint">
               当前处于过滤状态，已禁用拖拽排序，清空搜索后恢复全量排序。
             </p>
-            <div class="setting-section-title" style="margin-top: 16px">功能列表</div>
-            <p class="shortcut-count">共 {{ filteredFeatureRows.length }} / {{ featureRows.length }} 条</p>
-            <el-divider></el-divider>
+            <div class="feature-table-head">
+              <div>
+                <div class="setting-section-title feature-table-title">功能列表</div>
+                <p class="shortcut-count">共 {{ filteredFeatureRows.length }} / {{ featureRows.length }} 条</p>
+              </div>
+              <span class="feature-table-tip">拖拽手柄可直接调整顺序</span>
+            </div>
             <SettingPagedTable
               :rows="filteredFeatureRows"
               :columns="featureColumns"
@@ -178,11 +210,22 @@
                 <span class="drag-handle" title="拖拽排序">⋮⋮</span>
               </template>
               <template #cell-title="{ row }">
-                <span class="feature-icon">{{ row.icon }}</span>
-                <span class="feature-title">{{ row.title }}</span>
+                <div class="feature-cell-main">
+                  <div class="feature-cell-title-row">
+                    <span class="feature-icon">{{ row.icon }}</span>
+                    <span class="feature-title">{{ row.title }}</span>
+                  </div>
+                  <div class="feature-meta-row">
+                    <span class="feature-meta-chip" :class="{ custom: row.isCustom }">{{ row.typeLabel }}</span>
+                    <span v-if="row.matchDisplay" class="feature-meta-text">匹配 {{ row.matchDisplay }}</span>
+                    <span v-else class="feature-meta-text">内置功能</span>
+                  </div>
+                </div>
               </template>
               <template #cell-commandDisplay="{ row }">
-                <span>{{ row.commandDisplay || '-' }}</span>
+                <div class="feature-command-cell">
+                  <span class="feature-command-text">{{ row.commandDisplay || '内置动作，无额外命令' }}</span>
+                </div>
               </template>
               <template #actions="{ row }">
                 <template v-if="row.isCustom">
@@ -192,7 +235,6 @@
                 <span v-else class="table-action-empty">-</span>
               </template>
             </SettingPagedTable>
-            <el-button class="feature-add-btn" type="primary" plain @click="openCustomAdd">新增</el-button>
             <el-dialog
               v-model="customDialogVisible"
               :title="customDialogMode === 'add' ? '新增功能' : '编辑功能'"
@@ -489,9 +531,8 @@ const customEditId = ref('')
 const featureColumns = [
   { key: 'index', label: '序号', width: 70, align: 'center' },
   { key: 'drag', label: '', width: 40, align: 'center' },
-  { key: 'typeLabel', label: '类型', width: 90 },
-  { key: 'title', label: '功能', minWidth: 200 },
-  { key: 'commandDisplay', label: '操作记录', minWidth: 220 }
+  { key: 'title', label: '功能', minWidth: 260 },
+  { key: 'commandDisplay', label: '动作 / 命令', minWidth: 240 }
 ]
 
 const featureRows = computed(() => {
@@ -897,7 +938,17 @@ onUnmounted(() => {
 .setting-section-head {
   display: flex;
   align-items: center;
+  justify-content: space-between;
   gap: 12px;
+}
+.setting-section-head-main {
+  min-width: 0;
+}
+.setting-section-subtitle {
+  margin: 6px 0 0;
+  font-size: 12px;
+  line-height: 1.6;
+  color: var(--text-color-lighter);
 }
 .shortcut-count {
   margin: 4px 0 0;
@@ -1009,7 +1060,10 @@ onUnmounted(() => {
   width: 110px;
 }
 .operation-select {
-  min-width: 240px;
+  min-width: 260px;
+}
+.operation-select--popover {
+  width: 100%;
 }
 
 .shortcut-key-cell {
@@ -1038,12 +1092,162 @@ onUnmounted(() => {
   font-size: 18px;
 }
 .feature-title {
-  flex: 1;
   font-size: 14px;
+  font-weight: 600;
+  color: var(--text-color);
 }
 .feature-add-btn {
-  align-self: flex-start;
-  margin-top: 10px;
+  flex-shrink: 0;
+}
+.feature-toolbar {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 14px;
+  margin-top: 16px;
+  padding: 14px 16px;
+  border-radius: 18px;
+  border: 1px solid var(--border-color);
+  background: rgba(255, 255, 255, 0.72);
+}
+.feature-toolbar-main {
+  display: grid;
+  grid-template-columns: minmax(240px, 1fr) minmax(220px, 0.9fr);
+  gap: 14px;
+  flex: 1;
+  min-width: 0;
+}
+.feature-quick-card {
+  padding: 12px 14px;
+  border-radius: 14px;
+  border: 1px solid var(--border-color);
+  background: var(--bg-elevated-color);
+}
+.feature-quick-card-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+.feature-inline-trigger {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 30px;
+  padding: 0 12px;
+  border: 1px solid rgba(53, 95, 157, 0.2);
+  border-radius: 999px;
+  background: var(--bg-soft-color);
+  color: var(--primary-color);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.feature-quick-card-desc {
+  margin: 8px 0 0;
+  font-size: 12px;
+  line-height: 1.6;
+  color: var(--text-color-lighter);
+}
+.feature-field {
+  min-width: 0;
+}
+.feature-field-label {
+  display: block;
+  margin-bottom: 8px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-color-lighter);
+}
+.feature-field-search {
+  max-width: 360px;
+}
+.feature-select-popover-body {
+  display: grid;
+  gap: 10px;
+}
+.feature-select-popover-title {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-color);
+}
+.feature-table-head {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 16px;
+}
+.feature-table-title {
+  font-size: 16px;
+}
+.feature-table-tip {
+  font-size: 12px;
+  color: var(--text-color-lighter);
+}
+.feature-cell-main {
+  display: grid;
+  gap: 6px;
+}
+.feature-cell-title-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+.feature-meta-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.feature-meta-chip {
+  display: inline-flex;
+  align-items: center;
+  min-height: 22px;
+  padding: 0 8px;
+  border-radius: 999px;
+  font-size: 11px;
+  color: var(--text-color-lighter);
+  background: var(--bg-soft-color);
+  border: 1px solid var(--border-color);
+  &.custom {
+    color: var(--primary-color);
+    border-color: rgba(53, 95, 157, 0.2);
+  }
+}
+.feature-meta-text {
+  font-size: 12px;
+  color: var(--text-color-lighter);
+}
+.feature-command-cell {
+  display: flex;
+  align-items: center;
+  min-height: 42px;
+}
+.feature-command-text {
+  display: inline-block;
+  max-width: 100%;
+  font-size: 12px;
+  line-height: 1.6;
+  color: var(--text-color-lighter);
+  word-break: break-all;
+}
+@media (max-width: 900px) {
+  .feature-toolbar {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .feature-toolbar-main {
+    grid-template-columns: 1fr;
+  }
+  .feature-field-search {
+    max-width: none;
+  }
+  .feature-table-head {
+    align-items: flex-start;
+    flex-direction: column;
+  }
 }
 .feature-config-panel {
   width: 100%;

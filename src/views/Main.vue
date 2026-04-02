@@ -1,9 +1,5 @@
 <template>
     <div class="main" tabindex="-1">
-        <ClipFloatBtn
-            :icon="'清理'"
-            @onBtnClick="handleClearBtnClick"
-        ></ClipFloatBtn>
         <ClipFullData
             :isShow="fullDataShow"
             :fullData="fullData"
@@ -53,9 +49,7 @@
                         </span>
                     </el-tooltip>
                     <el-tooltip
-                        :content="
-                            isMultiple ? '退出多选 (Esc)' : '开启多选 (空格)'
-                        "
+                        :content="multiSelectTooltip"
                         placement="bottom"
                         :show-after="150"
                     >
@@ -66,7 +60,7 @@
                         >
                     </el-tooltip>
                     <el-tooltip
-                        content="设置"
+                        :content="settingTooltip"
                         placement="bottom"
                         :show-after="150"
                     >
@@ -78,7 +72,7 @@
                         >
                     </el-tooltip>
                     <el-tooltip
-                        content="清除记录"
+                        :content="clearTooltip"
                         placement="bottom"
                         :show-after="150"
                     >
@@ -90,7 +84,7 @@
                         >
                     </el-tooltip>
                     <el-tooltip
-                        content="搜索 (点击或输入开始)"
+                        :content="searchTooltip"
                         placement="bottom"
                         :show-after="150"
                     >
@@ -237,12 +231,12 @@ import {
 } from "element-plus";
 import { activateLayer, deactivateLayer } from "../global/hotkeyLayers";
 import { registerFeature, setMainState } from "../global/hotkeyRegistry";
+import { formatShortcutDisplay } from "../global/shortcutKey";
 import { copyAndPasteAndExit } from "../utils";
 import ClipItemList from "../cpns/ClipItemList.vue";
 import ClipFullData from "../cpns/ClipFullData.vue";
 import ClipSearch from "../cpns/ClipSearch.vue";
 import ClipSwitch from "../cpns/ClipSwitch.vue";
-import ClipFloatBtn from "../cpns/ClipFloatBtn.vue";
 import TagEditModal from "../cpns/TagEditModal.vue";
 import TagSearchModal from "../cpns/TagSearchModal.vue";
 import notify from "../data/notify.json";
@@ -737,12 +731,6 @@ const closeClearDialog = () => {
     clearRange.value = "1h";
 };
 
-const handleClearBtnClick = () => {
-    clearRange.value = "1h";
-    isClearDialogVisible.value = true;
-    focusRangeButton(clearRange.value);
-};
-
 const handleOpenCleanDialog = () => {
     clearRange.value = "1h";
     isClearDialogVisible.value = true;
@@ -989,6 +977,18 @@ const handleItemDelete = (item, metadata = {}) => {
 };
 
 const emit = defineEmits(["showSetting"]);
+const multiSelectTooltip = computed(() =>
+    isMultiple.value ? "Esc" : formatShortcutDisplay("Space"),
+);
+const settingTooltip = computed(() => formatShortcutDisplay("ctrl+alt+s"));
+const clearTooltip = computed(
+    () =>
+        [
+            formatShortcutDisplay("shift+Delete"),
+            formatShortcutDisplay("shift+Backspace"),
+        ].join(" / "),
+);
+const searchTooltip = computed(() => formatShortcutDisplay("ctrl+f"));
 
 const activeTab = ref("all");
 const activeTabLabel = computed(() => {
@@ -1297,6 +1297,10 @@ onMounted(() => {
         registerFeature("main-focus-search", () => {
             if (!isSearchPanelExpand.value) isSearchPanelExpand.value = true;
             focusSearchInput();
+            return true;
+        });
+        registerFeature("main-open-setting", () => {
+            emit("showSetting");
             return true;
         });
         registerFeature("main-toggle-locked-search", () => {

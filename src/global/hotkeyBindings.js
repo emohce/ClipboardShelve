@@ -222,6 +222,7 @@ export const HOTKEY_BINDINGS = [
   { layer: "main", shortcutId: "shift+Tab", features: ["main-tab"] },
   { layer: "main", shortcutId: "ctrl+Tab", features: ["collect-sub-tab-next"] },
   { layer: "main", shortcutId: "ctrl+shift+Tab", features: ["collect-sub-tab-prev"] },
+  { layer: "main", shortcutId: "ctrl+alt+s", features: ["main-open-setting"] },
   { layer: "main", shortcutId: "ctrl+f", features: ["main-focus-search"] },
   {
     layer: "main",
