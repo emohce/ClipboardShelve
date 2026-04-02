@@ -110,11 +110,23 @@ const copyAndPasteAndExit = (item, options = {}) => {
   }
 
   if (!shouldPaste) {
+    if (exit && typeof window.resetPluginUiState === 'function') {
+      window.resetPluginUiState()
+    }
     copy(item, exit)
     return true
   }
+
+  if (exit && typeof window.resetPluginUiState === 'function') {
+    window.resetPluginUiState()
+  }
+
   copy(item, exit)
   paste()
+
+  if (exit && typeof utools.outPlugin === 'function') {
+    setTimeout(() => utools.outPlugin(), 30)
+  }
 
   return true
 }

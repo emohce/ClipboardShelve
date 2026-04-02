@@ -318,6 +318,13 @@ const focusSearchInput = (initialValue = "") => {
     });
 };
 
+const resetPluginUiState = () => {
+    filterText.value = "";
+    lockFilter.value = "all";
+    isSearchPanelExpand.value = false;
+    nextTick(() => document.activeElement?.blur?.());
+};
+
 const ClipItemListRef = ref(null);
 const selectCount = ref(0);
 const handleToggleMultiSelect = (val = true) => {
@@ -997,6 +1004,7 @@ const activeTabLabel = computed(() => {
 const isClearingCollectTab = computed(() => activeTab.value === "collect");
 
 onMounted(() => {
+    window.resetPluginUiState = resetPluginUiState;
     utools.onPluginEnter(() => {
         window.focus();
         document.activeElement?.blur?.();
@@ -1393,6 +1401,7 @@ onMounted(() => {
     nextTick(() => registerMainHotkeyFeatures());
 
     onUnmounted(() => {
+        delete window.resetPluginUiState;
         document.removeEventListener("scroll", scrollCallBack);
         document.removeEventListener("keydown", keyDownCallBack);
     });
