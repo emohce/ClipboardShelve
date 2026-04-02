@@ -16,6 +16,7 @@ const LAYER_CATEGORIES = {
  */
 const LAYER_ORDER = [
   'main',
+  'setting',
   'clear-dialog',
   'clip-drawer',
   'full-data-overlay',

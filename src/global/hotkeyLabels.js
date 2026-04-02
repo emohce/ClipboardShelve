@@ -7,6 +7,7 @@ import { formatShortcutTextForPlatform } from './shortcutKey'
 export const LAYER_LABELS = {
   main: '主界面',
   'main-search': '主界面（搜索中）',
+  setting: '设置页',
   'clear-dialog': '清除对话框',
   'clip-drawer': '剪贴板抽屉',
   'full-data-overlay': '全文预览',
@@ -15,6 +16,10 @@ export const LAYER_LABELS = {
 }
 
 export const FEATURE_LABELS = {
+  'setting-scroll-up': '设置页向上滚动',
+  'setting-scroll-down': '设置页向下滚动',
+  'setting-tab-prev': '切换到上一个设置页签',
+  'setting-tab-next': '切换到下一个设置页签',
   'clear-dialog-close': '关闭清除对话框',
   'clear-dialog-confirm': '确认清除',
   'clear-dialog-range-1h': '清除 1 小时内',

@@ -50,6 +50,12 @@ export function getEffectiveBindings() {
 }
 
 export const HOTKEY_BINDINGS = [
+  // ---- setting ----
+  { layer: "setting", shortcutId: "ArrowUp", features: ["setting-scroll-up"] },
+  { layer: "setting", shortcutId: "ArrowDown", features: ["setting-scroll-down"] },
+  { layer: "setting", shortcutId: "ArrowLeft", features: ["setting-tab-prev"] },
+  { layer: "setting", shortcutId: "ArrowRight", features: ["setting-tab-next"] },
+
   // ---- clear-dialog ----
   {
     layer: "clear-dialog",

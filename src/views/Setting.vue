@@ -71,7 +71,7 @@
                 marker="!"
                 button-class="setting-help-btn"
                 aria-label="查看快捷键列表说明"
-                content="默认展开实际生效的快捷键；说明文本与实现同源。输入关键词后按 Enter 搜索，Ctrl/Cmd+F 可快速定位到搜索框，也可搜索 Ctrl/Cmd+Shift+U 查看有锁条件搜索切换。"
+                :content="shortcutHelpContent"
               />
             </div>
             <p class="shortcut-count">共 {{ shortcutCount }} 条快捷键</p>
@@ -314,6 +314,7 @@ import { getEffectiveBindings } from '../global/hotkeyBindings'
 import { activateLayer, deactivateLayer } from '../global/hotkeyLayers'
 import { getLayerLabel, getFeatureLabel } from '../global/hotkeyLabels'
 import { buildHotkeyTree } from '../global/hotkeyGraph'
+import { registerFeature } from '../global/hotkeyRegistry'
 import { getNativeId } from '../utils'
 import SettingPagedTable from '../cpns/SettingPagedTable.vue'
 import HotkeyTreeView from '../cpns/HotkeyTreeView.vue'
@@ -360,6 +361,11 @@ function switchSettingTabByOffset(delta) {
   return true
 }
 
+function scrollSettingBy(delta) {
+  window.scrollBy({ top: delta, behavior: 'smooth' })
+  return true
+}
+
 function sortShownByOrder(shownIds, order) {
   const orderMap = new Map(order.map((id, idx) => [id, idx]))
   return (Array.isArray(shownIds) ? shownIds.filter((id) => orderMap.has(id)) : []).sort(
@@ -378,10 +384,36 @@ function buildFeatureOrder(savedOrder, customIds) {
 
 const featureOrder = ref(buildFeatureOrder(setting.operation?.order, custom.value.map((c) => c.id)))
 const shown = ref(sortShownByOrder(operation.shown, featureOrder.value))
+const baseGuideFeatureIds = new Set([
+  'list-nav-up',
+  'list-nav-down',
+  'main-tab-prev',
+  'main-tab-next',
+  'setting-scroll-up',
+  'setting-scroll-down',
+  'setting-tab-prev',
+  'setting-tab-next',
+  'clear-dialog-arrow-nav'
+])
 const hotkeyTreeRoot = computed(() => {
   const bindings = getEffectiveBindings()
   return buildHotkeyTree(bindings)
+    .map((layerNode) => ({
+      ...layerNode,
+      shortcuts: (layerNode.shortcuts || []).filter((shortcut) => {
+        const featureIds = shortcut.features || []
+        return !featureIds.some((featureId) => baseGuideFeatureIds.has(featureId))
+      })
+    }))
+    .filter((layerNode) => (layerNode.shortcuts || []).length > 0)
 })
+
+const shortcutHelpContent = computed(() =>
+  [
+    '默认展开实际生效的快捷键；输入关键词后按 Enter 搜索，Ctrl/Cmd+F 可快速定位到搜索框。',
+    '基础操作：↑/↓ 用于主界面上下选择与设置页上下滚动；←/→ 用于主界面类型页、设置页页签与清除范围切换。'
+  ].join(' ')
+)
 
 const filteredHotkeyTreeRoot = computed(() => {
   const keyword = shortcutQuery.value.trim().toLowerCase()
@@ -742,6 +774,7 @@ const handleRestoreBtnClick = () => {
 }
 
 const keyDownHandler = (e) => {
+  if (e.__hotkeyHandled) return
   if (isEditableTarget(e.target)) return
   const isSearchShortcut = (e.ctrlKey || e.metaKey) && String(e.key).toLowerCase() === 'f'
   if (isSearchShortcut && activeTab.value === 'shortcut') {
@@ -771,6 +804,10 @@ const keyDownHandler = (e) => {
 }
 
 onMounted(() => {
+  registerFeature('setting-scroll-up', () => scrollSettingBy(-120))
+  registerFeature('setting-scroll-down', () => scrollSettingBy(120))
+  registerFeature('setting-tab-prev', () => switchSettingTabByOffset(-1))
+  registerFeature('setting-tab-next', () => switchSettingTabByOffset(1))
   activateLayer('setting')
   document.addEventListener('keydown', keyDownHandler)
 })
