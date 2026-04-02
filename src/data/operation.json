@@ -1,5 +1,6 @@
 [
   { "id": "copy", "title": "复制", "icon": "📄" },
+  { "id": "paste", "title": "粘贴", "icon": "📋" },
   { "id": "view", "title": "查看全部", "icon": "💬" },
   { "id": "open-folder", "title": "打开文件夹", "icon": "📁" },
   { "id": "open-source", "title": "打开原始位置", "icon": "📍" },

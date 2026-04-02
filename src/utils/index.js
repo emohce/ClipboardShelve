@@ -98,46 +98,23 @@ const copyAndPasteAndExit = (item, options = {}) => {
   const {
     exit = true,
     paste: shouldPaste = true,
-    respectImageCopyGuard = true,
-    delayMs = 80
+    respectImageCopyGuard = true
   } = options
 
-  let didCopy = false
-  switch (item.type) {
-    case 'text':
-      utools.copyText(item.data)
-      didCopy = true
-      break
-    case 'image': {
-      const dataUrl = getImageDataUrlForCopy(item)
-      if (!dataUrl) {
-        if (respectImageCopyGuard) {
-          console.warn('[copyAndPasteAndExit] 无可复制的图片数据，终止后续操作')
-          return false
-        }
-        break
-      }
-      utools.copyImage(dataUrl)
-      didCopy = true
-      break
-    }
-    case 'file': {
-      const paths = JSON.parse(item.data).map((file) => file.path)
-      utools.copyFile(paths)
-      didCopy = true
-      break
+  if (item.type === 'image') {
+    const dataUrl = getImageDataUrlForCopy(item)
+    if (!dataUrl && respectImageCopyGuard) {
+      console.warn('[copyAndPasteAndExit] 无可复制的图片数据，终止后续操作')
+      return false
     }
   }
 
-  if (!didCopy) return false
-
-  if (exit && typeof utools.hideMainWindow === 'function') {
-    utools.hideMainWindow()
+  if (!shouldPaste) {
+    copy(item, exit)
+    return true
   }
-
-  if (shouldPaste) {
-    setTimeout(() => paste(), delayMs)
-  }
+  copy(item, exit)
+  paste()
 
   return true
 }

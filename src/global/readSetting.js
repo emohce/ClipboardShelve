@@ -39,6 +39,11 @@ if (Array.isArray(setting.operation?.shown) && !setting.operation.shown.includes
   setting.operation.shown.splice(setting.operation.shown.indexOf('un-collect') + 1 || setting.operation.shown.length, 0, 'edit-tags')
 }
 
+// 迁移：默认操作列表补充独立「粘贴」入口，保持「复制」与「粘贴」语义分离
+if (Array.isArray(setting.operation?.shown) && !setting.operation.shown.includes('paste')) {
+  setting.operation.shown.splice(setting.operation.shown.indexOf('copy') + 1 || 0, 0, 'paste')
+}
+
 // 迁移：旧默认「14天」或缺失时改为「不限制」(null)，与初始代码默认一致；null 在设置页展示为「无限」
 if (setting.database.maxage == null || setting.database.maxage === 14) {
   setting.database.maxage = null

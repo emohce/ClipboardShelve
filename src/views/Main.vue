@@ -298,7 +298,7 @@ const tagSearchModalVisible = ref(false);
 const handleSearchBtnClick = () => {
     // 展开搜索框
     isSearchPanelExpand.value = true;
-    focusSearchInput(filterText.value);
+    nextTick(() => window.focus());
 };
 
 const focusSearchInput = (initialValue = "") => {

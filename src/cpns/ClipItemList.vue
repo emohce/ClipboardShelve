@@ -796,21 +796,31 @@ const isLongText = (item) => {
 
 /** 根据当前 item 类型执行预览（图片 / 长文本，其余类型暂不处理） */
 const runPreviewForItem = (item) => {
-    if (!item) return;
+    if (!item) {
+        stopImagePreview(true);
+        clearTextPreviewImmediately();
+        return;
+    }
     if (item.type === "image" && getItemImageSrc(item)) {
+        clearTextPreviewImmediately();
         showImagePreview(null, item);
         return;
     }
     if (item.type === "text" && isLongText(item)) {
+        stopImagePreview(true);
         showTextPreview(item);
         return;
     }
     if (item.type === "file") {
+        clearTextPreviewImmediately();
         const imageFiles = getImageFiles(item);
         if (imageFiles.length && imageFiles[0]?.path) {
             showImageFilePreview(imageFiles[0].path);
+            return;
         }
     }
+    stopImagePreview(true);
+    clearTextPreviewImmediately();
 };
 
 // Shift键长按处理（普通层 100ms 持续即对所在 item 进行预览）
@@ -844,6 +854,15 @@ const triggerKeyboardPreview = () => {
     if (!keyboardTriggeredPreview.value) return;
     const currentItem = props.showList[activeIndex.value];
     runPreviewForItem(currentItem);
+};
+
+const clearTextPreviewImmediately = () => {
+    if (textPreviewHideTimer) {
+        clearTimeout(textPreviewHideTimer);
+        textPreviewHideTimer = null;
+    }
+    textPreview.value.show = false;
+    textPreview.value.text = "";
 };
 
 const showTextPreview = (item) => {
@@ -894,6 +913,22 @@ const keepTextPreview = () => {
         clearTimeout(textPreviewHideTimer);
         textPreviewHideTimer = null;
     }
+};
+
+const resetTransientPreviewState = () => {
+    if (shiftKeyTimer) {
+        clearTimeout(shiftKeyTimer);
+        shiftKeyTimer = null;
+    }
+    if (hoverPreviewTimer) {
+        clearTimeout(hoverPreviewTimer);
+        hoverPreviewTimer = null;
+    }
+    keyboardTriggeredPreview.value = false;
+    hoverTriggeredPreview.value = false;
+    hoverRowIndex.value = null;
+    stopImagePreview(true);
+    clearTextPreviewImmediately();
 };
 
 // 检测文件中是否包含图片
@@ -1086,19 +1121,7 @@ const applyHoverPreviewConfig = (nextSetting = setting) => {
 
     if (hoverPreviewConfig.value.enabled) return;
 
-    if (hoverPreviewTimer) {
-        clearTimeout(hoverPreviewTimer);
-        hoverPreviewTimer = null;
-    }
-    hoverTriggeredPreview.value = false;
-    hoverRowIndex.value = null;
-    desktopPreviewManager.closeAllPreviews();
-    stopImagePreview(true);
-    if (textPreviewHideTimer) {
-        clearTimeout(textPreviewHideTimer);
-        textPreviewHideTimer = null;
-    }
-    textPreview.value.show = false;
+    resetTransientPreviewState();
 };
 
 const handleSettingUpdated = (event) => {
@@ -1519,6 +1542,7 @@ function registerListHotkeyFeatures() {
         }
         if (!props.isMultiple && props.showList[activeIndex.value]) {
             copyAndPasteAndExit(props.showList[activeIndex.value], {
+                paste: false,
                 respectImageCopyGuard: true,
             });
             ElMessage({ message: "复制成功", type: "success" });
@@ -1745,17 +1769,31 @@ const keyUpCallBack = (e) => {
     }
 };
 
+const blurCallBack = () => {
+    resetTransientPreviewState();
+};
+
+const visibilityChangeCallBack = () => {
+    if (document.hidden) {
+        resetTransientPreviewState();
+    }
+};
+
 onMounted(() => {
     applyHoverPreviewConfig(setting);
     registerListHotkeyFeatures();
     document.addEventListener("keydown", keyDownCallBack);
     document.addEventListener("keyup", keyUpCallBack);
+    window.addEventListener("blur", blurCallBack);
+    document.addEventListener("visibilitychange", visibilityChangeCallBack);
     window.addEventListener(SETTING_UPDATED_EVENT, handleSettingUpdated);
 });
 
 onUnmounted(() => {
     document.removeEventListener("keydown", keyDownCallBack);
     document.removeEventListener("keyup", keyUpCallBack);
+    window.removeEventListener("blur", blurCallBack);
+    document.removeEventListener("visibilitychange", visibilityChangeCallBack);
     window.removeEventListener(SETTING_UPDATED_EVENT, handleSettingUpdated);
 
     // 清理图片预览定时器
@@ -1763,23 +1801,7 @@ onUnmounted(() => {
         clearTimeout(imagePreviewHideTimer);
         imagePreviewHideTimer = null;
     }
-
-    // 清理Shift键定时器
-    if (shiftKeyTimer) {
-        clearTimeout(shiftKeyTimer);
-        shiftKeyTimer = null;
-    }
-    // 清理行悬浮预览定时器
-    if (hoverPreviewTimer) {
-        clearTimeout(hoverPreviewTimer);
-        hoverPreviewTimer = null;
-    }
-
-    // 清理长文本预览定时器
-    if (textPreviewHideTimer) {
-        clearTimeout(textPreviewHideTimer);
-        textPreviewHideTimer = null;
-    }
+    resetTransientPreviewState();
 });
 </script>
 

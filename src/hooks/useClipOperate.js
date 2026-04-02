@@ -1,5 +1,5 @@
 import { ElMessage } from "element-plus";
-import { copyAndPasteAndExit } from "../utils";
+import { copyAndPasteAndExit, copyOnly } from "../utils";
 import setting from "../global/readSetting";
 
 export default function useClipOperate({ emit, currentActiveTab }) {
@@ -21,10 +21,16 @@ export default function useClipOperate({ emit, currentActiveTab }) {
         image: "img",
       };
       if (id === "copy") {
+        copyOnly(item);
+        ElMessage({
+          message: "复制成功",
+          type: "success",
+        });
+      } else if (id === "paste") {
         const ok = copyAndPasteAndExit(item, { respectImageCopyGuard: true });
         if (ok) {
           ElMessage({
-            message: "复制成功",
+            message: "已粘贴",
             type: "success",
           });
         }
@@ -127,7 +133,7 @@ export default function useClipOperate({ emit, currentActiveTab }) {
           return false;
         }
       }
-      if (id === "copy") {
+      if (id === "copy" || id === "paste") {
         return true;
       } else if (id === "view") {
         return !isFullData;
