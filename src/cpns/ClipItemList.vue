@@ -1,9 +1,14 @@
 <template>
-    <div class="clip-item-list">
+    <div
+        class="clip-item-list"
+        ref="listRootRef"
+        @mousemove.passive="handleListMouseMove"
+    >
         <div
             class="clip-item"
             v-for="(item, index) in showList"
             :key="item.id"
+            :data-index="index"
             @click.left="handleItemClick($event, item)"
             @click.right="handleItemClick($event, item)"
             @mouseenter.prevent="handleMouseOver($event, index, item)"
@@ -1046,6 +1051,8 @@ const imagePreview = ref({
 const imagePreviewSource = ref("");
 const hoverRowIndex = ref(null);
 const previewWindowSize = ref(null);
+const listRootRef = ref(null);
+const lastPointerPosition = ref({ x: null, y: null });
 
 // 长文本预览相关
 const textPreview = ref({
@@ -1257,12 +1264,10 @@ const handleItemClick = (ev, item) => {
     }
 };
 const handleMouseOver = (event, index, item) => {
-    // 方向键或点击后挂起悬浮高亮与悬浮预览，鼠标移动时解除挂起（本次移入不更新高亮/不启预览，下次移入恢复正常）
+    // 方向键或点击后挂起悬浮高亮与悬浮预览，必须等真实鼠标移动后再恢复
     const wasSuspended =
         hoverPreviewSuspendedByKeyboard.value ||
         hoverPreviewSuspendedByClick.value;
-    hoverPreviewSuspendedByKeyboard.value = false;
-    hoverPreviewSuspendedByClick.value = false;
 
     if (!props.isMultiple && !wasSuspended) {
         activeIndex.value = index;
@@ -1293,6 +1298,64 @@ const handleMouseOver = (event, index, item) => {
             hoverPreviewTimer = null;
         }, hoverPreviewConfig.value.delay);
     }
+};
+
+const handleListMouseMove = (event) => {
+    const { clientX, clientY } = event;
+    const last = lastPointerPosition.value;
+    const moved = last.x !== clientX || last.y !== clientY;
+    lastPointerPosition.value = { x: clientX, y: clientY };
+    if (!moved) return;
+    hoverPreviewSuspendedByKeyboard.value = false;
+    hoverPreviewSuspendedByClick.value = false;
+};
+
+const clampActiveIndex = (nextIndex) => {
+    if (!Array.isArray(props.showList) || props.showList.length === 0) return 0;
+    return Math.min(Math.max(nextIndex, 0), props.showList.length - 1);
+};
+
+const getActiveNode = (index = activeIndex.value) =>
+    listRootRef.value?.querySelector(`.clip-item[data-index="${index}"]`) ||
+    null;
+
+const scrollActiveNodeIntoView = (index = activeIndex.value, options = {}) => {
+    nextTick(() => {
+        const activeNode = getActiveNode(index);
+        activeNode?.scrollIntoView({
+            block: options.block || "nearest",
+            inline: "nearest",
+            behavior: options.behavior || "smooth",
+        });
+    });
+};
+
+const setKeyboardActiveIndex = (nextIndex, options = {}) => {
+    if (!Array.isArray(props.showList) || props.showList.length === 0)
+        return false;
+    const targetIndex = clampActiveIndex(nextIndex);
+    if (targetIndex === activeIndex.value && !options.forceScroll) return true;
+    hoverPreviewSuspendedByKeyboard.value = true;
+    activeIndex.value = targetIndex;
+    scrollActiveNodeIntoView(targetIndex, options);
+    return true;
+};
+
+const getPageStep = () => {
+    const nodes = Array.from(
+        listRootRef.value?.querySelectorAll(".clip-item") || [],
+    ).filter((node) => node.offsetParent !== null);
+    if (!nodes.length) return 1;
+    const sample = nodes.slice(0, Math.min(nodes.length, 6));
+    const avgHeight =
+        sample.reduce(
+            (sum, node) => sum + node.getBoundingClientRect().height,
+            0,
+        ) / sample.length;
+    if (!avgHeight || Number.isNaN(avgHeight)) return 1;
+    const viewportHeight =
+        window.innerHeight || document.documentElement.clientHeight || avgHeight;
+    return Math.max(1, Math.floor((viewportHeight / avgHeight) * 0.9));
 };
 
 const handleRowMouseLeave = (index) => {
@@ -1393,19 +1456,7 @@ function registerListHotkeyFeatures() {
             hoverPreviewSuspendedByKeyboard.value = true;
             window.toTop();
         }
-        if (activeIndex.value > 0) {
-            hoverPreviewSuspendedByKeyboard.value = true;
-            activeIndex.value--;
-            nextTick(() => {
-                const activeNode = document.querySelector(".clip-item.active");
-                activeNode?.scrollIntoView({
-                    block: "nearest",
-                    inline: "nearest",
-                    behavior: "smooth",
-                });
-            });
-        }
-        return true;
+        return setKeyboardActiveIndex(activeIndex.value - 1);
     });
     registerFeature("list-nav-down", () => {
         if (
@@ -1413,47 +1464,48 @@ function registerListHotkeyFeatures() {
             activeIndex.value >= props.showList.length - 1
         )
             return true;
-        hoverPreviewSuspendedByKeyboard.value = true;
-        activeIndex.value++;
-        nextTick(() => {
-            const activeNode = document.querySelector(".clip-item.active");
-            activeNode?.scrollIntoView({
-                block: "nearest",
-                inline: "nearest",
-                behavior: "smooth",
-            });
+        return setKeyboardActiveIndex(activeIndex.value + 1);
+    });
+    registerFeature("list-page-up", () => {
+        if (isFocusInSearch()) return false;
+        if (activeIndex.value <= 0) {
+            window.toTop();
+            return true;
+        }
+        const step = getPageStep();
+        if (activeIndex.value - step <= 0) {
+            window.toTop();
+        }
+        return setKeyboardActiveIndex(activeIndex.value - step, {
+            block: "start",
         });
-        return true;
+    });
+    registerFeature("list-page-down", () => {
+        if (isFocusInSearch()) return false;
+        return setKeyboardActiveIndex(activeIndex.value + getPageStep(), {
+            block: "end",
+        });
+    });
+    registerFeature("list-home", () => {
+        if (isFocusInSearch()) return false;
+        window.toTop();
+        return setKeyboardActiveIndex(0, {
+            block: "start",
+            forceScroll: true,
+        });
+    });
+    registerFeature("list-end", () => {
+        if (isFocusInSearch()) return false;
+        return setKeyboardActiveIndex(props.showList.length - 1, {
+            block: "end",
+            forceScroll: true,
+        });
     });
     registerFeature("list-nav-left", () => {
-        if (activeIndex.value > 0) {
-            hoverPreviewSuspendedByKeyboard.value = true;
-            activeIndex.value--;
-            nextTick(() => {
-                const activeNode = document.querySelector(".clip-item.active");
-                activeNode?.scrollIntoView({
-                    block: "nearest",
-                    inline: "nearest",
-                    behavior: "smooth",
-                });
-            });
-        }
-        return true;
+        return setKeyboardActiveIndex(activeIndex.value - 1);
     });
     registerFeature("list-nav-right", () => {
-        if (activeIndex.value < props.showList.length - 1) {
-            hoverPreviewSuspendedByKeyboard.value = true;
-            activeIndex.value++;
-            nextTick(() => {
-                const activeNode = document.querySelector(".clip-item.active");
-                activeNode?.scrollIntoView({
-                    block: "nearest",
-                    inline: "nearest",
-                    behavior: "smooth",
-                });
-            });
-        }
-        return true;
+        return setKeyboardActiveIndex(activeIndex.value + 1);
     });
     const isFocusInSearch = () => {
         const el = document.activeElement;

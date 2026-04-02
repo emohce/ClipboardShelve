@@ -120,7 +120,9 @@ export function formatShortcutDisplay(shortcutId) {
   return parts
     .map((part) => {
       const lower = part.toLowerCase()
+      if (lower === 'ctrl' && useMacLabels) return 'Command'
       if (lower === 'alt' && useMacLabels) return 'Option'
+      if (lower === 'meta' && useMacLabels) return 'Command'
       return DISPLAY_TOKEN_MAP[lower] || part
     })
     .join('+')
@@ -128,12 +130,14 @@ export function formatShortcutDisplay(shortcutId) {
 
 /**
  * Replace shortcut text inside feature descriptions for platform-aware display.
- * Currently only maps Alt -> Option on macOS.
+ * On macOS, Ctrl bindings are shown as Command and Alt as Option.
  * @param {string} text
  * @returns {string}
  */
 export function formatShortcutTextForPlatform(text) {
   if (!text) return ''
   if (!isMacPlatform()) return text
-  return String(text).replace(/\bAlt\b/g, 'Option')
+  return String(text)
+    .replace(/\bCtrl\b/g, 'Command')
+    .replace(/\bAlt\b/g, 'Option')
 }
