@@ -500,14 +500,19 @@ const matchLockFilter = (item) => {
     return true;
 };
 
-const matchSearchableItemType = (item, keyword) =>
-    keyword ? item.type !== "image" : true;
+const matchSearchableItemType = (item, keyword, tabType = activeTab.value) => {
+    if (tabType === "text") return item.type === "text";
+    if (tabType === "image") return item.type === "image";
+    if (tabType === "file") return item.type === "file";
+    // all tab 或其他情况：只在有搜索关键词时过滤图片
+    return keyword ? item.type !== "image" : true;
+};
 
-const filterNonImageWhenSearching = (items, keyword) =>
-    items.filter((item) => matchSearchableItemType(item, keyword));
+const filterNonImageWhenSearching = (items, keyword, tabType = activeTab.value) =>
+    items.filter((item) => matchSearchableItemType(item, keyword, tabType));
 
-const matchMainTabItem = (item, bodyKeyword) =>
-    matchSearchableItemType(item, bodyKeyword) &&
+const matchMainTabItem = (item, bodyKeyword, tabType = activeTab.value) =>
+    matchSearchableItemType(item, bodyKeyword, tabType) &&
     matchLockFilter(item) &&
     bodyFilterCallBack(item, bodyKeyword);
 
@@ -638,13 +643,13 @@ const updateShowList = (type, toTop = true) => {
             const collectMatches = window.db
                 .getCollects()
                 .filter((item) => matchLockFilter(item))
-                .filter((item) => filterText.value ? item.type !== "image" : true)
+                .filter((item) => matchSearchableItemType(item, filterText.value, type))
                 .filter((item) => tagMatch(item, parsed.tagKeyword))
                 .filter((item) => bodyFilterCallBack(item, parsed.bodyKeyword));
             collectBlockList.value = collectMatches.slice(0, COLLECT_BLOCK_CAP);
             const mainFiltered = mainBase
                 .filter((item) => !window.db.isCollected(item.id))
-                .filter((item) => matchMainTabItem(item, parsed.bodyKeyword));
+                .filter((item) => matchMainTabItem(item, parsed.bodyKeyword, type));
             showList.value = mainFiltered.slice(0, GAP);
         } else {
             collectBlockList.value = [];

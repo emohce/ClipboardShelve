@@ -327,6 +327,7 @@ const stopImagePreview = (immediate = false) => {
 // 组件卸载时清理预览窗口
 onUnmounted(() => {
     desktopPreviewManager.closeAllPreviews();
+    stopKeyHold(); // 清理长按检测定时器
 });
 
 const hideImagePreview = () => {
@@ -985,6 +986,12 @@ const autoScrollTimer = ref(null);
 const autoScrollSpeed = ref(100); // 初始滚动间隔(ms)
 const autoScrollDirection = ref(null); // 'up' or 'down'
 const autoScrollAcceleration = ref(1.2); // 加速因子
+// 方向键长按检测相关
+const keyHoldTimer = ref(null);
+const keyHoldDirection = ref(null);
+const keyHoldStartTime = ref(0);
+const KEY_HOLD_DELAY = 300; // 开始长按检测的延迟(ms)
+const KEY_HOLD_REPEAT_INTERVAL = 150; // 长按重复间隔(ms)
 const activeIndex = ref(0); // 定义 activeIndex，需要在 defineExpose 之前
 /** 末项按 ↓ 时先 loadMore，列表变长后应选中此项（原 showList.length） */
 const pendingNavAfterLoad = ref(null);
@@ -1172,8 +1179,11 @@ const handleItemClick = (ev, item) => {
         }
     } else {
         const { button } = ev;
+        const currentIndex = getShowItemIndex(item);
+        activeIndex.value = currentIndex;
+        
         if (button === 0) {
-            // 左键 复制（不改变插件内位置，可粘贴到外部）
+            // 左键 复制并移动到下一个item
             // 文件类型点击会打开 popover 做预览，此时禁用行级悬浮预览，鼠标移动后解除
             if (item.type === "file") {
                 hoverPreviewSuspendedByClick.value = true;
@@ -1183,11 +1193,26 @@ const handleItemClick = (ev, item) => {
                 return;
             }
             copyAndPasteAndExit(item, { respectImageCopyGuard: true });
+            
+            // 复制后移动到下一个item
+            nextTick(() => {
+                const nextIndex = Math.min(currentIndex + 1, props.showList.length - 1);
+                if (nextIndex !== currentIndex) {
+                    setKeyboardActiveIndex(nextIndex, { block: "center" });
+                }
+            });
         } else if (button === 2) {
-            // 右键 打开抽屉（与右方向键一致）
-            activeIndex.value = getShowItemIndex(item);
+            // 右键 打开抽屉并移动到下一个item
             openDrawerForCurrentItem(ev);
             ev.preventDefault();
+            
+            // 打开抽屉后移动到下一个item
+            nextTick(() => {
+                const nextIndex = Math.min(currentIndex + 1, props.showList.length - 1);
+                if (nextIndex !== currentIndex) {
+                    setKeyboardActiveIndex(nextIndex, { block: "center" });
+                }
+            });
         }
     }
 };
@@ -1310,6 +1335,87 @@ const getPageStep = () => {
     return Math.max(1, Math.floor((containerHeight / itemSize) * 0.9));
 };
 
+// 边界检测：是否在列表顶部
+const isAtTopBoundary = () => {
+    return activeIndex.value <= 0;
+};
+
+// 边界检测：是否在列表底部
+const isAtBottomBoundary = () => {
+    return activeIndex.value >= props.showList.length - 1;
+};
+
+// 半页滚动并移动一个item
+const halfPageScrollAndMove = (direction) => {
+    const halfStep = Math.max(1, Math.floor(getPageStep() / 2));
+    let targetIndex;
+    
+    if (direction === 'up') {
+        targetIndex = Math.max(0, activeIndex.value - halfStep);
+        // 先半页滚动
+        setKeyboardActiveIndex(targetIndex, { block: "center" });
+        // 然后移动一个item
+        nextTick(() => {
+            setKeyboardActiveIndex(Math.max(0, targetIndex - 1), { block: "start" });
+        });
+    } else {
+        targetIndex = Math.min(props.showList.length - 1, activeIndex.value + halfStep);
+        // 先半页滚动
+        setKeyboardActiveIndex(targetIndex, { block: "center" });
+        // 然后移动一个item
+        nextTick(() => {
+            setKeyboardActiveIndex(Math.min(props.showList.length - 1, targetIndex + 1), { block: "center" });
+        });
+    }
+};
+
+// 停止长按检测
+const stopKeyHold = () => {
+    if (keyHoldTimer.value) {
+        clearTimeout(keyHoldTimer.value);
+        keyHoldTimer.value = null;
+    }
+    keyHoldDirection.value = null;
+    keyHoldStartTime.value = 0;
+};
+
+// 长按自动滚动
+const startKeyHoldAutoScroll = (direction) => {
+    keyHoldDirection.value = direction;
+    keyHoldStartTime.value = Date.now();
+    
+    // 延迟后开始自动滚动
+    keyHoldTimer.value = setTimeout(() => {
+        const autoScroll = () => {
+            if (!keyHoldDirection.value) return;
+            
+            // 计算加速后的滚动间隔
+            const elapsed = Date.now() - keyHoldStartTime.value;
+            const acceleratedInterval = Math.max(50, KEY_HOLD_REPEAT_INTERVAL - Math.floor(elapsed / 1000) * 10);
+            
+            // 执行半页滚动并保持居中
+            if (direction === 'up') {
+                if (activeIndex.value > 0) {
+                    const step = getPageStep();
+                    const targetIndex = Math.max(0, activeIndex.value - step);
+                    setKeyboardActiveIndex(targetIndex, { block: "center" });
+                }
+            } else {
+                if (activeIndex.value < props.showList.length - 1) {
+                    const step = getPageStep();
+                    const targetIndex = Math.min(props.showList.length - 1, activeIndex.value + step);
+                    setKeyboardActiveIndex(targetIndex, { block: "center" });
+                }
+            }
+            
+            // 继续下一次滚动
+            keyHoldTimer.value = setTimeout(autoScroll, acceleratedInterval);
+        };
+        
+        autoScroll();
+    }, KEY_HOLD_DELAY);
+};
+
 const handleRowMouseLeave = (index) => {
     if (hoverPreviewTimer) {
         clearTimeout(hoverPreviewTimer);
@@ -1423,34 +1529,81 @@ function registerListHotkeyFeatures() {
     };
 
     registerFeature("list-nav-up", () => {
-        if (activeIndex.value === 1) {
+        // 停止之前的长按检测
+        stopKeyHold();
+        
+        // 边界检测：如果在顶部，先半页滚动然后移动
+        if (isAtTopBoundary()) {
             hoverPreviewSuspendedByKeyboard.value = true;
-            window.toTop();
+            halfPageScrollAndMove('up');
+            // 开始长按检测
+            startKeyHoldAutoScroll('up');
+            return true;
         }
-        return setKeyboardActiveIndex(activeIndex.value - 1, {
+        
+        // 正常移动一个item
+        const result = setKeyboardActiveIndex(activeIndex.value - 1, {
             block: "start",
         });
+        
+        // 开始长按检测
+        if (result) {
+            startKeyHoldAutoScroll('up');
+        }
+        
+        return result;
     });
     registerFeature("list-nav-down", () => {
-        if (props.showList.length === 0) return true;
-        if (activeIndex.value < props.showList.length - 1) {
-            return setKeyboardActiveIndex(activeIndex.value + 1, {
-                block: "center",
-            });
+        if (props.showList.length === 0) {
+            stopKeyHold();
+            return true;
         }
-        const oldLen = props.showList.length;
-        hoverPreviewSuspendedByKeyboard.value = true;
-        pendingNavAfterLoad.value = oldLen;
-        emit("loadMore");
-        nextTick(() => {
+        
+        // 停止之前的长按检测
+        stopKeyHold();
+        
+        // 边界检测：如果在底部，先半页滚动然后移动
+        if (isAtBottomBoundary()) {
+            hoverPreviewSuspendedByKeyboard.value = true;
+            
+            // 尝试加载更多数据
+            const oldLen = props.showList.length;
+            pendingNavAfterLoad.value = oldLen;
+            emit("loadMore");
+            
             nextTick(() => {
-                if (pendingNavAfterLoad.value === null) return;
-                if (props.showList.length <= oldLen) {
-                    pendingNavAfterLoad.value = null;
-                }
+                nextTick(() => {
+                    if (pendingNavAfterLoad.value === null) return;
+                    if (props.showList.length <= oldLen) {
+                        pendingNavAfterLoad.value = null;
+                        // 没有更多数据，执行半页滚动
+                        halfPageScrollAndMove('down');
+                    } else {
+                        // 有新数据，移动到新数据
+                        const targetIndex = oldLen;
+                        activeIndex.value = targetIndex;
+                        setKeyboardActiveIndex(targetIndex, { block: "center" });
+                        pendingNavAfterLoad.value = null;
+                    }
+                });
             });
+            
+            // 开始长按检测
+            startKeyHoldAutoScroll('down');
+            return true;
+        }
+        
+        // 正常移动一个item
+        const result = setKeyboardActiveIndex(activeIndex.value + 1, {
+            block: "center",
         });
-        return true;
+        
+        // 开始长按检测
+        if (result) {
+            startKeyHoldAutoScroll('down');
+        }
+        
+        return result;
     });
     registerFeature("list-page-up", () => {
         if (isFocusInSearch()) return false;
@@ -1725,11 +1878,6 @@ function registerListHotkeyFeatures() {
         }
         return true;
     });
-    registerFeature("list-shift", () => {
-        if (props.isMultiple) isShiftDown.value = true;
-        handleShiftKeyDown();
-        return true;
-    });
     for (let n = 1; n <= 9; n++) {
         registerFeature(`list-quick-copy-${n}`, () => {
             const targetItem = props.showList[n - 1];
@@ -1753,49 +1901,6 @@ function registerListHotkeyFeatures() {
         });
     }
 }
-
-const keyDownCallBack = (e) => {
-    if (e.__hotkeyHandled) return;
-    
-    const { key } = e;
-    const isArrowUp = key === "ArrowUp";
-    const isArrowDown = key === "ArrowDown";
-    const isShift = key === "Shift";
-    const isShiftPressed = e.shiftKey;
-    
-    // 只有在没有按住Shift时才启动自动滚动
-    if ((isArrowUp || isArrowDown) && !e.repeat && !isShiftPressed) {
-        const direction = isArrowUp ? 'up' : 'down';
-        startAutoScroll(direction);
-    }
-    
-    // 保持原有的Shift键处理逻辑
-    if (isShift || e.repeat) return;
-    if (props.isMultiple) isShiftDown.value = true;
-    handleShiftKeyDown();
-};
-
-const keyUpCallBack = (e) => {
-    if (e.__hotkeyHandled) return;
-    const { key } = e;
-    const isArrowUp = key === "ArrowUp";
-    const isArrowDown = key === "ArrowDown";
-    const isShift = key === "Shift";
-    const isShiftPressed = e.shiftKey;
-    
-    // 只有在没有按住Shift时才停止自动滚动
-    if ((isArrowUp || isArrowDown) && !isShiftPressed) {
-        stopAutoScroll();
-    }
-    
-    // 保持原有的Shift键处理逻辑
-    if (isShift) {
-        e.preventDefault();
-        e.stopPropagation();
-        if (props.isMultiple) isShiftDown.value = false;
-        handleShiftKeyUp();
-    }
-};
 
 // 自动滚动功能
 const startAutoScroll = (direction) => {
@@ -1857,16 +1962,81 @@ const stopAutoScroll = () => {
     autoScrollSpeed.value = 100;
 };
 
+// 统一的键盘事件处理
+const unifiedKeyHandler = (e) => {
+    if (e.__hotkeyHandled) return;
+    
+    const { key, shiftKey, repeat } = e;
+    const isArrowUp = key === "ArrowUp";
+    const isArrowDown = key === "ArrowDown";
+    const isShift = key === "Shift";
+    
+    // Shift键处理
+    if (isShift) {
+        if (!repeat && !shiftKeyTimer) {
+            // Shift键按下，启动预览计时
+            if (props.isMultiple) isShiftDown.value = true;
+            handleShiftKeyDown();
+        }
+        return; // 不阻止默认行为，让hotkeyRegistry处理
+    }
+    
+    // 上下键自动滚动（只在没有按Shift时）
+    if ((isArrowUp || isArrowDown) && !shiftKey) {
+        if (!repeat && !autoScrollTimer.value) {
+            const direction = isArrowUp ? 'up' : 'down';
+            startAutoScroll(direction);
+        }
+        return; // 不阻止默认行为，让hotkeyRegistry处理导航
+    }
+};
+
+const unifiedKeyReleaseHandler = (e) => {
+    if (e.__hotkeyHandled) return;
+    
+    const { key, shiftKey } = e;
+    const isArrowUp = key === "ArrowUp";
+    const isArrowDown = key === "ArrowDown";
+    const isShift = key === "Shift";
+    
+    // Shift键释放
+    if (isShift) {
+        handleShiftKeyUp();
+        return;
+    }
+    
+    // 上下键释放（只在没有按Shift时）
+    if ((isArrowUp || isArrowDown) && !shiftKey) {
+        stopAutoScroll();
+        stopKeyHold(); // 停止长按检测
+        return;
+    }
+};
+
 // 窗口失焦时隐藏所有预览
 const handleWindowBlur = () => {
     resetTransientPreviewState();
     stopAutoScroll(); // 停止自动滚动
+    stopKeyHold(); // 停止长按检测
+    // 清理Shift键状态
+    if (shiftKeyTimer) {
+        clearTimeout(shiftKeyTimer);
+        shiftKeyTimer = null;
+    }
+    if (keyboardTriggeredPreview.value) {
+        keyboardTriggeredPreview.value = false;
+        hoverTriggeredPreview.value = false;
+        stopImagePreview(true);
+        hideTextPreview();
+    }
 };
 
 onMounted(() => {
     applyHoverPreviewConfig(setting);
     registerListHotkeyFeatures();
-    // 移除自定义键盘事件监听器，使用hotkeyRegistry系统
+    // 添加统一的键盘事件监听器（在capture阶段）
+    document.addEventListener("keydown", unifiedKeyHandler, true);
+    document.addEventListener("keyup", unifiedKeyReleaseHandler, true);
     window.addEventListener(SETTING_UPDATED_EVENT, handleSettingUpdated);
     window.addEventListener("blur", handleWindowBlur);
 
@@ -1882,7 +2052,9 @@ onMounted(() => {
 });
 
 onUnmounted(() => {
-    // 移除自定义键盘事件监听器清理
+    // 清理统一的键盘事件监听器
+    document.removeEventListener("keydown", unifiedKeyHandler, true);
+    document.removeEventListener("keyup", unifiedKeyReleaseHandler, true);
     window.removeEventListener(SETTING_UPDATED_EVENT, handleSettingUpdated);
     window.removeEventListener("blur", handleWindowBlur);
     

@@ -7,6 +7,7 @@
             'multi-active': isMultiple && isActive,
             select: isSelected,
             'clip-item--compact': isCompact,
+            'clip-item--has-image': item.type === 'image',
         }"
         :aria-selected="isActive"
         role="option"

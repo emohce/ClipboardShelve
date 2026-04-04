@@ -148,10 +148,21 @@
       }
     }
 
+    &.clip-item--compact.clip-item--has-image {
+      .clip-data {
+        max-height: 60px;
+        min-height: 56px;
+      }
+      .clip-data img.clip-data-image {
+        max-height: 52px !important;
+        max-width: 72px !important;
+      }
+    }
+
     .clip-info {
       display: flex;
       flex-direction: row;
-      align-items: flex-start;
+      align-items: center;
       font-size: 14px;
       padding: 6px 10px 6px 8px;
       gap: 8px;
