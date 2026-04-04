@@ -1267,6 +1267,28 @@ const getActiveNode = (index = activeIndex.value) =>
     listRootRef.value?.querySelector(`.clip-item[data-index="${index}"]`) ||
     null;
 
+const getScrollContainer = () => {
+    const scrollerEl = scrollerRef.value?.$el;
+    if (!scrollerEl) return null;
+    return (
+        scrollerEl.querySelector(".vue-recycle-scroller") ||
+        scrollerEl.querySelector(".scroller") ||
+        scrollerEl.querySelector("[data-virtual-scroller]") ||
+        scrollerEl.querySelector(".v-virtual-scroller") ||
+        scrollerEl
+    );
+};
+
+const isNodeFullyVisible = (node, container) => {
+    if (!node || !container) return false;
+    const nodeRect = node.getBoundingClientRect();
+    const containerRect = container.getBoundingClientRect();
+    return (
+        nodeRect.top >= containerRect.top &&
+        nodeRect.bottom <= containerRect.bottom
+    );
+};
+
 const scrollActiveNodeIntoView = (index = activeIndex.value, options = {}) => {
     const block = options.block || "nearest";
     // vue-virtual-scroller 的 align 参数：start/center/end
@@ -1278,6 +1300,8 @@ const scrollActiveNodeIntoView = (index = activeIndex.value, options = {}) => {
               : "center";
     
     const doScroll = () => {
+        const activeNode = getActiveNode(index);
+        const scrollContainer = getScrollContainer();
         // 优先使用虚拟滚动的 scrollToItem API
         if (scrollerRef.value && typeof scrollerRef.value.scrollToItem === "function") {
             // 延迟执行，确保虚拟滚动渲染完成
@@ -1289,14 +1313,30 @@ const scrollActiveNodeIntoView = (index = activeIndex.value, options = {}) => {
         }
         
         // 降级方案：使用 DOM scrollIntoView
-        const activeNode = getActiveNode(index);
         if (activeNode) {
+            if (
+                !options.forceScroll &&
+                isNodeFullyVisible(activeNode, scrollContainer)
+            ) {
+                return;
+            }
             activeNode.scrollIntoView({
                 block,
                 inline: "nearest",
                 behavior: "instant",
             });
-        } else {
+            return;
+        }
+
+        if (!activeNode && scrollerRef.value && typeof scrollerRef.value.scrollToItem === "function") {
+            scrollerRef.value.scrollToItem(index, {
+                align,
+                smooth: false,
+            });
+            return;
+        }
+
+        {
             // 如果 DOM 元素不存在，尝试滚动到大概位置
             const scrollerEl = scrollerRef.value?.$el;
             if (scrollerEl) {
@@ -2063,19 +2103,39 @@ const startAutoScroll = (direction) => {
     if (autoScrollTimer.value) return;
     
     autoScrollDirection.value = direction;
+    let hasRepeated = false;
     autoScrollSpeed.value = 100; // 重置速度
     
     const scroll = () => {
         if (direction === 'up') {
             if (activeIndex.value > 0) {
-                setKeyboardActiveIndex(activeIndex.value - 1, { block: "center" });
+                if (!hasRepeated) {
+                    setKeyboardActiveIndex(activeIndex.value - 1, {
+                        block: "nearest",
+                    });
+                } else {
+                    const step = getPageStep();
+                    const targetIndex = Math.max(0, activeIndex.value - step);
+                    setKeyboardActiveIndex(targetIndex, { block: "center" });
+                }
             } else {
                 stopAutoScroll();
                 return;
             }
         } else if (direction === 'down') {
             if (activeIndex.value < props.showList.length - 1) {
-                setKeyboardActiveIndex(activeIndex.value + 1, { block: "center" });
+                if (!hasRepeated) {
+                    setKeyboardActiveIndex(activeIndex.value + 1, {
+                        block: "nearest",
+                    });
+                } else {
+                    const step = getPageStep();
+                    const targetIndex = Math.min(
+                        props.showList.length - 1,
+                        activeIndex.value + step,
+                    );
+                    setKeyboardActiveIndex(targetIndex, { block: "center" });
+                }
             } else {
                 // 到达底部时触发加载更多
                 const oldLen = props.showList.length;
@@ -2101,6 +2161,7 @@ const startAutoScroll = (direction) => {
         }
         
         // 加速滚动
+        hasRepeated = true;
         autoScrollSpeed.value = Math.max(30, autoScrollSpeed.value * autoScrollAcceleration.value);
         
         autoScrollTimer.value = setTimeout(scroll, autoScrollSpeed.value);
