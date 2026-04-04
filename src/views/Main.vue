@@ -983,7 +983,7 @@ const setActiveIndex = (val) => {
 
 const adjustActiveIndexAfterDelete = (baseIndex) => {
     // 使用 setTimeout(0) 在下一宏任务执行，确保晚于所有 nextTick，避免被其它逻辑覆盖为 0
-    setTimeout(() => {
+    nextTick(() => {
         if (!ClipItemListRef.value) return;
         const newListLength = currentShowList.value.length;
         if (newListLength === 0) return;
@@ -994,8 +994,14 @@ const adjustActiveIndexAfterDelete = (baseIndex) => {
             ),
             newListLength - 1,
         );
+        if (ClipItemListRef.value?.setKeyboardActiveIndex) {
+            ClipItemListRef.value.setKeyboardActiveIndex(normalizedIndex, {
+                block: "center",
+            });
+            return;
+        }
         setActiveIndex(normalizedIndex);
-    }, 0);
+    });
 };
 
 const handleItemDelete = (item, metadata = {}) => {
@@ -1005,6 +1011,8 @@ const handleItemDelete = (item, metadata = {}) => {
         isLast = true,
         force = false,
     } = metadata;
+    const currentActiveIndex =
+        typeof anchorIndex === "number" ? anchorIndex : getActiveIndex();
     // 处理删除操作，复用 useClipOperate 的逻辑
     const activeTabValue =
         typeof ClipSwitchRef.value?.activeTab === "object"
@@ -1037,8 +1045,6 @@ const handleItemDelete = (item, metadata = {}) => {
     } else {
         // 在其他标签页删除未收藏项目：完全删除
         // 记录删除前的高亮索引，用于删除后调整位置
-        const currentActiveIndex =
-            typeof anchorIndex === "number" ? anchorIndex : getActiveIndex();
         const shouldAdjustAfterDelete = !isBatch || isLast;
 
         suppressAutoTopCount.value = 2;
@@ -1047,14 +1053,6 @@ const handleItemDelete = (item, metadata = {}) => {
 
         // 删除后调整高亮位置：优先移动到下一个，如果没有则移动到上一个（同步设一次，nextTick 再设一次避免被其它逻辑覆盖）
         if (shouldAdjustAfterDelete) {
-            const newLen = currentShowList.value.length;
-            if (newLen > 0) {
-                const idx = Math.min(
-                    Math.max(currentActiveIndex, 0),
-                    newLen - 1,
-                );
-                setActiveIndex(idx);
-            }
             adjustActiveIndexAfterDelete(currentActiveIndex);
         }
     }

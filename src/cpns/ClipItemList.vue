@@ -1281,12 +1281,10 @@ const scrollActiveNodeIntoView = (index = activeIndex.value, options = {}) => {
         // 优先使用虚拟滚动的 scrollToItem API
         if (scrollerRef.value && typeof scrollerRef.value.scrollToItem === "function") {
             // 延迟执行，确保虚拟滚动渲染完成
-            setTimeout(() => {
-                scrollerRef.value.scrollToItem(index, {
-                    align,
-                    smooth: false,
-                });
-            }, 50);
+            scrollerRef.value.scrollToItem(index, {
+                align,
+                smooth: false,
+            });
             return;
         }
         
@@ -1324,7 +1322,10 @@ const scrollActiveNodeIntoView = (index = activeIndex.value, options = {}) => {
                             // 只滚动到刚好让最后一个item完全可见的位置
                             newScrollTop = Math.min(maxScrollTop, targetScrollTop - containerHeight + itemSize);
                         } else {
-                            newScrollTop = targetScrollTop - containerHeight / 2 + itemSize / 2;
+                            newScrollTop =
+                                targetScrollTop -
+                                containerHeight / 2 +
+                                itemSize / 2;
                         }
                         
                         // 确保不会滚动超过当前太多
@@ -1333,7 +1334,10 @@ const scrollActiveNodeIntoView = (index = activeIndex.value, options = {}) => {
                         const maxScrollDelta = containerHeight / 2; // 最多滚动半个屏幕
                         
                         if (scrollDelta <= maxScrollDelta) {
-                            container.scrollTop = Math.max(0, Math.min(maxScrollTop, newScrollTop));
+                            container.scrollTop = Math.max(
+                                0,
+                                Math.min(maxScrollTop, newScrollTop),
+                            );
                         } else {
                             // 如果需要滚动太多，就只滚动一点点
                             const direction = newScrollTop > currentScrollTop ? 1 : -1;
@@ -1348,11 +1352,6 @@ const scrollActiveNodeIntoView = (index = activeIndex.value, options = {}) => {
     
     // 立即执行一次
     doScroll();
-    
-    // 如果是强制滚动，延迟再执行一次
-    if (options.forceScroll) {
-        setTimeout(doScroll, 100);
-    }
 };
 
 const setKeyboardActiveIndex = (nextIndex, options = {}) => {
@@ -1368,10 +1367,6 @@ const setKeyboardActiveIndex = (nextIndex, options = {}) => {
     // 使用nextTick确保DOM更新后再滚动
     nextTick(() => {
         scrollActiveNodeIntoView(targetIndex, options);
-        // 再次使用nextTick确保滚动完成
-        nextTick(() => {
-            scrollActiveNodeIntoView(targetIndex, options);
-        });
     });
     
     return true;
@@ -1657,8 +1652,9 @@ function registerListHotkeyFeatures() {
         return false;
     };
 
-    registerFeature("list-nav-up", () => {
+    registerFeature("list-nav-up", (e) => {
         // 停止之前的长按检测
+        if (e?.key === "ArrowUp") return false;
         stopKeyHold();
         
         // 边界检测：如果在顶部，停止移动并确保可见
@@ -1682,7 +1678,8 @@ function registerListHotkeyFeatures() {
         
         return result;
     });
-    registerFeature("list-nav-down", () => {
+    registerFeature("list-nav-down", (e) => {
+        if (e?.key === "ArrowDown") return false;
         if (props.showList.length === 0) {
             stopKeyHold();
             return true;
