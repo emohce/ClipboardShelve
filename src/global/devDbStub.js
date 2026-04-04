@@ -50,4 +50,11 @@ export function ensureDevDbStub() {
       }
     }
   }
+  if (!window.toBottom) {
+    window.toBottom = () => {
+      if (document.scrollingElement) {
+        document.scrollingElement.scrollTop = document.scrollingElement.scrollHeight
+      }
+    }
+  }
 }

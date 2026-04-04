@@ -1075,6 +1075,8 @@ const clearTooltip = computed(
 const searchTooltip = computed(() => formatShortcutDisplay("ctrl+f"));
 
 const activeTab = ref("all");
+// 保存每个 tab 的状态（activeIndex）
+const tabStateMap = ref(new Map());
 const activeTabLabel = computed(() => {
     const tabs = ClipSwitchRef.value?.tabs || [];
     const baseName =
@@ -1103,9 +1105,26 @@ onMounted(() => {
             if (!switchRef || !switchRef.activeTab) return "all";
             return switchRef.activeTab.value || switchRef.activeTab;
         },
-        (newVal) => {
+        (newVal, oldVal) => {
+            // 保存旧 tab 的状态
+            if (oldVal && ClipItemListRef.value?.activeIndex !== undefined) {
+                tabStateMap.value.set(oldVal, ClipItemListRef.value.activeIndex);
+            }
             activeTab.value = newVal;
             updateShowList(newVal);
+            // 恢复新 tab 的状态
+            nextTick(() => {
+                const savedIndex = tabStateMap.value.get(newVal);
+                if (savedIndex !== undefined && ClipItemListRef.value?.setKeyboardActiveIndex) {
+                    // 检查 savedIndex 是否在有效范围内
+                    const maxIndex = (ClipItemListRef.value?.activeIndex !== undefined) 
+                        ? Math.max(0, Math.min(savedIndex, currentShowList.value.length - 1))
+                        : 0;
+                    if (currentShowList.value.length > 0 && maxIndex >= 0) {
+                        ClipItemListRef.value.setKeyboardActiveIndex(maxIndex, { block: "center" });
+                    }
+                }
+            });
         },
         { immediate: true },
     );
@@ -1116,8 +1135,27 @@ onMounted(() => {
             const sub = switchRef.collectSubTab;
             return sub?.value ?? sub;
         },
-        () => {
-            if (activeTab.value === "collect") updateShowList("collect", false);
+        (newVal, oldVal) => {
+            if (activeTab.value === "collect") {
+                // 保存旧收藏子 tab 的状态
+                if (oldVal && ClipItemListRef.value?.activeIndex !== undefined) {
+                    const key = `collect-${oldVal}`;
+                    tabStateMap.value.set(key, ClipItemListRef.value.activeIndex);
+                }
+                updateShowList("collect", false);
+                // 恢复新收藏子 tab 的状态
+                nextTick(() => {
+                    const key = `collect-${newVal}`;
+                    const savedIndex = tabStateMap.value.get(key);
+                    if (savedIndex !== undefined && ClipItemListRef.value?.setKeyboardActiveIndex) {
+                        // 检查 savedIndex 是否在有效范围内
+                        const maxIndex = Math.max(0, Math.min(savedIndex, currentShowList.value.length - 1));
+                        if (currentShowList.value.length > 0 && maxIndex >= 0) {
+                            ClipItemListRef.value.setKeyboardActiveIndex(maxIndex, { block: "center" });
+                        }
+                    }
+                });
+            }
         },
     );
 

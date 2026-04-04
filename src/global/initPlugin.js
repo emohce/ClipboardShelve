@@ -1098,6 +1098,7 @@ export default async function initPlugin() {
     return undefined
   }
   const toTop = () => (document.scrollingElement.scrollTop = 0)
+  const toBottom = () => (document.scrollingElement.scrollTop = document.scrollingElement.scrollHeight)
   const resetNav = () => document.querySelectorAll('.clip-switch-item')[0]?.click()
 
   // 防止剪贴板写回循环的标志
@@ -1350,5 +1351,6 @@ export default async function initPlugin() {
   window.createFile = createFile
   window.focus = focus
   window.toTop = toTop
+  window.toBottom = toBottom
   window.listener = listener
 }

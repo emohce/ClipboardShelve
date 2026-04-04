@@ -1074,11 +1074,6 @@ const openTagEditModal = (item) => {
     emit("openTagEdit", item);
 };
 
-defineExpose({
-    selectItemList, // 暴露给 Main/Switch中的操作按钮以执行复制
-    emptySelectItemList,
-    activeIndex, // 暴露当前高亮的索引
-});
 watch(
     () => props.isMultiple,
     (val) => {
@@ -1274,31 +1269,90 @@ const getActiveNode = (index = activeIndex.value) =>
 
 const scrollActiveNodeIntoView = (index = activeIndex.value, options = {}) => {
     const block = options.block || "nearest";
+    // vue-virtual-scroller 的 align 参数：start/center/end
     const align =
         block === "end"
             ? "end"
             : block === "start"
               ? "start"
-              : options.align || "nearest";
+              : "center";
+    
     const doScroll = () => {
+        // 优先使用虚拟滚动的 scrollToItem API
         if (scrollerRef.value && typeof scrollerRef.value.scrollToItem === "function") {
-            scrollerRef.value.scrollToItem(index, {
-                align,
-                smooth: options.behavior === "smooth",
-            });
-        } else {
-            const activeNode = getActiveNode(index);
-            activeNode?.scrollIntoView({
+            // 延迟执行，确保虚拟滚动渲染完成
+            setTimeout(() => {
+                scrollerRef.value.scrollToItem(index, {
+                    align,
+                    smooth: false,
+                });
+            }, 50);
+            return;
+        }
+        
+        // 降级方案：使用 DOM scrollIntoView
+        const activeNode = getActiveNode(index);
+        if (activeNode) {
+            activeNode.scrollIntoView({
                 block,
                 inline: "nearest",
-                behavior: options.behavior || "smooth",
+                behavior: "instant",
             });
+        } else {
+            // 如果 DOM 元素不存在，尝试滚动到大概位置
+            const scrollerEl = scrollerRef.value?.$el;
+            if (scrollerEl) {
+                const scrollContainers = [
+                    scrollerEl.querySelector('.vue-recycle-scroller'),
+                    scrollerEl.querySelector('.scroller'),
+                    scrollerEl.querySelector('[data-virtual-scroller]'),
+                    scrollerEl.querySelector('.v-virtual-scroller'),
+                    scrollerEl
+                ].filter(Boolean);
+                
+                for (const container of scrollContainers) {
+                    if (container && container.scrollTop !== undefined) {
+                        const itemSize = 44;
+                        const targetScrollTop = index * itemSize;
+                        const containerHeight = container.clientHeight;
+                        const maxScrollTop = container.scrollHeight - container.clientHeight;
+                        
+                        let newScrollTop;
+                        if (block === "start") {
+                            newScrollTop = targetScrollTop;
+                        } else if (block === "end") {
+                            // 只滚动到刚好让最后一个item完全可见的位置
+                            newScrollTop = Math.min(maxScrollTop, targetScrollTop - containerHeight + itemSize);
+                        } else {
+                            newScrollTop = targetScrollTop - containerHeight / 2 + itemSize / 2;
+                        }
+                        
+                        // 确保不会滚动超过当前太多
+                        const currentScrollTop = container.scrollTop;
+                        const scrollDelta = Math.abs(newScrollTop - currentScrollTop);
+                        const maxScrollDelta = containerHeight / 2; // 最多滚动半个屏幕
+                        
+                        if (scrollDelta <= maxScrollDelta) {
+                            container.scrollTop = Math.max(0, Math.min(maxScrollTop, newScrollTop));
+                        } else {
+                            // 如果需要滚动太多，就只滚动一点点
+                            const direction = newScrollTop > currentScrollTop ? 1 : -1;
+                            container.scrollTop = currentScrollTop + (maxScrollDelta * direction);
+                        }
+                        break;
+                    }
+                }
+            }
         }
     };
-    nextTick(() => {
-        doScroll();
-        nextTick(doScroll);
-    });
+    
+    // 立即执行一次
+    doScroll();
+    
+    // 如果是强制滚动，延迟再执行一次
+    if (options.forceScroll) {
+        setTimeout(doScroll, 100);
+    }
 };
 
 const setKeyboardActiveIndex = (nextIndex, options = {}) => {
@@ -1322,6 +1376,44 @@ const setKeyboardActiveIndex = (nextIndex, options = {}) => {
     
     return true;
 };
+
+// 直接滚动到底部的方法
+const scrollToBottom = () => {
+    const scroller = scrollerRef.value;
+    if (scroller && typeof scroller.scrollToItem === "function") {
+        const lastIndex = props.showList.length - 1;
+        scroller.scrollToItem(lastIndex, {
+            align: "end",
+            smooth: false,
+        });
+        activeIndex.value = lastIndex;
+        return true;
+    }
+    return false;
+};
+
+// 直接滚动到顶部的方法
+const scrollToTop = () => {
+    const scroller = scrollerRef.value;
+    if (scroller && typeof scroller.scrollToItem === "function") {
+        scroller.scrollToItem(0, {
+            align: "start",
+            smooth: false,
+        });
+        activeIndex.value = 0;
+        return true;
+    }
+    return false;
+};
+
+defineExpose({
+    selectItemList, // 暴露给 Main/Switch中的操作按钮以执行复制
+    emptySelectItemList,
+    activeIndex, // 暴露当前高亮的索引
+    setKeyboardActiveIndex, // 暴露设置高亮索引的方法
+    // scrollToBottom, // 暴露滚动到底部的方法
+    // scrollToTop, // 暴露滚动到顶部的方法
+});
 
 const getPageStep = () => {
     // 在虚拟滚动模式下，使用 min-item-size 计算（与 DynamicScroller 的 min-item-size 保持一致）
@@ -1347,25 +1439,62 @@ const isAtBottomBoundary = () => {
 
 // 半页滚动并移动一个item
 const halfPageScrollAndMove = (direction) => {
-    const halfStep = Math.max(1, Math.floor(getPageStep() / 2));
-    let targetIndex;
+    const scroller = scrollerRef.value;
+    if (!scroller) return;
     
-    if (direction === 'up') {
-        targetIndex = Math.max(0, activeIndex.value - halfStep);
-        // 先半页滚动
-        setKeyboardActiveIndex(targetIndex, { block: "center" });
-        // 然后移动一个item
-        nextTick(() => {
-            setKeyboardActiveIndex(Math.max(0, targetIndex - 1), { block: "start" });
-        });
+    // 尝试使用 vue-virtual-scroller 的滚动容器
+    let scrollerEl = scroller.$el?.querySelector('.vue-recycle-scroller') || 
+                    scroller.$el?.querySelector('.scroller') ||
+                    scroller.$el;
+    
+    if (!scrollerEl) return;
+    
+    // 如果找到了滚动容器且有 scrollTop 属性
+    if (scrollerEl.scrollTop !== undefined) {
+        if (direction === 'up') {
+            const currentScrollTop = scrollerEl.scrollTop;
+            const halfPageHeight = Math.floor(scrollerEl.clientHeight / 2);
+            const newScrollTop = Math.max(0, currentScrollTop - halfPageHeight);
+            scrollerEl.scrollTop = newScrollTop;
+            
+            if (activeIndex.value > 0) {
+                nextTick(() => {
+                    setKeyboardActiveIndex(activeIndex.value - 1, { block: "start", forceScroll: true });
+                });
+            }
+        } else {
+            const currentScrollTop = scrollerEl.scrollTop;
+            const halfPageHeight = Math.floor(scrollerEl.clientHeight / 2);
+            const maxScrollTop = scrollerEl.scrollHeight - scrollerEl.clientHeight;
+            const newScrollTop = Math.min(maxScrollTop, currentScrollTop + halfPageHeight);
+            scrollerEl.scrollTop = newScrollTop;
+            
+            if (activeIndex.value < props.showList.length - 1) {
+                nextTick(() => {
+                    setKeyboardActiveIndex(activeIndex.value + 1, { block: "end", forceScroll: true });
+                });
+            }
+        }
     } else {
-        targetIndex = Math.min(props.showList.length - 1, activeIndex.value + halfStep);
-        // 先半页滚动
-        setKeyboardActiveIndex(targetIndex, { block: "center" });
-        // 然后移动一个item
-        nextTick(() => {
-            setKeyboardActiveIndex(Math.min(props.showList.length - 1, targetIndex + 1), { block: "center" });
-        });
+        // 降级方案：使用 scrollToItem 滚动到较远的item
+        const halfStep = Math.max(1, Math.floor(getPageStep() / 2));
+        if (direction === 'up') {
+            const targetIndex = Math.max(0, activeIndex.value - halfStep);
+            scroller.scrollToItem(targetIndex, { align: 'start' });
+            if (activeIndex.value > 0) {
+                nextTick(() => {
+                    setKeyboardActiveIndex(activeIndex.value - 1, { block: "start", forceScroll: true });
+                });
+            }
+        } else {
+            const targetIndex = Math.min(props.showList.length - 1, activeIndex.value + halfStep);
+            scroller.scrollToItem(targetIndex, { align: 'end' });
+            if (activeIndex.value < props.showList.length - 1) {
+                nextTick(() => {
+                    setKeyboardActiveIndex(activeIndex.value + 1, { block: "end", forceScroll: true });
+                });
+            }
+        }
     }
 };
 
@@ -1532,11 +1661,11 @@ function registerListHotkeyFeatures() {
         // 停止之前的长按检测
         stopKeyHold();
         
-        // 边界检测：如果在顶部，先半页滚动然后移动
-        if (isAtTopBoundary()) {
+        // 边界检测：如果在顶部，停止移动并确保可见
+        if (activeIndex.value <= 0) {
             hoverPreviewSuspendedByKeyboard.value = true;
-            halfPageScrollAndMove('up');
-            // 开始长按检测
+            // 确保第一个item在顶部可见
+            setKeyboardActiveIndex(0, { block: "start", forceScroll: true });
             startKeyHoldAutoScroll('up');
             return true;
         }
@@ -1562,7 +1691,7 @@ function registerListHotkeyFeatures() {
         // 停止之前的长按检测
         stopKeyHold();
         
-        // 边界检测：如果在底部，先半页滚动然后移动
+        // 边界检测：如果在底部，先尝试加载更多数据
         if (isAtBottomBoundary()) {
             hoverPreviewSuspendedByKeyboard.value = true;
             
@@ -1576,8 +1705,9 @@ function registerListHotkeyFeatures() {
                     if (pendingNavAfterLoad.value === null) return;
                     if (props.showList.length <= oldLen) {
                         pendingNavAfterLoad.value = null;
-                        // 没有更多数据，执行半页滚动
-                        halfPageScrollAndMove('down');
+                        // 没有更多数据，确保最后一个item完全可见
+                        const lastIndex = props.showList.length - 1;
+                        setKeyboardActiveIndex(lastIndex, { block: "end", forceScroll: true });
                     } else {
                         // 有新数据，移动到新数据
                         const targetIndex = oldLen;
@@ -1588,14 +1718,15 @@ function registerListHotkeyFeatures() {
                 });
             });
             
-            // 开始长按检测
             startKeyHoldAutoScroll('down');
             return true;
         }
         
         // 正常移动一个item
-        const result = setKeyboardActiveIndex(activeIndex.value + 1, {
-            block: "center",
+        const nextIndex = activeIndex.value + 1;
+        const isLast = nextIndex >= props.showList.length - 1;
+        const result = setKeyboardActiveIndex(nextIndex, {
+            block: isLast ? "end" : "center",
         });
         
         // 开始长按检测
@@ -1616,23 +1747,51 @@ function registerListHotkeyFeatures() {
         if (targetIndex === 0) {
             window.toTop();
         }
+        // 使用 start 对齐，确保向上翻页后顶部可见
         return setKeyboardActiveIndex(targetIndex, {
-            block: "center", // 使用center对齐提供更好的视觉效果
+            block: targetIndex === 0 ? "start" : "center",
         });
     });
     registerFeature("list-page-down", () => {
         if (isFocusInSearch()) return false;
         const step = getPageStep();
         const targetIndex = Math.min(props.showList.length - 1, activeIndex.value + step);
+        // 如果是最后一个item，使用 end 对齐确保完全可见
         return setKeyboardActiveIndex(targetIndex, {
-            block: "center", // 使用center对齐提供更好的视觉效果
+            block: targetIndex === props.showList.length - 1 ? "end" : "center",
         });
     });
     registerFeature("list-nav-left", () => {
         return setKeyboardActiveIndex(activeIndex.value - 1);
     });
-    registerFeature("list-nav-right", () => {
-        return setKeyboardActiveIndex(activeIndex.value + 1);
+    registerFeature("list-scroll-to-bottom", () => {
+        // 直接滚动到底部
+        const scroller = scrollerRef.value;
+        if (scroller && typeof scroller.scrollToItem === "function") {
+            const lastIndex = props.showList.length - 1;
+            scroller.scrollToItem(lastIndex, {
+                align: "end",
+                smooth: false,
+            });
+            // 同时设置activeIndex到最后一个
+            activeIndex.value = lastIndex;
+            return true;
+        }
+        return false;
+    });
+    registerFeature("list-scroll-to-top", () => {
+        // 直接滚动到顶部
+        const scroller = scrollerRef.value;
+        if (scroller && typeof scroller.scrollToItem === "function") {
+            scroller.scrollToItem(0, {
+                align: "start",
+                smooth: false,
+            });
+            // 同时设置activeIndex到第一个
+            activeIndex.value = 0;
+            return true;
+        }
+        return false;
     });
     registerFeature("text-preview-scroll-up", () => {
         if (textPreview.value.show) {
