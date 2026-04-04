@@ -13,6 +13,8 @@ const {
 import { copy, paste, createFile, getNativeId } from '../utils'
 import setting from './readSetting'
 import { initWindowManager, setPluginWindowSize } from './windowManager'
+import { generateThumbnail, shouldGenerateThumbnail } from './imageUtils'
+import { UToolsDB } from './utoolsDB'
 
 // 忽略 ResizeObserver 噪声错误，避免 dev overlay 反复弹出
 const RESIZE_OBSERVER_ERROR_PATTERNS = [
@@ -85,7 +87,7 @@ if (typeof console !== 'undefined') {
   }
 }
 
-export default function initPlugin() {
+export default async function initPlugin() {
   console.log('[initPlugin] 开始初始化插件')
   
   // 初始化窗口管理器
@@ -142,16 +144,49 @@ export default function initPlugin() {
           if (!this.dataBase.collects) {
             this.dataBase.collects = []
             // 从旧数据中提取收藏的ID
-            if (this.dataBase.data) {
-              this.dataBase.data.forEach((item) => {
-                if (item.collect === true) {
+            const itemsToCollect = this.dataBase.data.filter(item => item.collect)
+            if (itemsToCollect.length > 0) {
+              console.log('[DB.init] 迁移收藏数据, 数量:', itemsToCollect.length)
+              itemsToCollect.forEach(item => {
+                if (!this.dataBase.collects.includes(item.id)) {
                   this.dataBase.collects.push(item.id)
-                  // 清除旧的collect标记
-                  delete item.collect
                 }
+                delete item.collect
               })
             }
-            console.log('[DB.init] 数据迁移完成, 收藏数:', this.dataBase.collects.length)
+          }
+          
+          // 数据迁移：为收藏数据补充 tags 和 remarks 字段
+          if (this.dataBase.collectData && this.dataBase.collectData.length > 0) {
+            let tagsAddedCount = 0
+            this.dataBase.collectData.forEach(item => {
+              if (!item.tags) {
+                item.tags = []
+                tagsAddedCount++
+              }
+              if (!item.remark) {
+                item.remark = ''
+              }
+            })
+            console.log('[DB.init] 为已有收藏数据补充tags和remarks字段, 数量:', tagsAddedCount)
+          }
+          
+          if (this.dataBase.collects.length > 0) {
+            console.log('[DB.init] 发现收藏数据, 数量:', this.dataBase.collects.length)
+            const missingCollectData = this.dataBase.collects.filter(id => 
+              !this.dataBase.collectData?.find(item => item.id === id)
+            )
+            if (missingCollectData.length > 0) {
+              console.log('[DB.init] 发现缺失的收藏数据, 数量:', missingCollectData.length)
+              missingCollectData.forEach(id => {
+                const item = this.dataBase.data.find(item => item.id === id)
+                if (item) {
+                  this.dataBase.collectData.push({ ...item })
+                  console.log('[DB.init] 补充收藏数据:', id)
+                }
+              })
+              this.updateDataBaseLocal()
+            }
           }
           
           // 确保collects和collectData字段存在
@@ -168,22 +203,6 @@ export default function initPlugin() {
           }
           if (!this.dataBase.tagUsage || typeof this.dataBase.tagUsage !== 'object') {
             this.dataBase.tagUsage = {}
-          }
-          
-          // 数据迁移：如果collectData为空但collects不为空，从data中复制收藏数据
-          if (this.dataBase.collectData.length === 0 && this.dataBase.collects.length > 0 && this.dataBase.data) {
-            const collectIds = new Set(this.dataBase.collects)
-            this.dataBase.collectData = this.dataBase.data
-              .filter((item) => collectIds.has(item.id))
-              .map((item) => {
-                const copied = { ...item } // 深拷贝
-                // 为已有收藏数据添加collectTime（如果没有的话，使用updateTime）
-                if (!copied.collectTime) {
-                  copied.collectTime = copied.updateTime || copied.createTime || new Date().getTime()
-                }
-                return copied
-              })
-            console.log('[DB.init] 数据迁移：从data复制收藏数据到collectData, 数量:', this.dataBase.collectData.length)
           }
           
           // 为已有收藏数据补充collectTime、tags和remarks字段（如果没有）
@@ -216,15 +235,16 @@ export default function initPlugin() {
           }
           
           // 为现有数据补充 locked 字段，默认 false
-          const normalizeLockedField = (items = []) =>
+          const normalizeLockedField = (items = []) => {
             items.forEach((item) => {
               if (typeof item.locked !== 'boolean') item.locked = false
             })
+          }
           normalizeLockedField(this.dataBase.data)
           normalizeLockedField(this.dataBase.collectData)
 
           // 为 file 类型补充 originPaths（原始文件路径）
-          const normalizeOriginPaths = (items = []) =>
+          const normalizeOriginPaths = (items = []) => {
             items.forEach((item) => {
               if (item?.type !== 'file') return
               if (!Array.isArray(item.originPaths)) {
@@ -236,6 +256,7 @@ export default function initPlugin() {
                 }
               }
             })
+          }
           normalizeOriginPaths(this.dataBase.data)
           normalizeOriginPaths(this.dataBase.collectData)
 
@@ -257,6 +278,9 @@ export default function initPlugin() {
             this.dataBase.collects.includes(item.id)
           )
           
+          // 数据迁移：为图片生成缩略图（异步，不阻塞初始化）
+          this.migrateImageThumbnails()
+          
           this.updateDataBaseLocal()
           this.watchDataBaseUpdate()
           console.log('[DB.init] 数据库加载成功, 记录数:', this.dataBase.data?.length || 0, '收藏数:', this.dataBase.collects.length)
@@ -269,7 +293,7 @@ export default function initPlugin() {
       }
       console.log('[DB.init] 数据库文件不存在, 创建新数据库')
       this.dataBase = this.defaultDB
-      this.updateDataBaseLocal(this.defaultDB)
+      this.updateDataBaseLocal(undefined, { immediate: true })
     }
     watchDataBaseUpdate() {
       watch(this.path, (eventType, filename) => {
@@ -299,14 +323,21 @@ export default function initPlugin() {
       debouncedWriteLocal()
       return true
     }
-    updateDataBaseLocal(dataBase) {
-      // 更新文件数据
-      writeFileSync(this.path, JSON.stringify(dataBase || this.dataBase), (err) => {
-        if (err) {
-          utools.showNotification('写入剪切板出错: ' + err)
-          return
-        }
-      })
+    updateDataBaseLocal(dataBase, options = {}) {
+      const { immediate = false } = options
+      if (immediate) {
+        // 立即写入磁盘（用于关键操作）
+        writeFileSync(this.path, JSON.stringify(dataBase || this.dataBase), (err) => {
+          if (err) {
+            utools.showNotification('写入剪切板出错: ' + err)
+            return
+          }
+        })
+      } else {
+        // 默认使用防抖写入
+        this.updateDataBase()
+        debouncedWriteLocal()
+      }
     }
     addItem(cItem) {
       console.log('[DB.addItem] 添加新记录, 类型:', cItem.type, 'ID:', cItem.id, '数据长度:', cItem.data?.length || 0)
@@ -319,6 +350,21 @@ export default function initPlugin() {
       
       this.dataBase.data.unshift({ ...cItem, locked: false })
       this.updateDataBase()
+      
+      // 异步为图片生成缩略图
+      if (cItem.type === 'image' && shouldGenerateThumbnail(cItem.data)) {
+        const addedItem = this.dataBase.data[0]
+        generateThumbnail(cItem.data)
+          .then(thumbnail => {
+            addedItem.thumbnail = thumbnail
+            this.updateDataBaseLocal()
+            console.log('[DB.addItem] 缩略图生成完成')
+          })
+          .catch(err => {
+            console.error('[DB.addItem] 缩略图生成失败:', err)
+          })
+      }
+      
       // 只有在设置了最大条数限制时才进行清理
       if (setting.database.maxsize !== null) {
         const exceedCount = this.dataBase.data.length - setting.database.maxsize
@@ -348,7 +394,7 @@ export default function initPlugin() {
       window.db.dataBase.data = []
       window.db.dataBase.collects = []
       window.db.dataBase.collectData = []
-      this.updateDataBaseLocal(this.defaultDB)
+      this.updateDataBaseLocal()
       listener.emit('view-change')
     }
     filterDataBaseViaId(id) {
@@ -774,6 +820,54 @@ export default function initPlugin() {
         .sort((a, b) => (usage[b] || 0) - (usage[a] || 0)) // 按使用频率排序
         .slice(0, 10) // 限制建议数量
     }
+    
+    // 异步为现有图片生成缩略图
+    migrateImageThumbnails() {
+      const imagesWithoutThumbnail = this.dataBase.data.filter(
+        item => item.type === 'image' && item.data && !item.thumbnail && shouldGenerateThumbnail(item.data)
+      )
+      
+      if (imagesWithoutThumbnail.length === 0) {
+        console.log('[DB.migrateImageThumbnails] 没有需要生成缩略图的图片')
+        return
+      }
+      
+      console.log('[DB.migrateImageThumbnails] 开始为', imagesWithoutThumbnail.length, '张图片生成缩略图')
+      
+      let processed = 0
+      const total = imagesWithoutThumbnail.length
+      
+      // 分批处理，避免阻塞主线程
+      const processBatch = async (startIndex) => {
+        const batchSize = 5
+        const endIndex = Math.min(startIndex + batchSize, total)
+        
+        for (let i = startIndex; i < endIndex; i++) {
+          const item = imagesWithoutThumbnail[i]
+          try {
+            const thumbnail = await generateThumbnail(item.data)
+            item.thumbnail = thumbnail
+            processed++
+            console.log(`[DB.migrateImageThumbnails] 进度: ${processed}/${total}`)
+          } catch (err) {
+            console.error('[DB.migrateImageThumbnails] 缩略图生成失败:', err)
+          }
+        }
+        
+        // 让出主线程
+        await new Promise(resolve => setTimeout(resolve, 10))
+        
+        if (endIndex < total) {
+          processBatch(endIndex)
+        } else {
+          console.log('[DB.migrateImageThumbnails] 所有缩略图生成完成，保存数据库')
+          this.updateDataBaseLocal()
+        }
+      }
+      
+      // 开始处理
+      processBatch(0)
+    }
   }
 
   const normalizeFilePath = (rawPath = '') => {
@@ -955,8 +1049,39 @@ export default function initPlugin() {
   console.log('[initPlugin] nativeId:', nativeId)
   const dbPath = setting.database.path[nativeId] || setting.database.path
   console.log('[initPlugin] 数据库路径:', dbPath)
-  const db = new DB(dbPath)
-  db.init()
+  
+  // 存储模式配置: 'json' 或 'utools'
+  // 默认使用 JSON 模式，可通过 utools.dbStorage 设置切换
+  // 存储模式判断：新用户默认使用 uTools DB，旧用户默认使用 JSON
+  const hasStorageMode = utools.dbStorage.getItem('storageMode') !== null
+  const jsonDbExists = window.exports.existsSync(dbPath)
+  
+  let storageMode
+  if (hasStorageMode) {
+    // 已有配置，使用配置值
+    storageMode = utools.dbStorage.getItem('storageMode')
+  } else if (!jsonDbExists) {
+    // 新用户（无 JSON 数据），默认使用 uTools DB
+    storageMode = 'utools'
+    utools.dbStorage.setItem('storageMode', storageMode)
+  } else {
+    // 旧用户（有 JSON 数据），默认使用 JSON
+    storageMode = 'json'
+    utools.dbStorage.setItem('storageMode', storageMode)
+  }
+  
+  console.log('[initPlugin] 存储模式:', storageMode, '(JSON文件存在:', jsonDbExists, ')')
+  
+  let db
+  if (storageMode === 'utools') {
+    console.log('[initPlugin] 使用 uTools DB')
+    db = new UToolsDB()
+    await db.init()
+  } else {
+    console.log('[initPlugin] 使用 JSON 文件')
+    db = new DB(dbPath)
+    db.init()
+  }
 
   const remove = (item, options = {}) => db.removeItemViaId(item.id, options)
 
@@ -1065,7 +1190,10 @@ export default function initPlugin() {
     item.createTime = new Date().getTime()
     item.updateTime = new Date().getTime()
     item.locked = false
-    db.addItem(item)
+    const addRet = db.addItem(item)
+    if (addRet && typeof addRet.then === 'function') {
+      addRet.catch((e) => console.warn('[clipboard] addItem failed', e))
+    }
     restoreClipboard(item)
   }
 

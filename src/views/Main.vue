@@ -137,6 +137,7 @@
             @onItemDelete="handleItemDelete"
             @openCleanDialog="handleOpenCleanDialog"
             @openTagEdit="openTagEditModal"
+            @loadMore="loadMoreData"
         >
         </ClipItemList>
 
@@ -166,7 +167,7 @@
                     <p class="clear-panel-tip" v-else>
                         操作与多选删除一致，收藏内容不会受影响。
                     </p>
-                    <div class="clear-range-group">
+                    <div class="clear-range-group" v-if="!isClearing">
                         <button
                             v-for="option in CLEAR_RANGE_OPTIONS"
                             :key="option.value"
@@ -182,6 +183,15 @@
                         >
                             <span>{{ option.label }}</span>
                         </button>
+                    </div>
+                    <div class="clear-progress" v-if="isClearing">
+                        <el-progress
+                            :percentage="clearProgress.percentage"
+                            :format="progressFormat"
+                        />
+                        <p class="clear-progress-text">
+                            正在清除... {{ clearProgress.current }} / {{ clearProgress.total }}
+                        </p>
                     </div>
                 </div>
                 <div class="clear-panel-footer">
@@ -228,11 +238,13 @@ import {
     ElRadioGroup,
     ElRadioButton,
     ElTooltip,
+    ElProgress,
 } from "element-plus";
 import { activateLayer, deactivateLayer } from "../global/hotkeyLayers";
 import { registerFeature, setMainState } from "../global/hotkeyRegistry";
 import { formatShortcutDisplay } from "../global/shortcutKey";
 import { copyAndPasteAndExit } from "../utils";
+import { batchDelete } from "../global/batchOperations";
 import ClipItemList from "../cpns/ClipItemList.vue";
 import ClipFullData from "../cpns/ClipFullData.vue";
 import ClipSearch from "../cpns/ClipSearch.vue";
@@ -280,6 +292,7 @@ const isClearDialogVisible = ref(false);
 const CLEAR_DIALOG_LAYER = "clear-dialog";
 const clearRange = ref("1h");
 const isClearing = ref(false);
+const clearProgress = ref({ current: 0, total: 0, percentage: 0 });
 const clearDialogBodyRef = ref(null);
 
 // 标签编辑模态框
@@ -680,15 +693,45 @@ const filterItemsByRange = (items, rangeValue, options = {}) => {
     });
 };
 
-const clearRegularTabItems = (tabType, rangeValue) => {
+const clearRegularTabItems = async (tabType, rangeValue) => {
     const candidates = filterItemsByRange(getItemsByTab(tabType), rangeValue);
     let removed = 0;
     let skippedLocked = 0;
-    candidates.forEach((item) => {
-        const ok = window.remove(item);
-        if (ok) removed++;
-        else if (item.locked) skippedLocked++;
-    });
+
+    // 初始化进度
+    clearProgress.value = {
+        current: 0,
+        total: candidates.length,
+        percentage: 0
+    };
+
+    // 使用异步批量删除，避免主线程阻塞
+    const results = await batchDelete(
+        candidates,
+        (item) => {
+            const ok = window.remove(item);
+            if (ok) {
+                removed++;
+                return true;
+            } else if (item.locked) {
+                skippedLocked++;
+                return false;
+            }
+            return false;
+        },
+        {
+            batchSize: 50,
+            onProgress: (progress) => {
+                // 更新进度 UI
+                clearProgress.value = {
+                    current: progress.current,
+                    total: progress.total,
+                    percentage: (progress.current / progress.total) * 100
+                };
+            }
+        }
+    );
+
     if (removed) {
         handleDataRemove();
         adjustActiveIndexAfterDelete(0);
@@ -696,7 +739,7 @@ const clearRegularTabItems = (tabType, rangeValue) => {
     return { removed, skippedLocked };
 };
 
-const clearCollectTabItems = (rangeValue, collectSubTab) => {
+const clearCollectTabItems = async (rangeValue, collectSubTab) => {
     const subTab = collectSubTab ?? getCollectSubTab();
     const baseItems =
         subTab === "*全部*"
@@ -707,13 +750,41 @@ const clearCollectTabItems = (rangeValue, collectSubTab) => {
     });
     let removed = 0;
     let skippedLocked = 0;
-    candidates.forEach((item) => {
-        if (item.locked) {
-            skippedLocked++;
-            return;
+
+    // 初始化进度
+    clearProgress.value = {
+        current: 0,
+        total: candidates.length,
+        percentage: 0
+    };
+
+    // 使用异步批量删除，避免主线程阻塞
+    const results = await batchDelete(
+        candidates,
+        (item) => {
+            if (item.locked) {
+                skippedLocked++;
+                return false;
+            }
+            if (window.db.removeCollect(item.id, false) !== false) {
+                removed++;
+                return true;
+            }
+            return false;
+        },
+        {
+            batchSize: 50,
+            onProgress: (progress) => {
+                // 更新进度 UI
+                clearProgress.value = {
+                    current: progress.current,
+                    total: progress.total,
+                    percentage: (progress.current / progress.total) * 100
+                };
+            }
         }
-        if (window.db.removeCollect(item.id, false) !== false) removed++;
-    });
+    );
+
     if (removed) {
         handleDataRemove();
     }
@@ -731,6 +802,12 @@ const focusRangeButton = (rangeValue) => {
 const closeClearDialog = () => {
     isClearDialogVisible.value = false;
     clearRange.value = "1h";
+    clearProgress.value = { current: 0, total: 0, percentage: 0 };
+};
+
+const progressFormat = () => {
+    if (clearProgress.value.total === 0) return '0%';
+    return `${Math.round((clearProgress.value.current / clearProgress.value.total) * 100)}%`;
 };
 
 const handleOpenCleanDialog = () => {
@@ -739,15 +816,15 @@ const handleOpenCleanDialog = () => {
     focusRangeButton(clearRange.value);
 };
 
-const handleClearConfirm = () => {
+const handleClearConfirm = async () => {
     if (isClearing.value) return;
     isClearing.value = true;
     const tabType = activeTab.value;
     try {
         const { removed: removedCount, skippedLocked } =
             tabType === "collect"
-                ? clearCollectTabItems(clearRange.value, getCollectSubTab())
-                : clearRegularTabItems(tabType, clearRange.value);
+                ? await clearCollectTabItems(clearRange.value, getCollectSubTab())
+                : await clearRegularTabItems(tabType, clearRange.value);
 
         if (removedCount > 0) {
             ElMessage({
@@ -1101,39 +1178,46 @@ onMounted(() => {
         });
     }
 
+    // 列表懒加载逻辑提取
+    const loadMoreData = () => {
+        const parsed = parseStarFilter(filterText.value);
+        const start = offset.value + GAP;
+        let addition = [];
+        if (activeTab.value === "collect") {
+            const subTab = getCollectSubTab();
+            let collectItems =
+                subTab === "*全部*"
+                    ? window.db.getCollects()
+                    : window.db.getCollectsByTag(subTab);
+            collectItems = applyCollectFilters(collectItems, parsed);
+            addition = collectItems.slice(start, start + GAP);
+        } else {
+            const mainBase = getItemsByTab(activeTab.value);
+            const mainFiltered = parsed.isStar
+                ? mainBase.filter(
+                      (item) =>
+                          !window.db.isCollected(item.id) &&
+                          matchMainTabItem(item, parsed.bodyKeyword),
+                  )
+                : mainBase
+                      .filter((item) => !window.db.isCollected(item.id))
+                      .filter((item) => matchLockFilter(item))
+                      .filter((item) => textFilterCallBack(item));
+            addition = mainFiltered.slice(start, start + GAP);
+        }
+        if (!addition.length) {
+            return;
+        }
+        offset.value += GAP;
+        showList.value.push(...addition);
+    };
+
     // 列表懒加载
     const scrollCallBack = (e) => {
         const { scrollTop, clientHeight, scrollHeight } =
             e.target.scrollingElement;
         if (scrollTop + clientHeight + 5 >= scrollHeight) {
-            offset.value += GAP;
-            const parsed = parseStarFilter(filterText.value);
-            let addition = [];
-            if (activeTab.value === "collect") {
-                const subTab = getCollectSubTab();
-                let collectItems =
-                    subTab === "*全部*"
-                        ? window.db.getCollects()
-                        : window.db.getCollectsByTag(subTab);
-                collectItems = applyCollectFilters(collectItems, parsed);
-                addition = collectItems.slice(offset.value, offset.value + GAP);
-            } else {
-                const mainBase = getItemsByTab(activeTab.value);
-                const mainFiltered = parsed.isStar
-                    ? mainBase.filter(
-                          (item) =>
-                              !window.db.isCollected(item.id) &&
-                              matchMainTabItem(item, parsed.bodyKeyword),
-                      )
-                    : mainBase
-                          .filter((item) => !window.db.isCollected(item.id))
-                          .filter((item) => matchLockFilter(item))
-                          .filter((item) => textFilterCallBack(item));
-                addition = mainFiltered.slice(offset.value, offset.value + GAP);
-            }
-            if (addition.length) {
-                showList.value.push(...addition);
-            }
+            loadMoreData();
         }
     };
 
@@ -1549,6 +1633,20 @@ onMounted(() => {
     display: grid;
     grid-template-columns: repeat(2, minmax(120px, 1fr));
     gap: 10px;
+}
+
+.clear-progress {
+    width: 100%;
+    padding: 16px;
+    background: var(--bg-soft-color);
+    border-radius: 12px;
+    
+    .clear-progress-text {
+        margin-top: 12px;
+        text-align: center;
+        color: var(--text-color-lighter);
+        font-size: 13px;
+    }
 }
 
 .range-button {

@@ -74,7 +74,7 @@ export default function useClipOperate({ emit, currentActiveTab }) {
           typeof currentActiveTab === "function"
             ? currentActiveTab()
             : currentActiveTab;
-        const isCollected = window.db.isCollected(item.id);
+        const isCollected = Boolean(window.db?.isCollected?.(item.id));
         console.log(
           "[useClipOperate] 删除操作 - 标签页:",
           activeTab,
@@ -126,6 +126,9 @@ export default function useClipOperate({ emit, currentActiveTab }) {
     },
     filterOperate: (operation, item, isFullData, context) => {
       const { id } = operation;
+      if (!item) {
+        return false;
+      }
       if (!isFullData) {
         // 在非预览页 只展示setting.operation.shown中的功能按钮
         const allowInDrawer = context === "drawer" && (id === "open-source" || id === "open-folder")
@@ -142,11 +145,11 @@ export default function useClipOperate({ emit, currentActiveTab }) {
       } else if (id === "open-source") {
         return getSourcePaths(item).length > 0;
       } else if (id === "collect") {
-        return item.type !== "file" && !window.db.isCollected(item.id);
+        return item.type !== "file" && !window.db?.isCollected?.(item.id);
       } else if (id === "un-collect") {
-        return item.type !== "file" && window.db.isCollected(item.id);
+        return item.type !== "file" && Boolean(window.db?.isCollected?.(item.id));
       } else if (id === "edit-tags") {
-        return item.type !== "file" && window.db.isCollected(item.id);
+        return item.type !== "file" && Boolean(window.db?.isCollected?.(item.id));
       } else if (id === "word-break") {
         return (
           item.type === "text" &&

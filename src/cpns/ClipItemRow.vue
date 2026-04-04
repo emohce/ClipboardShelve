@@ -6,7 +6,10 @@
             active: !isMultiple && isActive,
             'multi-active': isMultiple && isActive,
             select: isSelected,
+            'clip-item--compact': isCompact,
         }"
+        :aria-selected="isActive"
+        role="option"
         @click.left="emit('row-click-left', $event)"
         @click.right="emit('row-click-right', $event)"
         @mouseenter.prevent="emit('row-mouseenter', $event)"
@@ -32,7 +35,13 @@
             </div>
             <div class="clip-data">
                 <template v-if="item.type === 'text'">
-                    <div :class="{ 'clip-over-sized-content': isOverSizedContent(item) }">
+                    <div v-if="isCompact" class="clip-data-one-line">
+                        {{ textSingleLine }}
+                    </div>
+                    <div
+                        v-else
+                        :class="{ 'clip-over-sized-content': isOverSizedContent(item) }"
+                    >
                         {{ textPreviewContent }}
                     </div>
                 </template>
@@ -53,8 +62,11 @@
                     </div>
                 </template>
                 <template v-else-if="item.type === 'file'">
+                    <div v-if="isCompact" class="clip-data-one-line">
+                        {{ fileSummaryLine }}
+                    </div>
                     <el-popover
-                        v-if="enableRichFilePreview"
+                        v-else-if="enableRichFilePreview"
                         placement="left"
                         trigger="click"
                         width="320"
@@ -122,7 +134,10 @@
                             </div>
                         </div>
                     </el-popover>
-                    <div v-else :class="{ 'clip-over-sized-content': isOverSizedContent(item) }">
+                    <div
+                        v-else
+                        :class="{ 'clip-over-sized-content': isOverSizedContent(item) }"
+                    >
                         <FileList :data="fileListPreview" />
                     </div>
                 </template>
@@ -176,6 +191,31 @@ const emit = defineEmits([
     "row-image-click",
 ]);
 
+// 单选模式：选中也不增高，避免推挤下方条目；多选时仅当前多选行可展开详情
+const isCompact = computed(() => !props.isMultiple || !props.isActive);
+const fileList = computed(() => {
+    if (props.item.type !== "file") return [];
+    try {
+        return JSON.parse(props.item.data) || [];
+    } catch (_) {
+        return [];
+    }
+});
+const textSingleLine = computed(() => {
+    const s = String(props.item.data || "")
+        .replace(/\s+/g, " ")
+        .trim();
+    if (s.length > 100) return `${s.slice(0, 97)}…`;
+    return s;
+});
+const fileSummaryLine = computed(() => {
+    if (props.item.type !== "file") return "";
+    const list = fileList.value;
+    if (!list.length) return "文件";
+    const name =
+        list[0].path?.split(/[/\\]/).pop() || list[0].name || "文件";
+    return list.length > 1 ? `${name} 等${list.length}项` : name;
+});
 const itemTags = computed(() =>
     Array.isArray(props.item.tags) ? props.item.tags : [],
 );
@@ -186,14 +226,6 @@ const textPreviewContent = computed(() =>
         .join("\n")
         .trim(),
 );
-const fileList = computed(() => {
-    if (props.item.type !== "file") return [];
-    try {
-        return JSON.parse(props.item.data) || [];
-    } catch (_) {
-        return [];
-    }
-});
 const fileListPreview = computed(() => fileList.value.slice(0, 6));
 const imageFiles = computed(() =>
     enableRichFilePreview.value && props.hasImageFiles(props.item)

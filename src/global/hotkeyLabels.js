@@ -84,8 +84,6 @@ export const FEATURE_LABELS = {
   'list-nav-down': '下移选择',
   'list-page-up': '向上翻页（按当前可见项约 90% 移动）',
   'list-page-down': '向下翻页（按当前可见项约 90% 移动）',
-  'list-home': '跳到首项',
-  'list-end': '跳到末项',
   'list-nav-left': '左移/上一页',
   'list-drawer-open': '打开操作抽屉',
   'list-view-full': '查看全部',

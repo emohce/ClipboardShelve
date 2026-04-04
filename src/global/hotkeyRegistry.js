@@ -142,7 +142,8 @@ function isEditableTarget(target) {
 
 export function dispatch(e) {
   if (e.__hotkeyHandled) return true;
-  if (ignoreRepeat && e.repeat) return false;
+  const REPEAT_ALLOWED_KEYS = new Set(['ArrowUp', 'ArrowDown', 'PageUp', 'PageDown']);
+  if (ignoreRepeat && e.repeat && !REPEAT_ALLOWED_KEYS.has(e.key)) return false;
 
   const shortcutId = eventToShortcutId(e);
   const lookupId = shortcutIdForLookup(shortcutId);

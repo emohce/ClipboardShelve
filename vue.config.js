@@ -1,22 +1,5 @@
 const UglifyJsPlugin = require('uglifyjs-webpack-plugin')
 
-const RESIZE_OBSERVER_ERROR_PATTERNS = [
-  'ResizeObserver loop limit exceeded',
-  'ResizeObserver loop completed with undelivered notifications'
-]
-
-const getOverlayRuntimeErrorMessage = (error) => {
-  return [
-    error?.message,
-    error?.error?.message,
-    error?.reason?.message,
-    typeof error?.reason === 'string' ? error.reason : '',
-    typeof error === 'string' ? error : ''
-  ]
-    .filter(Boolean)
-    .join(' | ')
-}
-
 module.exports = {
   publicPath: './',
   productionSourceMap: false,
@@ -24,12 +7,9 @@ module.exports = {
     port: 8081,
     client: {
       overlay: {
-        runtimeErrors: (error) => {
-          const message = getOverlayRuntimeErrorMessage(error)
-          return !RESIZE_OBSERVER_ERROR_PATTERNS.some((pattern) =>
-            message.includes(pattern)
-          )
-        }
+        // false：避免自定义 runtimeErrors 被抽到浏览器后丢失闭包（ReferenceError: getOverlayRuntimeErrorMessage）
+        // ResizeObserver 已在 initPlugin 里静默；其余运行时错误看控制台即可
+        runtimeErrors: false
       }
     }
   },

@@ -3,41 +3,66 @@
         class="clip-item-list"
         ref="listRootRef"
         @mousemove.passive="handleListMouseMove"
+        :class="{ 'few-items': showList.length <= 3 }"
+        role="listbox"
     >
-        <ClipItemRow
-            v-for="(item, index) in showList"
-            :key="item.id"
-            v-memo="[
-                item,
-                item.locked,
-                isMultiple,
-                activeIndex === index,
-                selectedItemIdSet.has(item.id),
-                isItemCollected(item),
-            ]"
-            :item="item"
-            :index="index"
-            :is-multiple="isMultiple"
-            :is-active="activeIndex === index"
-            :is-selected="selectedItemIdSet.has(item.id)"
-            :is-collected="isItemCollected(item)"
-            :show-operate="!isMultiple && activeIndex === index"
-            :current-active-tab="currentActiveTab"
-            :is-over-sized-content="isOverSizedContent"
-            :get-item-image-src="getItemImageSrc"
-            :has-image-files="hasImageFiles"
-            :get-image-files="getImageFiles"
-            :to-file-url="toFileUrl"
-            :show-image-file-preview="showImageFilePreview"
-            @row-click-left="handleItemClick($event, item)"
-            @row-click-right="handleItemClick($event, item)"
-            @row-mouseenter="handleMouseOver($event, index, item)"
-            @row-mouseleave="handleRowMouseLeave(index)"
-            @row-data-change="emit('onDataChange', item)"
-            @row-data-remove="emit('onDataRemove')"
-            @row-open-tag-edit="openTagEditModal"
-            @row-image-click="handleImageClick($event, item)"
-        />
+        <DynamicScroller
+            ref="scrollerRef"
+            class="scroller"
+            :items="showList"
+            :min-item-size="44"
+            key-field="id"
+            v-slot="{ item, index, active }"
+            @scroll-end="onRecycleScrollerScrollEnd"
+        >
+            <DynamicScrollerItem
+                :item="item"
+                :active="active"
+                :size-dependencies="
+                    isMultiple
+                        ? [item.type, item.id, activeIndex === index]
+                        : [item.type, item.id]
+                "
+                :data-index="index"
+            >
+                <ClipItemRow
+                    v-memo="[
+                        item.id,
+                        item.updateTime,
+                        item.type,
+                        item.locked,
+                        activeIndex === index,
+                        isMultiple,
+                        selectedItemIdSet.has(item.id),
+                        isItemCollected(item),
+                        currentActiveTab,
+                    ]"
+                    :item="item"
+                    :index="index"
+                    :is-multiple="isMultiple"
+                    :is-active="activeIndex === index"
+                    :is-selected="selectedItemIdSet.has(item.id)"
+                    :is-collected="isItemCollected(item)"
+                    :show-operate="!isMultiple && activeIndex === index"
+                    :current-active-tab="currentActiveTab"
+                    :is-over-sized-content="isOverSizedContent"
+                    :get-item-image-src="getItemImageSrc"
+                    :has-image-files="hasImageFiles"
+                    :get-image-files="getImageFiles"
+                    :to-file-url="toFileUrl"
+                    :show-image-file-preview="showImageFilePreview"
+                    @row-click-left="handleItemClick($event, item)"
+                    @row-click-right="handleItemClick($event, item)"
+                    @row-mouseenter="handleMouseOver($event, index, item)"
+                    @row-mouseleave="handleRowMouseLeave(index)"
+                    @row-data-change="emit('onDataChange', item)"
+                    @row-data-remove="emit('onDataRemove')"
+                    @row-open-tag-edit="openTagEditModal"
+                    @row-image-click="handleImageClick($event, item)"
+                />
+            </DynamicScrollerItem>
+        </DynamicScroller>
+        <div v-if="showList.length === 0" class="empty-placeholder">暂无数据</div>
     </div>
 
     <!-- Custom Image Preview -->
@@ -48,8 +73,14 @@
             :style="imagePreview.style"
             @mouseenter="keepImagePreview"
             @mouseleave="hideImagePreview"
+            @keydown="handleImagePreviewKeydown"
+            tabindex="0"
         >
-            <div class="image-preview-content">
+            <div 
+                class="image-preview-content"
+                ref="imagePreviewContentRef"
+                @scroll="handleImagePreviewScroll"
+            >
                 <img
                     v-if="isPreviewableImageSrc(imagePreview.src)"
                     :src="imagePreview.src"
@@ -92,6 +123,8 @@
 <script setup>
 import { ref, onMounted, onUnmounted, watch, computed, nextTick } from "vue";
 import { ElMessage } from "element-plus";
+import { DynamicScroller, DynamicScrollerItem } from "vue-virtual-scroller";
+import "vue-virtual-scroller/dist/vue-virtual-scroller.css";
 import ClipItemRow from "./ClipItemRow.vue";
 import ClipDrawerMenu from "./ClipDrawerMenu.vue";
 import {
@@ -141,6 +174,7 @@ const emit = defineEmits([
     "onItemDelete",
     "openCleanDialog",
     "openTagEdit",
+    "loadMore",
 ]);
 const isItemCollected = (item) =>
     props.collectedIds
@@ -195,7 +229,8 @@ const resolvePreviewImageSrc = (value) => {
 
 const getItemImageSrc = (item) => {
     if (!item || item.type !== "image") return "";
-    return resolvePreviewImageSrc(item.data);
+    // 悬浮预览优先使用原图以提升清晰度
+    return resolvePreviewImageSrc(item.data) || item.thumbnail;
 };
 
 // 显示图片预览（统一使用插件内弹层，不调用 window.open 桌面预览）
@@ -214,36 +249,57 @@ const showImagePreview = (event, item, footerText = "") => {
         imagePreviewHideTimer = null;
     }
 
-    // 与普通预览一致：大窗口、内部图片自适应展示（objectFit: contain）
-    const margin = 32;
-    const maxW = window.innerWidth - margin * 2;
-    const maxH = window.innerHeight - margin * 2;
+    // 预览窗口自适应：以宽度为准展示长图片
+    const maxW = window.innerWidth;
+    const maxH = window.innerHeight;
+    const padding = 40; // 预览窗口边距
+    const availableWidth = maxW - padding;
+    const availableHeight = maxH - padding;
+    
     imagePreview.value.src = src;
     imagePreview.value.footer = footerText;
+    imagePreview.value.scrollTop = 0; // 重置滚动位置
+    
     imagePreview.value.style = {
         position: "fixed",
-        top: "50%",
-        left: "50%",
-        transform: "translate(-50%, -50%)",
+        top: "0",
+        left: "0",
+        right: "0",
+        bottom: "0",
         zIndex: 9999,
-        backgroundColor: "rgba(15, 17, 21, 0.96)",
-        borderRadius: "8px",
-        padding: "16px",
-        boxShadow: "0 8px 32px rgba(0, 0, 0, 0.5)",
+        backgroundColor: "rgba(0, 0, 0, 0.8)",
+        borderRadius: "0",
+        padding: "20px",
+        boxShadow: "none",
         maxWidth: `${maxW}px`,
         maxHeight: `${maxH}px`,
         display: "flex",
         flexDirection: "column",
         alignItems: "center",
-        overflow: "auto",
+        justifyContent: "center",
+        overflow: "hidden",
+        outline: "none", // 移除焦点轮廓
     };
+    
+    // 以宽度为准，高度自适应
     imagePreview.value.imageStyle = {
-        maxWidth: "100%",
-        maxHeight: "100%",
-        objectFit: "contain",
+        maxWidth: `${availableWidth}px`,
+        maxHeight: "none", // 移除高度限制，让图片按原始比例显示
+        width: "auto",
+        height: "auto",
+        objectFit: "none", // 不使用 objectFit，保持原始比例
         display: "block",
+        imageRendering: "auto",
     };
     imagePreview.value.show = true;
+    
+    // 自动聚焦以接收键盘事件
+    nextTick(() => {
+        const modal = document.querySelector('.image-preview-modal');
+        if (modal) {
+            modal.focus();
+        }
+    });
 };
 
 // 隐藏图片预览
@@ -284,6 +340,34 @@ const keepImagePreview = () => {
     if (imagePreviewHideTimer) {
         clearTimeout(imagePreviewHideTimer);
         imagePreviewHideTimer = null;
+    }
+};
+
+// 图片预览滚动处理
+const handleImagePreviewScroll = (event) => {
+    imagePreview.value.scrollTop = event.target.scrollTop;
+};
+
+// 图片预览键盘处理（Shift + 上下键滚动）
+const handleImagePreviewKeydown = (event) => {
+    if (!imagePreview.value.show || !imagePreviewContentRef.value) return;
+    
+    // 只处理 Shift + 上下键
+    if (event.shiftKey && (event.key === "ArrowUp" || event.key === "ArrowDown")) {
+        event.preventDefault();
+        event.stopPropagation();
+        
+        const container = imagePreviewContentRef.value;
+        const scrollStep = 100; // 每次滚动的像素数
+        
+        if (event.key === "ArrowUp") {
+            container.scrollTop = Math.max(0, container.scrollTop - scrollStep);
+        } else if (event.key === "ArrowDown") {
+            const maxScroll = container.scrollHeight - container.clientHeight;
+            container.scrollTop = Math.min(maxScroll, container.scrollTop + scrollStep);
+        }
+        
+        imagePreview.value.scrollTop = container.scrollTop;
     }
 };
 
@@ -660,23 +744,23 @@ const showTextPreview = (item) => {
         clearTimeout(textPreviewHideTimer);
         textPreviewHideTimer = null;
     }
-    const margin = 80;
-    const maxW = window.innerWidth - margin * 2;
-    const maxH = window.innerHeight - margin * 2;
+    // 文字预览半透明黑色背景，居中显示
+    const maxW = window.innerWidth;
+    const maxH = window.innerHeight;
     textPreview.value.text = item.data || "";
     textPreview.value.show = true;
     textPreview.value.style = {
         position: "fixed",
-        top: "50vh", // 使用视口高度单位
-        left: "50vw", // 使用视口宽度单位
+        top: "50%",
+        left: "50%",
         transform: "translate(-50%, -50%)",
         zIndex: 9999,
-        backgroundColor: "rgba(0, 0, 0, 0.88)",
+        backgroundColor: "rgba(0, 0, 0, 0.7)",
         borderRadius: "8px",
-        padding: "16px 20px",
-        boxShadow: "0 8px 32px rgba(0, 0, 0, 0.35)",
-        maxWidth: `${maxW}px`,
-        maxHeight: `${maxH}px`,
+        padding: "24px 28px",
+        boxShadow: "0 8px 32px rgba(0, 0, 0, 0.3)",
+        maxWidth: `${maxW * 0.9}px`,
+        maxHeight: `${maxH * 0.8}px`,
         overflow: "auto",
         whiteSpace: "pre-wrap",
         wordBreak: "break-word",
@@ -687,10 +771,9 @@ const showTextPreview = (item) => {
 };
 
 const hideTextPreview = () => {
-    textPreviewHideTimer = setTimeout(() => {
-        textPreview.value.show = false;
-        textPreviewHideTimer = null;
-    }, 200);
+    // 移除延时隐藏，文字预览只在Shift键释放时隐藏
+    textPreview.value.show = false;
+    textPreview.value.text = "";
 };
 
 const keepTextPreview = () => {
@@ -852,12 +935,27 @@ const imagePreview = ref({
     footer: "",
     style: {},
     imageStyle: {},
+    scrollTop: 0, // 添加滚动位置跟踪
 });
 const imagePreviewSource = ref("");
 const hoverRowIndex = ref(null);
 const previewWindowSize = ref(null);
 const listRootRef = ref(null);
+const scrollerRef = ref(null);
+const imagePreviewContentRef = ref(null); // 图片预览内容容器引用
 const lastPointerPosition = ref({ x: null, y: null });
+
+// 列表在 .vue-recycle-scroller 内滚动，scroll 不冒泡到 document，原 Main 里 document 监听永远进不了底部加载；scrollEnd 在滚到当前 items 末尾时触发
+let scrollEndLoadMoreTs = 0;
+const SCROLL_END_LOAD_MORE_COOLDOWN_MS = 120;
+const onRecycleScrollerScrollEnd = () => {
+    const now = Date.now();
+    if (now - scrollEndLoadMoreTs < SCROLL_END_LOAD_MORE_COOLDOWN_MS) {
+        return;
+    }
+    scrollEndLoadMoreTs = now;
+    emit("loadMore");
+};
 
 // 长文本预览相关
 const textPreview = ref({
@@ -882,7 +980,14 @@ const hoverTriggeredPreview = ref(false);
 const hoverPreviewSuspendedByKeyboard = ref(false);
 // 点击（如打开文件 popover）后暂停悬浮预览，鼠标移动则解除
 const hoverPreviewSuspendedByClick = ref(false);
+// 自动滚动相关
+const autoScrollTimer = ref(null);
+const autoScrollSpeed = ref(100); // 初始滚动间隔(ms)
+const autoScrollDirection = ref(null); // 'up' or 'down'
+const autoScrollAcceleration = ref(1.2); // 加速因子
 const activeIndex = ref(0); // 定义 activeIndex，需要在 defineExpose 之前
+/** 末项按 ↓ 时先 loadMore，列表变长后应选中此项（原 showList.length） */
+const pendingNavAfterLoad = ref(null);
 const drawerShow = ref(false);
 const drawerPosition = ref({ top: 0, left: 0 });
 const drawerItems = ref([]);
@@ -1143,13 +1248,31 @@ const getActiveNode = (index = activeIndex.value) =>
     null;
 
 const scrollActiveNodeIntoView = (index = activeIndex.value, options = {}) => {
+    const block = options.block || "nearest";
+    const align =
+        block === "end"
+            ? "end"
+            : block === "start"
+              ? "start"
+              : options.align || "nearest";
+    const doScroll = () => {
+        if (scrollerRef.value && typeof scrollerRef.value.scrollToItem === "function") {
+            scrollerRef.value.scrollToItem(index, {
+                align,
+                smooth: options.behavior === "smooth",
+            });
+        } else {
+            const activeNode = getActiveNode(index);
+            activeNode?.scrollIntoView({
+                block,
+                inline: "nearest",
+                behavior: options.behavior || "smooth",
+            });
+        }
+    };
     nextTick(() => {
-        const activeNode = getActiveNode(index);
-        activeNode?.scrollIntoView({
-            block: options.block || "nearest",
-            inline: "nearest",
-            behavior: options.behavior || "smooth",
-        });
+        doScroll();
+        nextTick(doScroll);
     });
 };
 
@@ -1159,26 +1282,32 @@ const setKeyboardActiveIndex = (nextIndex, options = {}) => {
     const targetIndex = clampActiveIndex(nextIndex);
     if (targetIndex === activeIndex.value && !options.forceScroll) return true;
     hoverPreviewSuspendedByKeyboard.value = true;
+    
+    // 立即更新activeIndex，确保响应性
     activeIndex.value = targetIndex;
-    scrollActiveNodeIntoView(targetIndex, options);
+    
+    // 使用nextTick确保DOM更新后再滚动
+    nextTick(() => {
+        scrollActiveNodeIntoView(targetIndex, options);
+        // 再次使用nextTick确保滚动完成
+        nextTick(() => {
+            scrollActiveNodeIntoView(targetIndex, options);
+        });
+    });
+    
     return true;
 };
 
 const getPageStep = () => {
-    const nodes = Array.from(
-        listRootRef.value?.querySelectorAll(".clip-item") || [],
-    ).filter((node) => node.offsetParent !== null);
-    if (!nodes.length) return 1;
-    const sample = nodes.slice(0, Math.min(nodes.length, 6));
-    const avgHeight =
-        sample.reduce(
-            (sum, node) => sum + node.getBoundingClientRect().height,
-            0,
-        ) / sample.length;
-    if (!avgHeight || Number.isNaN(avgHeight)) return 1;
-    const viewportHeight =
-        window.innerHeight || document.documentElement.clientHeight || avgHeight;
-    return Math.max(1, Math.floor((viewportHeight / avgHeight) * 0.9));
+    // 在虚拟滚动模式下，使用 min-item-size 计算（与 DynamicScroller 的 min-item-size 保持一致）
+    const itemSize = 44;
+    // 使用实际滚动容器的高度，而不是 window.innerHeight
+    const containerHeight = scrollerRef.value?.$el?.clientHeight ||
+                            listRootRef.value?.clientHeight ||
+                            window.innerHeight ||
+                            document.documentElement.clientHeight ||
+                            600;
+    return Math.max(1, Math.floor((containerHeight / itemSize) * 0.9));
 };
 
 const handleRowMouseLeave = (index) => {
@@ -1208,6 +1337,26 @@ watch(
     () => {
         if (keyboardTriggeredPreview.value) {
             triggerKeyboardPreview();
+        }
+        // 当键盘导航接近列表末尾时，触发懒加载
+        const LOAD_MORE_THRESHOLD = 5;
+        if (activeIndex.value >= props.showList.length - LOAD_MORE_THRESHOLD) {
+            emit("loadMore");
+        }
+    },
+);
+
+watch(
+    () => props.showList.length,
+    (newLen, oldLen) => {
+        if (pendingNavAfterLoad.value == null || oldLen === undefined) return;
+        const target = pendingNavAfterLoad.value;
+        if (newLen > oldLen && target < newLen) {
+            activeIndex.value = target;
+            pendingNavAfterLoad.value = null;
+            nextTick(() =>
+                scrollActiveNodeIntoView(target, { block: "end" }),
+            );
         }
     },
 );
@@ -1278,15 +1427,30 @@ function registerListHotkeyFeatures() {
             hoverPreviewSuspendedByKeyboard.value = true;
             window.toTop();
         }
-        return setKeyboardActiveIndex(activeIndex.value - 1);
+        return setKeyboardActiveIndex(activeIndex.value - 1, {
+            block: "start",
+        });
     });
     registerFeature("list-nav-down", () => {
-        if (
-            props.showList.length === 0 ||
-            activeIndex.value >= props.showList.length - 1
-        )
-            return true;
-        return setKeyboardActiveIndex(activeIndex.value + 1);
+        if (props.showList.length === 0) return true;
+        if (activeIndex.value < props.showList.length - 1) {
+            return setKeyboardActiveIndex(activeIndex.value + 1, {
+                block: "center",
+            });
+        }
+        const oldLen = props.showList.length;
+        hoverPreviewSuspendedByKeyboard.value = true;
+        pendingNavAfterLoad.value = oldLen;
+        emit("loadMore");
+        nextTick(() => {
+            nextTick(() => {
+                if (pendingNavAfterLoad.value === null) return;
+                if (props.showList.length <= oldLen) {
+                    pendingNavAfterLoad.value = null;
+                }
+            });
+        });
+        return true;
     });
     registerFeature("list-page-up", () => {
         if (isFocusInSearch()) return false;
@@ -1295,32 +1459,20 @@ function registerListHotkeyFeatures() {
             return true;
         }
         const step = getPageStep();
-        if (activeIndex.value - step <= 0) {
+        const targetIndex = Math.max(0, activeIndex.value - step);
+        if (targetIndex === 0) {
             window.toTop();
         }
-        return setKeyboardActiveIndex(activeIndex.value - step, {
-            block: "start",
+        return setKeyboardActiveIndex(targetIndex, {
+            block: "center", // 使用center对齐提供更好的视觉效果
         });
     });
     registerFeature("list-page-down", () => {
         if (isFocusInSearch()) return false;
-        return setKeyboardActiveIndex(activeIndex.value + getPageStep(), {
-            block: "end",
-        });
-    });
-    registerFeature("list-home", () => {
-        if (isFocusInSearch()) return false;
-        window.toTop();
-        return setKeyboardActiveIndex(0, {
-            block: "start",
-            forceScroll: true,
-        });
-    });
-    registerFeature("list-end", () => {
-        if (isFocusInSearch()) return false;
-        return setKeyboardActiveIndex(props.showList.length - 1, {
-            block: "end",
-            forceScroll: true,
+        const step = getPageStep();
+        const targetIndex = Math.min(props.showList.length - 1, activeIndex.value + step);
+        return setKeyboardActiveIndex(targetIndex, {
+            block: "center", // 使用center对齐提供更好的视觉效果
         });
     });
     registerFeature("list-nav-left", () => {
@@ -1328,6 +1480,26 @@ function registerListHotkeyFeatures() {
     });
     registerFeature("list-nav-right", () => {
         return setKeyboardActiveIndex(activeIndex.value + 1);
+    });
+    registerFeature("text-preview-scroll-up", () => {
+        if (textPreview.value.show) {
+            const textModal = document.querySelector(".text-preview-modal");
+            if (textModal) {
+                textModal.scrollTop = Math.max(0, textModal.scrollTop - 150);
+                return true;
+            }
+        }
+        return false;
+    });
+    registerFeature("text-preview-scroll-down", () => {
+        if (textPreview.value.show) {
+            const textModal = document.querySelector(".text-preview-modal");
+            if (textModal) {
+                textModal.scrollTop = Math.min(textModal.scrollHeight - textModal.clientHeight, textModal.scrollTop + 150);
+                return true;
+            }
+        }
+        return false;
     });
     const isFocusInSearch = () => {
         const el = document.activeElement;
@@ -1549,9 +1721,7 @@ function registerListHotkeyFeatures() {
         } else {
             appendSelectedItems([currentItem]);
             activeIndex.value++;
-            document
-                .querySelector(".clip-item.multi-active+.clip-item")
-                ?.scrollIntoView({ block: "nearest", inline: "nearest" });
+            scrollActiveNodeIntoView();
         }
         return true;
     });
@@ -1586,7 +1756,21 @@ function registerListHotkeyFeatures() {
 
 const keyDownCallBack = (e) => {
     if (e.__hotkeyHandled) return;
-    if (e.key !== "Shift" || e.repeat) return;
+    
+    const { key } = e;
+    const isArrowUp = key === "ArrowUp";
+    const isArrowDown = key === "ArrowDown";
+    const isShift = key === "Shift";
+    const isShiftPressed = e.shiftKey;
+    
+    // 只有在没有按住Shift时才启动自动滚动
+    if ((isArrowUp || isArrowDown) && !e.repeat && !isShiftPressed) {
+        const direction = isArrowUp ? 'up' : 'down';
+        startAutoScroll(direction);
+    }
+    
+    // 保持原有的Shift键处理逻辑
+    if (isShift || e.repeat) return;
     if (props.isMultiple) isShiftDown.value = true;
     handleShiftKeyDown();
 };
@@ -1594,7 +1778,17 @@ const keyDownCallBack = (e) => {
 const keyUpCallBack = (e) => {
     if (e.__hotkeyHandled) return;
     const { key } = e;
+    const isArrowUp = key === "ArrowUp";
+    const isArrowDown = key === "ArrowDown";
     const isShift = key === "Shift";
+    const isShiftPressed = e.shiftKey;
+    
+    // 只有在没有按住Shift时才停止自动滚动
+    if ((isArrowUp || isArrowDown) && !isShiftPressed) {
+        stopAutoScroll();
+    }
+    
+    // 保持原有的Shift键处理逻辑
     if (isShift) {
         e.preventDefault();
         e.stopPropagation();
@@ -1603,18 +1797,98 @@ const keyUpCallBack = (e) => {
     }
 };
 
+// 自动滚动功能
+const startAutoScroll = (direction) => {
+    if (autoScrollTimer.value) return;
+    
+    autoScrollDirection.value = direction;
+    autoScrollSpeed.value = 100; // 重置速度
+    
+    const scroll = () => {
+        if (direction === 'up') {
+            if (activeIndex.value > 0) {
+                setKeyboardActiveIndex(activeIndex.value - 1, { block: "center" });
+            } else {
+                stopAutoScroll();
+                return;
+            }
+        } else if (direction === 'down') {
+            if (activeIndex.value < props.showList.length - 1) {
+                setKeyboardActiveIndex(activeIndex.value + 1, { block: "center" });
+            } else {
+                // 到达底部时触发加载更多
+                const oldLen = props.showList.length;
+                hoverPreviewSuspendedByKeyboard.value = true;
+                pendingNavAfterLoad.value = oldLen;
+                emit("loadMore");
+                
+                // 等待数据加载完成后继续滚动
+                nextTick(() => {
+                    nextTick(() => {
+                        if (pendingNavAfterLoad.value === null) return;
+                        if (props.showList.length <= oldLen) {
+                            pendingNavAfterLoad.value = null;
+                            stopAutoScroll(); // 没有更多数据，停止滚动
+                            return;
+                        }
+                        // 有新数据加载，继续滚动
+                        autoScrollTimer.value = setTimeout(scroll, autoScrollSpeed.value);
+                    });
+                });
+                return;
+            }
+        }
+        
+        // 加速滚动
+        autoScrollSpeed.value = Math.max(30, autoScrollSpeed.value * autoScrollAcceleration.value);
+        
+        autoScrollTimer.value = setTimeout(scroll, autoScrollSpeed.value);
+    };
+    
+    scroll();
+};
+
+const stopAutoScroll = () => {
+    if (autoScrollTimer.value) {
+        clearTimeout(autoScrollTimer.value);
+        autoScrollTimer.value = null;
+    }
+    autoScrollDirection.value = null;
+    autoScrollSpeed.value = 100;
+};
+
+// 窗口失焦时隐藏所有预览
+const handleWindowBlur = () => {
+    resetTransientPreviewState();
+    stopAutoScroll(); // 停止自动滚动
+};
+
 onMounted(() => {
     applyHoverPreviewConfig(setting);
     registerListHotkeyFeatures();
-    document.addEventListener("keydown", keyDownCallBack);
-    document.addEventListener("keyup", keyUpCallBack);
+    // 移除自定义键盘事件监听器，使用hotkeyRegistry系统
     window.addEventListener(SETTING_UPDATED_EVENT, handleSettingUpdated);
+    window.addEventListener("blur", handleWindowBlur);
+
+    // ResizeObserver 监听列表容器高度变化，使 getPageStep 动态计算有效
+    if (listRootRef.value) {
+        const resizeObserver = new ResizeObserver(() => {
+            // getPageStep 每次实时取 clientHeight，此处无需额外缓存
+        });
+        resizeObserver.observe(listRootRef.value);
+        // 保存 observer 以便清理
+        listRootRef.value._resizeObserver = resizeObserver;
+    }
 });
 
 onUnmounted(() => {
-    document.removeEventListener("keydown", keyDownCallBack);
-    document.removeEventListener("keyup", keyUpCallBack);
+    // 移除自定义键盘事件监听器清理
     window.removeEventListener(SETTING_UPDATED_EVENT, handleSettingUpdated);
+    window.removeEventListener("blur", handleWindowBlur);
+    
+    // 清理自动滚动定时器
+    stopAutoScroll();
+    
     if (lockPersistTimer) {
         clearTimeout(lockPersistTimer);
         lockPersistTimer = null;
@@ -1625,12 +1899,27 @@ onUnmounted(() => {
         clearTimeout(imagePreviewHideTimer);
         imagePreviewHideTimer = null;
     }
+
+    // 清理 ResizeObserver
+    if (listRootRef.value?._resizeObserver) {
+        listRootRef.value._resizeObserver.disconnect();
+        listRootRef.value._resizeObserver = null;
+    }
     resetTransientPreviewState();
 });
 </script>
 
 <style lang="less" scoped>
 @import "../style";
+
+.clip-item-list {
+    height: 100%;
+    overflow: hidden;
+}
+
+.scroller {
+    height: 100%;
+}
 
 .text-preview-modal {
     .text-preview-content {
@@ -1646,9 +1935,31 @@ onUnmounted(() => {
         flex: 1;
         min-height: 0;
         display: flex;
-        align-items: center;
+        align-items: flex-start; // 改为顶部对齐以支持滚动
         justify-content: center;
         width: 100%;
+        overflow-y: auto; // 启用垂直滚动
+        overflow-x: auto; // 启用水平滚动以防过宽图片
+        scrollbar-width: thin; // 细滚动条
+        scrollbar-color: rgba(255, 255, 255, 0.3) transparent;
+        
+        &::-webkit-scrollbar {
+            width: 8px;
+            height: 8px;
+        }
+        
+        &::-webkit-scrollbar-track {
+            background: transparent;
+        }
+        
+        &::-webkit-scrollbar-thumb {
+            background: rgba(255, 255, 255, 0.3);
+            border-radius: 4px;
+            
+            &:hover {
+                background: rgba(255, 255, 255, 0.5);
+            }
+        }
     }
     .image-preview-footer {
         margin-top: 8px;
