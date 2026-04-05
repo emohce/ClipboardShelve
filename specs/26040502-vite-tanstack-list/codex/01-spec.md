@@ -9,6 +9,7 @@
 - 当前仓库仍以 [`package.json`](../../../package.json#L1) 中的 `Vue CLI + webpack 4 + vue-virtual-scroller` 组合作为声明基线，但锁文件与运行现状已出现漂移，工程底座不利于后续维护。
 - 当前主列表复杂逻辑集中在 [`src/cpns/ClipItemList.vue`](../../../src/cpns/ClipItemList.vue#L1)，同时承担滚动控制、分页、长按、删除恢复、懒加载和多选同步，维护成本过高。
 - 当前展示列表由 [`src/views/Main.vue`](../../../src/views/Main.vue#L922) 到 [`src/views/Main.vue`](../../../src/views/Main.vue#L931) 组合 `currentShowList`，说明任何新列表实现都必须继续兼容普通列表、收藏块混排、搜索和筛选结果。
+- 当前快捷键体系由 [`src/global/hotkeyRegistry.js`](../../../src/global/hotkeyRegistry.js#L1) 与 [`src/global/hotkeyBindings.js`](../../../src/global/hotkeyBindings.js#L1) 统一注册和绑定，列表重构不能破坏既有 feature 语义与 layer/state 机制。
 - 你指定的迁移总览文档 [`260405-cursor-项目全量需求存储交互迁移总览.md`](../cursor/260405-cursor-%E9%A1%B9%E7%9B%AE%E5%85%A8%E9%87%8F%E9%9C%80%E6%B1%82%E5%AD%98%E5%82%A8%E4%BA%A4%E4%BA%92%E8%BF%81%E7%A7%BB%E6%80%BB%E8%A7%88.md#L1) 已明确当前重点是主列表交互性能、导航问题、删除高亮错位、锁/收藏状态刷新与工程底座升级。
 - 当前已完成最新框架适配评估，并确认采用 S2 路线；本 spec 以现有 `raw` 方案和上述总览文档作为统一需求来源。
 
@@ -22,6 +23,7 @@
 
 ## 4. 非目标
 - 不修改 `uTools` 插件业务能力本身，不重做数据库模型、收藏结构、搜索语法和快捷键语义。
+- 不在本次范围内把主存储从现有 JSON 基线切换到 [`src/global/utoolsDB.js`](../../../src/global/utoolsDB.js#L1) 或同步推进双轨存储重构。
 - 不引入 Nuxt、SSR、服务端渲染或远程服务依赖。
 - 不在本次范围内重做设置页、抽屉页、预览页等与主列表核心交互无直接耦合的模块，除非迁移过程中必须联动。
 - 不承诺在本次重构中顺手优化所有历史问题；优先解决主列表交互和工程基线问题。
@@ -47,6 +49,8 @@
 - 虚拟列表中目标项尚未挂载 DOM 时，滚动策略仍需保证最终落点可见，不能依赖旧实现里的多套兜底互相覆盖。
 - `uTools` 插件环境与浏览器开发环境存在差异，任何构建迁移都必须明确区分“Web 层验证通过”和“插件环境验证通过”。
 - `preload.js`、`plugin.json`、静态资源路径和开发调试入口属于高风险迁移点，需要保守处理。
+- 收藏不是简单 `collect: true` 标记，而是普通历史与收藏数据分离模型；删除、搜索、混排和高亮恢复都不能退化成单表思维。
+- [`src/global/initPlugin.js`](../../../src/global/initPlugin.js#L1) 中历史兼容逻辑仍需保留，不能在迁移时顺手删除 `collect`、`collectData`、`collectTime`、`tags`、`remark`、`locked`、`originPaths` 等补齐流程。
 - 若 Vite 迁移中发现现有依赖或脚本与 `uTools` 运行方式冲突，允许对工程目录、构建脚本和入口文件做必要重组，但必须保持业务行为一致。
 
 ## 7. 影响范围
@@ -61,6 +65,10 @@
   - [`src/views/Main.vue`](../../../src/views/Main.vue#L922)
   - [`src/cpns/ClipItemRow.vue`](../../../src/cpns/ClipItemRow.vue#L19)
   - [`src/style/cpns/clip-item-list.less`](../../../src/style/cpns/clip-item-list.less#L192)
+- 快捷键与运行期约束：
+  - [`src/global/hotkeyRegistry.js`](../../../src/global/hotkeyRegistry.js#L1)
+  - [`src/global/hotkeyBindings.js`](../../../src/global/hotkeyBindings.js#L1)
+  - [`src/global/initPlugin.js`](../../../src/global/initPlugin.js#L1)
 - 若采用新列表抽象：
   - 允许新增 `src/hooks/`、`src/utils/` 或 `src/cpns/` 内与导航状态机、虚拟滚动策略相关的模块
 - 文档：
