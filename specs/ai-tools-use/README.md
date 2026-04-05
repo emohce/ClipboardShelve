@@ -11,6 +11,9 @@ specs/ai-tools-use/
   cursor-prompts.md
   codex-prompts.md
   windsurf-prompts.md
+  multi-ai-orchestrator.md
+  multi-ai-merge-checklist.md
+  multi-ai-execution-strategy.md
 ```
 
 ## feature-id 规则
@@ -42,8 +45,12 @@ specs/ai-tools-use/
 - `cursor-prompts.md`: Cursor Plan Mode / Agent 模板
 - `codex-prompts.md`: Codex app / Codex CLI 风格模板
 - `windsurf-prompts.md`: Windsurf Cascade / Workflows 模板
+- `multi-ai-orchestrator.md`: 多 AI 分阶段编排与汇总模板
+- `multi-ai-merge-checklist.md`: 多 AI 汇总时的固定检查项
+- `multi-ai-execution-strategy.md`: 多 AI 执行分工策略与适用场景
 
 ## 维护规则
 - 每种工具使用独立子目录，避免同名模板冲突。
 - 后续新增 workflow、memory、rules、slash command 示例时，也放入各自工具子目录。
 - 共性约束只放在当前 README 和根目录 `AGENTS.md`，不在各工具模板里重复维护多套版本。
+- 多 AI 协作时，必须先收敛成唯一正式 `01-spec.md` 与 `02-plan.md`，再进入实现。

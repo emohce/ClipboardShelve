@@ -12,6 +12,7 @@ Task:
 Constraints:
 - Keep it executable and verifiable.
 - Use concise Markdown suitable for repository storage.
+- Obey the rules in AGENTS.md and ai-rules/00-writing-style.md.
 ```
 
 ## 2. 生成 Plan
