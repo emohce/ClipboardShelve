@@ -1013,6 +1013,17 @@ const handleItemDelete = (item, metadata = {}) => {
     } = metadata;
     const currentActiveIndex =
         typeof anchorIndex === "number" ? anchorIndex : getActiveIndex();
+    
+    // Set delete anchor for child component to consume
+    if (ClipItemListRef.value?.setDeleteAnchor) {
+        ClipItemListRef.value.setDeleteAnchor({
+            originalIndex: currentActiveIndex,
+            itemId: item.id,
+            isBatch,
+            isLast
+        });
+    }
+    
     // 处理删除操作，复用 useClipOperate 的逻辑
     const activeTabValue =
         typeof ClipSwitchRef.value?.activeTab === "object"

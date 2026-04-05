@@ -1,4 +1,4 @@
-<template>
+﻿<template>
     <div
         class="clip-item-list"
         ref="listRootRef"
@@ -6,63 +6,84 @@
         :class="{ 'few-items': showList.length <= 3 }"
         role="listbox"
     >
-        <DynamicScroller
-            ref="scrollerRef"
-            class="scroller"
-            :items="showList"
-            :min-item-size="44"
-            key-field="id"
-            v-slot="{ item, index, active }"
-            @scroll-end="onRecycleScrollerScrollEnd"
+        <div
+            ref="scrollParentRef"
+            class="scroller clip-item-virtual-scroll"
+            @scroll.passive="handleVirtualScroll"
         >
-            <DynamicScrollerItem
-                :item="item"
-                :active="active"
-                :size-dependencies="
-                    isMultiple
-                        ? [item.type, item.id, activeIndex === index]
-                        : [item.type, item.id]
-                "
-                :data-index="index"
+            <div
+                class="clip-item-virtual-body"
+                :style="{ height: `${totalSize}px` }"
             >
-                <ClipItemRow
-                    v-memo="[
-                        item.id,
-                        item.updateTime,
-                        item.type,
-                        item.locked,
-                        activeIndex === index,
-                        isMultiple,
-                        selectedItemIdSet.has(item.id),
-                        isItemCollected(item),
-                        currentActiveTab,
-                    ]"
-                    :item="item"
-                    :index="index"
-                    :is-multiple="isMultiple"
-                    :is-active="activeIndex === index"
-                    :is-selected="selectedItemIdSet.has(item.id)"
-                    :is-collected="isItemCollected(item)"
-                    :show-operate="!isMultiple && activeIndex === index"
-                    :current-active-tab="currentActiveTab"
-                    :is-over-sized-content="isOverSizedContent"
-                    :is-previewable-text="isPreviewableTextItem(item)"
-                    :get-item-image-src="getItemImageSrc"
-                    :has-image-files="hasImageFiles"
-                    :get-image-files="getImageFiles"
-                    :to-file-url="toFileUrl"
-                    :show-image-file-preview="showImageFilePreview"
-                    @row-click-left="handleItemClick($event, item)"
-                    @row-click-right="handleItemClick($event, item)"
-                    @row-mouseenter="handleMouseOver($event, index, item)"
-                    @row-mouseleave="handleRowMouseLeave(index)"
-                    @row-data-change="emit('onDataChange', item)"
-                    @row-data-remove="emit('onDataRemove')"
-                    @row-open-tag-edit="openTagEditModal"
-                    @row-image-click="handleImageClick($event, item)"
-                />
-            </DynamicScrollerItem>
-        </DynamicScroller>
+                <div
+                    v-for="virtualRow in virtualRows"
+                    :key="showList[virtualRow.index]?.id ?? virtualRow.key"
+                    :ref="measureRowElement"
+                    class="clip-item-virtual-row"
+                    :class="{
+                        'clip-item-virtual-row--compact': showList.length <= 3,
+                    }"
+                    :data-index="virtualRow.index"
+                    :style="{ transform: `translateY(${virtualRow.start}px)` }"
+                >
+                    <ClipItemRow
+                        v-if="showList[virtualRow.index]"
+                        v-memo="[
+                            showList[virtualRow.index].id,
+                            showList[virtualRow.index].updateTime,
+                            showList[virtualRow.index].type,
+                            showList[virtualRow.index].locked,
+                            activeIndex === virtualRow.index,
+                            isMultiple,
+                            selectedItemIdSet.has(showList[virtualRow.index].id),
+                            isItemCollected(showList[virtualRow.index]),
+                            currentActiveTab,
+                        ]"
+                        :item="showList[virtualRow.index]"
+                        :index="virtualRow.index"
+                        :is-multiple="isMultiple"
+                        :is-active="activeIndex === virtualRow.index"
+                        :is-selected="
+                            selectedItemIdSet.has(showList[virtualRow.index].id)
+                        "
+                        :is-collected="isItemCollected(showList[virtualRow.index])"
+                        :show-operate="!isMultiple && activeIndex === virtualRow.index"
+                        :current-active-tab="currentActiveTab"
+                        :is-over-sized-content="isOverSizedContent"
+                        :is-previewable-text="
+                            isPreviewableTextItem(showList[virtualRow.index])
+                        "
+                        :get-item-image-src="getItemImageSrc"
+                        :has-image-files="hasImageFiles"
+                        :get-image-files="getImageFiles"
+                        :to-file-url="toFileUrl"
+                        :show-image-file-preview="showImageFilePreview"
+                        @row-click-left="
+                            handleItemClick($event, showList[virtualRow.index])
+                        "
+                        @row-click-right="
+                            handleItemClick($event, showList[virtualRow.index])
+                        "
+                        @row-mouseenter="
+                            handleMouseOver(
+                                $event,
+                                virtualRow.index,
+                                showList[virtualRow.index],
+                            )
+                        "
+                        @row-mouseleave="handleRowMouseLeave(virtualRow.index)"
+                        @row-data-change="
+                            emit('onDataChange', showList[virtualRow.index])
+                        "
+                        @row-data-remove="emit('onDataRemove')"
+                        @row-open-tag-edit="openTagEditModal"
+                        @row-image-click="
+                            handleImageClick($event, showList[virtualRow.index])
+                        "
+                    />
+                </div>
+            </div>
+        </div>
         <div v-if="showList.length === 0" class="empty-placeholder">暂无数据</div>
     </div>
 
@@ -147,9 +168,8 @@
 
 <script setup>
 import { ref, onMounted, onUnmounted, watch, computed, nextTick } from "vue";
+import { useVirtualizer } from "@tanstack/vue-virtual";
 import { ElMessage } from "element-plus";
-import { DynamicScroller, DynamicScrollerItem } from "vue-virtual-scroller";
-import "vue-virtual-scroller/dist/vue-virtual-scroller.css";
 import ClipItemRow from "./ClipItemRow.vue";
 import ClipDrawerMenu from "./ClipDrawerMenu.vue";
 import {
@@ -163,6 +183,8 @@ import setting, {
     SETTING_UPDATED_EVENT,
 } from "../global/readSetting";
 import useClipOperate from "../hooks/useClipOperate";
+import { useListNavigation } from "../hooks/useListNavigation";
+import { useVirtualListScroll } from "../hooks/useVirtualListScroll";
 import { desktopPreviewManager } from "../global/desktopPreview";
 import { registerFeature } from "../global/hotkeyRegistry";
 const props = defineProps({
@@ -238,9 +260,9 @@ const handleImageError = (event) => {
 const PREVIEW_MODAL_PADDING = 40;
 const PREVIEW_SCROLL_STEP = 150;
 const IMAGE_PREVIEW_HINT_TEXT = {
-    both: "Shift + ↑/↓/←/→ 移动预览",
-    vertical: "Shift + ↑/↓ 移动预览",
-    horizontal: "Shift + ←/→ 移动预览",
+    both: "Shift + \u2190\u2191\u2192\u2193 移动预览",
+    vertical: "Shift + \u2191\u2193 移动预览",
+    horizontal: "Shift + \u2190\u2192 移动预览",
 };
 
 const getImagePreviewMetrics = () => {
@@ -473,7 +495,7 @@ const showImagePreview = (event, item, footerText = "") => {
     };
     imagePreview.value.show = true;
     
-    // 自动聚焦以接收键盘事件
+    // 悬浮预览优先使用原图以提升清晰度
     nextTick(() => {
         const modal = document.querySelector('.image-preview-modal');
         if (modal) {
@@ -510,7 +532,7 @@ const stopImagePreview = (immediate = false) => {
     }, 200);
 };
 
-// 组件卸载时清理预览窗口
+// 图片数据验证
 onUnmounted(() => {
     desktopPreviewManager.closeAllPreviews();
     stopKeyHold(); // 清理长按检测定时器
@@ -571,7 +593,7 @@ const openExternalPreview = (src, footer = "", ratio = 0.9) => {
     const screenHeight =
         window.screen?.availHeight || window.screen?.height || 1080;
 
-    // 使用更大的比例，提供更好的预览体验
+    // 自动聚焦以接收键盘事件
     const width = Math.floor(screenWidth * ratio);
     const height = Math.floor(screenHeight * ratio);
     const left = Math.max(0, Math.floor((screenWidth - width) / 2));
@@ -606,7 +628,7 @@ const openExternalPreview = (src, footer = "", ratio = 0.9) => {
         "<html>",
         "<head>",
         '  <meta charset="utf-8" />',
-        "  <title>图片预览 - 超级剪贴板</title>",
+        '  <title>图片预览 - 超级剪贴板</title>',
         "  <style>",
         "    html, body { ",
         "      margin: 0; ",
@@ -691,11 +713,11 @@ const openExternalPreview = (src, footer = "", ratio = 0.9) => {
         "<body>",
         '  <div class="wrap">',
         '    <div class="controls">',
-        '      <button class="control-btn" onclick="window.close()">关闭 (ESC)</button>',
+        '      <button class="control-btn" onclick="window.close()">鍏抽棴 (ESC)</button>',
         "    </div>",
         '    <img src="' + src + '" alt="preview" />',
         footerHtml,
-        '    <div class="shortcuts">ESC: 关闭窗口</div>',
+        '    <div class="shortcuts">ESC: 鍏抽棴绐楀彛</div>',
         "  </div>",
         "  <script>",
         "    // ESC键关闭窗口",
@@ -705,7 +727,7 @@ const openExternalPreview = (src, footer = "", ratio = 0.9) => {
         "      }",
         "    });",
         "    ",
-        "    // 窗口失焦时也可以通过ESC关闭",
+        "    // 绐楀彛澶辩劍鏃朵篃鍙互閫氳繃ESC鍏抽棴",
         '    window.addEventListener("blur", function() {',
         "      setTimeout(function() {",
         "        window.focus();",
@@ -748,7 +770,7 @@ const openExternalPreview = (src, footer = "", ratio = 0.9) => {
     win.document.write(html);
     win.document.close();
 
-    // 聚焦到预览窗口
+    // 鑱氱劍鍒伴瑙堢獥鍙?
     try {
         win.focus();
     } catch (e) {}
@@ -829,7 +851,7 @@ const showImageFilePreview = (path) => {
     const name = path.split(/[\\/]/).pop() || path;
     const footerText = `${name}\n${path}`;
 
-    // 使用统一的图片预览逻辑
+    // 延迟隐藏，允许鼠标移动到预览区域
     showImagePreview(null, { type: "image", data: src }, footerText);
 };
 
@@ -901,7 +923,7 @@ const handleShiftKeyUp = () => {
     }
 };
 
-// 键盘触发的预览（Shift 长按后切换 item 时刷新预览）
+// 图片点击处理（能展示就能复制，与悬浮一致）
 const triggerKeyboardPreview = () => {
     if (!keyboardTriggeredPreview.value) return;
     const currentItem = props.showList[activeIndex.value];
@@ -1144,6 +1166,19 @@ const openDrawerForCurrentItem = (ev, defaultActiveIndex = 0) => {
 };
 const isShiftDown = ref(false);
 const selectItemList = ref([]);
+const {
+    activeIndex,
+    pendingNavAfterLoad,
+    pendingHighlightedItemId,
+    pendingActiveIndexAfterDelete,
+    deleteAnchor,
+    clampActiveIndex,
+    setActiveIndex,
+    setPendingNavAfterLoad,
+    setDeleteAnchor,
+    clearPendingStates,
+    getNavigationTarget,
+} = useListNavigation(() => props.showList);
 const allSelectedLocked = ref(false); // 临时标志：记录所有选中项是否都已锁定
 let lockPersistTimer = null;
 
@@ -1166,24 +1201,71 @@ const imagePreviewSource = ref("");
 const hoverRowIndex = ref(null);
 const previewWindowSize = ref(null);
 const listRootRef = ref(null);
-const scrollerRef = ref(null);
+const scrollParentRef = ref(null);
 const imagePreviewContentRef = ref(null); // 图片预览内容容器引用
 const textPreviewContentRef = ref(null);
 const lastPointerPosition = ref({ x: null, y: null });
 
-// 列表在 .vue-recycle-scroller 内滚动，scroll 不冒泡到 document，原 Main 里 document 监听永远进不了底部加载；scrollEnd 在滚到当前 items 末尾时触发
+// 列表在 TanStack 虚拟滚动容器内滚动；触底时由本组件 emit loadMore（不再依赖 document 级 scroll 冒泡）
 let scrollEndLoadMoreTs = 0;
 const SCROLL_END_LOAD_MORE_COOLDOWN_MS = 120;
-const onRecycleScrollerScrollEnd = () => {
-    const now = Date.now();
-    if (now - scrollEndLoadMoreTs < SCROLL_END_LOAD_MORE_COOLDOWN_MS) {
-        return;
+const estimateItemSize = (index = activeIndex.value) => {
+    const item = props.showList[index];
+    if (!item) return 52;
+    if (item.type === "image") return 76;
+    return props.isMultiple && activeIndex.value === index ? 72 : 52;
+};
+const listVirtualizer = useVirtualizer(
+    computed(() => ({
+        count: props.showList.length,
+        getScrollElement: () => scrollParentRef.value,
+        estimateSize: (index) => estimateItemSize(index),
+        overscan: 8,
+    })),
+);
+const virtualRows = computed(() => listVirtualizer.getVirtualItems());
+const totalSize = computed(() => listVirtualizer.getTotalSize());
+const measureRowElement = (el) => {
+    if (el) {
+        listVirtualizer.measureElement(el);
     }
+};
+const {
+    scrollToIndex: scrollVirtualIndexIntoView,
+    scrollToEdge,
+    getPageStep: virtualPageStep,
+    scrollByPage,
+    scrollHalfPage,
+} = useVirtualListScroll({
+    listRootRef,
+    scrollParentRef,
+    virtualizer: listVirtualizer,
+    getEstimateSize: () => estimateItemSize(),
+});
+const scrollerRef = ref({
+    get $el() {
+        return scrollParentRef.value;
+    },
+    scrollToItem(index, options = {}) {
+        listVirtualizer.scrollToIndex(index, {
+            align: options.align || "auto",
+        });
+    },
+});
+const handleVirtualScroll = () => {
+    const container = scrollParentRef.value;
+    if (!container) return;
+    const now = Date.now();
+    const isNearBottom =
+        container.scrollTop + container.clientHeight + 12 >=
+        container.scrollHeight;
+    if (!isNearBottom) return;
+    if (now - scrollEndLoadMoreTs < SCROLL_END_LOAD_MORE_COOLDOWN_MS) return;
     scrollEndLoadMoreTs = now;
     emit("loadMore");
 };
 
-// 长文本预览相关
+// 长文本预览（Shift 按住）状态
 const textPreview = ref({
     show: false,
     text: "",
@@ -1192,36 +1274,33 @@ const textPreview = ref({
     isSingleLine: false,
 });
 
-// 图片预览隐藏定时器
+// 图片预览延迟隐藏定时器
 let imagePreviewHideTimer = null;
-// 长文本预览隐藏定时器
+// 长文本预览延迟隐藏定时器
 let textPreviewHideTimer = null;
 
-// Shift键长按相关
+// Shift 键按下时间（区分短按与长按预览）
 let shiftKeyDownTime = 0;
 let shiftKeyTimer = null;
 const keyboardTriggeredPreview = ref(false);
-// 行悬浮预览：默认关闭，开启后按用户配置的 delay 触发
+// 行级悬浮预览 debounce 定时器
 let hoverPreviewTimer = null;
 const hoverTriggeredPreview = ref(false);
 // 方向键生效后暂停悬浮预览，直到鼠标再次移动才重新启用
 const hoverPreviewSuspendedByKeyboard = ref(false);
 // 点击（如打开文件 popover）后暂停悬浮预览，鼠标移动则解除
 const hoverPreviewSuspendedByClick = ref(false);
-// 自动滚动相关
+// 自动滚动（长按方向键）定时器
 const autoScrollTimer = ref(null);
 const autoScrollSpeed = ref(100); // 初始滚动间隔(ms)
 const autoScrollDirection = ref(null); // 'up' or 'down'
 const autoScrollAcceleration = ref(1.2); // 加速因子
-// 方向键长按检测相关
+// 长按连续滚动定时器
 const keyHoldTimer = ref(null);
 const keyHoldDirection = ref(null);
 const keyHoldStartTime = ref(0);
 const KEY_HOLD_DELAY = 300; // 开始长按检测的延迟(ms)
 const KEY_HOLD_REPEAT_INTERVAL = 150; // 长按重复间隔(ms)
-const activeIndex = ref(0); // 定义 activeIndex，需要在 defineExpose 之前
-/** 末项按 ↓ 时先 loadMore，列表变长后应选中此项（原 showList.length） */
-const pendingNavAfterLoad = ref(null);
 const drawerShow = ref(false);
 const drawerPosition = ref({ top: 0, left: 0 });
 const drawerItems = ref([]);
@@ -1296,7 +1375,7 @@ const handleSettingUpdated = (event) => {
     applyHoverPreviewConfig(event?.detail || setting);
 };
 
-// 打开标签编辑模态框
+// 图片预览滚动处理
 const openTagEditModal = (item) => {
     emit("openTagEdit", item);
 };
@@ -1311,9 +1390,10 @@ watch(
             // 进入多选模式且已有选中项时，初始化锁定状态标志
             updateAllSelectedLockedFlag();
         }
+        nextTick(() => listVirtualizer.measure());
     },
 );
-// 更新所有选中项锁定状态的标志
+// 图片预览键盘处理兜底；主入口仍走 hotkey feature
 const updateAllSelectedLockedFlag = () => {
     if (selectItemList.value.length === 0) {
         allSelectedLocked.value = false;
@@ -1325,13 +1405,11 @@ const updateAllSelectedLockedFlag = () => {
 };
 
 // 多选普通删除后：用于在 showList 更新时恢复高亮（若高亮项被删则下移，最后一个则上移）
-const pendingHighlightedItemId = ref(null);
-const pendingActiveIndexAfterDelete = ref(null);
 const preserveSelection = () => {
     selectedItemIds.value = selectItemList.value.map((item) => item.id);
 };
 
-// 恢复选择状态
+// 鎭㈠閫夋嫨鐘舵€?
 const restoreSelection = () => {
     if (!props.isMultiple || selectedItemIds.value.length === 0) return;
 
@@ -1352,7 +1430,7 @@ const scheduleLockPersist = () => {
     }, 0);
 };
 
-// 多选列表为空时自动退出多选状态
+// Shift 持续按下预览：按 item 类型封装的预览入口
 watch(
     () => selectItemList.value.length,
     (len) => {
@@ -1494,11 +1572,6 @@ const handleListMouseMove = (event) => {
     hoverPreviewSuspendedByClick.value = false;
 };
 
-const clampActiveIndex = (nextIndex) => {
-    if (!Array.isArray(props.showList) || props.showList.length === 0) return 0;
-    return Math.min(Math.max(nextIndex, 0), props.showList.length - 1);
-};
-
 const getActiveNode = (index = activeIndex.value) =>
     listRootRef.value?.querySelector(`.clip-item[data-index="${index}"]`) ||
     null;
@@ -1526,108 +1599,7 @@ const isNodeFullyVisible = (node, container) => {
 };
 
 const scrollActiveNodeIntoView = (index = activeIndex.value, options = {}) => {
-    const block = options.block || "nearest";
-    // vue-virtual-scroller 的 align 参数：start/center/end
-    const align =
-        block === "end"
-            ? "end"
-            : block === "start"
-              ? "start"
-              : "center";
-    
-    const doScroll = () => {
-        const activeNode = getActiveNode(index);
-        const scrollContainer = getScrollContainer();
-        // 优先使用虚拟滚动的 scrollToItem API
-        if (scrollerRef.value && typeof scrollerRef.value.scrollToItem === "function") {
-            // 延迟执行，确保虚拟滚动渲染完成
-            scrollerRef.value.scrollToItem(index, {
-                align,
-                smooth: false,
-            });
-            return;
-        }
-        
-        // 降级方案：使用 DOM scrollIntoView
-        if (activeNode) {
-            if (
-                !options.forceScroll &&
-                isNodeFullyVisible(activeNode, scrollContainer)
-            ) {
-                return;
-            }
-            activeNode.scrollIntoView({
-                block,
-                inline: "nearest",
-                behavior: "instant",
-            });
-            return;
-        }
-
-        if (!activeNode && scrollerRef.value && typeof scrollerRef.value.scrollToItem === "function") {
-            scrollerRef.value.scrollToItem(index, {
-                align,
-                smooth: false,
-            });
-            return;
-        }
-
-        {
-            // 如果 DOM 元素不存在，尝试滚动到大概位置
-            const scrollerEl = scrollerRef.value?.$el;
-            if (scrollerEl) {
-                const scrollContainers = [
-                    scrollerEl.querySelector('.vue-recycle-scroller'),
-                    scrollerEl.querySelector('.scroller'),
-                    scrollerEl.querySelector('[data-virtual-scroller]'),
-                    scrollerEl.querySelector('.v-virtual-scroller'),
-                    scrollerEl
-                ].filter(Boolean);
-                
-                for (const container of scrollContainers) {
-                    if (container && container.scrollTop !== undefined) {
-                        const itemSize = 44;
-                        const targetScrollTop = index * itemSize;
-                        const containerHeight = container.clientHeight;
-                        const maxScrollTop = container.scrollHeight - container.clientHeight;
-                        
-                        let newScrollTop;
-                        if (block === "start") {
-                            newScrollTop = targetScrollTop;
-                        } else if (block === "end") {
-                            // 只滚动到刚好让最后一个item完全可见的位置
-                            newScrollTop = Math.min(maxScrollTop, targetScrollTop - containerHeight + itemSize);
-                        } else {
-                            newScrollTop =
-                                targetScrollTop -
-                                containerHeight / 2 +
-                                itemSize / 2;
-                        }
-                        
-                        // 确保不会滚动超过当前太多
-                        const currentScrollTop = container.scrollTop;
-                        const scrollDelta = Math.abs(newScrollTop - currentScrollTop);
-                        const maxScrollDelta = containerHeight / 2; // 最多滚动半个屏幕
-                        
-                        if (scrollDelta <= maxScrollDelta) {
-                            container.scrollTop = Math.max(
-                                0,
-                                Math.min(maxScrollTop, newScrollTop),
-                            );
-                        } else {
-                            // 如果需要滚动太多，就只滚动一点点
-                            const direction = newScrollTop > currentScrollTop ? 1 : -1;
-                            container.scrollTop = currentScrollTop + (maxScrollDelta * direction);
-                        }
-                        break;
-                    }
-                }
-            }
-        }
-    };
-    
-    // 立即执行一次
-    doScroll();
+    scrollVirtualIndexIntoView(index, options);
 };
 
 const setKeyboardActiveIndex = (nextIndex, options = {}) => {
@@ -1637,10 +1609,10 @@ const setKeyboardActiveIndex = (nextIndex, options = {}) => {
     if (targetIndex === activeIndex.value && !options.forceScroll) return true;
     hoverPreviewSuspendedByKeyboard.value = true;
     
-    // 立即更新activeIndex，确保响应性
-    activeIndex.value = targetIndex;
+    // Use hook's setActiveIndex for consistent state management
+    setActiveIndex(targetIndex);
     
-    // 使用nextTick确保DOM更新后再滚动
+    // Use nextTick to ensure DOM update before scrolling
     nextTick(() => {
         scrollActiveNodeIntoView(targetIndex, options);
     });
@@ -1682,20 +1654,14 @@ defineExpose({
     emptySelectItemList,
     activeIndex, // 暴露当前高亮的索引
     setKeyboardActiveIndex, // 暴露设置高亮索引的方法
+    setDeleteAnchor, // 暴露删除 anchor 的设置方法
+    clearPendingStates, // 暴露清除待处理状态的方法
     // scrollToBottom, // 暴露滚动到底部的方法
     // scrollToTop, // 暴露滚动到顶部的方法
 });
 
 const getPageStep = () => {
-    // 在虚拟滚动模式下，使用 min-item-size 计算（与 DynamicScroller 的 min-item-size 保持一致）
-    const itemSize = 44;
-    // 使用实际滚动容器的高度，而不是 window.innerHeight
-    const containerHeight = scrollerRef.value?.$el?.clientHeight ||
-                            listRootRef.value?.clientHeight ||
-                            window.innerHeight ||
-                            document.documentElement.clientHeight ||
-                            600;
-    return Math.max(1, Math.floor((containerHeight / itemSize) * 0.9));
+    return virtualPageStep.value;
 };
 
 // 边界检测：是否在列表顶部
@@ -1710,63 +1676,10 @@ const isAtBottomBoundary = () => {
 
 // 半页滚动并移动一个item
 const halfPageScrollAndMove = (direction) => {
-    const scroller = scrollerRef.value;
-    if (!scroller) return;
+    if (!props.showList.length) return;
     
-    // 尝试使用 vue-virtual-scroller 的滚动容器
-    let scrollerEl = scroller.$el?.querySelector('.vue-recycle-scroller') || 
-                    scroller.$el?.querySelector('.scroller') ||
-                    scroller.$el;
-    
-    if (!scrollerEl) return;
-    
-    // 如果找到了滚动容器且有 scrollTop 属性
-    if (scrollerEl.scrollTop !== undefined) {
-        if (direction === 'up') {
-            const currentScrollTop = scrollerEl.scrollTop;
-            const halfPageHeight = Math.floor(scrollerEl.clientHeight / 2);
-            const newScrollTop = Math.max(0, currentScrollTop - halfPageHeight);
-            scrollerEl.scrollTop = newScrollTop;
-            
-            if (activeIndex.value > 0) {
-                nextTick(() => {
-                    setKeyboardActiveIndex(activeIndex.value - 1, { block: "start", forceScroll: true });
-                });
-            }
-        } else {
-            const currentScrollTop = scrollerEl.scrollTop;
-            const halfPageHeight = Math.floor(scrollerEl.clientHeight / 2);
-            const maxScrollTop = scrollerEl.scrollHeight - scrollerEl.clientHeight;
-            const newScrollTop = Math.min(maxScrollTop, currentScrollTop + halfPageHeight);
-            scrollerEl.scrollTop = newScrollTop;
-            
-            if (activeIndex.value < props.showList.length - 1) {
-                nextTick(() => {
-                    setKeyboardActiveIndex(activeIndex.value + 1, { block: "end", forceScroll: true });
-                });
-            }
-        }
-    } else {
-        // 降级方案：使用 scrollToItem 滚动到较远的item
-        const halfStep = Math.max(1, Math.floor(getPageStep() / 2));
-        if (direction === 'up') {
-            const targetIndex = Math.max(0, activeIndex.value - halfStep);
-            scroller.scrollToItem(targetIndex, { align: 'start' });
-            if (activeIndex.value > 0) {
-                nextTick(() => {
-                    setKeyboardActiveIndex(activeIndex.value - 1, { block: "start", forceScroll: true });
-                });
-            }
-        } else {
-            const targetIndex = Math.min(props.showList.length - 1, activeIndex.value + halfStep);
-            scroller.scrollToItem(targetIndex, { align: 'end' });
-            if (activeIndex.value < props.showList.length - 1) {
-                nextTick(() => {
-                    setKeyboardActiveIndex(activeIndex.value + 1, { block: "end", forceScroll: true });
-                });
-            }
-        }
-    }
+    const targetIndex = scrollHalfPage(direction, activeIndex.value);
+    setActiveIndex(targetIndex);
 };
 
 // 停止长按检测
@@ -1779,7 +1692,7 @@ const stopKeyHold = () => {
     keyHoldStartTime.value = 0;
 };
 
-// 长按自动滚动
+// 长按后自动连续滚动
 const startKeyHoldAutoScroll = (direction) => {
     keyHoldDirection.value = direction;
     keyHoldStartTime.value = Date.now();
@@ -1796,15 +1709,13 @@ const startKeyHoldAutoScroll = (direction) => {
             // 执行半页滚动并保持居中
             if (direction === 'up') {
                 if (activeIndex.value > 0) {
-                    const step = getPageStep();
-                    const targetIndex = Math.max(0, activeIndex.value - step);
-                    setKeyboardActiveIndex(targetIndex, { block: "center" });
+                    const targetIndex = scrollHalfPage('up', activeIndex.value);
+                    setActiveIndex(targetIndex);
                 }
             } else {
                 if (activeIndex.value < props.showList.length - 1) {
-                    const step = getPageStep();
-                    const targetIndex = Math.min(props.showList.length - 1, activeIndex.value + step);
-                    setKeyboardActiveIndex(targetIndex, { block: "center" });
+                    const targetIndex = scrollHalfPage('down', activeIndex.value);
+                    setActiveIndex(targetIndex);
                 }
             }
             
@@ -1844,7 +1755,8 @@ watch(
         if (keyboardTriggeredPreview.value) {
             triggerKeyboardPreview();
         }
-        // 当键盘导航接近列表末尾时，触发懒加载
+        nextTick(() => listVirtualizer.measure());
+        // 接近列表末尾时触发懒加载
         const LOAD_MORE_THRESHOLD = 5;
         if (activeIndex.value >= props.showList.length - LOAD_MORE_THRESHOLD) {
             emit("loadMore");
@@ -1867,7 +1779,7 @@ watch(
     },
 );
 
-// 监听showList变化，恢复选择状态并恢复高亮
+// 监听 showList 变化：恢复多选/删除后的高亮
 watch(
     () => props.showList,
     (newList, oldList) => {
@@ -1890,10 +1802,11 @@ watch(
                 }
             }
         }
+        nextTick(() => listVirtualizer.measure());
     },
 );
 
-// 父组件中改变了引用类型的地址 故要用 getter返回
+// 列表长度变化时校正 activeIndex，避免越界
 watch(
     () => props.showList,
     (newList) => {
@@ -1929,7 +1842,7 @@ function registerListHotkeyFeatures() {
     };
 
     registerFeature("list-nav-up", (e) => {
-        // 停止之前的长按检测
+        // 不调用 restorePreviewWindow，保持插件窗口大小不变
         if (e?.key === "ArrowUp") return false;
         stopKeyHold();
         
@@ -1947,7 +1860,7 @@ function registerListHotkeyFeatures() {
             block: "start",
         });
         
-        // 开始长按检测
+        // 开始长按连续滚动
         if (result) {
             startKeyHoldAutoScroll('up');
         }
@@ -1961,7 +1874,7 @@ function registerListHotkeyFeatures() {
             return true;
         }
         
-        // 停止之前的长按检测
+        // 不调用 restorePreviewWindow，保持插件窗口大小不变
         stopKeyHold();
         
         // 边界检测：如果在底部，先尝试加载更多数据
@@ -1982,7 +1895,7 @@ function registerListHotkeyFeatures() {
                         const lastIndex = props.showList.length - 1;
                         setKeyboardActiveIndex(lastIndex, { block: "end", forceScroll: true });
                     } else {
-                        // 有新数据，移动到新数据
+                        // 有新数据，移动到新加载区首项
                         const targetIndex = oldLen;
                         activeIndex.value = targetIndex;
                         setKeyboardActiveIndex(targetIndex, { block: "center" });
@@ -2002,7 +1915,7 @@ function registerListHotkeyFeatures() {
             block: isLast ? "end" : "center",
         });
         
-        // 开始长按检测
+        // 开始长按连续滚动
         if (result) {
             startKeyHoldAutoScroll('down');
         }
@@ -2011,34 +1924,25 @@ function registerListHotkeyFeatures() {
     });
     registerFeature("list-page-up", () => {
         if (isFocusInSearch()) return false;
-        if (activeIndex.value <= 0) {
-            window.toTop();
-            return true;
-        }
-        const step = getPageStep();
-        const targetIndex = Math.max(0, activeIndex.value - step);
-        if (targetIndex === 0) {
-            window.toTop();
-        }
-        // 使用 start 对齐，确保向上翻页后顶部可见
-        return setKeyboardActiveIndex(targetIndex, {
-            block: targetIndex === 0 ? "start" : "center",
-        });
+        if (props.showList.length === 0) return false;
+        
+        const targetIndex = scrollByPage('up', activeIndex.value);
+        setActiveIndex(targetIndex);
+        return true;
     });
     registerFeature("list-page-down", () => {
         if (isFocusInSearch()) return false;
-        const step = getPageStep();
-        const targetIndex = Math.min(props.showList.length - 1, activeIndex.value + step);
-        // 如果是最后一个item，使用 end 对齐确保完全可见
-        return setKeyboardActiveIndex(targetIndex, {
-            block: targetIndex === props.showList.length - 1 ? "end" : "center",
-        });
+        if (props.showList.length === 0) return false;
+        
+        const targetIndex = scrollByPage('down', activeIndex.value);
+        setActiveIndex(targetIndex);
+        return true;
     });
     registerFeature("list-nav-left", () => {
         return setKeyboardActiveIndex(activeIndex.value - 1);
     });
     registerFeature("list-scroll-to-bottom", () => {
-        // 直接滚动到底部
+        // 直接滚动到底部并高亮最后一项
         const scroller = scrollerRef.value;
         if (scroller && typeof scroller.scrollToItem === "function") {
             const lastIndex = props.showList.length - 1;
@@ -2053,7 +1957,7 @@ function registerListHotkeyFeatures() {
         return false;
     });
     registerFeature("list-scroll-to-top", () => {
-        // 直接滚动到顶部
+        // 优先使用虚拟滚动的 scrollToItem API
         const scroller = scrollerRef.value;
         if (scroller && typeof scroller.scrollToItem === "function") {
             scroller.scrollToItem(0, {
@@ -2150,7 +2054,7 @@ function registerListHotkeyFeatures() {
                 paste: false,
                 respectImageCopyGuard: true,
             });
-            ElMessage({ message: "复制成功", type: "success" });
+            ElMessage({ message: "澶嶅埗鎴愬姛", type: "success" });
             return true;
         }
         return false;
@@ -2326,7 +2230,7 @@ function registerListHotkeyFeatures() {
     }
 }
 
-// 自动滚动功能
+// 长按方向键：先逐条移动，重复后按页加速滚动
 const startAutoScroll = (direction) => {
     if (autoScrollTimer.value) return;
     
@@ -2365,13 +2269,13 @@ const startAutoScroll = (direction) => {
                     setKeyboardActiveIndex(targetIndex, { block: "center" });
                 }
             } else {
-                // 到达底部时触发加载更多
+                // 鍒拌揪搴曢儴鏃惰Е鍙戝姞杞芥洿澶?
                 const oldLen = props.showList.length;
                 hoverPreviewSuspendedByKeyboard.value = true;
                 pendingNavAfterLoad.value = oldLen;
                 emit("loadMore");
                 
-                // 等待数据加载完成后继续滚动
+                // 到达底部时触发加载更多
                 nextTick(() => {
                     nextTick(() => {
                         if (pendingNavAfterLoad.value === null) return;
@@ -2380,7 +2284,7 @@ const startAutoScroll = (direction) => {
                             stopAutoScroll(); // 没有更多数据，停止滚动
                             return;
                         }
-                        // 有新数据加载，继续滚动
+                        // 确保不会滚动超过当前太多
                         autoScrollTimer.value = setTimeout(scroll, autoScrollSpeed.value);
                     });
                 });
@@ -2407,7 +2311,7 @@ const stopAutoScroll = () => {
     autoScrollSpeed.value = 100;
 };
 
-// 统一的键盘事件处理
+// 长文本预览相关
 const unifiedKeyHandler = (e) => {
     if (e.__hotkeyHandled) return;
     
@@ -2416,7 +2320,7 @@ const unifiedKeyHandler = (e) => {
     const isArrowDown = key === "ArrowDown";
     const isShift = key === "Shift";
     
-    // Shift键处理
+    // 聚焦到预览窗口
     if (isShift) {
         if (!repeat && !shiftKeyTimer) {
             // Shift键按下，启动预览计时
@@ -2444,7 +2348,7 @@ const unifiedKeyReleaseHandler = (e) => {
     const isArrowDown = key === "ArrowDown";
     const isShift = key === "Shift";
     
-    // Shift键释放
+    // 使用统一的图片预览逻辑
     if (isShift) {
         handleShiftKeyUp();
         return;
@@ -2458,12 +2362,12 @@ const unifiedKeyReleaseHandler = (e) => {
     }
 };
 
-// 窗口失焦时隐藏所有预览
+// 绐楀彛澶辩劍鏃堕殣钘忔墍鏈夐瑙?
 const handleWindowBlur = () => {
     resetTransientPreviewState();
     stopAutoScroll(); // 停止自动滚动
     stopKeyHold(); // 停止长按检测
-    // 清理Shift键状态
+    // 文字预览半透明黑色背景，居中显示
     if (shiftKeyTimer) {
         clearTimeout(shiftKeyTimer);
         shiftKeyTimer = null;
@@ -2479,31 +2383,31 @@ const handleWindowBlur = () => {
 onMounted(() => {
     applyHoverPreviewConfig(setting);
     registerListHotkeyFeatures();
-    // 添加统一的键盘事件监听器（在capture阶段）
+    // 移除延时隐藏，文字预览只在Shift键释放时隐藏
     document.addEventListener("keydown", unifiedKeyHandler, true);
     document.addEventListener("keyup", unifiedKeyReleaseHandler, true);
     window.addEventListener(SETTING_UPDATED_EVENT, handleSettingUpdated);
     window.addEventListener("blur", handleWindowBlur);
 
-    // ResizeObserver 监听列表容器高度变化，使 getPageStep 动态计算有效
+    // 方向键或点击后挂起悬浮高亮与悬浮预览，必须等真实鼠标移动后再恢复
     if (listRootRef.value) {
         const resizeObserver = new ResizeObserver(() => {
             // getPageStep 每次实时取 clientHeight，此处无需额外缓存
         });
         resizeObserver.observe(listRootRef.value);
-        // 保存 observer 以便清理
+        // 降级方案：使用 DOM scrollIntoView
         listRootRef.value._resizeObserver = resizeObserver;
     }
 });
 
 onUnmounted(() => {
-    // 清理统一的键盘事件监听器
+    // 从不同行移入时停止上一行的 hover 预览，避免同一行内移动造成闪烁
     document.removeEventListener("keydown", unifiedKeyHandler, true);
     document.removeEventListener("keyup", unifiedKeyReleaseHandler, true);
     window.removeEventListener(SETTING_UPDATED_EVENT, handleSettingUpdated);
     window.removeEventListener("blur", handleWindowBlur);
     
-    // 清理自动滚动定时器
+    // 行级悬浮预览；方向键生效后的第一次移入也不启动
     stopAutoScroll();
     
     if (lockPersistTimer) {
@@ -2517,7 +2421,7 @@ onUnmounted(() => {
         imagePreviewHideTimer = null;
     }
 
-    // 清理 ResizeObserver
+    // 虚拟列表 scrollToIndex 的 align：start / center / end
     if (listRootRef.value?._resizeObserver) {
         listRootRef.value._resizeObserver.disconnect();
         listRootRef.value._resizeObserver = null;
@@ -2536,6 +2440,25 @@ onUnmounted(() => {
 
 .scroller {
     height: 100%;
+}
+
+.clip-item-virtual-scroll {
+    overflow-y: auto;
+    overflow-x: hidden;
+}
+
+.clip-item-virtual-body {
+    position: relative;
+    width: 100%;
+}
+
+.clip-item-virtual-row {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    padding: 4px 8px 0;
+    box-sizing: border-box;
 }
 
 .text-preview-modal {
@@ -2633,3 +2556,5 @@ onUnmounted(() => {
     }
 }
 </style>
+
+

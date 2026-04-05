@@ -2,9 +2,32 @@
   background: @bg-color;
   user-select: none;
 
+  // TanStack Virtual container styles
+  .clip-item-virtual-scroll {
+    height: 100%;
+    overflow: auto;
+  }
+
+  .clip-item-virtual-body {
+    position: relative;
+  }
+
+  .clip-item-virtual-row {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+
+    &--compact {
+      padding: 8px 8px 0;
+    }
+  }
+
   &.few-items {
+    .clip-item-virtual-row--compact {
+      padding: 8px 8px 0;
+    }
     .clip-item {
-      margin: 8px 8px 0;
       &:hover {
         transform: none;
         box-shadow: none;
@@ -34,7 +57,7 @@
     display: flex;
     justify-content: flex-start;
     align-items: stretch;
-    margin: 4px 8px 0;
+    margin: 0;
     border: 1px solid @border-color;
     border-radius: 8px;
     background-color: @bg-elevated-color;

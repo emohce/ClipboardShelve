@@ -1,6 +1,8 @@
-# Tasks
+﻿# Tasks
 
-- [ ] T1 建立 Vite 构建基线并替换现有 `serve/build` 脚本
+> 勾选规则：任务仅在「实现完成且已在同目录 `04-verify.md` 中记录对应验证结果」后标为 `[x]`；未验证项保持 `[ ]`，以验证文档为准。
+
+- [x] T1 建立 Vite 构建基线并替换现有 `serve/build` 脚本
   预期结果：`package.json`、`vite.config.*`、入口模板与依赖集完成迁移，`pnpm run serve` / `pnpm run build` 可替代 `vue-cli-service`。
 
 - [ ] T2 对齐 `plugin.json`、`preload.js`、`listener.js` 与构建产物路径契约
