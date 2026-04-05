@@ -11,8 +11,10 @@ specs/ai-tools-use/
   cursor-prompts.md
   codex-prompts.md
   windsurf-prompts.md
+  universal-feature-intake-prompt.md
   multi-ai-orchestrator.md
   multi-ai-merge-checklist.md
+  multi-ai-merge-prompt.md
   multi-ai-execution-strategy.md
 ```
 
@@ -45,8 +47,10 @@ specs/ai-tools-use/
 - `cursor-prompts.md`: Cursor Plan Mode / Agent 模板
 - `codex-prompts.md`: Codex app / Codex CLI 风格模板
 - `windsurf-prompts.md`: Windsurf Cascade / Workflows 模板
+- `universal-feature-intake-prompt.md`: 通用需求启动提示词，适合不同工具从原始需求进入 spec 阶段
 - `multi-ai-orchestrator.md`: 多 AI 分阶段编排与汇总模板
 - `multi-ai-merge-checklist.md`: 多 AI 汇总时的固定检查项
+- `multi-ai-merge-prompt.md`: 多 AI 汇总专用提示词，适合 spec / plan / verify 阶段 merge
 - `multi-ai-execution-strategy.md`: 多 AI 执行分工策略与适用场景
 
 ## 维护规则
