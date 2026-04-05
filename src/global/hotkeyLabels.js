@@ -98,6 +98,8 @@ export const FEATURE_LABELS = {
   'list-force-delete': '强制删除（包括锁定项目）',
   'list-space': '向下多选项目',
   'list-shift': '预览图片内容',
+  'image-preview-scroll-left': '图片预览向左滚动',
+  'image-preview-scroll-right': '图片预览向右滚动',
   'list-quick-copy-1': 'Alt+1 快速复制第 1 项',
   'list-quick-copy-2': 'Alt+2 快速复制第 2 项',
   'list-quick-copy-3': 'Alt+3 快速复制第 3 项',

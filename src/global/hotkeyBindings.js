@@ -253,6 +253,8 @@ export const HOTKEY_BINDINGS = [
   { layer: "main", shortcutId: "ctrl+ArrowRight", features: ["list-drawer-open"] },
   { layer: "main", shortcutId: "shift+ArrowUp", features: ["text-preview-scroll-up"] },
   { layer: "main", shortcutId: "shift+ArrowDown", features: ["text-preview-scroll-down"] },
+  { layer: "main", shortcutId: "shift+ArrowLeft", features: ["image-preview-scroll-left"] },
+  { layer: "main", shortcutId: "shift+ArrowRight", features: ["image-preview-scroll-right"] },
   { layer: "main", shortcutId: "F2", features: ["list-tag-edit"] },
   { layer: "main", shortcutId: "shift+F2", features: ["list-view-full"] },
   { layer: "main", shortcutId: "Enter", features: ["list-enter"] },

@@ -81,13 +81,22 @@
                 ref="imagePreviewContentRef"
                 @scroll="handleImagePreviewScroll"
             >
-                <img
-                    v-if="isPreviewableImageSrc(imagePreview.src)"
-                    :src="imagePreview.src"
-                    :style="imagePreview.imageStyle"
-                    @error="handleImageError"
-                    @load="handleImageLoad"
-                />
+                <div
+                    v-if="isPreviewableImageSrc(imagePreview.src) && !imagePreview.loadFailed"
+                    class="image-preview-inner"
+                    :class="{
+                        'is-centered': imagePreview.layoutMode === 'centered',
+                        'is-scroll': imagePreview.layoutMode === 'fit-width-scroll',
+                    }"
+                    :style="imagePreview.contentStyle"
+                >
+                    <img
+                        :src="imagePreview.src"
+                        :style="imagePreview.imageStyle"
+                        @error="handleImageError"
+                        @load="handleImageLoad"
+                    />
+                </div>
                 <div v-else class="preview-error">
                     <span>图片加载失败</span>
                 </div>
@@ -106,7 +115,14 @@
         @mouseenter="keepTextPreview"
         @mouseleave="hideTextPreview"
     >
-        <div class="text-preview-content">{{ textPreview.text }}</div>
+        <div
+            class="text-preview-content"
+            :class="{ 'is-single-line': textPreview.isSingleLine }"
+            :style="textPreview.contentStyle"
+            ref="textPreviewContentRef"
+        >
+            {{ textPreview.text }}
+        </div>
     </div>
 
     <ClipDrawerMenu
@@ -207,12 +223,142 @@ const handleImageClick = (ev, item) => {
 // 图片加载错误处理
 const handleImageError = (event) => {
     console.warn("[ClipItemList] 图片加载失败:", event.target.src);
-    event.target.style.display = "none";
+    imagePreview.value.loadFailed = true;
+};
+
+const PREVIEW_MODAL_PADDING = 40;
+const PREVIEW_SCROLL_STEP = 150;
+
+const getImagePreviewMetrics = () => {
+    const viewportWidth = window.innerWidth;
+    const viewportHeight = window.innerHeight;
+    const availableWidth = Math.max(viewportWidth - PREVIEW_MODAL_PADDING, 0);
+    const availableHeight = Math.max(viewportHeight - PREVIEW_MODAL_PADDING, 0);
+    return {
+        viewportWidth,
+        viewportHeight,
+        availableWidth,
+        availableHeight,
+    };
+};
+
+const applyImagePreviewLayout = (naturalWidth, naturalHeight) => {
+    if (!naturalWidth || !naturalHeight) return;
+    const { availableWidth, availableHeight } = getImagePreviewMetrics();
+    const scaleByWidth = availableWidth / naturalWidth;
+    const scaleByHeight = availableHeight / naturalHeight;
+    let displayWidth = availableWidth;
+    let displayHeight = naturalHeight * scaleByWidth;
+
+    if (naturalWidth < availableWidth && displayHeight < availableHeight) {
+        const expandedScale = Math.max(scaleByWidth, scaleByHeight);
+        displayWidth = naturalWidth * expandedScale;
+        displayHeight = naturalHeight * expandedScale;
+    }
+
+    const canScrollX = displayWidth > availableWidth;
+    const canScrollY = displayHeight > availableHeight;
+    const isCentered = !canScrollY;
+
+    imagePreview.value.layoutMode = isCentered ? "centered" : "fit-width-scroll";
+    imagePreview.value.canScrollX = canScrollX;
+    imagePreview.value.canScrollY = canScrollY;
+    imagePreview.value.contentStyle = {
+        minHeight: `${availableHeight}px`,
+    };
+    imagePreview.value.imageStyle = {
+        width: `${displayWidth}px`,
+        height: `${displayHeight}px`,
+        maxWidth: "none",
+        maxHeight: "none",
+        display: "block",
+        imageRendering: "auto",
+    };
+
+    nextTick(() => {
+        if (imagePreviewContentRef.value) {
+            imagePreviewContentRef.value.scrollTop = 0;
+            imagePreviewContentRef.value.scrollLeft = 0;
+        }
+        imagePreview.value.scrollTop = 0;
+    });
+};
+
+const scrollPreviewContainer = (container, axis, delta) => {
+    if (!container || !delta) return false;
+    const key = axis === "x" ? "scrollLeft" : "scrollTop";
+    const maxKey = axis === "x"
+        ? container.scrollWidth - container.clientWidth
+        : container.scrollHeight - container.clientHeight;
+    if (maxKey <= 0) return false;
+    const nextValue = Math.min(Math.max(0, container[key] + delta), maxKey);
+    if (nextValue === container[key]) return false;
+    container[key] = nextValue;
+    if (axis === "y" && container === imagePreviewContentRef.value) {
+        imagePreview.value.scrollTop = container.scrollTop;
+    }
+    return true;
+};
+
+const handlePreviewScrollShortcut = (direction) => {
+    if (imagePreview.value.show && imagePreviewContentRef.value) {
+        if (direction === "up") {
+            return scrollPreviewContainer(
+                imagePreviewContentRef.value,
+                "y",
+                -PREVIEW_SCROLL_STEP,
+            );
+        }
+        if (direction === "down") {
+            return scrollPreviewContainer(
+                imagePreviewContentRef.value,
+                "y",
+                PREVIEW_SCROLL_STEP,
+            );
+        }
+        if (direction === "left") {
+            return scrollPreviewContainer(
+                imagePreviewContentRef.value,
+                "x",
+                -PREVIEW_SCROLL_STEP,
+            );
+        }
+        if (direction === "right") {
+            return scrollPreviewContainer(
+                imagePreviewContentRef.value,
+                "x",
+                PREVIEW_SCROLL_STEP,
+            );
+        }
+    }
+
+    if (textPreview.value.show && textPreviewContentRef.value) {
+        if (direction === "up") {
+            return scrollPreviewContainer(
+                textPreviewContentRef.value,
+                "y",
+                -PREVIEW_SCROLL_STEP,
+            );
+        }
+        if (direction === "down") {
+            return scrollPreviewContainer(
+                textPreviewContentRef.value,
+                "y",
+                PREVIEW_SCROLL_STEP,
+            );
+        }
+    }
+
+    return false;
 };
 
 // 图片加载成功处理
 const handleImageLoad = (event) => {
     console.log("[ClipItemList] 图片加载成功:", event.target.src);
+    applyImagePreviewLayout(
+        event.target.naturalWidth,
+        event.target.naturalHeight,
+    );
 };
 
 const isPreviewableImageSrc = (src) => {
@@ -249,16 +395,16 @@ const showImagePreview = (event, item, footerText = "") => {
         imagePreviewHideTimer = null;
     }
 
-    // 预览窗口自适应：以宽度为准展示长图片
-    const maxW = window.innerWidth;
-    const maxH = window.innerHeight;
-    const padding = 40; // 预览窗口边距
-    const availableWidth = maxW - padding;
-    const availableHeight = maxH - padding;
+    const { viewportWidth, viewportHeight } = getImagePreviewMetrics();
     
     imagePreview.value.src = src;
     imagePreview.value.footer = footerText;
     imagePreview.value.scrollTop = 0; // 重置滚动位置
+    imagePreview.value.loadFailed = false;
+    imagePreview.value.layoutMode = "centered";
+    imagePreview.value.canScrollX = false;
+    imagePreview.value.canScrollY = false;
+    imagePreview.value.contentStyle = {};
     
     imagePreview.value.style = {
         position: "fixed",
@@ -271,8 +417,8 @@ const showImagePreview = (event, item, footerText = "") => {
         borderRadius: "0",
         padding: "20px",
         boxShadow: "none",
-        maxWidth: `${maxW}px`,
-        maxHeight: `${maxH}px`,
+        maxWidth: `${viewportWidth}px`,
+        maxHeight: `${viewportHeight}px`,
         display: "flex",
         flexDirection: "column",
         alignItems: "center",
@@ -281,13 +427,9 @@ const showImagePreview = (event, item, footerText = "") => {
         outline: "none", // 移除焦点轮廓
     };
     
-    // 以宽度为准，高度自适应
     imagePreview.value.imageStyle = {
-        maxWidth: `${availableWidth}px`,
-        maxHeight: "none", // 移除高度限制，让图片按原始比例显示
         width: "auto",
         height: "auto",
-        objectFit: "none", // 不使用 objectFit，保持原始比例
         display: "block",
         imageRendering: "auto",
     };
@@ -311,6 +453,7 @@ const stopImagePreview = (immediate = false) => {
     if (immediate) {
         imagePreview.value.show = false;
         imagePreviewSource.value = "";
+        imagePreview.value.loadFailed = false;
         // 不调用 restorePreviewWindow，保持插件窗口大小不变
         closeExternalPreview();
         return;
@@ -318,6 +461,7 @@ const stopImagePreview = (immediate = false) => {
     imagePreviewHideTimer = setTimeout(() => {
         imagePreview.value.show = false;
         imagePreviewSource.value = "";
+        imagePreview.value.loadFailed = false;
         // 不调用 restorePreviewWindow，保持插件窗口大小不变
         closeExternalPreview();
         imagePreviewHideTimer = null;
@@ -349,26 +493,20 @@ const handleImagePreviewScroll = (event) => {
     imagePreview.value.scrollTop = event.target.scrollTop;
 };
 
-// 图片预览键盘处理（Shift + 上下键滚动）
+// 图片预览键盘处理兜底；主入口仍走 hotkey feature
 const handleImagePreviewKeydown = (event) => {
-    if (!imagePreview.value.show || !imagePreviewContentRef.value) return;
-    
-    // 只处理 Shift + 上下键
-    if (event.shiftKey && (event.key === "ArrowUp" || event.key === "ArrowDown")) {
+    if (!imagePreview.value.show || !event.shiftKey) return;
+    const directionMap = {
+        ArrowUp: "up",
+        ArrowDown: "down",
+        ArrowLeft: "left",
+        ArrowRight: "right",
+    };
+    const direction = directionMap[event.key];
+    if (!direction) return;
+    if (handlePreviewScrollShortcut(direction)) {
         event.preventDefault();
         event.stopPropagation();
-        
-        const container = imagePreviewContentRef.value;
-        const scrollStep = 100; // 每次滚动的像素数
-        
-        if (event.key === "ArrowUp") {
-            container.scrollTop = Math.max(0, container.scrollTop - scrollStep);
-        } else if (event.key === "ArrowDown") {
-            const maxScroll = container.scrollHeight - container.clientHeight;
-            container.scrollTop = Math.min(maxScroll, container.scrollTop + scrollStep);
-        }
-        
-        imagePreview.value.scrollTop = container.scrollTop;
     }
 };
 
@@ -733,6 +871,8 @@ const clearTextPreviewImmediately = () => {
     }
     textPreview.value.show = false;
     textPreview.value.text = "";
+    textPreview.value.isSingleLine = false;
+    textPreview.value.contentStyle = {};
 };
 
 const showTextPreview = (item) => {
@@ -748,7 +888,10 @@ const showTextPreview = (item) => {
     // 文字预览半透明黑色背景，居中显示
     const maxW = window.innerWidth;
     const maxH = window.innerHeight;
-    textPreview.value.text = item.data || "";
+    const text = item.data || "";
+    const isSingleLine = !text.includes("\n");
+    textPreview.value.text = text;
+    textPreview.value.isSingleLine = isSingleLine;
     textPreview.value.show = true;
     textPreview.value.style = {
         position: "fixed",
@@ -760,21 +903,43 @@ const showTextPreview = (item) => {
         borderRadius: "8px",
         padding: "24px 28px",
         boxShadow: "0 8px 32px rgba(0, 0, 0, 0.3)",
+        width: `${maxW * 0.9}px`,
         maxWidth: `${maxW * 0.9}px`,
         maxHeight: `${maxH * 0.8}px`,
-        overflow: "auto",
-        whiteSpace: "pre-wrap",
-        wordBreak: "break-word",
+        display: "flex",
+        alignItems: "center",
         fontSize: "14px",
         lineHeight: "1.5",
         color: "#e8e6e3",
     };
+    textPreview.value.contentStyle = isSingleLine
+        ? {
+              width: "100%",
+              whiteSpace: "nowrap",
+              overflow: "hidden",
+              textOverflow: "ellipsis",
+          }
+        : {
+              width: "100%",
+              maxHeight: `${maxH * 0.8 - 48}px`,
+              overflowY: "auto",
+              whiteSpace: "pre-wrap",
+              wordBreak: "break-word",
+          };
+
+    nextTick(() => {
+        if (textPreviewContentRef.value) {
+            textPreviewContentRef.value.scrollTop = 0;
+        }
+    });
 };
 
 const hideTextPreview = () => {
     // 移除延时隐藏，文字预览只在Shift键释放时隐藏
     textPreview.value.show = false;
     textPreview.value.text = "";
+    textPreview.value.isSingleLine = false;
+    textPreview.value.contentStyle = {};
 };
 
 const keepTextPreview = () => {
@@ -936,6 +1101,11 @@ const imagePreview = ref({
     footer: "",
     style: {},
     imageStyle: {},
+    contentStyle: {},
+    layoutMode: "centered",
+    canScrollX: false,
+    canScrollY: false,
+    loadFailed: false,
     scrollTop: 0, // 添加滚动位置跟踪
 });
 const imagePreviewSource = ref("");
@@ -944,6 +1114,7 @@ const previewWindowSize = ref(null);
 const listRootRef = ref(null);
 const scrollerRef = ref(null);
 const imagePreviewContentRef = ref(null); // 图片预览内容容器引用
+const textPreviewContentRef = ref(null);
 const lastPointerPosition = ref({ x: null, y: null });
 
 // 列表在 .vue-recycle-scroller 内滚动，scroll 不冒泡到 document，原 Main 里 document 监听永远进不了底部加载；scrollEnd 在滚到当前 items 末尾时触发
@@ -963,6 +1134,8 @@ const textPreview = ref({
     show: false,
     text: "",
     style: {},
+    contentStyle: {},
+    isSingleLine: false,
 });
 
 // 图片预览隐藏定时器
@@ -1212,6 +1385,15 @@ const handleItemClick = (ev, item) => {
     }
 };
 const handleMouseOver = (event, index, item) => {
+    if (keyboardTriggeredPreview.value) {
+        if (hoverPreviewTimer) {
+            clearTimeout(hoverPreviewTimer);
+            hoverPreviewTimer = null;
+        }
+        hoverRowIndex.value = index;
+        return;
+    }
+
     // 方向键或点击后挂起悬浮高亮与悬浮预览，必须等真实鼠标移动后再恢复
     const wasSuspended =
         hoverPreviewSuspendedByKeyboard.value ||
@@ -1831,24 +2013,16 @@ function registerListHotkeyFeatures() {
         return false;
     });
     registerFeature("text-preview-scroll-up", () => {
-        if (textPreview.value.show) {
-            const textModal = document.querySelector(".text-preview-modal");
-            if (textModal) {
-                textModal.scrollTop = Math.max(0, textModal.scrollTop - 150);
-                return true;
-            }
-        }
-        return false;
+        return handlePreviewScrollShortcut("up");
     });
     registerFeature("text-preview-scroll-down", () => {
-        if (textPreview.value.show) {
-            const textModal = document.querySelector(".text-preview-modal");
-            if (textModal) {
-                textModal.scrollTop = Math.min(textModal.scrollHeight - textModal.clientHeight, textModal.scrollTop + 150);
-                return true;
-            }
-        }
-        return false;
+        return handlePreviewScrollShortcut("down");
+    });
+    registerFeature("image-preview-scroll-left", () => {
+        return handlePreviewScrollShortcut("left");
+    });
+    registerFeature("image-preview-scroll-right", () => {
+        return handlePreviewScrollShortcut("right");
     });
     const isFocusInSearch = () => {
         const el = document.activeElement;
@@ -2311,11 +2485,19 @@ onUnmounted(() => {
 }
 
 .text-preview-modal {
+    overflow: hidden;
+
     .text-preview-content {
         white-space: pre-wrap;
         word-break: break-word;
         max-height: inherit;
-        overflow: auto;
+        width: 100%;
+
+        &.is-single-line {
+            overflow: hidden;
+            white-space: nowrap;
+            text-overflow: ellipsis;
+        }
     }
 }
 
@@ -2323,9 +2505,6 @@ onUnmounted(() => {
     .image-preview-content {
         flex: 1;
         min-height: 0;
-        display: flex;
-        align-items: flex-start; // 改为顶部对齐以支持滚动
-        justify-content: center;
         width: 100%;
         overflow-y: auto; // 启用垂直滚动
         overflow-x: auto; // 启用水平滚动以防过宽图片
@@ -2350,6 +2529,21 @@ onUnmounted(() => {
             }
         }
     }
+
+    .image-preview-inner {
+        width: 100%;
+        display: flex;
+        justify-content: center;
+
+        &.is-centered {
+            align-items: center;
+        }
+
+        &.is-scroll {
+            align-items: flex-start;
+        }
+    }
+
     .image-preview-footer {
         margin-top: 8px;
         font-size: 12px;
