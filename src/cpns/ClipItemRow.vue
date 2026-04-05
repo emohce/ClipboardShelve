@@ -37,7 +37,20 @@
             <div class="clip-data">
                 <template v-if="item.type === 'text'">
                     <div v-if="isCompact" class="clip-data-one-line">
-                        {{ textSingleLine }}
+                        <span
+                            v-if="isPreviewableText"
+                            class="clip-data-preview-tag"
+                        >
+                            L
+                        </span>
+                        <span
+                            class="clip-data-one-line-text"
+                            :class="{
+                                'clip-data-one-line-text--previewable': isPreviewableText,
+                            }"
+                        >
+                            {{ textSingleLine }}
+                        </span>
                     </div>
                     <div
                         v-else
@@ -174,6 +187,7 @@ const props = defineProps({
     showOperate: { type: Boolean, required: true },
     currentActiveTab: { type: String, required: true },
     isOverSizedContent: { type: Function, required: true },
+    isPreviewableText: { type: Boolean, default: false },
     getItemImageSrc: { type: Function, required: true },
     hasImageFiles: { type: Function, required: true },
     getImageFiles: { type: Function, required: true },

@@ -1,7 +1,7 @@
 .clip-item-list {
   background: @bg-color;
   user-select: none;
-  
+
   &.few-items {
     .clip-item {
       margin: 8px 8px 0;
@@ -41,7 +41,9 @@
     box-shadow: none;
     cursor: pointer;
     position: relative;
-    transition: background-color 0.1s ease, border-color 0.1s ease;
+    transition:
+      background-color 0.1s ease,
+      border-color 0.1s ease;
     &:hover {
       transform: none;
       border-color: @border-color-strong;
@@ -72,7 +74,7 @@
       z-index: 1;
 
       &::before {
-        content: '';
+        content: "";
         position: absolute;
         left: 0;
         top: 8px;
@@ -98,7 +100,7 @@
       z-index: 2;
 
       &::before {
-        content: '';
+        content: "";
         position: absolute;
         left: 0;
         top: 6px;
@@ -129,11 +131,39 @@
         padding-top: 0;
         padding-bottom: 0;
         .clip-data-one-line {
+          display: flex;
+          align-items: center;
+          gap: 6px;
           white-space: nowrap;
           overflow: hidden;
           text-overflow: ellipsis;
           max-width: 100%;
           font-size: 13px;
+
+          .clip-data-preview-tag {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            flex-shrink: 0;
+            padding: 1px 6px;
+            border-radius: 999px;
+            font-size: 10px;
+            line-height: 1.4;
+            color: fade(@primary-color, 92%);
+            background: fade(@primary-color, 12%);
+            border: 1px solid fade(@primary-color, 28%);
+          }
+
+          .clip-data-one-line-text {
+            min-width: 0;
+            overflow: hidden;
+            text-overflow: ellipsis;
+
+            &--previewable {
+              padding: 1px 0;
+              color: fade(@text-color, 96%);
+            }
+          }
         }
         .image-container {
           min-height: 0;
@@ -177,7 +207,9 @@
         border-bottom: none;
         gap: 3px;
         flex-shrink: 0;
-        min-width: auto;
+        min-width: 0;
+        max-width: 100%;
+        overflow: hidden;
         .clip-collect-icon,
         .clip-lock {
           font-size: 14px;
@@ -194,6 +226,7 @@
           border-radius: 999px;
           min-width: auto;
           padding: 2px 6px;
+          flex-shrink: 0;
         }
         .clip-tags {
           display: flex;
@@ -202,6 +235,8 @@
           flex-wrap: nowrap;
           max-width: 80px;
           overflow: hidden;
+          flex-shrink: 1;
+          min-width: 0;
         }
         .clip-tag {
           display: inline-flex;
@@ -280,14 +315,14 @@
           }
         }
 
-      .image-preview-footer {
-        margin-top: 8px;
-        font-size: 12px;
-        color: fade(@text-color, 75%);
-        white-space: pre-wrap;
-        word-break: break-all;
-        text-align: center;
-      }
+        .image-preview-footer {
+          margin-top: 8px;
+          font-size: 12px;
+          color: fade(@text-color, 75%);
+          white-space: pre-wrap;
+          word-break: break-all;
+          text-align: center;
+        }
         .clip-over-sized-content {
           color: @primary-color;
         }

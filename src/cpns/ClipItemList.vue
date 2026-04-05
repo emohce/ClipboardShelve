@@ -46,6 +46,7 @@
                     :show-operate="!isMultiple && activeIndex === index"
                     :current-active-tab="currentActiveTab"
                     :is-over-sized-content="isOverSizedContent"
+                    :is-previewable-text="isPreviewableTextItem(item)"
                     :get-item-image-src="getItemImageSrc"
                     :has-image-files="hasImageFiles"
                     :get-image-files="getImageFiles"
@@ -101,8 +102,16 @@
                     <span>图片加载失败</span>
                 </div>
             </div>
-            <div v-if="imagePreview.footer" class="image-preview-footer">
-                {{ imagePreview.footer }}
+            <div
+                v-if="imagePreview.footer || imagePreview.hint"
+                class="image-preview-footer"
+            >
+                <div v-if="imagePreview.footer" class="image-preview-footer-main">
+                    {{ imagePreview.footer }}
+                </div>
+                <div v-if="imagePreview.hint" class="image-preview-hint">
+                    {{ imagePreview.hint }}
+                </div>
             </div>
         </div>
     </Teleport>
@@ -228,6 +237,11 @@ const handleImageError = (event) => {
 
 const PREVIEW_MODAL_PADDING = 40;
 const PREVIEW_SCROLL_STEP = 150;
+const IMAGE_PREVIEW_HINT_TEXT = {
+    both: "Shift + ↑/↓/←/→ 移动预览",
+    vertical: "Shift + ↑/↓ 移动预览",
+    horizontal: "Shift + ←/→ 移动预览",
+};
 
 const getImagePreviewMetrics = () => {
     const viewportWidth = window.innerWidth;
@@ -242,27 +256,49 @@ const getImagePreviewMetrics = () => {
     };
 };
 
+const getImagePreviewHint = (canScrollX, canScrollY) => {
+    if (canScrollX && canScrollY) return IMAGE_PREVIEW_HINT_TEXT.both;
+    if (canScrollY) return IMAGE_PREVIEW_HINT_TEXT.vertical;
+    if (canScrollX) return IMAGE_PREVIEW_HINT_TEXT.horizontal;
+    return "";
+};
+
+const buildImagePreviewFooter = (footerText = "", canScrollX = false, canScrollY = false) => ({
+    footer: footerText ? String(footerText) : "",
+    hint: getImagePreviewHint(canScrollX, canScrollY),
+});
+
 const applyImagePreviewLayout = (naturalWidth, naturalHeight) => {
     if (!naturalWidth || !naturalHeight) return;
     const { availableWidth, availableHeight } = getImagePreviewMetrics();
     const scaleByWidth = availableWidth / naturalWidth;
     const scaleByHeight = availableHeight / naturalHeight;
-    let displayWidth = availableWidth;
-    let displayHeight = naturalHeight * scaleByWidth;
+    const fitScale = Math.min(scaleByWidth, scaleByHeight);
+    const fitDisplayWidth = naturalWidth * fitScale;
+    const fitDisplayHeight = naturalHeight * fitScale;
+    const fitWidthUsage = availableWidth ? fitDisplayWidth / availableWidth : 0;
+    const fitHeightUsage = availableHeight ? fitDisplayHeight / availableHeight : 0;
+    const shouldPreferFullView =
+        fitScale >= 1 || (fitWidthUsage >= 0.58 && fitHeightUsage >= 0.58);
 
-    if (naturalWidth < availableWidth && displayHeight < availableHeight) {
-        const expandedScale = Math.max(scaleByWidth, scaleByHeight);
-        displayWidth = naturalWidth * expandedScale;
-        displayHeight = naturalHeight * expandedScale;
+    let displayWidth = fitDisplayWidth;
+    let displayHeight = fitDisplayHeight;
+    let canScrollX = false;
+    let canScrollY = false;
+
+    if (!shouldPreferFullView) {
+        displayWidth = availableWidth;
+        displayHeight = naturalHeight * scaleByWidth;
+        canScrollX = displayWidth > availableWidth;
+        canScrollY = displayHeight > availableHeight;
     }
 
-    const canScrollX = displayWidth > availableWidth;
-    const canScrollY = displayHeight > availableHeight;
     const isCentered = !canScrollY;
 
     imagePreview.value.layoutMode = isCentered ? "centered" : "fit-width-scroll";
     imagePreview.value.canScrollX = canScrollX;
     imagePreview.value.canScrollY = canScrollY;
+    imagePreview.value.hint = getImagePreviewHint(canScrollX, canScrollY);
     imagePreview.value.contentStyle = {
         minHeight: `${availableHeight}px`,
     };
@@ -398,7 +434,9 @@ const showImagePreview = (event, item, footerText = "") => {
     const { viewportWidth, viewportHeight } = getImagePreviewMetrics();
     
     imagePreview.value.src = src;
-    imagePreview.value.footer = footerText;
+    const footerMeta = buildImagePreviewFooter(footerText);
+    imagePreview.value.footer = footerMeta.footer;
+    imagePreview.value.hint = footerMeta.hint;
     imagePreview.value.scrollTop = 0; // 重置滚动位置
     imagePreview.value.loadFailed = false;
     imagePreview.value.layoutMode = "centered";
@@ -453,6 +491,8 @@ const stopImagePreview = (immediate = false) => {
     if (immediate) {
         imagePreview.value.show = false;
         imagePreviewSource.value = "";
+        imagePreview.value.footer = "";
+        imagePreview.value.hint = "";
         imagePreview.value.loadFailed = false;
         // 不调用 restorePreviewWindow，保持插件窗口大小不变
         closeExternalPreview();
@@ -461,6 +501,8 @@ const stopImagePreview = (immediate = false) => {
     imagePreviewHideTimer = setTimeout(() => {
         imagePreview.value.show = false;
         imagePreviewSource.value = "";
+        imagePreview.value.footer = "";
+        imagePreview.value.hint = "";
         imagePreview.value.loadFailed = false;
         // 不调用 restorePreviewWindow，保持插件窗口大小不变
         closeExternalPreview();
@@ -802,6 +844,8 @@ const isLongText = (item) => {
     return item.data.length > LONG_TEXT_THRESHOLD || item.data.includes("\n");
 };
 
+const isPreviewableTextItem = (item) => isLongText(item);
+
 /** 根据当前 item 类型执行预览（图片 / 长文本，其余类型暂不处理） */
 const runPreviewForItem = (item) => {
     if (!item) {
@@ -899,10 +943,15 @@ const showTextPreview = (item) => {
         left: "50%",
         transform: "translate(-50%, -50%)",
         zIndex: 9999,
-        backgroundColor: "rgba(0, 0, 0, 0.7)",
-        borderRadius: "8px",
+        background:
+            isSingleLine
+                ? "linear-gradient(180deg, rgba(18, 23, 31, 0.94) 0%, rgba(11, 15, 22, 0.92) 100%)"
+                : "rgba(10, 14, 20, 0.9)",
+        border: "1px solid rgba(255, 255, 255, 0.12)",
+        borderRadius: isSingleLine ? "14px" : "12px",
         padding: "24px 28px",
-        boxShadow: "0 8px 32px rgba(0, 0, 0, 0.3)",
+        boxShadow: "0 18px 48px rgba(0, 0, 0, 0.34)",
+        backdropFilter: "blur(12px)",
         width: `${maxW * 0.9}px`,
         maxWidth: `${maxW * 0.9}px`,
         maxHeight: `${maxH * 0.8}px`,
@@ -918,6 +967,9 @@ const showTextPreview = (item) => {
               whiteSpace: "nowrap",
               overflow: "hidden",
               textOverflow: "ellipsis",
+              fontSize: "15px",
+              letterSpacing: "0.01em",
+              color: "#f3f7ff",
           }
         : {
               width: "100%",
@@ -925,6 +977,7 @@ const showTextPreview = (item) => {
               overflowY: "auto",
               whiteSpace: "pre-wrap",
               wordBreak: "break-word",
+              color: "#e8edf8",
           };
 
     nextTick(() => {
@@ -1099,6 +1152,7 @@ const imagePreview = ref({
     show: false,
     src: "",
     footer: "",
+    hint: "",
     style: {},
     imageStyle: {},
     contentStyle: {},
@@ -2545,12 +2599,32 @@ onUnmounted(() => {
     }
 
     .image-preview-footer {
-        margin-top: 8px;
+        margin-top: 10px;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 8px;
         font-size: 12px;
         color: rgba(255, 255, 255, 0.7);
         white-space: pre-wrap;
         word-break: break-all;
         text-align: center;
+    }
+    .image-preview-footer-main {
+        max-width: min(90vw, 880px);
+    }
+    .image-preview-hint {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        padding: 5px 12px;
+        border-radius: 999px;
+        background: rgba(255, 255, 255, 0.08);
+        border: 1px solid rgba(255, 255, 255, 0.14);
+        color: rgba(255, 255, 255, 0.92);
+        font-size: 12px;
+        line-height: 1.4;
+        box-shadow: 0 6px 18px rgba(0, 0, 0, 0.18);
     }
     .preview-error {
         padding: 16px;
