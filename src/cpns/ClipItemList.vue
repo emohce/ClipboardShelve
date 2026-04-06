@@ -1169,11 +1169,11 @@ const selectItemList = ref([]);
 const {
     activeIndex,
     pendingNavAfterLoad,
-    pendingHighlightedItemId,
-    pendingActiveIndexAfterDelete,
+    deleteAnchor,
     clampActiveIndex,
     setActiveIndex,
     setPendingNavAfterLoad,
+    setDeleteAnchor,
     clearPendingStates,
 } = useListNavigation(() => props.showList);
 const allSelectedLocked = ref(false); // 临时标志：记录所有选中项是否都已锁定
@@ -1231,6 +1231,7 @@ const {
     scrollToIndex: scrollVirtualIndexIntoView,
     scrollToEdge,
     getPageStep: virtualPageStep,
+    getPageTargetIndex,
     scrollByPage,
     scrollHalfPage,
 } = useVirtualListScroll({
@@ -1638,6 +1639,7 @@ defineExpose({
     emptySelectItemList,
     activeIndex, // 暴露当前高亮的索引
     setKeyboardActiveIndex, // 暴露设置高亮索引的方法
+    prepareDeleteRecovery: (anchor) => setDeleteAnchor(anchor),
     clearPendingStates, // 暴露清除待处理状态的方法
     // scrollToBottom, // 暴露滚动到底部的方法
     // scrollToTop, // 暴露滚动到顶部的方法
@@ -1709,26 +1711,30 @@ watch(
     },
 );
 
-// 监听 showList 变化：恢复多选/删除后的高亮
+// 监听 showList 变化：恢复多选/删除后的高亮（deleteAnchor 为唯一删除恢复入口）
 watch(
     () => props.showList,
     (newList, oldList) => {
         if (newList && oldList && newList !== oldList) {
             restoreSelection();
-            if (
-                props.isMultiple &&
-                pendingHighlightedItemId.value != null &&
-                pendingActiveIndexAfterDelete.value != null
-            ) {
-                const id = pendingHighlightedItemId.value;
-                const oldIdx = pendingActiveIndexAfterDelete.value;
-                pendingHighlightedItemId.value = null;
-                pendingActiveIndexAfterDelete.value = null;
-                const idx = newList.findIndex((item) => item.id === id);
-                if (idx !== -1) {
-                    activeIndex.value = idx;
-                } else {
-                    activeIndex.value = Math.min(oldIdx, newList.length - 1);
+            if (deleteAnchor.value) {
+                const anchor = deleteAnchor.value;
+                deleteAnchor.value = null;
+                if (newList.length > 0) {
+                    let nextIdx = Math.min(
+                        Math.max(0, anchor.anchorIndex),
+                        newList.length - 1,
+                    );
+                    if (anchor.preferItemId) {
+                        const idx = newList.findIndex(
+                            (item) => item.id === anchor.preferItemId,
+                        );
+                        if (idx !== -1) nextIdx = idx;
+                    }
+                    activeIndex.value = nextIdx;
+                    nextTick(() =>
+                        scrollActiveNodeIntoView(nextIdx, { block: "nearest" }),
+                    );
                 }
             }
         }
@@ -2030,18 +2036,24 @@ function registerListHotkeyFeatures() {
         );
         const skippedLocked = itemsToDelete.length - deletableItems.length;
         if (deletableItems.length) {
+            const idx = activeIndex.value;
+            const len = props.showList.length;
+            let preferItemId = null;
             if (props.isMultiple) {
                 const toKeep = selectItemList.value.filter(
                     (item) => !deletableItems.includes(item),
                 );
                 selectedItemIds.value = toKeep.map((item) => item.id);
                 replaceSelectedItems(toKeep);
-                const highlighted = props.showList[activeIndex.value];
-                if (highlighted) {
-                    pendingHighlightedItemId.value = highlighted.id;
-                    pendingActiveIndexAfterDelete.value = activeIndex.value;
-                }
+                const highlighted = props.showList[idx];
+                preferItemId = highlighted?.id ?? null;
+            } else if (len > 0) {
+                if (idx < len - 1)
+                    preferItemId = props.showList[idx + 1]?.id ?? null;
+                else if (idx > 0)
+                    preferItemId = props.showList[idx - 1]?.id ?? null;
             }
+            setDeleteAnchor({ anchorIndex: idx, preferItemId });
             deletableItems.forEach((item, index) =>
                 emit("onItemDelete", item, {
                     anchorIndex: activeIndex.value,
@@ -2069,7 +2081,12 @@ function registerListHotkeyFeatures() {
               ? [props.showList[activeIndex.value]]
               : [];
         if (itemsToDelete.length) {
+            const idx = activeIndex.value;
+            const len = props.showList.length;
+            let preferItemId = null;
             if (props.isMultiple) {
+                preferItemId = props.showList[idx]?.id ?? null;
+                setDeleteAnchor({ anchorIndex: idx, preferItemId });
                 replaceSelectedItems(selectItemList.value.filter(
                     (item) => !itemsToDelete.includes(item),
                 ));
@@ -2084,6 +2101,13 @@ function registerListHotkeyFeatures() {
                 replaceSelectedItems([]);
                 emit("toggleMultiSelect", false);
             } else {
+                if (len > 0) {
+                    if (idx < len - 1)
+                        preferItemId = props.showList[idx + 1]?.id ?? null;
+                    else if (idx > 0)
+                        preferItemId = props.showList[idx - 1]?.id ?? null;
+                }
+                setDeleteAnchor({ anchorIndex: idx, preferItemId });
                 itemsToDelete.forEach((item, index) =>
                     emit("onItemDelete", item, {
                         anchorIndex: activeIndex.value,
@@ -2164,7 +2188,8 @@ const startAutoScroll = (direction) => {
                         if (pendingNavAfterLoad.value === null) return;
                         if (props.showList.length <= oldLen) {
                             pendingNavAfterLoad.value = null;
-                            stopAutoScroll(); // 没有更多数据，停止滚动
+                            scrollHalfPage(direction, activeIndex.value);
+                            stopAutoScroll(); // 没有更多数据，半页兜底后停止
                             return;
                         }
                         // 确保不会滚动超过当前太多
@@ -2195,13 +2220,14 @@ const stopAutoScroll = () => {
 };
 
 const runPageNavigation = (direction, options = {}) => {
-    const targetIndex = scrollByPage(direction, activeIndex.value);
     if (options.center) {
+        const targetIndex = getPageTargetIndex(direction, activeIndex.value);
         return setKeyboardActiveIndex(targetIndex, {
             block: "center",
             forceScroll: options.forceScroll === true,
         });
     }
+    const targetIndex = scrollByPage(direction, activeIndex.value);
     setActiveIndex(targetIndex);
     return true;
 };
@@ -2225,7 +2251,8 @@ const unifiedKeyHandler = (e) => {
         return; // 不阻止默认行为，让hotkeyRegistry处理
     }
 
-    if ((isArrowUp || isArrowDown) && !repeat) {
+    // 长按检测：仅在重复触发（长按）时启动分页滚动
+    if ((isArrowUp || isArrowDown) && repeat) {
         startAutoScroll(isArrowUp ? "up" : "down");
     }
 };

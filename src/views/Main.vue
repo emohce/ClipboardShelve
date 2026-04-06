@@ -752,7 +752,8 @@ const clearRegularTabItems = async (tabType, rangeValue) => {
 
     if (removed) {
         handleDataRemove();
-        adjustActiveIndexAfterDelete(0);
+        // 删除恢复已由 ClipItemList 统一处理，无需此处调整
+        // adjustActiveIndexAfterDelete(0);
     }
     return { removed, skippedLocked };
 };
@@ -1070,6 +1071,12 @@ const handleItemDelete = (item, metadata = {}) => {
         if (force) {
             window.db.removeCollect(item.id, false);
             if (isLast) {
+                const ai = getActiveIndex();
+                const preferId = currentShowList.value[ai]?.id;
+                ClipItemListRef.value?.prepareDeleteRecovery?.({
+                    anchorIndex: ai,
+                    preferItemId: preferId,
+                });
                 handleDataRemove();
             }
             return;
@@ -1094,7 +1101,8 @@ const handleItemDelete = (item, metadata = {}) => {
         window.remove(item, { force });
         if (isLast) {
             handleDataRemove();
-            adjustActiveIndexAfterDelete(currentActiveIndex);
+            // 删除恢复已由 ClipItemList 统一处理，无需此处调整
+            // adjustActiveIndexAfterDelete(currentActiveIndex);
         }
 
         return;
@@ -1524,8 +1532,13 @@ onMounted(() => {
                 else if (item.locked) skippedLocked++;
             });
             if (removed > 0) {
+                const ai = getActiveIndex();
+                const preferId = currentShowList.value[ai]?.id;
+                ClipItemListRef.value?.prepareDeleteRecovery?.({
+                    anchorIndex: ai,
+                    preferItemId: preferId,
+                });
                 handleDataRemove();
-                adjustActiveIndexAfterDelete(0);
                 ElMessage({
                     type: "success",
                     message:
@@ -1558,8 +1571,13 @@ onMounted(() => {
                 if (window.remove(item, { force: true })) removed++;
             });
             if (removed > 0) {
+                const ai = getActiveIndex();
+                const preferId = currentShowList.value[ai]?.id;
+                ClipItemListRef.value?.prepareDeleteRecovery?.({
+                    anchorIndex: ai,
+                    preferItemId: preferId,
+                });
                 handleDataRemove();
-                adjustActiveIndexAfterDelete(0);
                 ElMessage({
                     type: "success",
                     message: `已强制删除 ${removed} 条搜索结果`,

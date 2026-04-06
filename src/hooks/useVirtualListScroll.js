@@ -73,26 +73,34 @@ export function useVirtualListScroll(options) {
     return Math.max(1, Math.floor((height / getEstimateSize()) * 0.9))
   })
 
-  const scrollByPage = (direction, currentIndex) => {
+  const getPageTargetIndex = (direction, currentIndex) => {
     const instance = getVirtualizer()
     const count = instance?.options?.count ?? 0
+    if (!count) return 0
     const pageStep = getPageStep.value
-    const targetIndex = direction === 'up'
+    return direction === 'up'
       ? Math.max(0, currentIndex - pageStep)
       : Math.min(count - 1, currentIndex + pageStep)
+  }
 
+  const scrollByPage = (direction, currentIndex) => {
+    const targetIndex = getPageTargetIndex(direction, currentIndex)
     scrollToIndex(targetIndex, { block: direction === 'up' ? 'end' : 'start' })
     return targetIndex
   }
 
-  const scrollHalfPage = (direction, currentIndex) => {
+  const getHalfPageTargetIndex = (direction, currentIndex) => {
     const instance = getVirtualizer()
     const count = instance?.options?.count ?? 0
+    if (!count) return 0
     const halfStep = Math.max(1, Math.floor(getPageStep.value / 2))
-    const targetIndex = direction === 'up'
+    return direction === 'up'
       ? Math.max(0, currentIndex - halfStep)
       : Math.min(count - 1, currentIndex + halfStep)
+  }
 
+  const scrollHalfPage = (direction, currentIndex) => {
+    const targetIndex = getHalfPageTargetIndex(direction, currentIndex)
     scrollToIndex(targetIndex, { block: direction === 'up' ? 'end' : 'start' })
     return targetIndex
   }
@@ -104,6 +112,8 @@ export function useVirtualListScroll(options) {
     scrollToIndex,
     scrollToEdge,
     getPageStep,
+    getPageTargetIndex,
+    getHalfPageTargetIndex,
     scrollByPage,
     scrollHalfPage
   }
