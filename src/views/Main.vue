@@ -101,10 +101,13 @@
                     v-show="isSearchPanelExpand"
                     @onPanelHide="isSearchPanelExpand = false"
                     @onEmpty="handleSearchEmpty"
+                    @reveal-key-guard-used="clearSearchRevealKeyGuard"
                     v-model="filterText"
                     v-model:lockFilter="lockFilter"
                     :itemCount="currentSearchItemCount"
                     :placeholderOverride="searchPlaceholder"
+                    :reveal-from-key-at="revealFromKeyAt"
+                    :reveal-opening-key="revealOpeningKey"
                 ></ClipSearch>
             </template>
         </ClipSwitch>
@@ -240,7 +243,7 @@ import {
     ElTooltip,
     ElProgress,
 } from "element-plus";
-import { activateLayer, deactivateLayer } from "../global/hotkeyLayers";
+import { activateLayer, deactivateLayer, getCurrentLayer } from "../global/hotkeyLayers";
 import { registerFeature, setMainState } from "../global/hotkeyRegistry";
 import { formatShortcutDisplay } from "../global/shortcutKey";
 import { copyAndPasteAndExit } from "../utils";
@@ -282,7 +285,16 @@ const isMultiple = ref(false);
 
 const isSearchPanelExpand = ref(false);
 
+/** 列表键入展开搜索时传给 ClipSearch，用于吃掉误入的拉丁首字符（IME 前先 insertText 的字母） */
+const revealFromKeyAt = ref(0);
+const revealOpeningKey = ref("");
+const clearSearchRevealKeyGuard = () => {
+    revealFromKeyAt.value = 0;
+    revealOpeningKey.value = "";
+};
+
 const handleSearchEmpty = () => {
+    clearSearchRevealKeyGuard();
     filterText.value = "";
     isSearchPanelExpand.value = false;
     window.focus();
@@ -326,6 +338,7 @@ const focusSearchInput = (initialValue = "") => {
 };
 
 const resetPluginUiState = () => {
+    clearSearchRevealKeyGuard();
     filterText.value = "";
     lockFilter.value = "all";
     isSearchPanelExpand.value = false;
@@ -1037,6 +1050,12 @@ const adjustActiveIndexAfterDelete = (baseIndex) => {
     });
 };
 
+const resetDeleteAnchor = () => {
+    if (ClipItemListRef.value?.setDeleteAnchor) {
+        ClipItemListRef.value.setDeleteAnchor(null);
+    }
+};
+
 const handleItemDelete = (item, metadata = {}) => {
     const {
         anchorIndex,
@@ -1069,11 +1088,11 @@ const handleItemDelete = (item, metadata = {}) => {
             window.db.removeCollect(item.id, false);
             if (isLast) {
                 handleDataRemove();
-                adjustActiveIndexAfterDelete(currentActiveIndex);
             }
             return;
         }
         // 在"收藏"标签页：不允许删除，只能取消收藏
+        resetDeleteAnchor();
         ElMessage({
             message: "收藏内容不允许删除，请先取消收藏",
             type: "warning",
@@ -1081,6 +1100,7 @@ const handleItemDelete = (item, metadata = {}) => {
         return;
     } else if (isCollected) {
         // 在其他标签页删除已收藏项目：不允许删除（收藏数据单独存储）
+        resetDeleteAnchor();
         ElMessage({
             message: "已收藏项目不允许删除，请先取消收藏",
             type: "warning",
@@ -1089,16 +1109,13 @@ const handleItemDelete = (item, metadata = {}) => {
     } else {
         // 在其他标签页删除未收藏项目：完全删除
         // 记录删除前的高亮索引，用于删除后调整位置
-        const shouldAdjustAfterDelete = !isBatch || isLast;
-
         suppressAutoTopCount.value = 2;
         window.remove(item, { force });
-        handleDataRemove();
-
-        // 删除后调整高亮位置：优先移动到下一个，如果没有则移动到上一个（同步设一次，nextTick 再设一次避免被其它逻辑覆盖）
-        if (shouldAdjustAfterDelete) {
-            adjustActiveIndexAfterDelete(currentActiveIndex);
+        if (isLast) {
+            handleDataRemove();
         }
+
+        return;
     }
 };
 
@@ -1272,18 +1289,36 @@ onMounted(() => {
         }
     };
 
-    // Plain-text focus only: hotkey dispatch is in HotkeyProvider
+    const isOtherEditableTarget = (target) => {
+        if (!target || typeof target.closest !== "function") return false;
+        if (target.isContentEditable) return true;
+        const el = target.closest(
+            'input, textarea, [contenteditable="true"]',
+        );
+        if (!el) return false;
+        return !el.classList?.contains("clip-search-input");
+    };
+
+    // 捕获阶段：在到达原 target 之前把焦点交给搜索框，浏览器才能把本次按键的 beforeinput/IME 落到输入框上（document 冒泡里再 focus 会来不及）。
+    // 勿 preventDefault。热键仍由后续 HotkeyProvider 捕获链处理。
     const keyDownCallBack = (e) => {
         if (e.__hotkeyHandled) return;
         const { key, ctrlKey, metaKey, altKey } = e;
         const isPlainTextInput =
             key.length === 1 && !ctrlKey && !metaKey && !altKey && key !== " ";
         if (isPlainTextInput) {
-            // 在普通层单键直接展开搜索并填入首字符
+            if (e.isComposing || e.key === "Process") return;
             if (!isSearchPanelExpand.value && !isMultiple.value) {
+                if (getCurrentLayer()) return;
+                if (isOtherEditableTarget(e.target)) return;
+                const wrap = document.querySelector(".clip-search");
+                if (wrap) wrap.style.display = "";
                 isSearchPanelExpand.value = true;
-                focusSearchInput(key);
-                e.preventDefault();
+                revealFromKeyAt.value = Date.now();
+                revealOpeningKey.value = key;
+                window.focus?.();
+                const input = document.querySelector(".clip-search-input");
+                if (input) input.focus();
                 return;
             }
             window.focus();
@@ -1291,7 +1326,7 @@ onMounted(() => {
     };
 
     document.addEventListener("scroll", scrollCallBack);
-    document.addEventListener("keydown", keyDownCallBack);
+    document.addEventListener("keydown", keyDownCallBack, true);
 
     // Register hotkey features (main, clear-dialog, search)
     const registerMainHotkeyFeatures = () => {
@@ -1556,7 +1591,7 @@ onMounted(() => {
     onUnmounted(() => {
         delete window.resetPluginUiState;
         document.removeEventListener("scroll", scrollCallBack);
-        document.removeEventListener("keydown", keyDownCallBack);
+        document.removeEventListener("keydown", keyDownCallBack, true);
     });
 });
 </script>

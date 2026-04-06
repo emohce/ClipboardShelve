@@ -5,6 +5,8 @@
         class="clip-search-input"
         @focusout="handleFocusOut"
         @keydown="handleKeyDown"
+        @beforeinput="onBeforeInput"
+        @compositionstart="onCompositionStart"
         v-model="filterText"
         type="text"
         :placeholder="placeholderOverride || (itemCount ? `在 ${itemCount} 条历史中检索` : '检索剪贴板历史')"
@@ -44,6 +46,16 @@ const props = defineProps({
   lockFilter: {
     type: String,
     default: 'all'
+  },
+  /** 由主界面「键入展开搜索」时的时间戳；与 revealOpeningKey 配合去掉误入的拉丁首字符 */
+  revealFromKeyAt: {
+    type: Number,
+    default: 0
+  },
+  /** 展开搜索那一次 keydown 的 key（仅 a–z/A–Z 时才会拦截首击 insertText） */
+  revealOpeningKey: {
+    type: String,
+    default: ''
   }
 })
 
@@ -54,10 +66,15 @@ const lockOptions = [
 
 const filterText = ref('')
 const lockFilterValue = ref('all')
-const emit = defineEmits(['update:modelValue', 'update:lockFilter', 'onPanelHide', 'onEmpty'])
+let suppressNextEmptyPanel = false
+const emit = defineEmits(['update:modelValue', 'update:lockFilter', 'onPanelHide', 'onEmpty', 'revealKeyGuardUsed'])
 // filterText变了 通知父组件修改 modelValue的值
 watch(filterText, (val, prev) => {
   emit('update:modelValue', val)
+  if (suppressNextEmptyPanel) {
+    suppressNextEmptyPanel = false
+    return
+  }
   if (prev && !val && lockFilterValue.value === 'all') {
     // 删除到空字符串时，通知父组件退出搜索
     emit('onEmpty')
@@ -92,6 +109,34 @@ const setLockFilter = (value) => {
   lockFilterValue.value = value
   emit('update:lockFilter', value)
   nextTick(() => window.focus())
+}
+
+const revealGuardActive = () => {
+  const t = props.revealFromKeyAt
+  const k = props.revealOpeningKey
+  return t > 0 && k && /^[a-zA-Z]$/.test(k) && Date.now() - t < 800
+}
+
+const onBeforeInput = (e) => {
+  if (!revealGuardActive()) return
+  if (e.isComposing) return
+  if (e.inputType !== 'insertText' || !e.data || e.data.length !== 1) return
+  if (!/^[a-zA-Z]$/.test(e.data)) return
+  if (e.data.toLowerCase() !== props.revealOpeningKey.toLowerCase()) return
+  e.preventDefault()
+  emit('revealKeyGuardUsed')
+}
+
+const onCompositionStart = (e) => {
+  if (!revealGuardActive()) return
+  const k = props.revealOpeningKey
+  const input = e.target
+  if (!input || input.value.length !== 1) return
+  if (input.value.toLowerCase() !== k.toLowerCase()) return
+  if (!/^[a-zA-Z]$/.test(input.value)) return
+  suppressNextEmptyPanel = true
+  filterText.value = ''
+  emit('revealKeyGuardUsed')
 }
 
 const handleKeyDown = (e) => {
