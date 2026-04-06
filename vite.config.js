@@ -34,7 +34,11 @@ export default defineConfig({
   plugins: [vue(), copyUToolsPublicAssets()],
   server: {
     port: 8081,
-    strictPort: false
+    strictPort: false,
+    watch: {
+      usePolling: false,
+      interval: 100
+    }
   },
   build: {
     outDir: 'dist',

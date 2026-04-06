@@ -13,7 +13,7 @@
 
 set -euo pipefail
 
-ROOT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
+ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]:-$0}")/.." && pwd)"
 
 load_nvm() {
   if command -v nvm >/dev/null 2>&1; then
@@ -41,5 +41,6 @@ load_nvm() {
 load_nvm
 
 cd "$ROOT_DIR"
+echo "Working directory: $(pwd)"
 nvm use 24
 pnpm run serve
