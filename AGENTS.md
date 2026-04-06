@@ -34,9 +34,9 @@ specs/
 - `public/`：uTools 插件静态资源与入口脚本
 - `dist/`：构建产物，不手改
 
-## 5. Commands (first: `nvm ues 24` )
+## 5. Commands (first: `nvm ues 24` ) -- 不允许自行验证
 - install: `pnpm install`
-- dev: `pnpm run serve`
+- dev: `pnpm run serve` 
 - build: `pnpm run build`
 
 ## 6. Implementation Rules
@@ -47,11 +47,10 @@ specs/
 - 涉及 `public/plugin.json`、`public/preload.js`、`public/listener.js`、`src/global/` 时必须明确说明影响。
 
 ## 7. Verification Rules
-- 当前仓库默认验证命令为 `pnpm run build`。
-- 如涉及页面行为，补充 `pnpm run serve` 下的最小手工验证步骤。
+- 验证结果只通过自行核查代码, 不得使用build, 我会自行验证。
 - 如涉及 uTools 运行时能力，明确说明是否已在插件环境验证。
 - 未执行的验证项必须直说，不得写成已通过。
 
 ## 8. Final Response
-- 必须包含：变更摘要、关键文件、风险/兼容性影响、验证结果、后续可选优化。
+- 必须包含：变更摘要、关键文件、风险/兼容性影响、后续可选优化。
 - 默认中文回答；代码、命令、提交信息保持原语言语境。
