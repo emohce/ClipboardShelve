@@ -1,48 +1,36 @@
 # Architecture Planning Rules
 
 ## 目标
-- 基于 `01-spec.md` 形成可执行的 `02-plan.md`。
-- Plan 必须贴住当前仓库真实结构，不允许脱离代码库空想设计。
+- 在进入实现前形成可执行、可评估、可回滚的 `02-plan.md`。
 
-## 计划前置动作
-- 阅读 `AGENTS.md`。
-- 阅读对应 `01-spec.md`。
-- 搜索相关入口、调用链、状态来源、配置项、样式和构建脚本。
-- 确认当前仓库命令：`npm run serve`、`npm run build`。
+## 输入前置
+- 先读取 [`ai-rules/00-error-memory.md`](00-error-memory.md)。
+- 如命中历史记录，必须阅读对应正文。
+- 先确认真实运行通路、真实数据源、真实事件链，不基于表面症状直接出方案。
 
 ## 输出结构
 ```md
-# Plan: 名称
+# Plan
 
-## 1. 变更目标
-## 2. 现状与根因
-## 3. 设计方案
-## 4. 受影响文件
-## 5. 数据与状态变更
-## 6. 接口与交互变更
-## 7. 实施步骤
-## 8. 测试与验证方案
-## 9. 风险与回滚点
-## 10. 待确认项
+## Summary
+## Current State
+## Root Cause Or Main Constraint
+## Options Considered
+## Chosen Approach
+## Affected Files
+## Historical Record Strategy
+## Risks And Rollback
+## Verification Plan
 ```
 
-## 编写规则
-- 现状与根因必须落到具体模块、具体逻辑或具体限制。
-- 设计方案优先最高效改动，可以联网搜索utools官方文档, 结合高效案例, 优先高效底层抽取重构(语言和框架都优先使用最高效的, 可进行重构), 其次进行普通优化方案。
-- 受影响文件必须给出仓库相对路径，且说明每个文件的改动意图。
-- 数据与状态变更要说明来源、生命周期、持久化方式、兼容处理。
-- 接口与交互变更要说明输入、输出、错误路径、用户可见变化。
-- 实施步骤按依赖顺序排列，避免跨文件大爆改。
-- 风险部分必须写清行为回归点、兼容性影响、未验证前提。
-- 注释默认使用简体中文。
-
-## 当前仓库专项要求
-- 页面与组件优先关注 `src/views/`、`src/cpns/`。
-- 插件运行期逻辑优先关注 `src/global/` 与 `public/`。
-- 样式改动优先关注 `src/style/` 下对应 less 文件。
-- 如涉及 uTools 打包行为，必须检查 `public/plugin.json` 与 `dist/plugin.json` 产物要求。
-
-## 禁止项
-- 不允许只写“修改若干文件”“补充逻辑”这种泛描述。
-- 不允许 Plan 中缺失验证方式。
-- 不允许把任务拆分混进 Plan 主体。
+## 规则
+- `Current State` 要写清现状实现、入口、调用链、关键状态。
+- `Root Cause Or Main Constraint` 优先写已确认根因；若未确认，要明确当前只是主约束而非最终根因。
+- `Options Considered` 至少写清为什么不用已证伪路径或高风险路径。
+- `Chosen Approach` 优先选择最短可验证路径，不为“更优雅”做超范围重构。
+- `Affected Files` 只列高影响文件，并说明职责。
+- `Historical Record Strategy` 必须写明：
+- 命中的错误记录或 ADR。
+- 本次沿用、规避、替代了什么。
+- 是否预计产生新的错误记录或 ADR。
+- `Verification Plan` 必须覆盖“是否真正绕开历史失败通路”。
