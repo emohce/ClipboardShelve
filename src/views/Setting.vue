@@ -64,27 +64,12 @@
             <div class="setting-section-title">存储模式</div>
             <div class="setting-row">
               <span class="setting-label">存储引擎</span>
-              <el-select class="number-select" v-model="storageMode" fit-input-width placeholder="">
-                <el-option label="JSON 文件" value="json" />
-                <el-option label="uTools DB（推荐）" value="utools" />
-              </el-select>
+              <span class="setting-static-value">JSON 文件</span>
             </div>
-            <div class="setting-row" v-if="storageMode === 'utools'">
-              <el-button type="primary" @click="handleMigrateToUToolsDB" :loading="isMigrating">
-                迁移数据到 uTools DB
-              </el-button>
-              <el-button @click="handleRollbackMigration" :disabled="!hasBackup">
-                回滚到 JSON
-              </el-button>
-            </div>
-            <div class="setting-row" v-if="migrationResult">
-              <el-alert
-                :title="migrationResult.success ? '迁移成功' : '迁移失败'"
-                :type="migrationResult.success ? 'success' : 'error'"
-                :description="migrationResult.message"
-                :closable="false"
-                show-icon
-              />
+            <div class="setting-row setting-row--hint">
+              <span class="setting-inline-hint">
+                当前版本仅使用 JSON 文件存储，已停用 uTools DB 切换与迁移入口。
+              </span>
             </div>
           </div>
         </div>
@@ -396,13 +381,6 @@ const unlimitedVal = 'unlimited'
 const path = ref(database.path[nativeId])
 const maxsize = ref(database.maxsize ?? unlimitedVal)
 const maxage = ref(database.maxage ?? unlimitedVal)
-
-// 存储模式相关
-const storageMode = ref(utools.dbStorage.getItem('storageMode') || 'json')
-const MIGRATION_BACKUP_KEY = 'migration.lastBackupPath'
-const isMigrating = ref(false)
-const hasBackup = ref(Boolean(utools.dbStorage.getItem(MIGRATION_BACKUP_KEY)))
-const migrationResult = ref(null)
 
 const custom = ref(operation.custom.map((c) => ({ ...c })))
 const hotkeyOverrides = ref({ ...(setting.hotkeyOverrides || {}) })
@@ -892,115 +870,6 @@ watch(hoverPreviewEnabled, (enabled) => {
   }
 })
 
-// 存储模式切换
-watch(storageMode, (newMode) => {
-  utools.dbStorage.setItem('storageMode', newMode)
-  ElMessage({
-    message: `存储模式已切换为 ${newMode === 'json' ? 'JSON 文件' : 'uTools DB'}，重启插件后生效`,
-    type: 'info',
-    duration: 3000
-  })
-})
-
-// 迁移到 uTools DB
-const handleMigrateToUToolsDB = async () => {
-  try {
-    await ElMessageBox.confirm(
-      '此操作将把当前 JSON 文件中的数据迁移到 uTools DB。迁移前会自动备份，是否继续？',
-      '确认迁移',
-      {
-        confirmButtonText: '确定',
-        cancelButtonText: '取消',
-        type: 'warning'
-      }
-    )
-    
-    isMigrating.value = true
-    migrationResult.value = null
-    
-    const { executeMigration } = await import('../global/dbMigration')
-    const dbPath = database.path[nativeId]
-    
-    const result = await executeMigration(dbPath, {
-      backup: true,
-      validate: true
-    })
-    
-    if (result.success) {
-      if (result.backupPath) {
-        utools.dbStorage.setItem(MIGRATION_BACKUP_KEY, result.backupPath)
-      }
-      hasBackup.value = !!result.backupPath
-      migrationResult.value = {
-        success: true,
-        message: `成功迁移 ${result.migratedItems} 条数据项和 ${result.migratedCollects} 条收藏数据`
-      }
-      ElMessage.success('迁移成功，请重启插件以使用 uTools DB')
-    } else {
-      migrationResult.value = {
-        success: false,
-        message: `迁移失败：${result.errors.join(', ')}`
-      }
-      ElMessage.error('迁移失败')
-    }
-  } catch (err) {
-    if (err !== 'cancel') {
-      console.error('[handleMigrateToUToolsDB] 迁移失败:', err)
-      ElMessage.error('迁移失败: ' + err.message)
-    }
-  } finally {
-    isMigrating.value = false
-  }
-}
-
-// 回滚迁移
-const handleRollbackMigration = async () => {
-  try {
-    await ElMessageBox.confirm(
-      '此操作将回滚到 JSON 文件存储，并清空 uTools DB 中的数据。是否继续？',
-      '确认回滚',
-      {
-        confirmButtonText: '确定',
-        cancelButtonText: '取消',
-        type: 'warning'
-      }
-    )
-    
-    isMigrating.value = true
-    migrationResult.value = null
-    
-    const { rollbackMigration } = await import('../global/dbMigration')
-    const dbPath = database.path[nativeId]
-    const backupPath = utools.dbStorage.getItem(MIGRATION_BACKUP_KEY)
-    const existsSync = window.exports?.existsSync
-    if (!backupPath || (typeof existsSync === 'function' && !existsSync(backupPath))) {
-      ElMessage.error('未找到迁移时生成的备份文件，请先执行一次「迁移数据到 uTools DB」或从备份目录手动恢复')
-      isMigrating.value = false
-      return
-    }
-
-    await rollbackMigration(dbPath, backupPath)
-
-    utools.dbStorage.removeItem(MIGRATION_BACKUP_KEY)
-    storageMode.value = 'json'
-    hasBackup.value = false
-    
-    migrationResult.value = {
-      success: true,
-      message: '回滚成功，请重启插件以使用 JSON 文件存储'
-    }
-    
-    ElMessage.success('回滚成功，请重启插件')
-  } catch (err) {
-    if (err !== 'cancel') {
-      console.error('[handleRollbackMigration] 回滚失败:', err)
-      ElMessage.error('回滚失败: ' + err.message)
-    }
-  } finally {
-    isMigrating.value = false
-  }
-}
-
 onUnmounted(() => {
   document.removeEventListener('keydown', keyDownHandler)
   deactivateLayer('setting')
@@ -1193,6 +1062,25 @@ onUnmounted(() => {
 }
 .setting-unit {
   font-size: 13px;
+  color: var(--text-color-lighter);
+}
+.setting-static-value {
+  display: inline-flex;
+  align-items: center;
+  min-height: 34px;
+  padding: 0 12px;
+  border-radius: 12px;
+  background: var(--bg-soft-color);
+  border: 1px solid var(--border-color);
+  font-size: 13px;
+  color: var(--text-color);
+}
+.setting-row--hint {
+  margin-top: -4px;
+}
+.setting-inline-hint {
+  font-size: 12px;
+  line-height: 1.6;
   color: var(--text-color-lighter);
 }
 .path {

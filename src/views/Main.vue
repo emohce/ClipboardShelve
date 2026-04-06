@@ -955,6 +955,39 @@ const currentSearchItemCount = computed(() => {
         .length;
 });
 
+const loadMoreData = () => {
+    const parsed = parseStarFilter(filterText.value);
+    const start = offset.value + GAP;
+    let addition = [];
+    if (activeTab.value === "collect") {
+        const subTab = getCollectSubTab();
+        let collectItems =
+            subTab === "*全部*"
+                ? window.db.getCollects()
+                : window.db.getCollectsByTag(subTab);
+        collectItems = applyCollectFilters(collectItems, parsed);
+        addition = collectItems.slice(start, start + GAP);
+    } else {
+        const mainBase = getItemsByTab(activeTab.value);
+        const mainFiltered = parsed.isStar
+            ? mainBase.filter(
+                  (item) =>
+                      !window.db.isCollected(item.id) &&
+                      matchMainTabItem(item, parsed.bodyKeyword),
+              )
+            : mainBase
+                  .filter((item) => !window.db.isCollected(item.id))
+                  .filter((item) => matchLockFilter(item))
+                  .filter((item) => textFilterCallBack(item));
+        addition = mainFiltered.slice(start, start + GAP);
+    }
+    if (!addition.length) {
+        return;
+    }
+    offset.value += GAP;
+    showList.value.push(...addition);
+};
+
 const handleDataRemove = () => {
     list.value = window.db.dataBase.data;
     offset.value = 0;
@@ -1229,40 +1262,6 @@ onMounted(() => {
             },
         });
     }
-
-    // 列表懒加载逻辑提取
-    const loadMoreData = () => {
-        const parsed = parseStarFilter(filterText.value);
-        const start = offset.value + GAP;
-        let addition = [];
-        if (activeTab.value === "collect") {
-            const subTab = getCollectSubTab();
-            let collectItems =
-                subTab === "*全部*"
-                    ? window.db.getCollects()
-                    : window.db.getCollectsByTag(subTab);
-            collectItems = applyCollectFilters(collectItems, parsed);
-            addition = collectItems.slice(start, start + GAP);
-        } else {
-            const mainBase = getItemsByTab(activeTab.value);
-            const mainFiltered = parsed.isStar
-                ? mainBase.filter(
-                      (item) =>
-                          !window.db.isCollected(item.id) &&
-                          matchMainTabItem(item, parsed.bodyKeyword),
-                  )
-                : mainBase
-                      .filter((item) => !window.db.isCollected(item.id))
-                      .filter((item) => matchLockFilter(item))
-                      .filter((item) => textFilterCallBack(item));
-            addition = mainFiltered.slice(start, start + GAP);
-        }
-        if (!addition.length) {
-            return;
-        }
-        offset.value += GAP;
-        showList.value.push(...addition);
-    };
 
     // 列表懒加载
     const scrollCallBack = (e) => {

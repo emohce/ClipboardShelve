@@ -1223,11 +1223,12 @@ const listVirtualizer = useVirtualizer(
         overscan: 8,
     })),
 );
-const virtualRows = computed(() => listVirtualizer.getVirtualItems());
-const totalSize = computed(() => listVirtualizer.getTotalSize());
+const getListVirtualizer = () => listVirtualizer.value;
+const virtualRows = computed(() => getListVirtualizer()?.getVirtualItems?.() || []);
+const totalSize = computed(() => getListVirtualizer()?.getTotalSize?.() || 0);
 const measureRowElement = (el) => {
     if (el) {
-        listVirtualizer.measureElement(el);
+        getListVirtualizer()?.measureElement?.(el);
     }
 };
 const {
@@ -1247,7 +1248,7 @@ const scrollerRef = ref({
         return scrollParentRef.value;
     },
     scrollToItem(index, options = {}) {
-        listVirtualizer.scrollToIndex(index, {
+        getListVirtualizer()?.scrollToIndex?.(index, {
             align: options.align || "auto",
         });
     },
@@ -1390,7 +1391,7 @@ watch(
             // 进入多选模式且已有选中项时，初始化锁定状态标志
             updateAllSelectedLockedFlag();
         }
-        nextTick(() => listVirtualizer.measure());
+        nextTick(() => getListVirtualizer()?.measure?.());
     },
 );
 // 图片预览键盘处理兜底；主入口仍走 hotkey feature
@@ -1755,7 +1756,7 @@ watch(
         if (keyboardTriggeredPreview.value) {
             triggerKeyboardPreview();
         }
-        nextTick(() => listVirtualizer.measure());
+        nextTick(() => getListVirtualizer()?.measure?.());
         // 接近列表末尾时触发懒加载
         const LOAD_MORE_THRESHOLD = 5;
         if (activeIndex.value >= props.showList.length - LOAD_MORE_THRESHOLD) {
@@ -1802,7 +1803,7 @@ watch(
                 }
             }
         }
-        nextTick(() => listVirtualizer.measure());
+        nextTick(() => getListVirtualizer()?.measure?.());
     },
 );
 
@@ -2556,5 +2557,4 @@ onUnmounted(() => {
     }
 }
 </style>
-
 

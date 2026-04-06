@@ -12,6 +12,8 @@ export function useVirtualListScroll(options) {
     getEstimateSize
   } = options
 
+  const getVirtualizer = () => virtualizer?.value ?? virtualizer
+
   const getActiveNode = (index) =>
     listRootRef.value?.querySelector(`.clip-item[data-index="${index}"]`) || null
 
@@ -43,15 +45,19 @@ export function useVirtualListScroll(options) {
       return
     }
 
-    virtualizer.scrollToIndex(index, {
+    const instance = getVirtualizer()
+    if (!instance) return
+
+    instance.scrollToIndex(index, {
       align: normalizeAlign(options.block)
     })
   }
 
   const scrollToEdge = (edge) => {
-    const count = virtualizer.options.count ?? 0
+    const instance = getVirtualizer()
+    const count = instance?.options?.count ?? 0
     if (!count) return false
-    virtualizer.scrollToIndex(edge === 'top' ? 0 : count - 1, {
+    instance.scrollToIndex(edge === 'top' ? 0 : count - 1, {
       align: edge === 'top' ? 'start' : 'end'
     })
     return true
@@ -68,20 +74,24 @@ export function useVirtualListScroll(options) {
   })
 
   const scrollByPage = (direction, currentIndex) => {
+    const instance = getVirtualizer()
+    const count = instance?.options?.count ?? 0
     const pageStep = getPageStep.value
     const targetIndex = direction === 'up'
       ? Math.max(0, currentIndex - pageStep)
-      : Math.min(virtualizer.options.count - 1, currentIndex + pageStep)
+      : Math.min(count - 1, currentIndex + pageStep)
 
     scrollToIndex(targetIndex, { block: direction === 'up' ? 'end' : 'start' })
     return targetIndex
   }
 
   const scrollHalfPage = (direction, currentIndex) => {
+    const instance = getVirtualizer()
+    const count = instance?.options?.count ?? 0
     const halfStep = Math.max(1, Math.floor(getPageStep.value / 2))
     const targetIndex = direction === 'up'
       ? Math.max(0, currentIndex - halfStep)
-      : Math.min(virtualizer.options.count - 1, currentIndex + halfStep)
+      : Math.min(count - 1, currentIndex + halfStep)
 
     scrollToIndex(targetIndex, { block: direction === 'up' ? 'end' : 'start' })
     return targetIndex

@@ -14,7 +14,6 @@ import { copy, paste, createFile, getNativeId } from '../utils'
 import setting from './readSetting'
 import { initWindowManager, setPluginWindowSize } from './windowManager'
 import { generateThumbnail, shouldGenerateThumbnail } from './imageUtils'
-import { UToolsDB } from './utoolsDB'
 
 // 忽略 ResizeObserver 噪声错误，避免 dev overlay 反复弹出
 const RESIZE_OBSERVER_ERROR_PATTERNS = [
@@ -1050,38 +1049,14 @@ export default async function initPlugin() {
   const dbPath = setting.database.path[nativeId] || setting.database.path
   console.log('[initPlugin] 数据库路径:', dbPath)
   
-  // 存储模式配置: 'json' 或 'utools'
-  // 默认使用 JSON 模式，可通过 utools.dbStorage 设置切换
-  // 存储模式判断：新用户默认使用 uTools DB，旧用户默认使用 JSON
-  const hasStorageMode = utools.dbStorage.getItem('storageMode') !== null
   const jsonDbExists = window.exports.existsSync(dbPath)
-  
-  let storageMode
-  if (hasStorageMode) {
-    // 已有配置，使用配置值
-    storageMode = utools.dbStorage.getItem('storageMode')
-  } else if (!jsonDbExists) {
-    // 新用户（无 JSON 数据），默认使用 uTools DB
-    storageMode = 'utools'
-    utools.dbStorage.setItem('storageMode', storageMode)
-  } else {
-    // 旧用户（有 JSON 数据），默认使用 JSON
-    storageMode = 'json'
-    utools.dbStorage.setItem('storageMode', storageMode)
-  }
-  
+  const storageMode = 'json'
+  utools.dbStorage.setItem('storageMode', storageMode)
   console.log('[initPlugin] 存储模式:', storageMode, '(JSON文件存在:', jsonDbExists, ')')
-  
-  let db
-  if (storageMode === 'utools') {
-    console.log('[initPlugin] 使用 uTools DB')
-    db = new UToolsDB()
-    await db.init()
-  } else {
-    console.log('[initPlugin] 使用 JSON 文件')
-    db = new DB(dbPath)
-    db.init()
-  }
+
+  console.log('[initPlugin] 使用 JSON 文件')
+  const db = new DB(dbPath)
+  db.init()
 
   const remove = (item, options = {}) => db.removeItemViaId(item.id, options)
 

@@ -1,11 +1,14 @@
 import restoreSetting from './restoreSetting'
 import { defaultPath } from './restoreSetting'
 import { getNativeId } from '../utils'
+import defaultSetting from '../data/setting.json'
 
 export const SETTING_UPDATED_EVENT = 'ezclipboard:setting-updated'
 
 const setting = utools.dbStorage.getItem('setting') || restoreSetting()
 const nativeId = getNativeId()
+
+const defaultOperation = JSON.parse(JSON.stringify(defaultSetting.operation || {}))
 
 if (!setting.hotkeyOverrides || typeof setting.hotkeyOverrides !== 'object') {
   setting.hotkeyOverrides = {}
@@ -15,12 +18,40 @@ if (!setting.userConfig || typeof setting.userConfig !== 'object') {
   setting.userConfig = {}
 }
 
+if (!setting.database || typeof setting.database !== 'object') {
+  setting.database = {}
+}
+
 if (!setting.userConfig.preview || typeof setting.userConfig.preview !== 'object') {
   setting.userConfig.preview = {}
 }
 
 if (!setting.userConfig.preview.hover || typeof setting.userConfig.preview.hover !== 'object') {
   setting.userConfig.preview.hover = {}
+}
+
+if (!setting.operation || typeof setting.operation !== 'object') {
+  setting.operation = {}
+}
+
+if (!Array.isArray(setting.operation.shown)) {
+  setting.operation.shown = [...(defaultOperation.shown || [])]
+}
+
+if (!Array.isArray(setting.operation.custom)) {
+  setting.operation.custom = [...(defaultOperation.custom || [])]
+}
+
+if (!Array.isArray(setting.operation.order)) {
+  const customIds = setting.operation.custom.map((item) => item?.id).filter(Boolean)
+  setting.operation.order = [
+    ...((defaultOperation.order || defaultOperation.shown || []).filter(Boolean)),
+    ...customIds
+  ].filter((id, index, arr) => arr.indexOf(id) === index)
+}
+
+if (setting.database.maxsize === undefined) {
+  setting.database.maxsize = null
 }
 
 if (typeof setting.userConfig.preview.hover.enabled !== 'boolean') {
