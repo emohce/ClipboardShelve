@@ -18,12 +18,17 @@
     >
         <div class="clip-info">
             <div class="clip-time">
-                <span v-if="isCollected" class="clip-collect-icon">⭐</span>
                 <span
-                    v-if="item.locked"
-                    class="clip-lock"
-                    >🔒</span
+                    v-if="isCollected || item.locked"
+                    class="clip-status-icons"
                 >
+                    <span v-if="isCollected" class="clip-collect-icon">⭐</span>
+                    <span
+                        v-if="item.locked"
+                        class="clip-lock"
+                        >🔒</span
+                    >
+                </span>
                 <span class="relative-date">{{ dateFormat(item.updateTime) }}</span>
                 <div v-if="itemTags.length" class="clip-tags">
                     <span

@@ -1,29 +1,36 @@
 # Verify
 
-## T1 补齐 move-fix 的 codex spec/plan/tasks 文档
-- status: pass
-- build: 未执行，文档任务无需构建
-- manual-check: 已核对目录结构为 `specs/26040601-move-fix/codex/`
-- docs: 已新增 `01-spec.md`、`02-plan.md`、`03-tasks.md`、`04-verify.md`
-- notes: 后续实现任务完成后补充构建与手工验证结果
-
-## T2 收敛列表单步与长按导航逻辑
+## T1 收敛 `ClipItemList` 的上下键导航入口
 - status: pass
 - build: `export NVM_DIR="$HOME/.nvm" && [ -s "$NVM_DIR/nvm.sh" ] && . "$NVM_DIR/nvm.sh" && nvm use 24 >/dev/null && pnpm run build` -> pass
-- manual-check: 未执行 `pnpm run serve` / uTools 运行时手测；建议验证单步上下键“可见则不滚”、长按上下键分页居中、到底部加载更多
-- docs: 已更新 [src/cpns/ClipItemList.vue](../../../src/cpns/ClipItemList.vue) 对应实现与本目录文档
-- notes: 当前仅完成构建验证，未在真实快捷键环境确认 OS key repeat 与 uTools 热键层的最终体感
+- manual-check: 未执行；代码层已移除普通 `ArrowUp/ArrowDown` 在捕获阶段的第二导航入口，保留 hotkey feature 作为唯一单步导航入口
+- docs: 已更新 [03-tasks.md](./03-tasks.md)
+- notes: 长按分页入口已在 T2 补回，本任务不再残留第二套普通上下键推进
 
-## T3 修复删除后高亮恢复与锁状态即时刷新
+## T2 统一单步移动、长按分页与边界 `loadMore` 的滚动策略
 - status: pass
 - build: 同上，构建通过
-- manual-check: 未执行；建议验证删除中间项/最后一项/批量删除、`locked` 筛选下锁定与解锁即时刷新、收藏页强制删除仍仅取消收藏
-- docs: 已更新 [src/views/Main.vue](../../../src/views/Main.vue) 与 [src/cpns/ClipItemList.vue](../../../src/cpns/ClipItemList.vue) 的删除恢复逻辑说明
-- notes: 删除恢复现改为 `deleteAnchor` 主导；若后续仍有错位，优先排查 `showList` 更新时机
+- manual-check: 未执行；代码层已让长按通过捕获阶段只负责启动/停止定时器，分页移动统一复用 `scrollByPage` 结果，并继续兼容边界 `loadMore`
+- docs: 已更新 [03-tasks.md](./03-tasks.md)
+- notes: 仍需在实际运行时确认长按触发延迟、分页步长体感以及到底部后的连续加载体验
 
-## T4 补最小样式修正并完成验证记录
+## T3 将删除后的高亮恢复职责统一到父层展示列表回流
 - status: pass
 - build: 同上，构建通过
-- manual-check: 未执行；建议验证窄宽度下锁/收藏图标与标签是否仍保持单行截断
-- docs: 已更新 [src/cpns/ClipItemRow.vue](../../../src/cpns/ClipItemRow.vue) 与 [src/style/cpns/clip-item-list.less](../../../src/style/cpns/clip-item-list.less)
-- notes: 未在不同系统字体与缩放比下做视觉回归
+- manual-check: 未执行；代码层已移除子组件基于 `deleteAnchor` 的删除恢复，统一由 [src/views/Main.vue](../../../src/views/Main.vue) 在刷新后恢复高亮
+- docs: 已更新 [03-tasks.md](./03-tasks.md)
+- notes: 普通删除、批量删除、搜索删除的落点规则仍需手工确认是否完全符合“下一条优先，否则最后一条”
+
+## T4 修正锁定/收藏状态的即时刷新与单行头部渲染
+- status: pass
+- build: 同上，构建通过
+- manual-check: 未执行；批量锁定已改为直接 `queuePersistDb()`，当前单行头部沿用 `clip-status-icons` + 单行压缩样式
+- docs: 已更新 [03-tasks.md](./03-tasks.md)
+- notes: 还需在窄窗口和高标签密度场景下确认图标、时间、标签的视觉表现
+
+## T5 执行构建验证并补充最小手工回归记录
+- status: partial
+- build: `export NVM_DIR="$HOME/.nvm" && [ -s "$NVM_DIR/nvm.sh" ] && . "$NVM_DIR/nvm.sh" && nvm use 24 >/dev/null && pnpm run build` -> pass
+- manual-check: 未执行 `pnpm run serve` 与 uTools 插件环境手测；建议最少回归单步上下键、长按分页、删除中间项/最后一项/搜索删除、`locked` 筛选下锁定解锁、窄宽度图标排布
+- docs: 已补齐本文件任务级验证记录
+- notes: 当前验证只覆盖构建成功；大包体 warning 仍存在，但不是本次改动引入的新错误

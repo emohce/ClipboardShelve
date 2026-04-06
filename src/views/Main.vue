@@ -1028,7 +1028,6 @@ const setActiveIndex = (val) => {
 };
 
 const adjustActiveIndexAfterDelete = (baseIndex) => {
-    // 使用 setTimeout(0) 在下一宏任务执行，确保晚于所有 nextTick，避免被其它逻辑覆盖为 0
     nextTick(() => {
         if (!ClipItemListRef.value) return;
         const newListLength = currentShowList.value.length;
@@ -1042,18 +1041,12 @@ const adjustActiveIndexAfterDelete = (baseIndex) => {
         );
         if (ClipItemListRef.value?.setKeyboardActiveIndex) {
             ClipItemListRef.value.setKeyboardActiveIndex(normalizedIndex, {
-                block: "center",
+                block: "nearest",
             });
             return;
         }
         setActiveIndex(normalizedIndex);
     });
-};
-
-const resetDeleteAnchor = () => {
-    if (ClipItemListRef.value?.setDeleteAnchor) {
-        ClipItemListRef.value.setDeleteAnchor(null);
-    }
 };
 
 const handleItemDelete = (item, metadata = {}) => {
@@ -1065,16 +1058,6 @@ const handleItemDelete = (item, metadata = {}) => {
     } = metadata;
     const currentActiveIndex =
         typeof anchorIndex === "number" ? anchorIndex : getActiveIndex();
-    
-    // Set delete anchor for child component to consume
-    if (ClipItemListRef.value?.setDeleteAnchor) {
-        ClipItemListRef.value.setDeleteAnchor({
-            originalIndex: currentActiveIndex,
-            itemId: item.id,
-            isBatch,
-            isLast
-        });
-    }
     
     // 处理删除操作，复用 useClipOperate 的逻辑
     const activeTabValue =
@@ -1092,7 +1075,6 @@ const handleItemDelete = (item, metadata = {}) => {
             return;
         }
         // 在"收藏"标签页：不允许删除，只能取消收藏
-        resetDeleteAnchor();
         ElMessage({
             message: "收藏内容不允许删除，请先取消收藏",
             type: "warning",
@@ -1100,7 +1082,6 @@ const handleItemDelete = (item, metadata = {}) => {
         return;
     } else if (isCollected) {
         // 在其他标签页删除已收藏项目：不允许删除（收藏数据单独存储）
-        resetDeleteAnchor();
         ElMessage({
             message: "已收藏项目不允许删除，请先取消收藏",
             type: "warning",
@@ -1113,6 +1094,7 @@ const handleItemDelete = (item, metadata = {}) => {
         window.remove(item, { force });
         if (isLast) {
             handleDataRemove();
+            adjustActiveIndexAfterDelete(currentActiveIndex);
         }
 
         return;
