@@ -1,5 +1,8 @@
 # <tool> Prompts
 
+* 记住: 你的<tool> 就是你的应用本身, 如codex | windsurf | cursor | zed | opencode | claude 
+* feature-id 即为 让你去理解的 原始需求 所在的目录
+
 ## 1. 生成 Spec
 ```text
 进入 Plan Mode。
@@ -18,7 +21,7 @@
 6. 如果我只给出一句 feature 描述，你要主动补齐可验证的 Spec 结构，而不是直接进入 Plan
 
 输出要求：
-- 先单独给出你识别出的 feature-id
+- 要核验当前需求是否符合当前代码实际情况, 并详细确认存在的问题(即使代码看起来没问题, 但用户提出说明可能是有bug)
 - 直接输出可落盘的 Markdown
 - 表述必须可验证，避免空泛措辞
 ```
@@ -30,11 +33,10 @@
 我只会给你一个 feature 名称或一句话目标。
 
 要求：
-1. 先推导 feature-id
-2. 判断当前信息是否足以写完整 Spec
-3. 如果不足，先反问最关键的 1~3 个问题
-4. 在信息足够后，只输出 `specs/<feature-id>/<tool>/01-spec.md`
-5. 不进入实现和 Plan 阶段
+1. 判断当前信息是否足以写完整 Spec
+2. 如果不足，先反问最关键的 1~3 个问题
+3. 在信息足够后，只输出 `specs/<feature-id>/<tool>/01-spec.md`
+4. 不进入实现和 Plan 阶段
 ```
 
 ## 2. 生成 Plan

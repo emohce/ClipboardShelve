@@ -8,10 +8,11 @@
   - 生成正式 `01-spec.md`
   - 等待后续指令再进入 `plan / tasks / implement / verify`
 - 使用<tool>表示你的工具名
+* 记住: 你的<tool> 就是你的应用本身, 如codex | windsurf | cursor | zed | opencode | claude
+* feature-id 即为 让你去理解的 原始需求 所在的目录
 
 ## 使用方式
 - 替换以下占位项 ：
-  - `<Cursor|Windsurf|Codex>`
   - `<我提供的功能标题>`
   - `<我提供的原始需求文档路径>`
   - `<可留空，如果我没给你就由你生成>`
