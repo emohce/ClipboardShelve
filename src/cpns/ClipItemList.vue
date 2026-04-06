@@ -548,7 +548,6 @@ const stopImagePreview = (immediate = false) => {
 // 图片数据验证
 onUnmounted(() => {
     desktopPreviewManager.closeAllPreviews();
-    stopKeyHold(); // 清理长按检测定时器
 });
 
 const hideImagePreview = () => {
@@ -810,9 +809,11 @@ const closeExternalPreview = () => {
         try {
             externalPreviewWindow.close();
         } catch (e) {}
+        externalPreviewWindow = null;
+        focusUtoolsMainWindow();
+    } else {
+        externalPreviewWindow = null;
     }
-    externalPreviewWindow = null;
-    focusUtoolsMainWindow();
 };
 
 const expandPreviewWindow = (maxWidth, maxHeight) => {
