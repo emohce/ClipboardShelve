@@ -60,9 +60,7 @@
     box-shadow: none;
     cursor: pointer;
     position: relative;
-    transition:
-      background-color 0.1s ease,
-      border-color 0.1s ease;
+    transition: border-color 0.1s ease;
     &:hover {
       transform: none;
       border-color: @border-color-strong;
@@ -74,34 +72,23 @@
       border: 1px solid @border-color;
       border-left: 3px solid @primary-color;
       background-color: fade(@primary-color, 7%);
-      box-shadow: none;
+      box-shadow: 0 0 0 1px fade(@primary-color, 12%);
       z-index: 2;
     }
     &.multi-active {
       border: 1px solid @border-color;
       border-left: 3px solid fade(@primary-color, 75%);
       background-color: fade(@primary-color, 5%);
-      box-shadow: none;
+      box-shadow: 0 0 0 1px fade(@primary-color, 10%);
       z-index: 1;
     }
     &.select {
-      background: fade(@primary-color, 5%);
-      border-color: fade(@primary-color, 28%);
+      background: fade(@text-color, 5%);
+      border-color: @border-color-strong;
       box-shadow: none;
       transform: none;
       position: relative;
       z-index: 1;
-
-      &::before {
-        content: "";
-        position: absolute;
-        left: 0;
-        top: 8px;
-        bottom: 8px;
-        width: 2px;
-        background: fade(@primary-color, 55%);
-        border-radius: 1px;
-      }
 
       &:hover {
         transform: none;
@@ -111,28 +98,23 @@
 
     &.active.select,
     &.multi-active.select {
-      background: fade(@primary-color, 8%);
-      border-color: fade(@primary-color, 32%);
-      box-shadow: none;
+      border: 1px solid fade(@primary-color, 30%);
+      border-left: 3px solid @primary-color;
+      background-color: fade(@primary-color, 9%);
+      box-shadow: 0 0 0 1px fade(@primary-color, 14%);
       transform: none;
       position: relative;
       z-index: 2;
 
-      &::before {
-        content: "";
-        position: absolute;
-        left: 0;
-        top: 6px;
-        bottom: 6px;
-        width: 3px;
-        background: @primary-color;
-        border-radius: 1px;
-      }
-
       &:hover {
         transform: none;
-        box-shadow: none;
+        box-shadow: 0 0 0 1px fade(@primary-color, 14%);
       }
+    }
+
+    &.multi-active.select {
+      border-left: 3px solid fade(@primary-color, 78%);
+      background-color: fade(@primary-color, 7%);
     }
 
     &.clip-item--compact {
@@ -230,6 +212,21 @@
         max-width: 100%;
         overflow: hidden;
         white-space: nowrap;
+        .clip-multi-check {
+          flex-shrink: 0;
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+          width: 17px;
+          height: 17px;
+          border-radius: 4px;
+          border: 1px solid @border-color-strong;
+          background: fade(@text-color, 5%);
+          color: @primary-color;
+          font-size: 11px;
+          font-weight: 700;
+          line-height: 1;
+        }
         .clip-status-icons {
           display: inline-flex;
           align-items: center;

@@ -19,6 +19,12 @@
         <div class="clip-info">
             <div class="clip-time">
                 <span
+                    v-if="isMultiple && isSelected"
+                    class="clip-multi-check"
+                    aria-hidden="true"
+                    >✓</span
+                >
+                <span
                     v-if="isCollected || item.locked"
                     class="clip-status-icons"
                 >
