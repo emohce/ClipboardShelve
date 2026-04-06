@@ -124,10 +124,6 @@ const copyAndPasteAndExit = (item, options = {}) => {
   copy(item, exit)
   paste()
 
-  if (exit && typeof utools.outPlugin === 'function') {
-    setTimeout(() => utools.outPlugin(), 30)
-  }
-
   return true
 }
 

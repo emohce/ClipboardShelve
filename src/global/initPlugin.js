@@ -99,12 +99,21 @@ export default async function initPlugin() {
   
   // 防抖写磁盘定时器
   let dbWriteTimer = null
+  const flushPendingDbToDisk = () => {
+    if (dbWriteTimer) {
+      clearTimeout(dbWriteTimer)
+      dbWriteTimer = null
+    }
+    if (db) {
+      db.updateDataBaseLocal(undefined, { immediate: true })
+    }
+  }
   const debouncedWriteLocal = () => {
     if (dbWriteTimer) clearTimeout(dbWriteTimer)
     dbWriteTimer = setTimeout(() => {
+      dbWriteTimer = null
       if (db) {
-        db.updateDataBaseLocal()
-        dbWriteTimer = null
+        db.updateDataBaseLocal(undefined, { immediate: true })
       }
     }, 300)
   }
@@ -1316,6 +1325,13 @@ export default async function initPlugin() {
   console.log('[initPlugin] 插件初始化完成')
 
   window.db = db
+  const onWindowMayHide = () => {
+    if (document.visibilityState === 'hidden') {
+      flushPendingDbToDisk()
+    }
+  }
+  document.addEventListener('visibilitychange', onWindowMayHide)
+  window.addEventListener('pagehide', flushPendingDbToDisk)
   window.copy = copy
   window.paste = paste
   window.remove = remove

@@ -43,6 +43,7 @@
 | id | type | symptoms | affected_paths | trigger_keywords | wrong_paths | confirmed_path | decision_rule | record_link |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- |
 | EM-2026-04-06-scroll-path | `runtime-path-mismatch`, `framework-misuse`, `repeated-trial` | `active` 正常、鼠标滚轮正常、程序性自动滚动无效 | `src/cpns/ClipItemList.vue`, `src/hooks/useVirtualListScroll.js`, `src/style/cpns/clip-item-list.less` | `scroll`, `active`, `scrollTop`, `scrollToIndex`, `scrollIntoView`, `uTools` | 虚拟列表 `scrollToIndex(center)`、手动 `scrollTop`、阈值微调 | 普通列表 + 目标节点原生 `scrollIntoView()` | 若“用户手动滚动正常但程序滚动异常”，优先检查真实滚动祖先和原生 DOM 通路，不先调策略阈值 | [EM-2026-04-06-scroll-path](../docs/ai-error-memory/2026-04-06-scroll-path.md) |
+| EM-2026-04-06-json-db-debounce-persist | `framework-misuse` | 删除/改库后会话内正确，重进插件后数据回退 | `src/global/initPlugin.js` | `updateDataBaseLocal`, `debouncedWriteLocal`, `writeFileSync`, 重启, JSON | 误以为内存变更即已持久化 | 防抖到期时 `updateDataBaseLocal(undefined, { immediate: true })` 真正写盘 | 若“界面已更新但重进丢失”，先查 JSON 防抖落盘是否进入 `immediate` 分支 | [EM-2026-04-06-json-db-debounce-persist](../docs/ai-error-memory/2026-04-06-json-db-debounce-persist.md) |
 
 ## 记录模板
 ```md

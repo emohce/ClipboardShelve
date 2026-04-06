@@ -118,17 +118,22 @@
     <div
         v-if="textPreview.show"
         class="text-preview-modal"
-        :style="textPreview.style"
         @mouseenter="keepTextPreview"
         @mouseleave="hideTextPreview"
     >
         <div
-            class="text-preview-content"
+            class="text-preview-panel"
             :class="{ 'is-single-line': textPreview.isSingleLine }"
-            :style="textPreview.contentStyle"
-            ref="textPreviewContentRef"
+            :style="textPreview.panelStyle"
         >
-            {{ textPreview.text }}
+            <div
+                class="text-preview-content"
+                :class="{ 'is-single-line': textPreview.isSingleLine }"
+                :style="textPreview.contentStyle"
+                ref="textPreviewContentRef"
+            >
+                {{ textPreview.text }}
+            </div>
         </div>
     </div>
 
@@ -268,32 +273,59 @@ const buildImagePreviewFooter = (footerText = "", canScrollX = false, canScrollY
 
 const applyImagePreviewLayout = (naturalWidth, naturalHeight) => {
     if (!naturalWidth || !naturalHeight) return;
-    const { availableWidth, availableHeight } = getImagePreviewMetrics();
+    
+    // 获取右侧预览区域的可用尺寸
+    const viewportWidth = window.innerWidth;
+    const viewportHeight = window.innerHeight;
+    const mainListWidth = Math.min(520, viewportWidth * 0.15);
+    const gap = 0;
+    const availableWidth = Math.max(viewportWidth - mainListWidth - gap, 0);
+    const availableHeight = Math.max(viewportHeight, 0);
+    
+    // 计算等比例缩放
     const scaleByWidth = availableWidth / naturalWidth;
     const scaleByHeight = availableHeight / naturalHeight;
     const fitScale = Math.min(scaleByWidth, scaleByHeight);
+    
+    // 计算各种缩放方案下的显示尺寸
     const fitDisplayWidth = naturalWidth * fitScale;
     const fitDisplayHeight = naturalHeight * fitScale;
-    const fitWidthUsage = availableWidth ? fitDisplayWidth / availableWidth : 0;
-    const fitHeightUsage = availableHeight ? fitDisplayHeight / availableHeight : 0;
-    const shouldPreferFullView =
-        fitScale >= 1 || (fitWidthUsage >= 0.58 && fitHeightUsage >= 0.58);
-
-    let displayWidth = fitDisplayWidth;
-    let displayHeight = fitDisplayHeight;
-    let canScrollX = false;
-    let canScrollY = false;
-
-    if (!shouldPreferFullView) {
+    
+    // 按宽度填满时的尺寸
+    const widthFillScale = scaleByWidth;
+    const widthFillHeight = naturalHeight * widthFillScale;
+    
+    // 判断是否超出可用区域以及超出比例
+    const widthOverflowRatio = naturalWidth > availableWidth 
+        ? (naturalWidth - availableWidth) / naturalWidth 
+        : 0;
+    const heightOverflowRatio = naturalHeight > availableHeight 
+        ? (naturalHeight - availableHeight) / naturalHeight 
+        : 0;
+    
+    // 策略：如果图片任何一维超出不超过10%，则缩小展示全部；否则按宽度填满可能需要滚动
+    const maxOverflowRatio = Math.max(widthOverflowRatio, heightOverflowRatio);
+    const shouldShowFull = maxOverflowRatio <= 0.10; // 10% 阈值
+    
+    let displayWidth, displayHeight, canScrollX, canScrollY, layoutMode;
+    
+    if (shouldShowFull || fitScale >= 1) {
+        // 缩小展示全部或原图小于可用区域
+        displayWidth = fitDisplayWidth;
+        displayHeight = fitDisplayHeight;
+        canScrollX = false;
+        canScrollY = false;
+        layoutMode = "centered";
+    } else {
+        // 按宽度填满，可能需要垂直滚动
         displayWidth = availableWidth;
-        displayHeight = naturalHeight * scaleByWidth;
+        displayHeight = widthFillHeight;
         canScrollX = displayWidth > availableWidth;
         canScrollY = displayHeight > availableHeight;
+        layoutMode = canScrollY ? "fit-width-scroll" : "centered";
     }
-
-    const isCentered = !canScrollY;
-
-    imagePreview.value.layoutMode = isCentered ? "centered" : "fit-width-scroll";
+    
+    imagePreview.value.layoutMode = layoutMode;
     imagePreview.value.canScrollX = canScrollX;
     imagePreview.value.canScrollY = canScrollY;
     imagePreview.value.hint = getImagePreviewHint(canScrollX, canScrollY);
@@ -429,7 +461,13 @@ const showImagePreview = (event, item, footerText = "") => {
         imagePreviewHideTimer = null;
     }
 
-    const { viewportWidth, viewportHeight } = getImagePreviewMetrics();
+    // 计算预览窗口尺寸：右侧区域，预留主列表滚动条空间
+    const viewportWidth = window.innerWidth;
+    const viewportHeight = window.innerHeight;
+    const mainListWidth = Math.min(520, viewportWidth * 0.15); // 主列表区域宽度
+    const gap = 0; // 与主列表的间距
+    const previewWidth = viewportWidth - mainListWidth - gap;
+    const previewHeight = viewportHeight;
     
     imagePreview.value.src = src;
     const footerMeta = buildImagePreviewFooter(footerText);
@@ -442,25 +480,24 @@ const showImagePreview = (event, item, footerText = "") => {
     imagePreview.value.canScrollY = false;
     imagePreview.value.contentStyle = {};
     
+    // 右侧预览窗口样式
     imagePreview.value.style = {
         position: "fixed",
         top: "0",
-        left: "0",
         right: "0",
+        left: `${mainListWidth + gap}px`,
         bottom: "0",
         zIndex: 9999,
-        backgroundColor: "rgba(0, 0, 0, 0.8)",
+        backgroundColor: "rgba(0, 0, 0, 0.85)",
         borderRadius: "0",
-        padding: "20px",
-        boxShadow: "none",
-        maxWidth: `${viewportWidth}px`,
-        maxHeight: `${viewportHeight}px`,
+        padding: "0px",
+        boxShadow: "-4px 0 24px rgba(0, 0, 0, 0.4)",
         display: "flex",
         flexDirection: "column",
         alignItems: "center",
         justifyContent: "center",
         overflow: "hidden",
-        outline: "none", // 移除焦点轮廓
+        outline: "none",
     };
     
     imagePreview.value.imageStyle = {
@@ -914,6 +951,7 @@ const clearTextPreviewImmediately = () => {
     textPreview.value.show = false;
     textPreview.value.text = "";
     textPreview.value.isSingleLine = false;
+    textPreview.value.panelStyle = {};
     textPreview.value.contentStyle = {};
 };
 
@@ -927,37 +965,15 @@ const showTextPreview = (item) => {
         clearTimeout(textPreviewHideTimer);
         textPreviewHideTimer = null;
     }
-    // 文字预览半透明黑色背景，居中显示
     const maxW = window.innerWidth;
-    const maxH = window.innerHeight;
     const text = item.data || "";
     const isSingleLine = !text.includes("\n");
     textPreview.value.text = text;
     textPreview.value.isSingleLine = isSingleLine;
     textPreview.value.show = true;
-    textPreview.value.style = {
-        position: "fixed",
-        top: "50%",
-        left: "50%",
-        transform: "translate(-50%, -50%)",
-        zIndex: 9999,
-        background:
-            isSingleLine
-                ? "linear-gradient(180deg, rgba(18, 23, 31, 0.94) 0%, rgba(11, 15, 22, 0.92) 100%)"
-                : "rgba(10, 14, 20, 0.9)",
-        border: "1px solid rgba(255, 255, 255, 0.12)",
-        borderRadius: isSingleLine ? "14px" : "12px",
-        padding: "24px 28px",
-        boxShadow: "0 18px 48px rgba(0, 0, 0, 0.34)",
-        backdropFilter: "blur(12px)",
+    textPreview.value.panelStyle = {
         width: `${maxW * 0.9}px`,
         maxWidth: `${maxW * 0.9}px`,
-        maxHeight: `${maxH * 0.8}px`,
-        display: "flex",
-        alignItems: "center",
-        fontSize: "14px",
-        lineHeight: "1.5",
-        color: "#e8e6e3",
     };
     textPreview.value.contentStyle = isSingleLine
         ? {
@@ -967,15 +983,14 @@ const showTextPreview = (item) => {
               textOverflow: "ellipsis",
               fontSize: "15px",
               letterSpacing: "0.01em",
-              color: "#f3f7ff",
+              color: "var(--text-color)",
           }
         : {
               width: "100%",
-              maxHeight: `${maxH * 0.8 - 48}px`,
               overflowY: "auto",
               whiteSpace: "pre-wrap",
               wordBreak: "break-word",
-              color: "#e8edf8",
+              color: "var(--text-color)",
           };
 
     nextTick(() => {
@@ -990,6 +1005,7 @@ const hideTextPreview = () => {
     textPreview.value.show = false;
     textPreview.value.text = "";
     textPreview.value.isSingleLine = false;
+    textPreview.value.panelStyle = {};
     textPreview.value.contentStyle = {};
 };
 
@@ -1217,7 +1233,7 @@ const handleVirtualScroll = () => {
 const textPreview = ref({
     show: false,
     text: "",
-    style: {},
+    panelStyle: {},
     contentStyle: {},
     isSingleLine: false,
 });
@@ -2389,19 +2405,66 @@ onUnmounted(() => {
 }
 
 .text-preview-modal {
+    position: fixed;
+    inset: 0;
+    z-index: 9999;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 16px;
+    box-sizing: border-box;
+    background: transparent;
     overflow: hidden;
+
+    /* 灰色遮罩约 95% 不透明度，仅包住文本区域；超长时由 max-height + 内部滚动承担 */
+    .text-preview-panel {
+        display: flex;
+        flex-direction: column;
+        align-items: stretch;
+        box-sizing: border-box;
+        padding: 24px 28px;
+        min-height: 0;
+        max-height: 80vh;
+        width: auto;
+        border-radius: 12px;
+        border: 1px solid rgba(100, 110, 128, 0.55);
+        box-shadow: 0 12px 36px rgba(0, 0, 0, 0.2);
+        font-size: 14px;
+        line-height: 1.5;
+        background: rgba(118, 124, 138, 0.95);
+
+        &.is-single-line {
+            border-radius: 14px;
+        }
+    }
 
     .text-preview-content {
         white-space: pre-wrap;
         word-break: break-word;
-        max-height: inherit;
         width: 100%;
+        min-height: 0;
+        -webkit-font-smoothing: antialiased;
+
+        &:not(.is-single-line) {
+            flex: 0 1 auto;
+            max-height: calc(80vh - 56px);
+            overflow-y: auto;
+        }
 
         &.is-single-line {
             overflow: hidden;
             white-space: nowrap;
             text-overflow: ellipsis;
+            flex: none;
         }
+    }
+}
+
+@media (prefers-color-scheme: dark) {
+    .text-preview-modal .text-preview-panel {
+        background: rgba(48, 54, 68, 0.95);
+        border-color: rgba(200, 210, 230, 0.28);
+        box-shadow: 0 14px 40px rgba(0, 0, 0, 0.45);
     }
 }
 
@@ -2410,14 +2473,16 @@ onUnmounted(() => {
         flex: 1;
         min-height: 0;
         width: 100%;
-        overflow-y: auto; // 启用垂直滚动
-        overflow-x: auto; // 启用水平滚动以防过宽图片
-        scrollbar-width: thin; // 细滚动条
+        overflow-y: auto;
+        overflow-x: auto;
+        scrollbar-width: thin;
         scrollbar-color: rgba(255, 255, 255, 0.3) transparent;
+        // 使用 transform 将滚动条移到左侧和上侧
+        transform: rotate(180deg);
         
         &::-webkit-scrollbar {
-            width: 8px;
-            height: 8px;
+            width: 6px;
+            height: 6px;
         }
         
         &::-webkit-scrollbar-track {
@@ -2426,7 +2491,7 @@ onUnmounted(() => {
         
         &::-webkit-scrollbar-thumb {
             background: rgba(255, 255, 255, 0.3);
-            border-radius: 4px;
+            border-radius: 3px;
             
             &:hover {
                 background: rgba(255, 255, 255, 0.5);
@@ -2438,6 +2503,8 @@ onUnmounted(() => {
         width: 100%;
         display: flex;
         justify-content: center;
+        // 再旋转回来保持正常显示
+        transform: rotate(180deg);
 
         &.is-centered {
             align-items: center;
