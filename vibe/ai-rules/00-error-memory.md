@@ -30,7 +30,7 @@
 - 命中记录时，必须先阅读正文，再决定方案。
 - 若连续两次修复都未命中真实通路，禁止继续同方向微调，必须回到“确认真实运行通路”。
 - 已证伪方案除非有新证据，否则禁止重复尝试。
-- 发现新的失败模式时，必须补充或更新 `docs/ai-error-memory/` 的记录与索引。
+- 发现新的失败模式时，必须补充或更新 `vibe/vibe-doc/ai-error-memory/` 的记录与索引。
 - 如果本次任务命中了历史记录，`plan`、`verify`、最终说明都要写明“采用 / 规避了什么”。
 
 ## 处理优先级
@@ -42,9 +42,9 @@
 ## 记录索引
 | id | type | symptoms | affected_paths | trigger_keywords | wrong_paths | confirmed_path | decision_rule | record_link |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| EM-2026-04-06-hideMainWindow-showMainWindow-api-race | `runtime-path-mismatch`, `environment-assumption` | `hideMainWindow` 后主窗口再次弹出、自动粘贴落点错误 | `src/cpns/ClipItemList.vue`, `src/utils/index.js` | `hideMainWindow`, `showMainWindow`, `closeExternalPreview`, `blur`, `simulateKeyboardTap`, `paste` | 未确认 `showMainWindow` 调用栈即调粘贴时机或延迟 | `blur` → `stopImagePreview` → `closeExternalPreview`；仅在实际关闭外部预览后再 `focusUtoolsMainWindow` | 若出现 hide 后立即 show，先用 trace 查是否 `closeExternalPreview` 无条件聚焦 | [EM-2026-04-06-hideMainWindow-showMainWindow-api-race](../docs/ai-error-memory/2026-04-06-hideMainWindow-showMainWindow-api-race.md) |
-| EM-2026-04-06-scroll-path | `runtime-path-mismatch`, `framework-misuse`, `repeated-trial` | `active` 正常、鼠标滚轮正常、程序性自动滚动无效 | `src/cpns/ClipItemList.vue`, `src/hooks/useVirtualListScroll.js`, `src/style/cpns/clip-item-list.less` | `scroll`, `active`, `scrollTop`, `scrollToIndex`, `scrollIntoView`, `uTools` | 虚拟列表 `scrollToIndex(center)`、手动 `scrollTop`、阈值微调 | 普通列表 + 目标节点原生 `scrollIntoView()` | 若“用户手动滚动正常但程序滚动异常”，优先检查真实滚动祖先和原生 DOM 通路，不先调策略阈值 | [EM-2026-04-06-scroll-path](../docs/ai-error-memory/2026-04-06-scroll-path.md) |
-| EM-2026-04-06-json-db-debounce-persist | `framework-misuse` | 删除/改库后会话内正确，重进插件后数据回退 | `src/global/initPlugin.js` | `updateDataBaseLocal`, `debouncedWriteLocal`, `writeFileSync`, 重启, JSON | 误以为内存变更即已持久化 | 防抖到期时 `updateDataBaseLocal(undefined, { immediate: true })` 真正写盘 | 若“界面已更新但重进丢失”，先查 JSON 防抖落盘是否进入 `immediate` 分支 | [EM-2026-04-06-json-db-debounce-persist](../docs/ai-error-memory/2026-04-06-json-db-debounce-persist.md) |
+| EM-2026-04-06-hideMainWindow-showMainWindow-api-race | `runtime-path-mismatch`, `environment-assumption` | `hideMainWindow` 后主窗口再次弹出、自动粘贴落点错误 | `src/cpns/ClipItemList.vue`, `src/utils/index.js` | `hideMainWindow`, `showMainWindow`, `closeExternalPreview`, `blur`, `simulateKeyboardTap`, `paste` | 未确认 `showMainWindow` 调用栈即调粘贴时机或延迟 | `blur` → `stopImagePreview` → `closeExternalPreview`；仅在实际关闭外部预览后再 `focusUtoolsMainWindow` | 若出现 hide 后立即 show，先用 trace 查是否 `closeExternalPreview` 无条件聚焦 | [EM-2026-04-06-hideMainWindow-showMainWindow-api-race](../vibe-doc/ai-error-memory/2026-04-06-hideMainWindow-showMainWindow-api-race.md) |
+| EM-2026-04-06-scroll-path | `runtime-path-mismatch`, `framework-misuse`, `repeated-trial` | `active` 正常、鼠标滚轮正常、程序性自动滚动无效 | `src/cpns/ClipItemList.vue`, `src/hooks/useVirtualListScroll.js`, `src/style/cpns/clip-item-list.less` | `scroll`, `active`, `scrollTop`, `scrollToIndex`, `scrollIntoView`, `uTools` | 虚拟列表 `scrollToIndex(center)`、手动 `scrollTop`、阈值微调 | 普通列表 + 目标节点原生 `scrollIntoView()` | 若“用户手动滚动正常但程序滚动异常”，优先检查真实滚动祖先和原生 DOM 通路，不先调策略阈值 | [EM-2026-04-06-scroll-path](../vibe-doc/ai-error-memory/2026-04-06-scroll-path.md) |
+| EM-2026-04-06-json-db-debounce-persist | `framework-misuse` | 删除/改库后会话内正确，重进插件后数据回退 | `src/global/initPlugin.js` | `updateDataBaseLocal`, `debouncedWriteLocal`, `writeFileSync`, 重启, JSON | 误以为内存变更即已持久化 | 防抖到期时 `updateDataBaseLocal(undefined, { immediate: true })` 真正写盘 | 若“界面已更新但重进丢失”，先查 JSON 防抖落盘是否进入 `immediate` 分支 | [EM-2026-04-06-json-db-debounce-persist](../vibe-doc/ai-error-memory/2026-04-06-json-db-debounce-persist.md) |
 
 ## 记录模板
 ```md
@@ -63,7 +63,6 @@
 ```
 
 ## 维护规则
-- 索引表只保留高信号摘要，完整复盘放到 `docs/ai-error-memory/`。
 - 新记录必须同步更新索引，否则视为未沉淀。
 - 旧记录失效时，要在索引和正文里明确标注替代方案。
 - 没有形成可复用结论的临时试错，不写入索引。

@@ -5,7 +5,7 @@
 
 ## 输入前置
 - 先阅读 [`ai-rules/00-error-memory.md`](00-error-memory.md) 并检索是否命中历史失败模式。
-- 先阅读 [`docs/glossary.md`](../docs/glossary.md) 中涉及的领域术语，避免词义漂移。
+- 先阅读 [`vibe/vibe-doc/glossary.md`](../vibe-doc/glossary.md) 中涉及的领域术语，避免词义漂移。
 - 若任务与历史失败模式相似，`spec` 必须写明“历史误区与本次排除项”。
 
 ## 输出结构

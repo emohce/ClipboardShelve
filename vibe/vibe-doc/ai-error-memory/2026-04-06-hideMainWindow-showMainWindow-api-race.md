@@ -28,12 +28,12 @@
 
 ## 8. 推荐优先策略
 - 仅在**确实存在且被关闭**的外部预览窗口后，再调用 `focusUtoolsMainWindow`；否则只清空 `externalPreviewWindow` 引用。
-- 排查时用文档 [`docs/troubleshoot-paste-and-popup.md`](../troubleshoot-paste-and-popup.md) §6 的 trace 确认 `hide`/`show`/`tap` 顺序。
+- 排查时用文档 [`docs/troubleshoot-paste-and-popup.md`](../../docs/troubleshoot-paste-and-popup.md) §6 的 trace 确认 `hide`/`show`/`tap` 顺序。
 
 ## 9. 关联文件 / 模块
 - [`src/cpns/ClipItemList.vue`](../../src/cpns/ClipItemList.vue)：`closeExternalPreview`、`handleWindowBlur`
 - [`src/utils/index.js`](../../src/utils/index.js)：`copyAndPasteAndExit`、`copy`、`paste`
-- [`docs/troubleshoot-paste-and-popup.md`](../troubleshoot-paste-and-popup.md)
+- [`docs/troubleshoot-paste-and-popup.md`](../../docs/troubleshoot-paste-and-popup.md)
 
 ## 10. 后续观察点
 - 用户长期打开独立外部预览窗口的场景：关闭预览后仍需聚焦主窗口的行为是否与预期一致。

@@ -47,7 +47,7 @@
 | [`src/cpns/ClipItemList.vue`](../../../src/cpns/ClipItemList.vue) | `handleMouseOver` 条件；图片样式与 load 后尺寸；`handleImagePreviewKeydown` 四方向；`showTextPreview` 单行/多行分支；扩展 `text-preview-scroll-*` 注册逻辑；必要时模板增加包裹层 ref |
 | [`src/global/hotkeyBindings.js`](../../../src/global/hotkeyBindings.js) | 新增 `shift+ArrowLeft`、`shift+ArrowRight` 与 feature 列表 |
 | [`src/global/hotkeyLabels.js`](../../../src/global/hotkeyLabels.js) | 为新 feature 增加用户可见说明（若项目要求与现有 `text-preview` 标签一致） |
-| [`specs/0001-preview/cursor/04-verify.md`](04-verify.md) | 实现阶段按 [`05-verification-checklist.md`](../../../ai-rules/05-verification-checklist.md) 记录验证项 |
+| [`specs/0001-preview/cursor/04-verify.md`](04-verify.md) | 实现阶段按 [`vibe/ai-rules/05-verification-checklist.md`](../../../vibe/ai-rules/05-verification-checklist.md) 记录验证项 |
 
 不涉及 [`public/plugin.json`](../../../public/plugin.json)、preload、listener，除非验证中发现热键层冲突。
 

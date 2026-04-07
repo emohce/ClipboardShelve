@@ -25,4 +25,4 @@
 - 后续约束
 
 ## 模板
-- 参见 [`docs/adr/_template.md`](./_template.md)
+- 参见 [`_template.md`](./_template.md)

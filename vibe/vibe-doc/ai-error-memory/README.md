@@ -20,4 +20,4 @@
 - 每条记录都要写明“禁止再试的做法”和“推荐优先策略”。
 
 ## 模板
-- 参见 [`docs/ai-error-memory/_template.md`](./_template.md)
+- 参见 [`_template.md`](./_template.md)

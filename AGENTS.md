@@ -1,36 +1,36 @@
 # EzClipboard Agent Guide
 
 ## 1. Read First
-- `ai-rules/00-error-memory.md`
-- `ai-rules/00-writing-style.md`
-- `docs/glossary.md`
-- `docs/workflow/task-levels.md`
-- `docs/workflow/evidence-levels.md`
-- `docs/workflow/dod.md`
-- `ai-rules/01-spec-extraction.md`
-- `ai-rules/02-architecture-planning.md`
-- `ai-rules/03-task-decomposition.md`
-- `ai-rules/04-implementation-constraints.md`
-- `ai-rules/05-verification-checklist.md`
-- `ai-rules/06-change-log-format.md`
-- `docs/adr/README.md`
+- `vibe/ai-rules/00-error-memory.md`
+- `vibe/ai-rules/00-writing-style.md`
+- `vibe/vibe-doc/glossary.md`
+- `vibe/vibe-doc/workflow/task-levels.md`
+- `vibe/vibe-doc/workflow/evidence-levels.md`
+- `vibe/vibe-doc/workflow/dod.md`
+- `vibe/ai-rules/01-spec-extraction.md`
+- `vibe/ai-rules/02-architecture-planning.md`
+- `vibe/ai-rules/03-task-decomposition.md`
+- `vibe/ai-rules/04-implementation-constraints.md`
+- `vibe/ai-rules/05-verification-checklist.md`
+- `vibe/ai-rules/06-change-log-format.md`
+- `vibe/vibe-doc/adr/README.md`
 - `src/global/README.md`
 - `src/cpns/README.md`
 - `public/README.md`
 
 ## 2. Core Workflow
 - 复杂任务默认遵循 `spec -> plan -> tasks -> implement -> verify -> knowledge-capture`。
-- 先按 [`docs/workflow/task-levels.md`](docs/workflow/task-levels.md) 判断任务等级，再决定需要的流程深度。
+- 先按 [`vibe/vibe-doc/workflow/task-levels.md`](vibe/vibe-doc/workflow/task-levels.md) 判断任务等级，再决定需要的流程深度。
 - 没有 `01-spec.md` 和 `02-plan.md` 的复杂任务，不直接进入实现。
 - 单次实现只处理一个当前任务，避免把多个未验证子问题混在一次改动里。
 - 所有长期规则、经验、决策都必须落盘到仓库，不能只停留在聊天记录。
-- 进入实现前，必须按“模块路径 + 症状关键词 + 关键 API + 运行环境”检索 [`ai-rules/00-error-memory.md`](ai-rules/00-error-memory.md)。
-- 关键判断要按 [`docs/workflow/evidence-levels.md`](docs/workflow/evidence-levels.md) 标注证据等级，避免把猜测写成结论。
+- 进入实现前，必须按“模块路径 + 症状关键词 + 关键 API + 运行环境”检索 [`vibe/ai-rules/00-error-memory.md`](vibe/ai-rules/00-error-memory.md)。
+- 关键判断要按 [`vibe/vibe-doc/workflow/evidence-levels.md`](vibe/vibe-doc/workflow/evidence-levels.md) 标注证据等级，避免把猜测写成结论。
 - 命中错误记录时，必须先阅读对应正文，再决定是否沿用、规避或替换方案。
 - 若连续两次修复都未命中真实通路，禁止继续同方向微调，必须回到“确认真实运行通路”步骤。
 - 遇到已证伪方案，除非出现新证据，否则禁止重复尝试。
-- 发现新的失败模式时，必须新增或更新 `docs/ai-error-memory/` 中的记录，并同步更新索引。
-- 发现新的长期设计取舍时，必须新增或更新 `docs/adr/` 中的决策记录。
+- 发现新的失败模式时，必须新增或更新 `vibe/vibe-doc/ai-error-memory/` 中的记录，并同步更新索引。
+- 发现新的长期设计取舍时，必须新增或更新 `vibe/vibe-doc/adr/` 中的决策记录。
 
 ## 3. Encoding And Language
 - 仓库内新增或重写的规则文档、`spec`、`plan`、`tasks`、`verify`、复盘、ADR 统一使用 `UTF-8` 编码。
@@ -52,9 +52,9 @@
 - `src/hooks/`, `src/utils/`: 可复用逻辑与工具能力。
 - `src/style/`: `less` 样式。
 - `public/`: `uTools` 插件静态资源与入口脚本。
-- `docs/ai-error-memory/`: 跨需求、跨模块错误复盘与经验记录。
-- `docs/adr/`: 长期设计决策与取舍记录。
-- `docs/glossary.md`: 领域术语表。
+- `vibe/vibe-doc/ai-error-memory/`: 跨需求、跨模块错误复盘与经验记录。
+- `vibe/vibe-doc/adr/`: 长期设计决策与取舍记录。
+- `vibe/vibe-doc/glossary.md`: 领域术语表。
 - `dist/`: 构建产物，不手改。
 
 ## 6. High-Risk Areas
@@ -72,11 +72,11 @@
 
 ## 8. Knowledge Capture
 - 每次任务结束前，必须判断是否需要更新以下内容：
-- `docs/ai-error-memory/`: 新失败模式、新证伪路径、新确认通路。
-- `docs/adr/`: 新的长期技术取舍、架构决策、约束变更。
-- `docs/glossary.md`: 新术语、旧术语歧义、跨模块统一定义。
+- `vibe/vibe-doc/ai-error-memory/`: 新失败模式、新证伪路径、新确认通路。
+- `vibe/vibe-doc/adr/`: 新的长期技术取舍、架构决策、约束变更。
+- `vibe/vibe-doc/glossary.md`: 新术语、旧术语歧义、跨模块统一定义。
 - 若本次没有新增知识，也要在最终说明中明确“未产生新的错误记录 / ADR / 术语更新”。
-- 交付前必须满足 [`docs/workflow/dod.md`](docs/workflow/dod.md) 的 `Definition of Done`。
+- 交付前必须满足 [`vibe/vibe-doc/workflow/dod.md`](vibe/vibe-doc/workflow/dod.md) 的 `Definition of Done`。
 
 ## 9. Commands
 - install: `pnpm install`

@@ -21,5 +21,5 @@
 - 若要重新引入虚拟列表，必须先补性能证据，并重新验证真实滚动祖先与焦点通路。
 
 ## 关联文件
-- [src/cpns/ClipItemList.vue](../../src/cpns/ClipItemList.vue)
-- [src/hooks/useVirtualListScroll.js](../../src/hooks/useVirtualListScroll.js)
+- [src/cpns/ClipItemList.vue](../../../src/cpns/ClipItemList.vue)
+- [src/hooks/useVirtualListScroll.js](../../../src/hooks/useVirtualListScroll.js)
