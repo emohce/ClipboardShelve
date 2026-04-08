@@ -7,6 +7,7 @@
         @keydown="handleKeyDown"
         @beforeinput="onBeforeInput"
         @compositionstart="onCompositionStart"
+        @compositionend="onCompositionEnd"
         v-model="filterText"
         type="text"
         :placeholder="placeholderOverride || (itemCount ? `在 ${itemCount} 条历史中检索` : '检索剪贴板历史')"
@@ -67,6 +68,8 @@ const lockOptions = [
 const filterText = ref('')
 const lockFilterValue = ref('all')
 let suppressNextEmptyPanel = false
+let skipEmptyExitAfterRevealGuard = false
+const imeComposing = ref(false)
 const emit = defineEmits(['update:modelValue', 'update:lockFilter', 'onPanelHide', 'onEmpty', 'revealKeyGuardUsed'])
 // filterText变了 通知父组件修改 modelValue的值
 watch(filterText, (val, prev) => {
@@ -76,6 +79,7 @@ watch(filterText, (val, prev) => {
     return
   }
   if (prev && !val && lockFilterValue.value === 'all') {
+    if (imeComposing.value) return
     // 删除到空字符串时，通知父组件退出搜索
     emit('onEmpty')
   }
@@ -128,6 +132,7 @@ const onBeforeInput = (e) => {
 }
 
 const onCompositionStart = (e) => {
+  imeComposing.value = true
   if (!revealGuardActive()) return
   const k = props.revealOpeningKey
   const input = e.target
@@ -136,7 +141,21 @@ const onCompositionStart = (e) => {
   if (!/^[a-zA-Z]$/.test(input.value)) return
   suppressNextEmptyPanel = true
   filterText.value = ''
+  skipEmptyExitAfterRevealGuard = true
   emit('revealKeyGuardUsed')
+}
+
+const onCompositionEnd = () => {
+  imeComposing.value = false
+  nextTick(() => {
+    if (skipEmptyExitAfterRevealGuard) {
+      skipEmptyExitAfterRevealGuard = false
+      return
+    }
+    if (!filterText.value && lockFilterValue.value === 'all') {
+      emit('onEmpty')
+    }
+  })
 }
 
 const handleKeyDown = (e) => {

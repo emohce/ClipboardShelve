@@ -1818,8 +1818,26 @@ function registerListHotkeyFeatures() {
             return true;
         }
 
-        // 正常移动一个item
-        return setKeyboardActiveIndex(activeIndex.value - 1, {
+        // 正常向上移动：接近列表顶部的若干项用 end 对齐，避免 center 把 0..n 留在视窗外
+        const nextIdx = activeIndex.value - 1;
+        if (nextIdx <= 0) {
+            return setKeyboardActiveIndex(nextIdx, {
+                actionType: "step-nav",
+                scrollMode: "edge-align",
+                edge: "start",
+                forceScroll: true,
+            });
+        }
+        const STEP_UP_TOP_BAND = 8;
+        if (nextIdx <= STEP_UP_TOP_BAND) {
+            return setKeyboardActiveIndex(nextIdx, {
+                actionType: "step-nav",
+                scrollMode: "edge-align",
+                edge: "end",
+                forceScroll: true,
+            });
+        }
+        return setKeyboardActiveIndex(nextIdx, {
             actionType: "step-nav",
             scrollMode: "center-preferred",
         });
@@ -1868,8 +1886,18 @@ function registerListHotkeyFeatures() {
             return true;
         }
 
-        // 正常移动一个item
-        return setKeyboardActiveIndex(activeIndex.value + 1, {
+        // 正常移动一个item；目标为末项时用底对齐，避免 center 裁切
+        const nextIdx = activeIndex.value + 1;
+        const lastI = props.showList.length - 1;
+        if (nextIdx >= lastI) {
+            return setKeyboardActiveIndex(nextIdx, {
+                actionType: "step-nav",
+                scrollMode: "edge-align",
+                edge: "end",
+                forceScroll: true,
+            });
+        }
+        return setKeyboardActiveIndex(nextIdx, {
             actionType: "step-nav",
             scrollMode: "center-preferred",
         });
@@ -1944,6 +1972,8 @@ function registerListHotkeyFeatures() {
         return false;
     });
     registerFeature("list-enter", (e) => {
+        if (isFocusInSearch()) return false;
+        if (e && (e.isComposing || e.key === "Process")) return false;
         if (props.isMultiple) {
             emit("onMultiCopyExecute", {
                 paste: false,
@@ -1958,7 +1988,9 @@ function registerListHotkeyFeatures() {
             });
         return true;
     });
-    registerFeature("list-ctrl-enter", () => {
+    registerFeature("list-ctrl-enter", (e) => {
+        if (isFocusInSearch()) return false;
+        if (e && (e.isComposing || e.key === "Process")) return false;
         if (!props.isMultiple && props.showList[activeIndex.value]) {
             const current = props.showList[activeIndex.value];
             copyAndPasteAndExit(current, { respectImageCopyGuard: true });
@@ -2071,8 +2103,32 @@ function registerListHotkeyFeatures() {
                 );
                 selectedItemIds.value = toKeep.map((item) => item.id);
                 replaceSelectedItems(toKeep);
+                const keepIdSet = new Set(toKeep.map((item) => item.id));
                 const highlighted = props.showList[idx];
-                preferItemId = highlighted?.id ?? null;
+                if (highlighted && keepIdSet.has(highlighted.id)) {
+                    preferItemId = highlighted.id;
+                } else if (toKeep.length) {
+                    let picked = null;
+                    for (let i = idx; i < props.showList.length; i++) {
+                        const it = props.showList[i];
+                        if (keepIdSet.has(it.id)) {
+                            picked = it.id;
+                            break;
+                        }
+                    }
+                    if (picked == null) {
+                        for (let i = idx - 1; i >= 0; i--) {
+                            const it = props.showList[i];
+                            if (keepIdSet.has(it.id)) {
+                                picked = it.id;
+                                break;
+                            }
+                        }
+                    }
+                    preferItemId = picked;
+                } else {
+                    preferItemId = null;
+                }
             } else if (len > 0) {
                 if (idx < len - 1)
                     preferItemId = props.showList[idx + 1]?.id ?? null;
@@ -2111,11 +2167,37 @@ function registerListHotkeyFeatures() {
             const len = props.showList.length;
             let preferItemId = null;
             if (props.isMultiple) {
-                preferItemId = props.showList[idx]?.id ?? null;
-                setDeleteAnchor({ anchorIndex: idx, preferItemId });
-                replaceSelectedItems(selectItemList.value.filter(
+                const toKeep = selectItemList.value.filter(
                     (item) => !itemsToDelete.includes(item),
-                ));
+                );
+                const keepIdSet = new Set(toKeep.map((item) => item.id));
+                const highlighted = props.showList[idx];
+                if (highlighted && keepIdSet.has(highlighted.id)) {
+                    preferItemId = highlighted.id;
+                } else if (toKeep.length) {
+                    let picked = null;
+                    for (let i = idx; i < props.showList.length; i++) {
+                        const it = props.showList[i];
+                        if (keepIdSet.has(it.id)) {
+                            picked = it.id;
+                            break;
+                        }
+                    }
+                    if (picked == null) {
+                        for (let i = idx - 1; i >= 0; i--) {
+                            const it = props.showList[i];
+                            if (keepIdSet.has(it.id)) {
+                                picked = it.id;
+                                break;
+                            }
+                        }
+                    }
+                    preferItemId = picked;
+                } else {
+                    preferItemId = null;
+                }
+                setDeleteAnchor({ anchorIndex: idx, preferItemId });
+                replaceSelectedItems(toKeep);
                 itemsToDelete.forEach((item, index) =>
                     emit("onItemDelete", item, {
                         anchorIndex: activeIndex.value,

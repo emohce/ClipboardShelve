@@ -145,6 +145,8 @@ export function dispatch(e) {
   const REPEAT_ALLOWED_KEYS = new Set(['ArrowUp', 'ArrowDown', 'PageUp', 'PageDown']);
   if (ignoreRepeat && e.repeat && !REPEAT_ALLOWED_KEYS.has(e.key)) return false;
 
+  if (e.isComposing) return false;
+
   const shortcutId = eventToShortcutId(e);
   const lookupId = shortcutIdForLookup(shortcutId);
   const currentLayer = getCurrentLayer();

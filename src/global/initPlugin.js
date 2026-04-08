@@ -448,7 +448,7 @@ export default async function initPlugin() {
           const index = this.dataBase.data.indexOf(item)
           this.dataBase.data.splice(index, 1)
           console.log('[DB.removeItemViaId] 已从data数组删除，索引:', index)
-          this.updateDataBaseLocal()
+          this.updateDataBaseLocal(undefined, { immediate: true })
           console.log('[DB.removeItemViaId] 删除完成，数据总数:', this.dataBase.data.length, '收藏数:', this.dataBase.collects?.length || 0)
           return true
         }

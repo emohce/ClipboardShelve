@@ -1311,6 +1311,15 @@ onMounted(() => {
                 if (input) input.focus();
                 return;
             }
+            if (isSearchPanelExpand.value) {
+                const t = e.target;
+                if (
+                    t &&
+                    (t.classList?.contains("clip-search-input") ||
+                        t.closest?.(".clip-search"))
+                )
+                    return;
+            }
             window.focus();
         }
     };
@@ -1598,15 +1607,17 @@ onMounted(() => {
 
 <style lang="less" scoped>
 @import "../style";
+/* 为 fixed 顶栏预留纵向空间；须盖住单行·双行布局，避免过小重叠或过大空隙 */
 .clip-break {
-    height: 10px;
+    height: 52px;
 }
+/* 收藏 Tab + 子标签第二行：在单行基础上约 +30px，与无子栏收窄风格一致 */
 .clip-break--with-sub {
-    height: 60px;
+    height: 82px;
 }
 .clip-empty-status {
     width: calc(100% - 24px);
-    min-height: calc(100vh - 132px);
+    min-height: calc(100vh - 104px);
     display: flex;
     justify-content: center;
     align-items: center;
@@ -1818,22 +1829,22 @@ onMounted(() => {
 
 @media (max-width: 900px) {
     .clip-break {
-        height: 78px;
+        height: 60px;
     }
     .clip-break--with-sub {
-        height: 118px;
+        height: 90px;
     }
 }
 
 @media (max-width: 720px) {
     .clip-break {
-        height: 132px;
+        height: 96px;
     }
     .clip-break--with-sub {
-        height: 172px;
+        height: 128px;
     }
     .clip-empty-status {
-        min-height: calc(100vh - 224px);
+        min-height: calc(100vh - 180px);
     }
     .clear-panel {
         width: min(360px, calc(100vw - 16px));

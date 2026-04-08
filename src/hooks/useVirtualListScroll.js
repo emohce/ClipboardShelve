@@ -95,6 +95,19 @@ export function useVirtualListScroll(options) {
     }
 
     if (mode === 'center-preferred') {
+      const count = getItemCount()
+      if (count > 0 && index === 0) {
+        if (!fullyVisible || options.forceScroll) {
+          return { shouldScroll: true, align: 'start' }
+        }
+        return { shouldScroll: false, align: 'start' }
+      }
+      if (count > 1 && index === count - 1) {
+        if (!fullyVisible || options.forceScroll) {
+          return { shouldScroll: true, align: 'end' }
+        }
+        return { shouldScroll: false, align: 'end' }
+      }
       const centerStartIndex =
         Number.isInteger(options.centerStartIndex) ? options.centerStartIndex : null
       const shouldCenter =
@@ -124,6 +137,12 @@ export function useVirtualListScroll(options) {
     const container = getScrollContainer()
     const instruction = resolveScrollInstruction(index, options)
     if (!instruction.shouldScroll) return
+
+    // 首项顶对齐：避免 scrollIntoView(block:start) 在嵌套 WebView 中误滚祖先链，把第 0 条滚出视野
+    if (container && index === 0 && instruction.align === 'start') {
+      container.scrollTop = 0
+      return
+    }
 
     if (node && typeof node.scrollIntoView === 'function') {
       const block =

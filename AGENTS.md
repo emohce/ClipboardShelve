@@ -87,3 +87,10 @@
 - 必须包含：变更摘要、关键文件、风险或兼容性影响、验证状态、知识沉淀状态。
 - 如果命中了历史错误记录，必须说明记录编号以及“采用了什么 / 避开了什么”。
 - 如果新增了错误记录、ADR 或术语，必须在总结里指出对应文件。
+
+## Active Technologies
+- JavaScript (ES modules) + Vue 3.5.x（SFC） + Vite 6.x、`@tanstack/vue-virtual` 3.x、Element Plus 2.x、Less 4.x (001-delete-search-nav-ux)
+- uTools `db` / 本地 JSON（见 `src/global/initPlugin.js`、`src/global/utoolsDB.js`） (001-delete-search-nav-ux)
+
+## Recent Changes
+- 001-delete-search-nav-ux: Added JavaScript (ES modules) + Vue 3.5.x（SFC） + Vite 6.x、`@tanstack/vue-virtual` 3.x、Element Plus 2.x、Less 4.x
