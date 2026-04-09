@@ -3,6 +3,42 @@
 **排序**：永远把**最新**一轮更新写在**最上面**（新的 `## 日期 — 标题` 区块插在紧接本说明之后，旧区块整体下推）。  
 **用户向发布摘要**（须同步维护）：见 [publishLog.md](publishLog.md)；写法与约束见 [vibe/ai-rules/06-change-log-format.md](vibe/ai-rules/06-change-log-format.md)。
 
+## 2026-04-09 — 003-quick-item-operation（单条目别名 / 抽屉序号键迁移 / 别名保存触发）
+
+### 变更摘要
+
+- `F2`（`list-tag-edit`）从“仅收藏编辑”扩展为“单条目别名新增/更新入口”：收藏条目仍走原弹层；非收藏条目支持轻量别名输入并落到本地别名映射。
+- 抽屉序号快捷执行从 `ctrl+shift+1..9` 迁移为 `ctrl+alt+1..9`，并在标签文案中明确新键位；抽屉序号越界时增加提示，防止误触发。
+- 新增 `shift+Enter`（`list-save-by-alias`）：单文件且有别名时，复制临时重命名文件并粘贴；其他类型保持原复制粘贴路径。
+- `ClipItemList` 增加别名解析优先级（本地别名映射 -> `remark` -> `alias` -> 首个 `tags`），并补充无条目/无别名提示。
+
+### 关键文件
+
+| 路径 | 作用 |
+|------|------|
+| [src/cpns/ClipItemList.vue](src/cpns/ClipItemList.vue) | `F2` 别名逻辑、`list-save-by-alias`、抽屉序号越界保护 |
+| [src/global/hotkeyBindings.js](src/global/hotkeyBindings.js) | 新增 `shift+Enter`，迁移 `ctrl+alt+1..9` |
+| [src/global/hotkeyLabels.js](src/global/hotkeyLabels.js) | 别名与新快捷键展示文案 |
+| [src/utils/index.js](src/utils/index.js) | 单文件按别名重命名后粘贴能力 |
+| [src/hooks/useClipOperate.js](src/hooks/useClipOperate.js) | 别名统一判定 helper |
+| [docs/用户简明说明.md](docs/用户简明说明.md) | 用户可见快捷键说明更新 |
+
+### 风险 / 兼容性影响
+
+- 快捷键迁移会影响旧习惯（`ctrl+shift+num` -> `ctrl+alt+num`），需要用户适配。
+- 单文件别名粘贴通过临时目录生成重命名副本，若临时文件路径不可写会回退默认粘贴并提示。
+- 非收藏条目的别名当前走本地映射，不影响收藏弹层的数据结构。
+
+### 验证状态
+
+- 已完成：静态代码检查、编辑器 lints（本轮改动文件无报错）。
+- 待你本机：在 uTools 环境按 `specs/003-quick-item-operation/quickstart.md` 执行三组手工场景验证。
+
+### 知识沉淀状态
+
+- 命中历史记录：无直接命中。
+- 新增 Error Memory / ADR / Glossary：无。
+
 ## 2026-04-08 — 001-delete-search-nav-ux（删除 / 搜索 / IME / 列表导航 / 顶栏间距）
 
 ### 变更摘要

@@ -20,6 +20,7 @@
 
 ## 2. Core Workflow
 - 复杂任务默认遵循 `spec -> plan -> tasks -> implement -> verify -> knowledge-capture`。
+- 命令流程必须显式从 `/speckit-specify` 开始；标准顺序为 `/speckit-specify` -> `/speckit-clarify`（如需要）-> `/speckit-plan` -> `/speckit-tasks` -> `/speckit-implement`，不得跳过 `specify` 直接进入后续阶段。
 - 先按 [`vibe/vibe-doc/workflow/task-levels.md`](vibe/vibe-doc/workflow/task-levels.md) 判断任务等级，再决定需要的流程深度。
 - 没有 `01-spec.md` 和 `02-plan.md` 的复杂任务，不直接进入实现。
 - 单次实现只处理一个当前任务，避免把多个未验证子问题混在一次改动里。
@@ -91,6 +92,8 @@
 ## Active Technologies
 - JavaScript (ES modules) + Vue 3.5.x（SFC） + Vite 6.x、`@tanstack/vue-virtual` 3.x、Element Plus 2.x、Less 4.x (001-delete-search-nav-ux)
 - uTools `db` / 本地 JSON（见 `src/global/initPlugin.js`、`src/global/utoolsDB.js`） (001-delete-search-nav-ux)
+- JavaScript (ES modules) + Vue 3.5.x（SFC） + Vite 6.x、Element Plus 2.x、`@tanstack/vue-virtual` 3.x (003-quick-item-operation)
+- uTools `dbStorage`（设置/快捷键映射）+ 本地 JSON（剪贴板数据） (003-quick-item-operation)
 
 ## Recent Changes
 - 001-delete-search-nav-ux: Added JavaScript (ES modules) + Vue 3.5.x（SFC） + Vite 6.x、`@tanstack/vue-virtual` 3.x、Element Plus 2.x、Less 4.x

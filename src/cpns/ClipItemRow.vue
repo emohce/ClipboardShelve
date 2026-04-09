@@ -48,13 +48,16 @@
             <div class="clip-data">
                 <template v-if="item.type === 'text'">
                     <div v-if="isCompact" class="clip-data-one-line">
+                        <span v-if="hasAlias" class="clip-alias-primary">{{ itemAlias }}</span>
+                        <span v-if="hasAlias" class="clip-alias-secondary">{{ textSingleLine }}</span>
                         <span
-                            v-if="isPreviewableText"
+                            v-if="isPreviewableText && !hasAlias"
                             class="clip-data-preview-tag"
                         >
                             L
                         </span>
                         <span
+                            v-if="!hasAlias"
                             class="clip-data-one-line-text"
                             :class="{
                                 'clip-data-one-line-text--previewable': isPreviewableText,
@@ -67,11 +70,17 @@
                         v-else
                         :class="{ 'clip-over-sized-content': isOverSizedContent(item) }"
                     >
-                        {{ textPreviewContent }}
+                        <div v-if="hasAlias" class="clip-alias-primary">{{ itemAlias }}</div>
+                        <div v-if="hasAlias" class="clip-alias-secondary">{{ textPreviewContent }}</div>
+                        <template v-else>{{ textPreviewContent }}</template>
                     </div>
                 </template>
                 <template v-else-if="item.type === 'image'">
                     <div class="image-container" @click="handleImageClick">
+                        <div v-if="hasAlias" class="clip-image-alias-left">
+                            <div class="clip-alias-primary">{{ itemAlias }}</div>
+                            <div class="clip-alias-secondary">{{ imageInfoLine }}</div>
+                        </div>
                         <img
                             v-if="imageSrc"
                             class="clip-data-image"
@@ -88,7 +97,9 @@
                 </template>
                 <template v-else-if="item.type === 'file'">
                     <div v-if="isCompact" class="clip-data-one-line">
-                        {{ fileSummaryLine }}
+                        <span v-if="hasAlias" class="clip-alias-primary">{{ itemAlias }}</span>
+                        <span v-if="hasAlias" class="clip-alias-secondary">{{ fileSummaryLine }}</span>
+                        <template v-else>{{ fileSummaryLine }}</template>
                     </div>
                     <el-popover
                         v-else-if="enableRichFilePreview"
@@ -98,6 +109,8 @@
                     >
                         <template #reference>
                             <div :class="{ 'clip-over-sized-content': isOverSizedContent(item) }">
+                                <div v-if="hasAlias" class="clip-alias-primary">{{ itemAlias }}</div>
+                                <div v-if="hasAlias" class="clip-alias-secondary">{{ fileSummaryLine }}</div>
                                 <div v-if="imageFiles.length" class="file-with-images">
                                     <div class="image-files-preview">
                                         <span
@@ -163,6 +176,8 @@
                         v-else
                         :class="{ 'clip-over-sized-content': isOverSizedContent(item) }"
                     >
+                        <div v-if="hasAlias" class="clip-alias-primary">{{ itemAlias }}</div>
+                        <div v-if="hasAlias" class="clip-alias-secondary">{{ fileSummaryLine }}</div>
                         <FileList :data="fileListPreview" />
                     </div>
                 </template>
@@ -199,6 +214,7 @@ const props = defineProps({
     currentActiveTab: { type: String, required: true },
     isOverSizedContent: { type: Function, required: true },
     isPreviewableText: { type: Boolean, default: false },
+    itemAlias: { type: String, default: "" },
     getItemImageSrc: { type: Function, required: true },
     hasImageFiles: { type: Function, required: true },
     getImageFiles: { type: Function, required: true },
@@ -234,6 +250,7 @@ const textSingleLine = computed(() => {
     if (s.length > 100) return `${s.slice(0, 97)}…`;
     return s;
 });
+const hasAlias = computed(() => Boolean(props.itemAlias && props.itemAlias.trim()));
 const fileSummaryLine = computed(() => {
     if (props.item.type !== "file") return "";
     const list = fileList.value;
@@ -241,6 +258,10 @@ const fileSummaryLine = computed(() => {
     const name =
         list[0].path?.split(/[/\\]/).pop() || list[0].name || "文件";
     return list.length > 1 ? `${name} 等${list.length}项` : name;
+});
+const imageInfoLine = computed(() => {
+    const ts = dateFormat(props.item.updateTime);
+    return `图片 · ${ts}`;
 });
 const itemTags = computed(() =>
     Array.isArray(props.item.tags) ? props.item.tags : [],

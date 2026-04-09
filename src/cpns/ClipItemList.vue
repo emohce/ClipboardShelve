@@ -44,6 +44,7 @@
                         :current-active-tab="currentActiveTab"
                         :is-over-sized-content="isOverSizedContent"
                         :is-previewable-text="isPreviewableTextItem(item)"
+                        :item-alias="getItemAlias(item)"
                         :get-item-image-src="getItemImageSrc"
                         :has-image-files="hasImageFiles"
                         :get-image-files="getImageFiles"
@@ -150,13 +151,14 @@
 
 <script setup>
 import { ref, onMounted, onUnmounted, watch, computed, nextTick } from "vue";
-import { ElMessage } from "element-plus";
+import { ElMessage, ElMessageBox } from "element-plus";
 import ClipItemRow from "./ClipItemRow.vue";
 import ClipDrawerMenu from "./ClipDrawerMenu.vue";
 import {
     isUToolsPlugin,
     copyOnly,
     copyAndPasteAndExit,
+    copySingleFileWithAliasAndPaste,
 } from "../utils";
 import defaultOperation from "../data/operation.json";
 import setting, {
@@ -217,6 +219,66 @@ const isOverSizedContent = (item) => {
         return JSON.parse(item.data).length >= 6;
     }
 };
+
+const ITEM_ALIAS_STORAGE_KEY = "item.alias.map";
+const getAliasMap = () => {
+    const map = utools?.dbStorage?.getItem?.(ITEM_ALIAS_STORAGE_KEY);
+    return map && typeof map === "object" ? map : {};
+};
+const setItemAlias = (itemId, alias) => {
+    if (!itemId) return;
+    const map = getAliasMap();
+    if (typeof alias === "string" && alias.trim()) {
+        map[itemId] = alias.trim();
+    } else {
+        delete map[itemId];
+    }
+    utools.dbStorage.setItem(ITEM_ALIAS_STORAGE_KEY, map);
+};
+const getItemAlias = (item) => {
+    if (!item) return "";
+    const map = getAliasMap();
+    const fromStore = typeof map[item.id] === "string" ? map[item.id].trim() : "";
+    if (fromStore) return fromStore;
+    if (typeof item.remark === "string" && item.remark.trim()) return item.remark.trim();
+    if (typeof item.alias === "string" && item.alias.trim()) return item.alias.trim();
+    if (Array.isArray(item.tags) && typeof item.tags[0] === "string" && item.tags[0].trim()) {
+        return item.tags[0].trim();
+    }
+    return "";
+};
+const parseSingleFilePath = (item) => {
+    if (!item || item.type !== "file") return "";
+    try {
+        const files = JSON.parse(item.data);
+        if (!Array.isArray(files) || files.length !== 1) return "";
+        return files[0]?.path || "";
+    } catch (e) {
+        return "";
+    }
+};
+const saveAliasForItem = (item) => {
+    if (!item) return false;
+    const currentAlias = getItemAlias(item);
+    ElMessageBox.prompt("请输入别名（留空可清空）", "别名编辑", {
+        inputValue: currentAlias,
+        confirmButtonText: "保存",
+        cancelButtonText: "取消",
+        inputPlaceholder: "输入别名",
+        distinguishCancelAndClose: true,
+    })
+        .then(({ value }) => {
+            setItemAlias(item.id, value);
+            ElMessage({
+                message: value.trim() ? "别名已保存" : "别名已清空",
+                type: "success",
+            });
+        })
+        .catch(() => {});
+    return true;
+};
+const isAliasDialogOpen = () =>
+    Boolean(document.querySelector(".el-overlay .el-message-box"));
 
 // 图片数据验证
 const isValidImageData = (data) => {
@@ -1126,6 +1188,7 @@ const applyDrawerOrder = (list) => {
 };
 
 // 全部信息内的菜单：与主层 ClipOperate 一致，filterOperate + applyDrawerOrder，用于右侧抽屉
+// 防漂移约束：抽屉渲染与序号快捷执行必须共用该菜单数据源。
 const getDrawerFullMenuItems = (currentItem) => {
     if (!currentItem) return [];
     const available = operations.value.filter((op) =>
@@ -1965,13 +2028,18 @@ function registerListHotkeyFeatures() {
     });
     registerFeature("list-tag-edit", () => {
         const item = props.showList[activeIndex.value];
-        if (item && window.db && window.db.isCollected(item.id)) {
+        if (!item) {
+            ElMessage({ type: "info", message: "当前无可操作条目" });
+            return false;
+        }
+        if (window.db && window.db.isCollected(item.id)) {
             emit("openTagEdit", item);
             return true;
         }
-        return false;
+        return saveAliasForItem(item);
     });
     registerFeature("list-enter", (e) => {
+        if (isAliasDialogOpen()) return false;
         if (isFocusInSearch()) return false;
         if (e && (e.isComposing || e.key === "Process")) return false;
         if (props.isMultiple) {
@@ -1989,6 +2057,7 @@ function registerListHotkeyFeatures() {
         return true;
     });
     registerFeature("list-ctrl-enter", (e) => {
+        if (isAliasDialogOpen()) return false;
         if (isFocusInSearch()) return false;
         if (e && (e.isComposing || e.key === "Process")) return false;
         if (!props.isMultiple && props.showList[activeIndex.value]) {
@@ -2006,6 +2075,41 @@ function registerListHotkeyFeatures() {
             return true;
         }
         return false;
+    });
+    registerFeature("list-save-by-alias", (e) => {
+        if (isAliasDialogOpen()) return false;
+        if (isFocusInSearch()) return false;
+        if (e && (e.isComposing || e.key === "Process")) return false;
+        if (props.isMultiple && selectItemList.value.length) {
+            emit("onMultiCopyExecute", {
+                paste: true,
+                persist: true,
+                exit: true,
+            });
+            return true;
+        }
+        const item = props.showList[activeIndex.value];
+        if (!item) {
+            ElMessage({ type: "info", message: "当前无可操作条目" });
+            return false;
+        }
+        const alias = getItemAlias(item);
+        const singleFilePath = parseSingleFilePath(item);
+        if (singleFilePath && alias) {
+            const ok = copySingleFileWithAliasAndPaste(item, alias);
+            if (ok) {
+                ElMessage({ type: "success", message: "已按别名重命名并粘贴" });
+            } else {
+                ElMessage({ type: "warning", message: "别名粘贴失败，已回退默认粘贴" });
+                copyAndPasteAndExit(item, { respectImageCopyGuard: true });
+            }
+            return true;
+        }
+        if (singleFilePath && !alias) {
+            ElMessage({ type: "info", message: "当前无别名，按默认方式粘贴" });
+        }
+        copyAndPasteAndExit(item, { respectImageCopyGuard: true });
+        return true;
     });
     registerFeature("list-copy", () => {
         if (props.fullData.data) {
@@ -2263,6 +2367,11 @@ function registerListHotkeyFeatures() {
         registerFeature(`list-drawer-sub-${num}`, () => {
             const currentItem = props.showList[activeIndex.value];
             if (!currentItem) return false;
+            const menu = getDrawerFullMenuItems(currentItem);
+            if (num - 1 >= menu.length) {
+                ElMessage({ type: "info", message: "该序号无可执行操作" });
+                return false;
+            }
             openDrawerForCurrentItem(null, num - 1);
             return true;
         });

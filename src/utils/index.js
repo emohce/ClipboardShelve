@@ -155,6 +155,41 @@ const copyOnly = (item) => {
   }
 }
 
+const normalizeAliasFileName = (alias) => {
+  if (typeof alias !== 'string') return ''
+  return alias.trim().replace(/[\\/:*?"<>|]/g, '_')
+}
+
+const copySingleFileWithAliasAndPaste = (item, alias) => {
+  if (!item || item.type !== 'file') return false
+  const normalizedAlias = normalizeAliasFileName(alias)
+  if (!normalizedAlias) return false
+  try {
+    const files = JSON.parse(item.data)
+    if (!Array.isArray(files) || files.length !== 1) return false
+    const sourcePath = files[0]?.path
+    if (!sourcePath) return false
+    const fileName = sourcePath.split(/[\\/]/).pop() || ''
+    const dotIndex = fileName.lastIndexOf('.')
+    const ext = dotIndex > 0 ? fileName.slice(dotIndex) : ''
+    const tempPath = utools.getPath('temp')
+    const folderPath = tempPath + sep + 'utools-clipboard-manager' + sep + 'alias-files'
+    if (!existsSync(folderPath)) {
+      mkdirSync(folderPath, { recursive: true })
+    }
+    const targetPath = folderPath + sep + `${normalizedAlias}${ext}`
+    const buffer = readFileSync(sourcePath)
+    writeFileSync(targetPath, buffer)
+    utools.copyFile([targetPath])
+    utools.hideMainWindow()
+    paste()
+    return true
+  } catch (e) {
+    console.error('[copySingleFileWithAliasAndPaste] failed', e)
+    return false
+  }
+}
+
 const createFile = (item) => {
   const tempPath = utools.getPath('temp')
   const folderPath = tempPath + sep + 'utools-clipboard-manager'
@@ -183,4 +218,4 @@ const getNativeId = () => {
   return utools.getNativeId()
 }
 
-export { dateFormat, pointToObj, copy, paste, createFile, getNativeId, isUToolsPlugin, copyWithSearchFocus, copyOnly, copyAndPasteAndExit }
+export { dateFormat, pointToObj, copy, paste, createFile, getNativeId, isUToolsPlugin, copyWithSearchFocus, copyOnly, copyAndPasteAndExit, copySingleFileWithAliasAndPaste }

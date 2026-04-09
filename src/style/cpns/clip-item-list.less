@@ -167,11 +167,33 @@
               color: fade(@text-color, 96%);
             }
           }
+          .clip-alias-primary,
+          .clip-alias-secondary {
+            min-width: 0;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+          }
+          .clip-alias-primary {
+            flex-shrink: 0;
+            max-width: 42%;
+            padding: 1px 6px;
+            border-radius: 999px;
+            font-size: 11px;
+            line-height: 1.3;
+            color: @primary-color;
+            background: fade(@primary-color, 12%);
+            border: 1px solid fade(@primary-color, 26%);
+          }
+          .clip-alias-secondary {
+            color: @text-color-lighter;
+          }
         }
         .image-container {
           min-height: 0;
           align-items: center;
           justify-content: flex-start;
+          gap: 8px;
         }
         img.clip-data-image {
           max-height: 32px !important;
@@ -313,6 +335,15 @@
           justify-content: flex-start;
           min-height: 50px;
           cursor: pointer;
+          .clip-image-alias-left {
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            min-width: 88px;
+            max-width: 120px;
+            gap: 2px;
+            flex-shrink: 0;
+          }
 
           .image-error-placeholder {
             display: flex;
@@ -329,6 +360,30 @@
               margin-right: 4px;
             }
           }
+        }
+        .clip-alias-primary {
+          display: inline-flex;
+          align-items: center;
+          max-width: 100%;
+          overflow: hidden;
+          text-overflow: ellipsis;
+          white-space: nowrap;
+          padding: 1px 6px;
+          border-radius: 999px;
+          font-size: 11px;
+          line-height: 1.3;
+          color: @primary-color;
+          background: fade(@primary-color, 12%);
+          border: 1px solid fade(@primary-color, 26%);
+        }
+        .clip-alias-secondary {
+          max-width: 100%;
+          overflow: hidden;
+          text-overflow: ellipsis;
+          white-space: nowrap;
+          font-size: 12px;
+          line-height: 1.35;
+          color: @text-color-lighter;
         }
 
         .image-preview {

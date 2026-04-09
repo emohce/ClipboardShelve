@@ -3,6 +3,16 @@ import { copyAndPasteAndExit, copyOnly } from "../utils";
 import setting from "../global/readSetting";
 
 export default function useClipOperate({ emit, currentActiveTab }) {
+  const resolveItemAlias = (item) => {
+    if (!item) return ""
+    if (typeof item.remark === "string" && item.remark.trim()) return item.remark.trim()
+    if (typeof item.alias === "string" && item.alias.trim()) return item.alias.trim()
+    if (Array.isArray(item.tags) && typeof item.tags[0] === "string" && item.tags[0].trim()) {
+      return item.tags[0].trim()
+    }
+    return ""
+  }
+  const canEditItemAlias = (item) => Boolean(item && item.id)
   const getSourcePaths = (item) => {
     const list = Array.isArray(item?.sourcePaths)
       ? item.sourcePaths
@@ -13,6 +23,8 @@ export default function useClipOperate({ emit, currentActiveTab }) {
   }
 
   return {
+    resolveItemAlias,
+    canEditItemAlias,
     handleOperateClick: (operation, item, meta = {}) => {
       const { id } = operation;
       const typeMap = {

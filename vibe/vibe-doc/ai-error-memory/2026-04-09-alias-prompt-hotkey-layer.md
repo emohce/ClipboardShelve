@@ -1,0 +1,45 @@
+# Error Memory: EM-2026-04-09-alias-prompt-hotkey-layer
+
+## 1. 背景与症状
+- 目标是在 `uTools` 插件内通过 `F2` 编辑条目别名。
+- 现象是按下 `F2` 后“看似无响应”，用户无法看到可交互输入框。
+- 切换到 `window.prompt` 实现时，在插件环境出现不稳定或不可见表现。
+
+## 2. 错误归类
+- `environment-assumption`
+- `framework-misuse`
+- `runtime-path-mismatch`
+
+## 3. 误判链路
+- 误以为只要绑定了 `F2` feature 就一定可见触发结果。
+- 忽略了 `uTools` 插件容器对原生 `window.prompt` 交互稳定性的影响。
+- 未先验证“弹窗层输入态”与“主层回车快捷键”是否会冲突。
+
+## 4. 已证伪方案
+- 在该场景直接使用 `window.prompt` 作为别名编辑入口。
+
+## 5. 已确认通路
+- 使用 `ElMessageBox.prompt` 承载别名编辑弹窗。
+- 明确弹窗键盘语义：`Enter` 确认、`Esc` 取消。
+- 对主层回车类 feature 增加弹窗打开态短路，避免输入态误触发 `list-enter` / `list-ctrl-enter` / `list-save-by-alias`。
+
+## 6. 适用触发条件
+- `uTools` 插件环境下出现“快捷键触发但无可见交互反馈”。
+- 存在弹窗输入层与全局热键层并行的场景。
+
+## 7. 禁止再试的做法
+- 未验证插件容器行为前，直接复用 `window.prompt` 作为核心输入交互。
+- 在弹窗输入态不做层级隔离，继续放开主层 Enter 快捷键。
+
+## 8. 推荐优先策略
+- 优先采用受控 UI 组件（如 `ElMessageBox.prompt`）实现输入弹窗。
+- 对“输入态”建立统一守卫：弹窗打开时短路主层 Enter 类快捷键。
+- 把“可见交互是否出现”作为快捷键功能验收的第一步，而不是只看事件是否触发。
+
+## 9. 关联文件 / 模块
+- `src/cpns/ClipItemList.vue`
+- `src/global/hotkeyRegistry.js`
+
+## 10. 后续观察点
+- 关注是否存在其他输入型弹窗也受主层快捷键干扰。
+- 如后续引入更多模态层，考虑沉淀通用“输入态热键抑制”工具函数。
