@@ -94,6 +94,8 @@
 - uTools `db` / 本地 JSON（见 `src/global/initPlugin.js`、`src/global/utoolsDB.js`） (001-delete-search-nav-ux)
 - JavaScript (ES modules) + Vue 3.5.x（SFC） + Vite 6.x、Element Plus 2.x、`@tanstack/vue-virtual` 3.x (003-quick-item-operation)
 - uTools `dbStorage`（设置/快捷键映射）+ 本地 JSON（剪贴板数据） (003-quick-item-operation)
+- JavaScript (ES modules) + Vue 3.5.x SFC + Vite 6.x, Element Plus 2.x, `@tanstack/vue-virtual` 3.x, uTools API (003-quick-item-operation)
+- uTools `dbStorage` + 本地 JSON（既有 `window.db` 持久化链路） (003-quick-item-operation)
 
 ## Recent Changes
 - 001-delete-search-nav-ux: Added JavaScript (ES modules) + Vue 3.5.x（SFC） + Vite 6.x、`@tanstack/vue-virtual` 3.x、Element Plus 2.x、Less 4.x

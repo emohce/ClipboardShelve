@@ -279,6 +279,11 @@ const saveAliasForItem = (item) => {
 };
 const isAliasDialogOpen = () =>
     Boolean(document.querySelector(".el-overlay .el-message-box"));
+const aliasDrawerOperation = {
+    id: "edit-alias",
+    title: "别名编辑",
+    icon: "🏷️",
+};
 
 // 图片数据验证
 const isValidImageData = (data) => {
@@ -1165,6 +1170,13 @@ const closeDrawer = () => {
 const handleDrawerSelect = (op, meta = {}) => {
     const currentItem = props.showList[activeIndex.value];
     if (!currentItem) return;
+    if (op?.id === "edit-alias") {
+        saveAliasForItem(currentItem);
+        if (!meta.sub) {
+            drawerShow.value = false;
+        }
+        return;
+    }
     handleOperateClick(op, currentItem, meta);
     if (!meta.sub) {
         drawerShow.value = false;
@@ -1194,7 +1206,11 @@ const getDrawerFullMenuItems = (currentItem) => {
     const available = operations.value.filter((op) =>
         filterOperate(op, currentItem, false, "drawer"),
     );
-    return applyDrawerOrder(available);
+    const ordered = applyDrawerOrder(available).filter(
+        (op) => op?.id !== aliasDrawerOperation.id,
+    );
+    ordered.splice(Math.min(1, ordered.length), 0, aliasDrawerOperation);
+    return ordered;
 };
 
 // 打开当前 item 的快捷菜单抽屉（右侧抽屉，展示全部菜单；右方向键/鼠标右键/c-s-序号 调用）
@@ -2372,7 +2388,7 @@ function registerListHotkeyFeatures() {
                 ElMessage({ type: "info", message: "该序号无可执行操作" });
                 return false;
             }
-            openDrawerForCurrentItem(null, num - 1);
+            handleDrawerSelect(menu[num - 1], { sub: false, fromShortcut: true });
             return true;
         });
     }

@@ -1504,6 +1504,13 @@ onMounted(() => {
             return true;
         });
         registerFeature("main-escape", (e) => {
+            const aliasDialogCancelButton = document.querySelector(
+                ".el-overlay .el-message-box .el-message-box__btns .el-button:not(.el-button--primary)",
+            );
+            if (aliasDialogCancelButton) {
+                aliasDialogCancelButton.click();
+                return true;
+            }
             if (filterText.value) {
                 filterText.value = "";
                 window.focus();
