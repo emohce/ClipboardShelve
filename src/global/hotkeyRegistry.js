@@ -142,7 +142,7 @@ function isEditableTarget(target) {
 
 export function dispatch(e) {
   if (e.__hotkeyHandled) return true;
-  const REPEAT_ALLOWED_KEYS = new Set(['ArrowUp', 'ArrowDown', 'PageUp', 'PageDown']);
+  const REPEAT_ALLOWED_KEYS = new Set(['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'PageUp', 'PageDown']);
   if (ignoreRepeat && e.repeat && !REPEAT_ALLOWED_KEYS.has(e.key)) return false;
 
   if (e.isComposing) return false;

@@ -68,6 +68,7 @@
             <div 
                 class="image-preview-content"
                 ref="imagePreviewContentRef"
+                :style="imagePreview.scrollStyle"
                 @scroll="handleImagePreviewScroll"
             >
                 <div
@@ -75,7 +76,9 @@
                     class="image-preview-inner"
                     :class="{
                         'is-centered': imagePreview.layoutMode === 'centered',
-                        'is-scroll': imagePreview.layoutMode === 'fit-width-scroll',
+                        'is-scroll': imagePreview.layoutMode !== 'centered',
+                        'is-fit-width-scroll': imagePreview.layoutMode === 'fit-width-scroll',
+                        'is-fit-height-scroll': imagePreview.layoutMode === 'fit-height-scroll',
                     }"
                     :style="imagePreview.contentStyle"
                 >
@@ -91,16 +94,19 @@
                 </div>
             </div>
             <div
-                v-if="imagePreview.footer || imagePreview.hint"
+                v-if="imagePreview.footer"
                 class="image-preview-footer"
             >
-                <div v-if="imagePreview.footer" class="image-preview-footer-main">
+                <div class="image-preview-footer-main">
                     {{ imagePreview.footer }}
                 </div>
-                <div v-if="imagePreview.hint" class="image-preview-hint">
-                    {{ imagePreview.hint }}
-                </div>
             </div>
+        </div>
+        <div
+            v-if="imagePreview.show && imagePreview.hint"
+            class="image-preview-toolbar-hint"
+        >
+            {{ imagePreview.hint }}
         </div>
     </Teleport>
 
@@ -316,9 +322,9 @@ const handleImageError = (event) => {
 const PREVIEW_MODAL_PADDING = 40;
 const PREVIEW_SCROLL_STEP = 150;
 const IMAGE_PREVIEW_HINT_TEXT = {
-    both: "Shift + \u2190\u2191\u2192\u2193 移动预览",
-    vertical: "Shift + \u2191\u2193 移动预览",
-    horizontal: "Shift + \u2190\u2192 移动预览",
+    both: "s-\u2195\u2194",
+    vertical: "s-\u2195",
+    horizontal: "s-\u2194",
 };
 
 const getImagePreviewMetrics = () => {
@@ -361,7 +367,12 @@ const applyImagePreviewLayout = (naturalWidth, naturalHeight) => {
     const aspectRatio = naturalWidth / naturalHeight;
     const maxAspectRatio = 3; // 宽高比超过 3:1 认为是非常规图片
     const minAspectRatio = 1 / maxAspectRatio; // 高宽比超过 3:1 认为是非常规图片
-    const isRegularRatio = aspectRatio >= minAspectRatio && aspectRatio <= maxAspectRatio;
+    const isWideRatio = aspectRatio > maxAspectRatio;
+    const isTallRatio = aspectRatio < minAspectRatio;
+    const isRegularRatio = !isWideRatio && !isTallRatio;
+
+    // 判断是否为小分辨率图片：原始尺寸小于可用区域的 60%
+    const isSmallImage = naturalWidth < availableWidth * 0.6 && naturalHeight < availableHeight * 0.6;
 
     // 计算等比例缩放
     const scaleByWidth = availableWidth / naturalWidth;
@@ -375,24 +386,33 @@ const applyImagePreviewLayout = (naturalWidth, naturalHeight) => {
     // 按宽度填满时的尺寸
     const widthFillScale = scaleByWidth;
     const widthFillHeight = naturalHeight * widthFillScale;
+    const heightFillScale = scaleByHeight;
+    const heightFillWidth = naturalWidth * heightFillScale;
 
     let displayWidth, displayHeight, canScrollX, canScrollY, layoutMode;
 
-    // 策略：常规比例图片直接居中显示为一张图；非常规比例图片才按宽度填满可能需要滚动
-    if (isRegularRatio) {
-        // 常规比例图片：等比例缩放居中显示
+    // 策略：小分辨率图片或常规比例图片直接居中；大分辨率长图只纵向滚动，宽图只横向滚动。
+    if (isSmallImage || isRegularRatio) {
+        // 小图片或常规比例图片：等比例缩放居中显示
         displayWidth = fitDisplayWidth;
         displayHeight = fitDisplayHeight;
         canScrollX = false;
         canScrollY = false;
         layoutMode = "centered";
-    } else {
-        // 非常规比例图片：按宽度填满，可能需要垂直滚动
+    } else if (isTallRatio) {
+        // 长图：按宽度填满，不提供横向滚动
         displayWidth = availableWidth;
         displayHeight = widthFillHeight;
-        canScrollX = displayWidth > availableWidth;
+        canScrollX = false;
         canScrollY = displayHeight > availableHeight;
         layoutMode = canScrollY ? "fit-width-scroll" : "centered";
+    } else {
+        // 宽图：按高度填满，不提供纵向滚动
+        displayWidth = heightFillWidth;
+        displayHeight = availableHeight;
+        canScrollX = displayWidth > availableWidth;
+        canScrollY = false;
+        layoutMode = canScrollX ? "fit-height-scroll" : "centered";
     }
 
     imagePreview.value.layoutMode = layoutMode;
@@ -401,6 +421,11 @@ const applyImagePreviewLayout = (naturalWidth, naturalHeight) => {
     imagePreview.value.hint = getImagePreviewHint(canScrollX, canScrollY);
     imagePreview.value.contentStyle = {
         minHeight: `${availableHeight}px`,
+        minWidth: canScrollX ? `${displayWidth}px` : "100%",
+    };
+    imagePreview.value.scrollStyle = {
+        overflowX: canScrollX ? "auto" : "hidden",
+        overflowY: canScrollY ? "auto" : "hidden",
     };
     imagePreview.value.imageStyle = {
         width: `${displayWidth}px`,
@@ -412,12 +437,19 @@ const applyImagePreviewLayout = (naturalWidth, naturalHeight) => {
     };
 
     nextTick(() => {
-        if (imagePreviewContentRef.value) {
-            imagePreviewContentRef.value.scrollTop = 0;
-            imagePreviewContentRef.value.scrollLeft = 0;
-        }
-        imagePreview.value.scrollTop = 0;
+        setImagePreviewInitialScroll();
     });
+};
+
+const setImagePreviewInitialScroll = () => {
+    const container = imagePreviewContentRef.value;
+    if (!container) return;
+    const maxScrollTop = Math.max(0, container.scrollHeight - container.clientHeight);
+    const maxScrollLeft = Math.max(0, container.scrollWidth - container.clientWidth);
+    // 预览容器使用 rotate(180deg) 把滚动条放到左侧/上侧；视觉顶部对应 DOM 滚动末端。
+    container.scrollTop = imagePreview.value.canScrollY ? maxScrollTop : 0;
+    container.scrollLeft = imagePreview.value.canScrollX ? maxScrollLeft : 0;
+    imagePreview.value.scrollTop = container.scrollTop;
 };
 
 const scrollPreviewContainer = (container, axis, delta) => {
@@ -456,14 +488,14 @@ const handlePreviewScrollShortcut = (direction) => {
             return scrollPreviewContainer(
                 imagePreviewContentRef.value,
                 "x",
-                -PREVIEW_SCROLL_STEP,
+                PREVIEW_SCROLL_STEP,
             );
         }
         if (direction === "right") {
             return scrollPreviewContainer(
                 imagePreviewContentRef.value,
                 "x",
-                PREVIEW_SCROLL_STEP,
+                -PREVIEW_SCROLL_STEP,
             );
         }
     }
@@ -549,6 +581,7 @@ const showImagePreview = (event, item, footerText = "") => {
     imagePreview.value.canScrollX = false;
     imagePreview.value.canScrollY = false;
     imagePreview.value.contentStyle = {};
+    imagePreview.value.scrollStyle = {};
     
     // 右侧预览窗口样式
     imagePreview.value.style = {
@@ -562,12 +595,14 @@ const showImagePreview = (event, item, footerText = "") => {
         borderRadius: "0",
         padding: "0px",
         boxShadow: "-4px 0 24px rgba(0, 0, 0, 0.4)",
+        outline: "1px solid rgba(96, 165, 250, 0.9)",
+        outlineOffset: "-1px",
+        boxSizing: "border-box",
         display: "flex",
         flexDirection: "column",
         alignItems: "center",
         justifyContent: "center",
         overflow: "hidden",
-        outline: "none",
     };
     
     imagePreview.value.imageStyle = {
@@ -1263,6 +1298,7 @@ const imagePreview = ref({
     style: {},
     imageStyle: {},
     contentStyle: {},
+    scrollStyle: {},
     layoutMode: "centered",
     canScrollX: false,
     canScrollY: false,
@@ -2554,6 +2590,22 @@ const unifiedKeyHandler = (e) => {
 
     const { key, repeat } = e;
     const isShift = key === "Shift";
+    const previewDirectionMap = {
+        ArrowUp: "up",
+        ArrowDown: "down",
+        ArrowLeft: "left",
+        ArrowRight: "right",
+    };
+    const previewDirection = previewDirectionMap[key];
+
+    if (imagePreview.value.show && e.shiftKey && previewDirection) {
+        if (handlePreviewScrollShortcut(previewDirection)) {
+            e.preventDefault();
+            e.stopPropagation();
+            e.__hotkeyHandled = true;
+        }
+        return;
+    }
 
     // 聚焦到预览窗口
     if (isShift) {
@@ -2747,25 +2799,27 @@ onUnmounted(() => {
         overflow-y: auto;
         overflow-x: auto;
         scrollbar-width: thin;
-        scrollbar-color: rgba(255, 255, 255, 0.3) transparent;
+        scrollbar-color: rgba(255, 255, 255, 0.78) rgba(255, 255, 255, 0.16);
         // 使用 transform 将滚动条移到左侧和上侧
         transform: rotate(180deg);
         
         &::-webkit-scrollbar {
-            width: 6px;
-            height: 6px;
+            width: 10px;
+            height: 10px;
         }
         
         &::-webkit-scrollbar-track {
-            background: transparent;
+            background: rgba(255, 255, 255, 0.16);
+            border-radius: 5px;
         }
         
         &::-webkit-scrollbar-thumb {
-            background: rgba(255, 255, 255, 0.3);
-            border-radius: 3px;
+            background: rgba(255, 255, 255, 0.78);
+            border-radius: 5px;
+            border: 2px solid rgba(0, 0, 0, 0.55);
             
             &:hover {
-                background: rgba(255, 255, 255, 0.5);
+                background: rgba(255, 255, 255, 0.95);
             }
         }
     }
@@ -2784,6 +2838,15 @@ onUnmounted(() => {
         &.is-scroll {
             align-items: flex-start;
         }
+
+        &.is-fit-width-scroll {
+            justify-content: center;
+        }
+
+        &.is-fit-height-scroll {
+            align-items: center;
+            justify-content: flex-start;
+        }
     }
 
     .image-preview-footer {
@@ -2801,19 +2864,6 @@ onUnmounted(() => {
     .image-preview-footer-main {
         max-width: min(90vw, 880px);
     }
-    .image-preview-hint {
-        display: inline-flex;
-        align-items: center;
-        justify-content: center;
-        padding: 5px 12px;
-        border-radius: 999px;
-        background: rgba(255, 255, 255, 0.08);
-        border: 1px solid rgba(255, 255, 255, 0.14);
-        color: rgba(255, 255, 255, 0.92);
-        font-size: 12px;
-        line-height: 1.4;
-        box-shadow: 0 6px 18px rgba(0, 0, 0, 0.18);
-    }
     .preview-error {
         display: flex;
         align-items: center;
@@ -2825,5 +2875,24 @@ onUnmounted(() => {
         text-align: center;
         transform: rotate(180deg);
     }
+}
+
+.image-preview-toolbar-hint {
+    position: fixed;
+    top: 4px;
+    right: 8px;
+    z-index: 10000;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 5px 12px;
+    border-radius: 999px;
+    background: rgba(15, 23, 42, 0.62);
+    border: 1px solid rgba(255, 255, 255, 0.22);
+    color: rgba(255, 255, 255, 0.94);
+    font-size: 12px;
+    line-height: 1.4;
+    box-shadow: 0 6px 18px rgba(0, 0, 0, 0.18);
+    pointer-events: none;
 }
 </style>
