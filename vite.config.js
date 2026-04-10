@@ -1,29 +1,13 @@
-import { copyFileSync, mkdirSync } from 'node:fs'
-import path from 'node:path'
 import { defineConfig } from 'vite'
 import vue from '@vitejs/plugin-vue'
+import { prepareUToolsRuntimeAssets } from './scripts/utools-runtime-assets.mjs'
 
-function copyUToolsPublicAssets() {
-  const assetNames = [
-    'plugin.json',
-    'preload.js',
-    'listener.js',
-    'logo.png',
-    'time.js',
-    'time.worker.js'
-  ]
-
+function emitUToolsRuntimeAssets() {
   return {
-    name: 'copy-utools-public-assets',
+    name: 'emit-utools-runtime-assets',
     apply: 'build',
     closeBundle() {
-      const rootDir = process.cwd()
-      const distDir = path.resolve(rootDir, 'dist')
-      const publicDir = path.resolve(rootDir, 'public')
-      mkdirSync(distDir, { recursive: true })
-      assetNames.forEach((name) => {
-        copyFileSync(path.resolve(publicDir, name), path.resolve(distDir, name))
-      })
+      prepareUToolsRuntimeAssets()
     }
   }
 }
@@ -31,7 +15,7 @@ function copyUToolsPublicAssets() {
 export default defineConfig({
   base: './',
   publicDir: false,
-  plugins: [vue(), copyUToolsPublicAssets()],
+  plugins: [vue(), emitUToolsRuntimeAssets()],
   server: {
     port: 8081,
     strictPort: false,
