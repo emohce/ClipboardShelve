@@ -147,6 +147,9 @@ export function dispatch(e) {
 
   if (e.isComposing) return false;
 
+  // 别名编辑对话框打开时，拦截所有按键事件，阻止穿透到底层
+  if (document.querySelector(".el-overlay .el-message-box")) return false;
+
   const shortcutId = eventToShortcutId(e);
   const lookupId = shortcutIdForLookup(shortcutId);
   const currentLayer = getCurrentLayer();
