@@ -1,6 +1,151 @@
 const { utools, existsSync, writeFileSync, mkdirSync, sep, Buffer } = window.exports
 const readFileSync = window.exports.readFileSync
 
+const bufferSignature = (buffer) => {
+  const c = window.exports.crypto
+  if (c && typeof c.createHash === 'function') {
+    return c.createHash('md5').update(buffer).digest('hex')
+  }
+  return 'len:' + buffer.length
+}
+
+const sanitizeForPathSegment = (id) => String(id || 'unknown').replace(/[\\/:*?"<>|]/g, '_')
+
+const getAliasMaterialPersistRoot = () => {
+  const base = utools.getPath('userData')
+  const root = base + sep + 'utools-clipboard-manager' + sep + 'alias-material'
+  if (!existsSync(root)) {
+    mkdirSync(root, { recursive: true })
+  }
+  return root
+}
+
+const getAliasMaterialDirForItem = (itemId) => {
+  return getAliasMaterialPersistRoot() + sep + sanitizeForPathSegment(itemId)
+}
+
+const tryRemoveAliasMaterialDir = (dir) => {
+  if (!dir || !existsSync(dir)) return
+  const rm = window.exports.rmSync
+  if (typeof rm === 'function') {
+    try {
+      rm(dir, { recursive: true, force: true })
+      console.log('[alias-material] removed', dir)
+      return
+    } catch (e) {
+      console.warn('[alias-material] rmSync failed', e)
+    }
+  }
+  const metaPath = dir + sep + 'meta.json'
+  const unlink = window.exports.unlinkSync
+  const rmdir = window.exports.rmdirSync
+  try {
+    if (existsSync(metaPath)) {
+      const raw = readFileSync(metaPath, 'utf8')
+      const meta = JSON.parse(raw)
+      const mp = meta?.materialPath
+      if (mp && existsSync(mp) && typeof unlink === 'function') {
+        try {
+          unlink(mp)
+        } catch (e) {}
+      }
+    }
+    if (existsSync(metaPath) && typeof unlink === 'function') {
+      try {
+        unlink(metaPath)
+      } catch (e) {}
+    }
+    if (typeof rmdir === 'function') {
+      try {
+        rmdir(dir)
+      } catch (e) {}
+    }
+  } catch (e) {
+    console.warn('[alias-material] fallback remove failed', e)
+  }
+}
+
+/** 与 ClipItemList 中别名映射一致，供删除条目时一并清理 */
+const ITEM_ALIAS_STORAGE_KEY = 'item.alias.map'
+
+const pruneAliasMapEntry = (itemId) => {
+  if (!itemId) return
+  try {
+    const map = utools?.dbStorage?.getItem?.(ITEM_ALIAS_STORAGE_KEY)
+    if (!map || typeof map !== 'object' || map[itemId] === undefined) return
+    delete map[itemId]
+    utools.dbStorage.setItem(ITEM_ALIAS_STORAGE_KEY, map)
+  } catch (e) {}
+}
+
+/** 删除某条剪贴项对应的别名落盘缓存（条目删除或别名变更时调用） */
+const removeAliasMaterialForItem = (itemId) => {
+  tryRemoveAliasMaterialDir(getAliasMaterialDirForItem(itemId))
+}
+
+/** 条目从历史删除时：删 userData 下别名文件 + dbStorage 中该 id 的别名映射 */
+const cleanupAliasStateForDeletedItem = (itemId) => {
+  removeAliasMaterialForItem(itemId)
+  pruneAliasMapEntry(itemId)
+}
+
+/**
+ * 将别名展示名写入持久目录；同一 item、同一别名、同一内容则复用已有文件不写盘。
+ * 返回供 utools.copyFile 的绝对路径。
+ */
+const writeAliasMaterialFile = ({ itemId, normalizedAlias, ext, buffer }) => {
+  const dir = getAliasMaterialDirForItem(itemId)
+  if (!existsSync(dir)) {
+    mkdirSync(dir, { recursive: true })
+  }
+  const fileName = `${normalizedAlias}${ext}`
+  const materialPath = dir + sep + fileName
+  const metaPath = dir + sep + 'meta.json'
+  const sig = bufferSignature(buffer)
+  let reused = false
+  if (existsSync(metaPath)) {
+    try {
+      const prev = JSON.parse(readFileSync(metaPath, 'utf8'))
+      if (
+        prev &&
+        prev.alias === normalizedAlias &&
+        prev.sig === sig &&
+        prev.materialPath === materialPath &&
+        existsSync(materialPath)
+      ) {
+        reused = true
+      } else if (prev && prev.materialPath && prev.materialPath !== materialPath && existsSync(prev.materialPath)) {
+        const un = window.exports.unlinkSync
+        if (typeof un === 'function') {
+          try {
+            un(prev.materialPath)
+          } catch (e) {}
+        }
+      }
+    } catch (e) {}
+  }
+  if (!reused) {
+    writeFileSync(materialPath, buffer)
+    writeFileSync(
+      metaPath,
+      JSON.stringify({
+        v: 1,
+        alias: normalizedAlias,
+        ext,
+        sig,
+        materialPath,
+        fileName,
+      }),
+    )
+  }
+  if (reused) {
+    console.log('[alias-paste] alias-material reuse (same alias+content)', materialPath)
+  } else {
+    console.log('[alias-paste] alias-material wrote (persist userData)', materialPath)
+  }
+  return materialPath
+}
+
 const dateFormat = (timeStamp) => {
   const startTime = new Date(timeStamp) // 开始时间
   const endTime = new Date() // 结束时间
@@ -161,9 +306,15 @@ const normalizeAliasFileName = (alias) => {
 }
 
 const copySingleFileWithAliasAndPaste = (item, alias) => {
-  if (!item || item.type !== 'file') return false
+  if (!item || item.type !== 'file') {
+    // console.log('[alias-paste] file-alias skip: not single file item', { type: item?.type })
+    return false
+  }
   const normalizedAlias = normalizeAliasFileName(alias)
-  if (!normalizedAlias) return false
+  if (!normalizedAlias) {
+    // console.log('[alias-paste] file-alias skip: empty alias after normalize')
+    return false
+  }
   try {
     const files = JSON.parse(item.data)
     if (!Array.isArray(files) || files.length !== 1) return false
@@ -172,20 +323,106 @@ const copySingleFileWithAliasAndPaste = (item, alias) => {
     const fileName = sourcePath.split(/[\\/]/).pop() || ''
     const dotIndex = fileName.lastIndexOf('.')
     const ext = dotIndex > 0 ? fileName.slice(dotIndex) : ''
-    const tempPath = utools.getPath('temp')
-    const folderPath = tempPath + sep + 'utools-clipboard-manager' + sep + 'alias-files'
-    if (!existsSync(folderPath)) {
-      mkdirSync(folderPath, { recursive: true })
-    }
-    const targetPath = folderPath + sep + `${normalizedAlias}${ext}`
     const buffer = readFileSync(sourcePath)
-    writeFileSync(targetPath, buffer)
+    const targetPath = writeAliasMaterialFile({
+      itemId: item.id,
+      normalizedAlias,
+      ext,
+      buffer,
+    })
+    if (!existsSync(targetPath)) {
+      // console.log('[alias-paste] file-alias fail: target not on disk after write', targetPath)
+      return false
+    }
+    // console.log('[alias-paste] file-alias ok: material file ready, copyFile', targetPath)
     utools.copyFile([targetPath])
     utools.hideMainWindow()
     paste()
     return true
   } catch (e) {
     console.error('[copySingleFileWithAliasAndPaste] failed', e)
+    return false
+  }
+}
+
+const resolveImageBufferAndExt = (item) => {
+  if (!item || item.type !== 'image' || !item.data || typeof item.data !== 'string') {
+    console.log('[alias-paste] image-resolve skip: invalid item or data', {
+      hasItem: Boolean(item),
+      type: item?.type,
+      dataType: typeof item?.data,
+    })
+    return null
+  }
+  const value = item.data
+  if (isValidImageData(value)) {
+    const matched = value.match(/^data:image\/([a-zA-Z0-9+.-]+);base64,/)
+    const extMap = { jpeg: '.jpg', jpg: '.jpg', png: '.png', gif: '.gif', webp: '.webp', bmp: '.bmp', 'svg+xml': '.svg' }
+    const ext = extMap[matched?.[1]?.toLowerCase()] || '.png'
+    const base64Data = value.replace(/^data:image\/[^;]+;base64,/, '')
+    const buf = Buffer.from(base64Data, 'base64')
+    console.log('[alias-paste] image-resolve ok: data URL base64', { ext, byteLength: buf?.length })
+    return { buffer: buf, ext }
+  }
+  let path = value
+  if (path.startsWith('file://')) {
+    path = path.slice(path.indexOf('://') + 3).replace(/^\/+/, '').replace(/\//g, sep)
+  }
+  if (!path) {
+    console.log('[alias-paste] image-resolve fail: empty path after normalize')
+    return null
+  }
+  try {
+    const buffer = readFileSync(path)
+    if (!buffer || !buffer.length) {
+      console.log('[alias-paste] image-resolve fail: read empty buffer', path)
+      return null
+    }
+    const fileName = path.split(/[\\/]/).pop() || ''
+    const dotIndex = fileName.lastIndexOf('.')
+    const ext = dotIndex > 0 ? fileName.slice(dotIndex) : '.png'
+    console.log('[alias-paste] image-resolve ok: read file path', { path, ext, byteLength: buffer.length })
+    return { buffer, ext }
+  } catch (e) {
+    console.log('[alias-paste] image-resolve fail: readFile error', path, e?.message || e)
+    return null
+  }
+}
+
+const copyImageWithAliasAndPaste = (item, alias) => {
+  if (!item || item.type !== 'image') {
+    console.log('[alias-paste] image-alias skip: not image item')
+    return false
+  }
+  const normalizedAlias = normalizeAliasFileName(alias)
+  if (!normalizedAlias) {
+    console.log('[alias-paste] image-alias skip: empty alias')
+    return false
+  }
+  try {
+    const imageMeta = resolveImageBufferAndExt(item)
+    if (!imageMeta?.buffer) {
+      console.log('[alias-paste] image-alias fail: no buffer from resolveImageBufferAndExt -> caller should fallback copyImage')
+      return false
+    }
+    const ext = imageMeta.ext || '.png'
+    const targetPath = writeAliasMaterialFile({
+      itemId: item.id,
+      normalizedAlias,
+      ext,
+      buffer: imageMeta.buffer,
+    })
+    if (!existsSync(targetPath)) {
+      console.log('[alias-paste] image-alias fail: material file missing after write', targetPath)
+      return false
+    }
+    console.log('[alias-paste] image-alias ok: material file on disk, copyFile then paste', targetPath)
+    utools.copyFile([targetPath])
+    utools.hideMainWindow()
+    paste()
+    return true
+  } catch (e) {
+    console.error('[copyImageWithAliasAndPaste] failed', e)
     return false
   }
 }
@@ -218,4 +455,20 @@ const getNativeId = () => {
   return utools.getNativeId()
 }
 
-export { dateFormat, pointToObj, copy, paste, createFile, getNativeId, isUToolsPlugin, copyWithSearchFocus, copyOnly, copyAndPasteAndExit, copySingleFileWithAliasAndPaste }
+export {
+  dateFormat,
+  pointToObj,
+  copy,
+  paste,
+  createFile,
+  getNativeId,
+  isUToolsPlugin,
+  copyWithSearchFocus,
+  copyOnly,
+  copyAndPasteAndExit,
+  copySingleFileWithAliasAndPaste,
+  copyImageWithAliasAndPaste,
+  removeAliasMaterialForItem,
+  cleanupAliasStateForDeletedItem,
+  ITEM_ALIAS_STORAGE_KEY,
+}

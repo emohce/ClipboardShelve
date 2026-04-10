@@ -159,6 +159,9 @@ import {
     copyOnly,
     copyAndPasteAndExit,
     copySingleFileWithAliasAndPaste,
+    copyImageWithAliasAndPaste,
+    removeAliasMaterialForItem,
+    ITEM_ALIAS_STORAGE_KEY as ITEM_ALIAS_DB_KEY,
 } from "../utils";
 import defaultOperation from "../data/operation.json";
 import setting, {
@@ -220,20 +223,24 @@ const isOverSizedContent = (item) => {
     }
 };
 
-const ITEM_ALIAS_STORAGE_KEY = "item.alias.map";
 const getAliasMap = () => {
-    const map = utools?.dbStorage?.getItem?.(ITEM_ALIAS_STORAGE_KEY);
+    const map = utools?.dbStorage?.getItem?.(ITEM_ALIAS_DB_KEY);
     return map && typeof map === "object" ? map : {};
 };
 const setItemAlias = (itemId, alias) => {
     if (!itemId) return;
     const map = getAliasMap();
-    if (typeof alias === "string" && alias.trim()) {
-        map[itemId] = alias.trim();
+    const prev = typeof map[itemId] === "string" ? map[itemId].trim() : undefined;
+    const next = typeof alias === "string" && alias.trim() ? alias.trim() : undefined;
+    if (prev !== next) {
+        removeAliasMaterialForItem(itemId);
+    }
+    if (next) {
+        map[itemId] = next;
     } else {
         delete map[itemId];
     }
-    utools.dbStorage.setItem(ITEM_ALIAS_STORAGE_KEY, map);
+    utools.dbStorage.setItem(ITEM_ALIAS_DB_KEY, map);
 };
 const getItemAlias = (item) => {
     if (!item) return "";
@@ -487,7 +494,7 @@ const handlePreviewScrollShortcut = (direction) => {
 
 // 图片加载成功处理
 const handleImageLoad = (event) => {
-    console.log("[ClipItemList] 图片加载成功:", event.target.src);
+    // console.log("[ClipItemList] 图片加载成功:", event.target.src);
     applyImagePreviewLayout(
         event.target.naturalWidth,
         event.target.naturalHeight,
@@ -2117,6 +2124,28 @@ function registerListHotkeyFeatures() {
                 ElMessage({ type: "success", message: "已按别名重命名并粘贴" });
             } else {
                 ElMessage({ type: "warning", message: "别名粘贴失败，已回退默认粘贴" });
+                copyAndPasteAndExit(item, { respectImageCopyGuard: true });
+            }
+            return true;
+        }
+        if (item.type === "image" && alias) {
+            // console.log("[alias-paste] list-save-by-alias: image+alias branch enter", {
+            //     alias,
+            //     hasData: Boolean(item?.data),
+            //     dataPreview:
+            //         typeof item?.data === "string"
+            //             ? item.data.slice(0, 80) + (item.data.length > 80 ? "…" : "")
+            //             : item?.data,
+            // });
+            const ok = copyImageWithAliasAndPaste(item, alias);
+            if (ok) {
+                // console.log("[alias-paste] list-save-by-alias: image-alias path success (temp file + copyFile)");
+                ElMessage({ type: "success", message: "已按别名生成图片文件并粘贴" });
+            } else {
+                // console.log(
+                //     "[alias-paste] list-save-by-alias: image-alias failed -> fallback copyAndPasteAndExit (clipboard image, not temp file name)",
+                // );
+                ElMessage({ type: "info", message: "图片文件别名粘贴失败，回退为普通图片粘贴" });
                 copyAndPasteAndExit(item, { respectImageCopyGuard: true });
             }
             return true;

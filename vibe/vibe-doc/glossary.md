@@ -27,3 +27,9 @@
 
 - `uTools default window`
   用户未主动调整尺寸时，插件默认打开的窗口大小。涉及滚动、布局、可见区域时优先按这个环境考虑。
+
+- `alias material`（别名落盘缓存）
+  为「按别名粘贴为文件」而在磁盘上生成的真实文件及其元数据目录，位于 `userData/.../alias-material/<条目 id>/`，与仅存在内存/剪贴板中的图片数据区分；与 `item.alias.map` 中的**别名文本**持久化相互独立又通过 `itemId` 关联。见 [EM-2026-04-10-alias-material-lifecycle](ai-error-memory/2026-04-10-alias-material-lifecycle.md)。
+
+- `item.alias.map`
+  `utools.dbStorage` 中键名 `item.alias.map` 存储的「条目 id → 别名字符串」映射；删除条目或改别名时需与 `alias material` 清理策略对齐，避免孤儿映射或孤儿文件。

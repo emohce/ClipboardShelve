@@ -10,7 +10,7 @@ const {
   nativeImage,
   time
 } = window.exports
-import { copy, paste, createFile, getNativeId } from '../utils'
+import { copy, paste, createFile, getNativeId, cleanupAliasStateForDeletedItem } from '../utils'
 import setting from './readSetting'
 import { initWindowManager, setPluginWindowSize } from './windowManager'
 import { generateThumbnail, shouldGenerateThumbnail } from './imageUtils'
@@ -449,6 +449,9 @@ export default async function initPlugin() {
           this.dataBase.data.splice(index, 1)
           console.log('[DB.removeItemViaId] 已从data数组删除，索引:', index)
           this.updateDataBaseLocal(undefined, { immediate: true })
+          try {
+            cleanupAliasStateForDeletedItem(id)
+          } catch (e) {}
           console.log('[DB.removeItemViaId] 删除完成，数据总数:', this.dataBase.data.length, '收藏数:', this.dataBase.collects?.length || 0)
           return true
         }
