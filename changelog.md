@@ -3,6 +3,48 @@
 **排序**：永远把**最新**一轮更新写在**最上面**（新的 `## 日期 — 标题` 区块插在紧接本说明之后，旧区块整体下推）。  
 **用户向发布摘要**（须同步维护）：见 [publishLog.md](publishLog.md)；写法与约束见 [vibe/ai-rules/06-change-log-format.md](vibe/ai-rules/06-change-log-format.md)。
 
+## 2026-04-10 — 选中项渲染延迟修复 / 别名粘贴防重复 / uTools运行时资产生成
+
+### 变更摘要
+
+- **选中项渲染延迟修复**：修复多选模式下选中item进行加锁/别名编辑/收藏操作时，图标等渲染效果不能立即更新的问题。修改 `isItemCollected` 和 `getItemAlias` 函数优先检查item对象属性，操作后直接修改showList中对应item的属性而非selectItemList。
+- **别名粘贴防重复**：别名粘贴增加写盘校验，改别名/删条目时自动清理孤儿文件，避免磁盘堆积。
+- **快捷键对话框隔离**：优化弹窗输入态与主层Enter/Escape快捷键冲突，防止Esc误退插件。
+- **uTools运行时资产生成**：新增 `scripts/utools-runtime-assets.mjs` 统一生成plugin.json/preload.js/listener.js，`package.json` serve前置执行prepare:utools确保dist运行时资产齐全，vite.config.js closeBundle阶段调用生成函数替代public目录复制。
+
+### 关键文件
+
+| 路径 | 作用 |
+|------|------|
+| [src/cpns/ClipItemList.vue](src/cpns/ClipItemList.vue) | `isItemCollected`/`getItemAlias`函数优化、操作后直接修改showList |
+| [src/utils/index.js](src/utils/index.js) | 别名写盘校验、孤儿文件清理 |
+| [src/global/hotkeyRegistry.js](src/global/hotkeyRegistry.js) | 弹窗态快捷键隔离 |
+| [scripts/utools-runtime-assets.mjs](scripts/utools-runtime-assets.mjs) | uTools运行时资产统一生成 |
+| [scripts/prepare-utools-runtime.mjs](scripts/prepare-utools-runtime.mjs) | 开发启动前置生成入口 |
+| [vite.config.js](vite.config.js) | closeBundle阶段生成运行时资产 |
+| [package.json](package.json) | serve前置执行prepare:utools |
+
+### 风险 / 兼容性影响
+
+- **渲染数据源变更**：操作直接修改showList而非selectItemList，需确保数据流一致性。
+- **别名文件清理**：首次使用别名功能会在userData下创建文件，需确保目录可写。
+- **运行时资产生成**：dev模式必须先执行prepare:utools，否则dist/preload.js缺失会导致uTools加载失败。
+- **快捷键隔离**：弹窗态Enter/Escape行为变更，需适应新的交互逻辑。
+
+### 验证状态
+
+- 已完成：静态代码检查、编辑器lints（本轮改动文件无报错）。
+- 待你本机：在uTools环境验证多选模式下操作立即更新、别名粘贴防重复、弹窗快捷键隔离、dev模式启动流程。
+
+### 知识沉淀状态
+
+- 命中历史记录：无直接命中。
+- 新增 Error Memory：
+  - [EM-2026-04-10-selected-item-render-update-delay.md](vibe/vibe-doc/ai-error-memory/2026-04-10-selected-item-render-update-delay.md)
+  - [EM-2026-04-10-utools-runtime-assets.md](vibe/vibe-doc/ai-error-memory/2026-04-10-utools-runtime-assets.md)
+- ADR：无。
+- Glossary：无。
+
 ## 2026-04-10 — 003-quick-item-operation（别名粘贴生命周期 / 图片双轨支持 / 快捷键家族识别）
 
 ### 变更摘要
