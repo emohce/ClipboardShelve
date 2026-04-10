@@ -33,3 +33,6 @@
 
 - `item.alias.map`
   `utools.dbStorage` 中键名 `item.alias.map` 存储的「条目 id → 别名字符串」映射；删除条目或改别名时需与 `alias material` 清理策略对齐，避免孤儿映射或孤儿文件。
+
+- `F2` / `list-tag-edit` 双分支
+  主列表上同一快捷键绑定 feature `list-tag-edit`（[`src/global/hotkeyBindings.js`](../../src/global/hotkeyBindings.js)）。在 [`src/cpns/ClipItemList.vue`](../../src/cpns/ClipItemList.vue) 中按 `window.db.isCollected(item.id)` 分支：**已收藏** → `openTagEdit`（标签/备注编辑弹层）；**未收藏** → `saveAliasForItem`（别名新增/更新）。用户向表述：**不是「仅在收藏 tab」**，只要当前选中条目属于已收藏数据，`F2` 即走标签编辑。

@@ -3,6 +3,50 @@
 **排序**：永远把**最新**一轮更新写在**最上面**（新的 `## 日期 — 标题` 区块插在紧接本说明之后，旧区块整体下推）。  
 **用户向发布摘要**（须同步维护）：见 [publishLog.md](publishLog.md)；写法与约束见 [vibe/ai-rules/06-change-log-format.md](vibe/ai-rules/06-change-log-format.md)。
 
+## 2026-04-10 — 003-quick-item-operation（别名粘贴生命周期 / 图片双轨支持 / 快捷键家族识别）
+
+### 变更摘要
+
+- **别名材料生命周期**：`userData` 下按条目持久化别名文件，内容指纹复用；单文件别名粘贴增加写盘校验，改别名/删条目时自动清理孤儿文件。
+- **图片别名双轨支持**：纯图片别名采用双轨策略——优先使用文件对象粘贴，失败时回退到图片粘贴，确保别名功能对图片类型可用。
+- **快捷键家族识别**：`HotkeyTreeViewShortcut.vue` 新增 `isCompleteOneToNineFamily` 函数，识别完整的 1-9 快捷键家族（`list-quick-copy`、`list-drawer-sub`、`drawer-select`），在设置页展示为范围摘要标签。
+- **快捷键标签文案**：`hotkeyLabels.js` 新增三个 range-summary 标签（`list-quick-copy-range-summary`、`list-drawer-sub-range-summary`、`drawer-select-range-summary`），明确 1-9 快捷键的完整范围。
+- **用户文档更新**：`docs/用户简明说明.md` 重构快捷键说明为分组结构，补充 `F2` 双分支说明（已收藏条目为标签/备注编辑，未收藏条目为别名新增/更新），更新抽屉序号执行键位为 `ctrl+alt+1..9`。
+- **术语表更新**：`glossary.md` 新增 `F2` / `list-tag-edit` 双分支术语说明，明确按 `window.db.isCollected(item.id)` 分支逻辑。
+- **错误记忆**：新增 [EM-2026-04-10-alias-material-lifecycle.md](vibe/vibe-doc/ai-error-memory/2026-04-10-alias-material-lifecycle.md)，记录别名材料生命周期与清理策略。
+
+### 关键文件
+
+| 路径 | 作用 |
+|------|------|
+| [src/utils/index.js](src/utils/index.js) | 别名文件持久化、内容指纹、写盘校验、图片双轨粘贴 |
+| [src/cpns/ClipItemList.vue](src/cpns/ClipItemList.vue) | 别名粘贴调用、改别名/删条目清理逻辑 |
+| [src/global/initPlugin.js](src/global/initPlugin.js) | `userData` 目录初始化 |
+| [src/cpns/HotkeyTreeViewShortcut.vue](src/cpns/HotkeyTreeViewShortcut.vue) | 1-9 快捷键家族识别 |
+| [src/global/hotkeyLabels.js](src/global/hotkeyLabels.js) | range-summary 标签文案 |
+| [docs/用户简明说明.md](docs/用户简明说明.md) | 用户快捷键说明重构 |
+| [vibe/vibe-doc/glossary.md](vibe/vibe-doc/glossary.md) | F2 双分支术语 |
+| [vibe/vibe-doc/ai-error-memory/2026-04-10-alias-material-lifecycle.md](vibe/vibe-doc/ai-error-memory/2026-04-10-alias-material-lifecycle.md) | 别名材料生命周期复盘 |
+
+### 风险 / 兼容性影响
+
+- **别名文件持久化**：首次使用别名功能会在 `userData` 下创建文件，需确保目录可写。
+- **图片双轨粘贴**：文件对象优先策略可能改变图片别名的粘贴行为，但失败时有回退机制保证可用性。
+- **快捷键家族识别**：仅影响设置页展示标签，不影响快捷键实际绑定逻辑。
+- **用户文档重构**：快捷键说明结构变化，用户需适应新文档格式。
+
+### 验证状态
+
+- 已完成：静态代码检查、编辑器 lints（本轮改动文件无报错）。
+- 待你本机：在 uTools 环境按 `specs/003-quick-item-operation/quickstart.md` 执行别名粘贴、图片别名、快捷键家族展示等场景验证。
+
+### 知识沉淀状态
+
+- 命中历史记录：无直接命中。
+- 新增 Error Memory：[EM-2026-04-10-alias-material-lifecycle.md](vibe/vibe-doc/ai-error-memory/2026-04-10-alias-material-lifecycle.md)。
+- ADR：无。
+- Glossary：新增 `F2` / `list-tag-edit` 双分支术语。
+
 ## 2026-04-09 — 003-quick-item-operation（单条目别名 / 抽屉序号键迁移 / 别名保存触发）
 
 ### 变更摘要

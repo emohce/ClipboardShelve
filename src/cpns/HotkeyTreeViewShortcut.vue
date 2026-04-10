@@ -53,11 +53,34 @@ const props = defineProps({
 
 const emit = defineEmits(['toggle-expand'])
 
+function isCompleteOneToNineFamily(ids, prefix) {
+  if (!ids.length || ids.length !== 9) return false
+  const re = new RegExp(`^${prefix}-(\\d+)$`)
+  const nums = new Set()
+  for (const id of ids) {
+    const m = String(id).match(re)
+    if (!m) return false
+    const n = Number(m[1])
+    if (!Number.isInteger(n) || n < 1 || n > 9) return false
+    nums.add(n)
+  }
+  return nums.size === 9
+}
+
 function getFeatureSummaryLabels(featureIds) {
   const ids = [...new Set(featureIds || [])]
   if (!ids.length) return []
   if (ids.every((id) => /^clear-dialog-range-/.test(String(id)))) {
     return ['选择清除范围']
+  }
+  if (isCompleteOneToNineFamily(ids, 'list-quick-copy')) {
+    return [getFeatureLabel('list-quick-copy-range-summary')]
+  }
+  if (isCompleteOneToNineFamily(ids, 'list-drawer-sub')) {
+    return [getFeatureLabel('list-drawer-sub-range-summary')]
+  }
+  if (isCompleteOneToNineFamily(ids, 'drawer-select')) {
+    return [getFeatureLabel('drawer-select-range-summary')]
   }
   return ids.map(getFeatureLabel)
 }
