@@ -1,6 +1,9 @@
 const { utools, existsSync, writeFileSync, mkdirSync, sep, Buffer } = window.exports
 const readFileSync = window.exports.readFileSync
 
+// 防止别名粘贴时剪贴板监听器重复记录的标志位
+let isAliasPasting = false
+
 const bufferSignature = (buffer) => {
   const c = window.exports.crypto
   if (c && typeof c.createHash === 'function') {
@@ -18,6 +21,19 @@ const getAliasMaterialPersistRoot = () => {
     mkdirSync(root, { recursive: true })
   }
   return root
+}
+
+const getOriginalMaterialPersistRoot = () => {
+  const base = utools.getPath('userData')
+  const root = base + sep + 'utools-clipboard-manager' + sep + 'original-material'
+  if (!existsSync(root)) {
+    mkdirSync(root, { recursive: true })
+  }
+  return root
+}
+
+const getOriginalMaterialDirForItem = (itemId) => {
+  return getOriginalMaterialPersistRoot() + sep + sanitizeForPathSegment(itemId)
 }
 
 const getAliasMaterialDirForItem = (itemId) => {
@@ -335,12 +351,22 @@ const copySingleFileWithAliasAndPaste = (item, alias) => {
       return false
     }
     // console.log('[alias-paste] file-alias ok: material file ready, copyFile', targetPath)
+    isAliasPasting = true
     utools.copyFile([targetPath])
     utools.hideMainWindow()
     paste()
+    // 更新条目的 updateTime 并排序到最前面
+    if (window.db && typeof window.db.updateItemViaId === 'function') {
+      window.db.updateItemViaId(item.id)
+    }
+    // 延迟清除标志位，给剪贴板监听器足够时间跳过本次记录
+    setTimeout(() => {
+      isAliasPasting = false
+    }, 500)
     return true
   } catch (e) {
     console.error('[copySingleFileWithAliasAndPaste] failed', e)
+    isAliasPasting = false
     return false
   }
 }
@@ -417,34 +443,50 @@ const copyImageWithAliasAndPaste = (item, alias) => {
       return false
     }
     console.log('[alias-paste] image-alias ok: material file on disk, copyFile then paste', targetPath)
+    isAliasPasting = true
     utools.copyFile([targetPath])
     utools.hideMainWindow()
     paste()
+    // 更新条目的 updateTime 并排序到最前面
+    if (window.db && typeof window.db.updateItemViaId === 'function') {
+      window.db.updateItemViaId(item.id)
+    }
+    // 延迟清除标志位，给剪贴板监听器足够时间跳过本次记录
+    setTimeout(() => {
+      isAliasPasting = false
+    }, 500)
     return true
   } catch (e) {
     console.error('[copyImageWithAliasAndPaste] failed', e)
+    isAliasPasting = false
     return false
   }
 }
 
 const createFile = (item) => {
-  const tempPath = utools.getPath('temp')
-  const folderPath = tempPath + sep + 'utools-clipboard-manager'
-  if (!existsSync(folderPath)) {
-    try {
-      mkdirSync(folderPath)
-    } catch (err) {
-      utools.showNotification('创建临时文件夹出错: ' + err)
-    }
-  }
-  const { type } = item
+  const { type, id } = item
   if (type === 'image') {
+    // 图片类型：创建原始副本到持久化目录
+    const dir = getOriginalMaterialDirForItem(id)
+    if (!existsSync(dir)) {
+      mkdirSync(dir, { recursive: true })
+    }
     const base64Data = item.data.replace(/^data:image\/\w+;base64,/, '') // remove the prefix
     const buffer = Buffer.from(base64Data, 'base64') // to Buffer
-    const filePath = folderPath + sep + new Date().valueOf() + '.png'
+    const filePath = dir + sep + 'original.png'
     writeFileSync(filePath, buffer)
     return filePath
   } else if (type === 'text') {
+    // 文本类型：使用临时目录
+    const tempPath = utools.getPath('temp')
+    const folderPath = tempPath + sep + 'utools-clipboard-manager'
+    if (!existsSync(folderPath)) {
+      try {
+        mkdirSync(folderPath)
+      } catch (err) {
+        utools.showNotification('创建临时文件夹出错: ' + err)
+      }
+    }
     const filePath = folderPath + sep + new Date().valueOf() + '.txt'
     writeFileSync(filePath, item.data)
     return filePath
@@ -471,4 +513,7 @@ export {
   removeAliasMaterialForItem,
   cleanupAliasStateForDeletedItem,
   ITEM_ALIAS_STORAGE_KEY,
+  isAliasPasting,
+  getOriginalMaterialDirForItem,
+  getOriginalMaterialPersistRoot,
 }

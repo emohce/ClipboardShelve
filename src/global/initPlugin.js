@@ -10,7 +10,7 @@ const {
   nativeImage,
   time
 } = window.exports
-import { copy, paste, createFile, getNativeId, cleanupAliasStateForDeletedItem } from '../utils'
+import { copy, paste, createFile, getNativeId, cleanupAliasStateForDeletedItem, isAliasPasting } from '../utils'
 import setting from './readSetting'
 import { initWindowManager, setPluginWindowSize } from './windowManager'
 import { generateThumbnail, shouldGenerateThumbnail } from './imageUtils'
@@ -1144,31 +1144,37 @@ export default async function initPlugin() {
   }
 
   const handleClipboardChange = (item = pbpaste()) => {
-    
+
     // 防止循环：如果正在恢复剪贴板，跳过处理
     if (isRestoringClipboard) {
       return
     }
-    
+
+    // 防止别名粘贴时重复记录
+    if (isAliasPasting) {
+      console.log('[handleClipboardChange] 跳过别名粘贴触发的剪贴板记录')
+      return
+    }
+
     if (!item) {
       return
     }
-    
+
     // 计算项目ID
     const itemId = crypto.createHash('md5').update(item.data).digest('hex')
     item.id = itemId
-    
+
     // 额外防护：如果是刚恢复的项目，跳过处理
     if (lastRestoredItemId === itemId) {
       return
     }
-    
+
     // 计算内容哈希进行比较
     const currentHash = crypto.createHash('md5').update(item.data + item.type).digest('hex')
     if (lastRestoredItemHash === currentHash) {
       return
     }
-    
+
     if (db.updateItemViaId(itemId)) {
       // 在库中 由 updateItemViaId 更新 updateTime
       restoreClipboard(item)

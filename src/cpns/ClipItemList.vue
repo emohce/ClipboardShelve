@@ -1,4 +1,4 @@
-﻿<template>
+<template>
     <div
         class="clip-item-list"
         ref="listRootRef"
@@ -23,17 +23,6 @@
                 >
                     <ClipItemRow
                         v-if="item"
-                        v-memo="[
-                            item.id,
-                            item.updateTime,
-                            item.type,
-                            item.locked,
-                            activeIndex === index,
-                            isMultiple,
-                            selectedItemIdSet.has(item.id),
-                            isItemCollected(item),
-                            currentActiveTab,
-                        ]"
                         :item="item"
                         :index="index"
                         :is-multiple="isMultiple"
@@ -264,6 +253,7 @@ const parseSingleFilePath = (item) => {
         return "";
     }
 };
+
 const saveAliasForItem = (item) => {
     if (!item) return false;
     const currentAlias = getItemAlias(item);
@@ -276,6 +266,12 @@ const saveAliasForItem = (item) => {
     })
         .then(({ value }) => {
             setItemAlias(item.id, value);
+            // 同时更新 showList 中对应的 item 对象
+            const showListItem = props.showList.find((i) => i.id === item.id);
+            if (showListItem) {
+                // 触发响应式更新
+                showListItem.updateTime = Date.now();
+            }
             ElMessage({
                 message: value.trim() ? "别名已保存" : "别名已清空",
                 type: "success",
@@ -347,7 +343,7 @@ const buildImagePreviewFooter = (footerText = "", canScrollX = false, canScrollY
 
 const applyImagePreviewLayout = (naturalWidth, naturalHeight) => {
     if (!naturalWidth || !naturalHeight) return;
-    
+
     // 获取右侧预览区域的可用尺寸
     const viewportWidth = window.innerWidth;
     const viewportHeight = window.innerHeight;
@@ -355,50 +351,45 @@ const applyImagePreviewLayout = (naturalWidth, naturalHeight) => {
     const gap = 0;
     const availableWidth = Math.max(viewportWidth - mainListWidth - gap, 0);
     const availableHeight = Math.max(viewportHeight, 0);
-    
+
+    // 计算图片比例
+    const aspectRatio = naturalWidth / naturalHeight;
+    const maxAspectRatio = 3; // 宽高比超过 3:1 认为是非常规图片
+    const minAspectRatio = 1 / maxAspectRatio; // 高宽比超过 3:1 认为是非常规图片
+    const isRegularRatio = aspectRatio >= minAspectRatio && aspectRatio <= maxAspectRatio;
+
     // 计算等比例缩放
     const scaleByWidth = availableWidth / naturalWidth;
     const scaleByHeight = availableHeight / naturalHeight;
     const fitScale = Math.min(scaleByWidth, scaleByHeight);
-    
+
     // 计算各种缩放方案下的显示尺寸
     const fitDisplayWidth = naturalWidth * fitScale;
     const fitDisplayHeight = naturalHeight * fitScale;
-    
+
     // 按宽度填满时的尺寸
     const widthFillScale = scaleByWidth;
     const widthFillHeight = naturalHeight * widthFillScale;
-    
-    // 判断是否超出可用区域以及超出比例
-    const widthOverflowRatio = naturalWidth > availableWidth 
-        ? (naturalWidth - availableWidth) / naturalWidth 
-        : 0;
-    const heightOverflowRatio = naturalHeight > availableHeight 
-        ? (naturalHeight - availableHeight) / naturalHeight 
-        : 0;
-    
-    // 策略：如果图片任何一维超出不超过10%，则缩小展示全部；否则按宽度填满可能需要滚动
-    const maxOverflowRatio = Math.max(widthOverflowRatio, heightOverflowRatio);
-    const shouldShowFull = maxOverflowRatio <= 0.10; // 10% 阈值
-    
+
     let displayWidth, displayHeight, canScrollX, canScrollY, layoutMode;
-    
-    if (shouldShowFull || fitScale >= 1) {
-        // 缩小展示全部或原图小于可用区域
+
+    // 策略：常规比例图片直接居中显示为一张图；非常规比例图片才按宽度填满可能需要滚动
+    if (isRegularRatio) {
+        // 常规比例图片：等比例缩放居中显示
         displayWidth = fitDisplayWidth;
         displayHeight = fitDisplayHeight;
         canScrollX = false;
         canScrollY = false;
         layoutMode = "centered";
     } else {
-        // 按宽度填满，可能需要垂直滚动
+        // 非常规比例图片：按宽度填满，可能需要垂直滚动
         displayWidth = availableWidth;
         displayHeight = widthFillHeight;
         canScrollX = displayWidth > availableWidth;
         canScrollY = displayHeight > availableHeight;
         layoutMode = canScrollY ? "fit-width-scroll" : "centered";
     }
-    
+
     imagePreview.value.layoutMode = layoutMode;
     imagePreview.value.canScrollX = canScrollX;
     imagePreview.value.canScrollY = canScrollY;
@@ -446,14 +437,14 @@ const handlePreviewScrollShortcut = (direction) => {
             return scrollPreviewContainer(
                 imagePreviewContentRef.value,
                 "y",
-                -PREVIEW_SCROLL_STEP,
+                PREVIEW_SCROLL_STEP,
             );
         }
         if (direction === "down") {
             return scrollPreviewContainer(
                 imagePreviewContentRef.value,
                 "y",
-                PREVIEW_SCROLL_STEP,
+                -PREVIEW_SCROLL_STEP,
             );
         }
         if (direction === "left") {
@@ -987,6 +978,7 @@ const runPreviewForItem = (item) => {
 
 // Shift键长按处理（普通层 100ms 持续即对所在 item 进行预览）
 const handleShiftKeyDown = () => {
+    if (isAliasDialogOpen()) return;
     if (shiftKeyTimer) return;
 
     shiftKeyDownTime = Date.now();
@@ -1888,6 +1880,7 @@ function registerListHotkeyFeatures() {
     };
 
     registerFeature("list-nav-up", (e) => {
+        if (isAliasDialogOpen()) return false;
         if (e?.repeat) {
             startAutoScroll("up");
             return true;
@@ -1929,6 +1922,7 @@ function registerListHotkeyFeatures() {
         });
     });
     registerFeature("list-nav-down", (e) => {
+        if (isAliasDialogOpen()) return false;
         if (e?.repeat) {
             startAutoScroll("down");
             return true;
@@ -1989,21 +1983,25 @@ function registerListHotkeyFeatures() {
         });
     });
     registerFeature("list-page-up", () => {
+        if (isAliasDialogOpen()) return false;
         if (isFocusInSearch()) return false;
         if (props.showList.length === 0) return false;
 
         return runPageNavigation("up");
     });
     registerFeature("list-page-down", () => {
+        if (isAliasDialogOpen()) return false;
         if (isFocusInSearch()) return false;
         if (props.showList.length === 0) return false;
 
         return runPageNavigation("down");
     });
     registerFeature("list-nav-left", () => {
+        if (isAliasDialogOpen()) return false;
         return setKeyboardActiveIndex(activeIndex.value - 1);
     });
     registerFeature("list-scroll-to-bottom", () => {
+        if (isAliasDialogOpen()) return false;
         return setKeyboardActiveIndex(props.showList.length - 1, {
             actionType: "page-nav",
             scrollMode: "edge-align",
@@ -2012,6 +2010,7 @@ function registerListHotkeyFeatures() {
         });
     });
     registerFeature("list-scroll-to-top", () => {
+        if (isAliasDialogOpen()) return false;
         return setKeyboardActiveIndex(0, {
             actionType: "page-nav",
             scrollMode: "edge-align",
@@ -2020,15 +2019,19 @@ function registerListHotkeyFeatures() {
         });
     });
     registerFeature("text-preview-scroll-up", () => {
+        if (isAliasDialogOpen()) return false;
         return handlePreviewScrollShortcut("up");
     });
     registerFeature("text-preview-scroll-down", () => {
+        if (isAliasDialogOpen()) return false;
         return handlePreviewScrollShortcut("down");
     });
     registerFeature("image-preview-scroll-left", () => {
+        if (isAliasDialogOpen()) return false;
         return handlePreviewScrollShortcut("left");
     });
     registerFeature("image-preview-scroll-right", () => {
+        if (isAliasDialogOpen()) return false;
         return handlePreviewScrollShortcut("right");
     });
     const isFocusInSearch = () => {
@@ -2036,6 +2039,7 @@ function registerListHotkeyFeatures() {
         return el && (el.classList?.contains("clip-search-input") || el.closest?.(".clip-search"));
     };
     registerFeature("list-view-full", () => {
+        if (isAliasDialogOpen()) return false;
         if (isFocusInSearch()) return false;
         const item = props.showList[activeIndex.value];
         if (item) {
@@ -2045,6 +2049,7 @@ function registerListHotkeyFeatures() {
         return false;
     });
     registerFeature("list-drawer-open", () => {
+        if (isAliasDialogOpen()) return false;
         if (isFocusInSearch()) return false;
         openDrawerForCurrentItem();
         return true;
@@ -2157,6 +2162,7 @@ function registerListHotkeyFeatures() {
         return true;
     });
     registerFeature("list-copy", () => {
+        if (isAliasDialogOpen()) return false;
         if (props.fullData.data) {
             emit("onMultiCopyExecute", {
                 paste: false,
@@ -2176,6 +2182,7 @@ function registerListHotkeyFeatures() {
         return false;
     });
     registerFeature("list-collect", () => {
+        if (isAliasDialogOpen()) return false;
         const targets =
             props.isMultiple && selectItemList.value.length
                 ? [...selectItemList.value]
@@ -2187,6 +2194,11 @@ function registerListHotkeyFeatures() {
             if (props.currentActiveTab === "collect" || isCollected)
                 window.db.removeCollect(item.id);
             else window.db.addCollect(item.id);
+            // 同时更新 showList 中对应的 item 对象
+            const showListItem = props.showList.find((i) => i.id === item.id);
+            if (showListItem) {
+                showListItem.updateTime = Date.now();
+            }
         });
         if (targets.length) {
             ElMessage({
@@ -2201,6 +2213,7 @@ function registerListHotkeyFeatures() {
         return true;
     });
     registerFeature("list-lock", () => {
+        if (isAliasDialogOpen()) return false;
         const targets =
             props.isMultiple && selectItemList.value.length
                 ? [...selectItemList.value]
@@ -2211,16 +2224,28 @@ function registerListHotkeyFeatures() {
             preserveSelection();
             const shouldLock = !allSelectedLocked.value;
             targets.forEach((item) => {
+                window.setLock(item.id, shouldLock);
                 item.locked = shouldLock;
+                // 同时更新 showList 中对应的 item 对象
+                const showListItem = props.showList.find((i) => i.id === item.id);
+                if (showListItem) {
+                    showListItem.locked = shouldLock;
+                }
             });
             if (window.setLocks?.(targets.map((item) => item.id), shouldLock, true)) {
                 window.queuePersistDb?.();
             }
             allSelectedLocked.value = shouldLock;
         } else {
-            targets.forEach((item) =>
-                window.setLock(item.id, item.locked !== true),
-            );
+            targets.forEach((item) => {
+                window.setLock(item.id, item.locked !== true);
+                item.locked = !item.locked;
+                // 同时更新 showList 中对应的 item 对象
+                const showListItem = props.showList.find((i) => i.id === item.id);
+                if (showListItem) {
+                    showListItem.locked = !showListItem.locked;
+                }
+            });
         }
         if (targets.length) {
             emit("onDataRemove");
@@ -2228,6 +2253,7 @@ function registerListHotkeyFeatures() {
         return true;
     });
     registerFeature("list-delete", (e) => {
+        if (isAliasDialogOpen()) return false;
         if (!getCanDeleteItem(e, false)) return false;
         const itemsToDelete = props.isMultiple
             ? selectItemList.value.length
@@ -2302,6 +2328,7 @@ function registerListHotkeyFeatures() {
         return true;
     });
     registerFeature("list-force-delete", (e) => {
+        if (isAliasDialogOpen()) return false;
         const itemsToDelete = props.isMultiple
             ? selectItemList.value.length
                 ? [...selectItemList.value]
@@ -2379,6 +2406,7 @@ function registerListHotkeyFeatures() {
         return false;
     });
     registerFeature("list-space", () => {
+        if (isAliasDialogOpen()) return false;
         if (props.isSearchPanelExpand) return false;
         if (!props.isMultiple) emit("toggleMultiSelect", true);
         const currentItem = props.showList[activeIndex.value];
@@ -2396,6 +2424,7 @@ function registerListHotkeyFeatures() {
     });
     for (let n = 1; n <= 9; n++) {
         registerFeature(`list-quick-copy-${n}`, () => {
+            if (isAliasDialogOpen()) return false;
             const targetItem = props.showList[n - 1];
             if (targetItem) {
                 copyAndPasteAndExit(targetItem, {
@@ -2410,6 +2439,7 @@ function registerListHotkeyFeatures() {
     for (let n = 1; n <= 9; n++) {
         const num = n;
         registerFeature(`list-drawer-sub-${num}`, () => {
+            if (isAliasDialogOpen()) return false;
             const currentItem = props.showList[activeIndex.value];
             if (!currentItem) return false;
             const menu = getDrawerFullMenuItems(currentItem);
@@ -2518,12 +2548,13 @@ const runPageNavigation = (direction, options = {}) => {
 // 长文本预览相关
 const unifiedKeyHandler = (e) => {
     if (e.__hotkeyHandled) return;
-    
+
     const { key, repeat } = e;
     const isShift = key === "Shift";
 
     // 聚焦到预览窗口
     if (isShift) {
+        if (isAliasDialogOpen()) return;
         if (!repeat && !shiftKeyTimer) {
             // Shift键按下，启动预览计时
             if (props.isMultiple) isShiftDown.value = true;
@@ -2781,9 +2812,15 @@ onUnmounted(() => {
         box-shadow: 0 6px 18px rgba(0, 0, 0, 0.18);
     }
     .preview-error {
-        padding: 16px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 24px;
         color: #ef4444;
-        font-size: 14px;
+        font-size: 16px;
+        font-weight: 500;
+        text-align: center;
+        transform: rotate(180deg);
     }
 }
 </style>
