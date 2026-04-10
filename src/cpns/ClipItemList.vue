@@ -198,10 +198,15 @@ const emit = defineEmits([
     "openTagEdit",
     "loadMore",
 ]);
-const isItemCollected = (item) =>
-    props.collectedIds
+const isItemCollected = (item) => {
+    // 优先检查 item 对象的 collected 属性（用于即时更新）
+    if (typeof item.collected === 'boolean') {
+        return item.collected;
+    }
+    return props.collectedIds
         ? props.collectedIds.has(item.id)
         : Boolean(window?.db?.isCollected?.(item.id));
+};
 const isOverSizedContent = (item) => {
     const { type, data } = item;
     if (type === "text") {
@@ -233,11 +238,12 @@ const setItemAlias = (itemId, alias) => {
 };
 const getItemAlias = (item) => {
     if (!item) return "";
+    // 优先检查 item 对象的 alias 属性（用于即时更新）
+    if (typeof item.alias === "string" && item.alias.trim()) return item.alias.trim();
     const map = getAliasMap();
     const fromStore = typeof map[item.id] === "string" ? map[item.id].trim() : "";
     if (fromStore) return fromStore;
     if (typeof item.remark === "string" && item.remark.trim()) return item.remark.trim();
-    if (typeof item.alias === "string" && item.alias.trim()) return item.alias.trim();
     if (Array.isArray(item.tags) && typeof item.tags[0] === "string" && item.tags[0].trim()) {
         return item.tags[0].trim();
     }
@@ -266,11 +272,10 @@ const saveAliasForItem = (item) => {
     })
         .then(({ value }) => {
             setItemAlias(item.id, value);
-            // 同时更新 showList 中对应的 item 对象
+            // 直接在 showList 中查找并修改对应的 item 对象
             const showListItem = props.showList.find((i) => i.id === item.id);
             if (showListItem) {
-                // 触发响应式更新
-                showListItem.updateTime = Date.now();
+                showListItem.alias = value;
             }
             ElMessage({
                 message: value.trim() ? "别名已保存" : "别名已清空",
@@ -2194,10 +2199,11 @@ function registerListHotkeyFeatures() {
             if (props.currentActiveTab === "collect" || isCollected)
                 window.db.removeCollect(item.id);
             else window.db.addCollect(item.id);
-            // 同时更新 showList 中对应的 item 对象
+            const newCollectedState = !(props.currentActiveTab === "collect" || isCollected);
+            // 直接在 showList 中查找并修改对应的 item 对象
             const showListItem = props.showList.find((i) => i.id === item.id);
             if (showListItem) {
-                showListItem.updateTime = Date.now();
+                showListItem.collected = newCollectedState;
             }
         });
         if (targets.length) {
@@ -2225,8 +2231,7 @@ function registerListHotkeyFeatures() {
             const shouldLock = !allSelectedLocked.value;
             targets.forEach((item) => {
                 window.setLock(item.id, shouldLock);
-                item.locked = shouldLock;
-                // 同时更新 showList 中对应的 item 对象
+                // 直接在 showList 中查找并修改对应的 item 对象
                 const showListItem = props.showList.find((i) => i.id === item.id);
                 if (showListItem) {
                     showListItem.locked = shouldLock;
@@ -2239,8 +2244,6 @@ function registerListHotkeyFeatures() {
         } else {
             targets.forEach((item) => {
                 window.setLock(item.id, item.locked !== true);
-                item.locked = !item.locked;
-                // 同时更新 showList 中对应的 item 对象
                 const showListItem = props.showList.find((i) => i.id === item.id);
                 if (showListItem) {
                     showListItem.locked = !showListItem.locked;
