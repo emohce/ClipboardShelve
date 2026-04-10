@@ -79,6 +79,7 @@
                         'is-scroll': imagePreview.layoutMode !== 'centered',
                         'is-fit-width-scroll': imagePreview.layoutMode === 'fit-width-scroll',
                         'is-fit-height-scroll': imagePreview.layoutMode === 'fit-height-scroll',
+                        'is-small-image': imagePreview.isSmallImage,
                     }"
                     :style="imagePreview.contentStyle"
                 >
@@ -570,7 +571,7 @@ const showImagePreview = (event, item, footerText = "") => {
     const gap = 0; // 与主列表的间距
     const previewWidth = viewportWidth - mainListWidth - gap;
     const previewHeight = viewportHeight;
-    
+
     imagePreview.value.src = src;
     const footerMeta = buildImagePreviewFooter(footerText);
     imagePreview.value.footer = footerMeta.footer;
@@ -582,8 +583,8 @@ const showImagePreview = (event, item, footerText = "") => {
     imagePreview.value.canScrollY = false;
     imagePreview.value.contentStyle = {};
     imagePreview.value.scrollStyle = {};
-    
-    // 右侧预览窗口样式
+
+    // 右侧预览窗口样式（始终填满右侧）
     imagePreview.value.style = {
         position: "fixed",
         top: "0",
@@ -604,15 +605,17 @@ const showImagePreview = (event, item, footerText = "") => {
         justifyContent: "center",
         overflow: "hidden",
     };
-    
+
     imagePreview.value.imageStyle = {
         width: "auto",
         height: "auto",
+        maxWidth: "none",
+        maxHeight: "none",
         display: "block",
         imageRendering: "auto",
     };
     imagePreview.value.show = true;
-    
+
     // 悬浮预览优先使用原图以提升清晰度
     nextTick(() => {
         const modal = document.querySelector('.image-preview-modal');
@@ -1304,6 +1307,7 @@ const imagePreview = ref({
     canScrollY: false,
     loadFailed: false,
     scrollTop: 0, // 添加滚动位置跟踪
+    isSmallImage: false, // 标记是否为小图片
 });
 const imagePreviewSource = ref("");
 const hoverRowIndex = ref(null);
