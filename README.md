@@ -13,12 +13,12 @@
 - 快捷键分层：主界面/搜索态/抽屉/清除对话框/全文预览/设置层屏蔽删键。
 
 ## 目录与代码地图
-- 插件元数据：`public/plugin.json`（名称、入口、预加载、平台、命令词）@public/plugin.json#1-20
+- 插件元数据：由 `scripts/utools-runtime-assets.mjs` 生成到 `dist/plugin.json`（名称、入口、预加载、平台、命令词）@scripts/utools-runtime-assets.mjs#4-23
 - 入口：`src/main.js` 初始化插件并挂载 Vue @src/main.js#1-11
 - 核心逻辑：`src/global/initPlugin.js` 数据库、监听、降级、收藏/锁定/删除等 @src/global/initPlugin.js#31-871
-- 快捷键体系：`hotkeyBindings.js`/`hotkeyLabels.js`/`hotkeyLayers.js`/`hotkeyRegistry.js` @src/global/hotkeyBindings.js#1-141 @src/global/hotkeyLabels.js#1-109 @src/global/hotkeyLayers.js#1-46 @src/global/hotkeyRegistry.js#1-165
+- 快捷键体系：`hotkeyBindings.js`/`hotkeyLabels.js`/`hotkeyLayers.js`/`hotkeyRegistry.js` @src/global/hotkeyBindings.js#1-343 @src/global/hotkeyLabels.js#1-145 @src/global/hotkeyLayers.js#1-46 @src/global/hotkeyRegistry.js#1-165
 - 页面：`views/Main.vue` 主界面、搜索、多选、清除对话框 @src/views/Main.vue#1-240；`views/Setting.vue` 存储/快捷键/功能配置与自定义功能管理 @src/views/Setting.vue#1-185
-- 组件：`src/cpns/*`（列表、全文预览、搜索、操作抽屉、悬浮按钮等）
+- 组件：`src/cpns/*`（列表、全文预览、搜索、操作抽屉、悬浮按钮、标签编辑/搜索等）
 - 数据：`src/data/operation.json` 内置操作 @src/data/operation.json#1-11；`src/data/setting.json` 默认配置模板（路径/条数/天数、展示功能、自定义示例）@src/data/setting.json#1-80
 
 ## 页面与层级
@@ -35,11 +35,11 @@
   - 功能：主页功能勾选/排序，自定义功能新增/编辑/删除（匹配条件 + 跳转命令）。
 
 ## 快捷键（默认）
-- 主界面：Tab/Shift+Tab 切分页；Ctrl+1~9 切标签；Ctrl+F 搜索；Ctrl+Shift+U 触发/取消“有锁”条件搜索并继续文字检索；Ctrl+Alt+F 搜索收藏标签；Esc 退出；↑/↓/Ctrl+K/J 导航；← 全文预览；→ 操作抽屉；Enter 复制；Ctrl+Enter 复制并锁定；Ctrl+C 复制；Ctrl+S 收藏；Ctrl+U 锁定；Shift+Del/Backspace 开清除框；Del/Backspace 删除；Ctrl+Del/Backspace 强制删锁定；空格多选；Shift 预览图片/文字；Alt+1~9 快速复制；Ctrl+Shift+1~9 抽屉子功能 @src/global/hotkeyBindings.js#84-139.
-- 搜索态：Ctrl+Del/Backspace 删除，Ctrl+Shift+Del 强删 @src/global/hotkeyBindings.js#84-88.
-- 抽屉：Esc/← 关闭；↑/↓ 导航；Enter/Ctrl+Enter 选中；Ctrl+1~9 直选 @src/global/hotkeyBindings.js#61-77.
-- 全文预览：Esc/→ 关闭 @src/global/hotkeyBindings.js#79-83.
-- 清除对话框：数字 1/2/3/4/5 选范围；Tab/Shift+Tab 切换；Enter 确认；Esc 关闭 @src/global/hotkeyBindings.js#48-60.
+- 主界面：Tab/Shift+Tab 切分页；Ctrl+1~9 切标签；Ctrl+F 搜索；Ctrl+Shift+U 触发/取消“有锁”条件搜索并继续文字检索；Ctrl+Alt+F 搜索收藏标签；Esc 退出；↑/↓/Ctrl+K/J 导航；← 全文预览；→ 操作抽屉；Enter 复制；Ctrl+Enter 复制并锁定；Ctrl+C 复制；Ctrl+S 收藏；Ctrl+U 锁定；Shift+Del/Backspace 开清除框；Del/Backspace 删除；Ctrl+Del/Backspace 强制删锁定；空格多选；Shift 预览图片/文字；Alt+1~9 快速复制；Ctrl+Alt+1~9 抽屉子功能；F2 别名/标签编辑；Shift+F2 查看全文；Ctrl+Alt+S 打开设置；PgUp/PgDn 翻页 @src/global/hotkeyBindings.js#220-342.
+- 搜索态：Ctrl+Del/Backspace 删除，Ctrl+Shift+Del 强删 @src/global/hotkeyBindings.js#200-218.
+- 抽屉：Esc/←/Ctrl+← 关闭；↑/↓ 导航；Enter/Ctrl+Enter 选中；Ctrl+1~9 直选 @src/global/hotkeyBindings.js#112-137.
+- 全文预览：Esc/→ 关闭；↑/↓ 半页滚动 @src/global/hotkeyBindings.js#139-169.
+- 清除对话框：数字 1/2/3/4/5/6 选范围（1小时/5小时/8小时/24小时/7天/全部）；Tab/Shift+Tab 切换；Enter 确认；Esc 关闭 @src/global/hotkeyBindings.js#70-110.
 - 设置层保护：setting 层 Del/Backspace 不拦截，保留输入框行为 @src/global/hotkeyRegistry.js#115-130.
 
 > 快捷键可在设置页通过 hotkeyOverrides 覆盖，存储在 utools.dbStorage。
@@ -57,39 +57,11 @@
 3) 打包：确保 `dist/plugin.json` 在根，压缩为 zip 并改名 `.upx` 后上传 uTools 后台。
 4) 本地调试：uTools 开发者工具加载 `dist/` 或 `.upx`.
 
-## 界面展示
-
-### 主要页面
-- **初始页**: 插件启动后的主界面，显示剪贴板历史记录
-  ![初始页](./docs/pics/初始页.png)
-
-- **收藏页-子tab**: 收藏内容分类展示
-  ![收藏页-子tab](./docs/pics/收藏页-子tab.png)
-
-- **收藏页-编辑标签备注**: 为收藏内容添加标签和备注
-  ![收藏页-编辑标签备注](./docs/pics/收藏页-编辑标签备注.png)
-
-- **收藏标签搜索页(c-a-f)**: 使用 Ctrl+Alt+F 快捷键搜索收藏标签
-  ![收藏标签搜索页(c-a-f)](./docs/pics/收藏标签搜索页(c-a-f).png)
-
-### 功能特性
-- **Shift-触发预览**: 使用 Shift 键预览图片或文字内容
-  ![Shift-触发预览](./docs/pics/shift-触发预览.png)
-
-- **文件-跳转来源**: 显示文件来源路径，支持快速跳转
-  ![文件-跳转来源](./docs/pics/文件-跳转来源.png)
-
-- **清除记录页**: 按时间范围清除剪贴板记录(c-del 触发强制删除有锁项)
-  ![清除记录页](./docs/pics/清除记录页.png)
-
-- **设备页-快捷键展示**: 设置页面查看和配置快捷键
-  ![设备页-快捷键展示](./docs/pics/设备页-快捷键展示.png)
-
 ## 使用速览
 1) 复制任意文本/图片/文件，历史自动入库（空文本忽略）。
 2) ↑/↓ 选择，Enter 复制；Ctrl+Enter 复制并锁定；Ctrl+S 收藏.
 3) 空格开启多选，批量复制/粘贴；含文件/图片自动合并处理。
-4) Shift 预览图片；← 查看全文；→ 打开操作抽屉。
+4) Shift 预览图片；Ctrl+← 查看全文；Ctrl+→/→ 打开操作抽屉。
 5) Shift+Del 打开清除对话框，数字键选清理范围。
 6) `Ctrl+Shift+U` 可在“全部 / 有锁”条件搜索间快速切换，再继续输入关键字缩小范围。
 7) 设置页可改存储、上限、快捷键、主页功能与自定义跳转。
@@ -101,7 +73,7 @@
 
 ### ClipboardManager
 - **项目地址**: [https://github.com/ZiuChen/ClipboardManager](https://github.com/ZiuChen/ClipboardManager)
-- **技术栈**: Vue 3 + Element Plus + uTools
+- **技术栈**: Vue 3.5 + Vite 6 + Element Plus 2 + @tanstack/vue-virtual 3 + uTools
 - **核心功能**: 剪贴板历史管理、多类型支持（文本/图片/文件）
 - **特点**: 基于 Vue 3 框架，使用 Element Plus UI 组件库，支持 uTools 插件生态
 - **官网**: [https://ziuchen.gitee.io/project/ClipboardManager/](https://ziuchen.gitee.io/project/ClipboardManager/)
