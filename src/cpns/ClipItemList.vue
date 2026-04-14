@@ -2113,7 +2113,6 @@ function registerListHotkeyFeatures() {
     });
     registerFeature("list-enter", (e) => {
         if (isAliasDialogOpen()) return false;
-        if (isFocusInSearch()) return false;
         if (e && (e.isComposing || e.key === "Process")) return false;
         if (props.isMultiple) {
             emit("onMultiCopyExecute", {
@@ -2131,7 +2130,6 @@ function registerListHotkeyFeatures() {
     });
     registerFeature("list-ctrl-enter", (e) => {
         if (isAliasDialogOpen()) return false;
-        if (isFocusInSearch()) return false;
         if (e && (e.isComposing || e.key === "Process")) return false;
         if (!props.isMultiple && props.showList[activeIndex.value]) {
             const current = props.showList[activeIndex.value];
@@ -2151,7 +2149,6 @@ function registerListHotkeyFeatures() {
     });
     registerFeature("list-save-by-alias", (e) => {
         if (isAliasDialogOpen()) return false;
-        if (isFocusInSearch()) return false;
         if (e && (e.isComposing || e.key === "Process")) return false;
         if (props.isMultiple && selectItemList.value.length) {
             emit("onMultiCopyExecute", {
