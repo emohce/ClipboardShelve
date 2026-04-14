@@ -94,6 +94,51 @@ const pruneAliasMapEntry = (itemId) => {
   } catch (e) {}
 }
 
+/** 与 ClipItemList getItemAlias 同源，供列表检索匹配别名 / 备注 / 首标签回退名 */
+function getItemAliasForSearch (item) {
+  if (!item) return ''
+  if (typeof item.alias === 'string' && item.alias.trim()) return item.alias.trim()
+  try {
+    const map = utools?.dbStorage?.getItem?.(ITEM_ALIAS_STORAGE_KEY)
+    if (map && typeof map === 'object' && typeof map[item.id] === 'string' && map[item.id].trim()) {
+      return map[item.id].trim()
+    }
+  } catch (e) {}
+  if (typeof item.remark === 'string' && item.remark.trim()) return item.remark.trim()
+  if (Array.isArray(item.tags) && typeof item.tags[0] === 'string' && item.tags[0].trim()) {
+    return item.tags[0].trim()
+  }
+  return ''
+}
+
+/**
+ * 检索正文 + 别名 + 标签（分组）；多词为 AND（各处均须命中）。
+ * 图片仅匹配别名与标签，避免对 base64 data 做无意义扫描。
+ */
+function itemMatchesBodyKeyword (item, bodyKeyword) {
+  if (!bodyKeyword) return true
+  const key = String(bodyKeyword).trim()
+  if (!key) return true
+
+  const parts = key.indexOf(' ') !== -1
+    ? key.split(/\s+/).filter(Boolean).map((p) => p.toLowerCase())
+    : [key.toLowerCase()]
+
+  let haystack = ''
+  if (item.type === 'image') {
+    const bits = [getItemAliasForSearch(item)]
+    if (Array.isArray(item.tags)) bits.push(...item.tags.map((t) => String(t)))
+    haystack = bits.join('\n').toLowerCase()
+  } else {
+    const bits = [String(item.data ?? '')]
+    bits.push(getItemAliasForSearch(item))
+    if (Array.isArray(item.tags)) bits.push(...item.tags.map((t) => String(t)))
+    haystack = bits.join('\n').toLowerCase()
+  }
+
+  return parts.every((p) => haystack.indexOf(p) !== -1)
+}
+
 /** 删除某条剪贴项对应的别名落盘缓存（条目删除或别名变更时调用） */
 const removeAliasMaterialForItem = (itemId) => {
   tryRemoveAliasMaterialDir(getAliasMaterialDirForItem(itemId))
@@ -513,6 +558,8 @@ export {
   removeAliasMaterialForItem,
   cleanupAliasStateForDeletedItem,
   ITEM_ALIAS_STORAGE_KEY,
+  getItemAliasForSearch,
+  itemMatchesBodyKeyword,
   isAliasPasting,
   getOriginalMaterialDirForItem,
   getOriginalMaterialPersistRoot,

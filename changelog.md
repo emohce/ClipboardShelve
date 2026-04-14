@@ -3,6 +3,42 @@
 **排序**：永远把**最新**一轮更新写在**最上面**（新的 `## 日期 — 标题` 区块插在紧接本说明之后，旧区块整体下推）。
 **用户向发布摘要**（须同步维护）：见 [publishLog.md](publishLog.md)；写法与约束见 [vibe/ai-rules/06-change-log-format.md](vibe/ai-rules/06-change-log-format.md)。
 
+## 2026-04-14 — 搜索覆盖扩展 / Enter 过滤一致性 / 检索偏好 ADR
+
+### 变更摘要
+
+- **搜索覆盖扩展**：搜索从仅正文扩展为“正文 + 别名 + 标签（分组）”联合匹配；图片类型仅匹配别名与标签，避免对 base64 内容做无意义扫描。
+- **收藏分组纳入搜索**：收藏 tab（含子分组）下检索同样覆盖别名与标签，关键词命中规则与主列表保持一致。
+- **Enter 过滤一致性修复**：搜索聚焦时 `Enter` 不再被过早短路，按当前过滤结果执行复制粘贴；IME 组合输入防护保留（`isComposing` / `Process`）。
+- **知识沉淀**：新增 ADR 固化“筛选搜索偏好保持”与“Enter 必须遵循过滤规则”。
+
+### 关键文件
+
+| 路径 | 作用 |
+|------|------|
+| [src/views/Main.vue](src/views/Main.vue) | 搜索匹配逻辑升级；收藏与全部 tab 的图片搜索参与规则调整；搜索占位文案更新 |
+| [src/utils/index.js](src/utils/index.js) | 新增别名解析与“正文+别名+标签”统一匹配 helper |
+| [src/cpns/ClipItemList.vue](src/cpns/ClipItemList.vue) | `list-enter` / `list-ctrl-enter` / `list-save-by-alias` 去除搜索焦点短路 |
+| [vibe/vibe-doc/adr/2026-04-14-search-preference-and-enter-filter-rule.md](vibe/vibe-doc/adr/2026-04-14-search-preference-and-enter-filter-rule.md) | 新增长期决策记录 |
+
+### 风险 / 兼容性影响
+
+- **匹配范围扩大**：部分历史关键词可能命中更多条目（例如标签或别名命中），需适应结果集增大。
+- **Enter 行为调整**：搜索输入框聚焦时可直接执行当前高亮项粘贴，需确认与个人使用习惯一致。
+- **图片检索策略**：图片仍不按正文（base64）检索，仅按别名/标签检索，保持性能与可解释性。
+
+### 验证状态
+
+- 已完成：编辑器 lints（本轮变更文件无报错）。
+- 待你本机：在 uTools 环境验证“搜索命中别名/标签”“收藏子分组搜索”“搜索聚焦 Enter 粘贴”“IME 组字 Enter 不误触发”。
+
+### 知识沉淀状态
+
+- 命中历史记录：参考 [EM-2026-04-08-clipboard-nav-scroll-search-layout](vibe/vibe-doc/ai-error-memory/2026-04-08-clipboard-nav-scroll-search-layout.md) 的 IME/搜索焦点约束，保留 composition 防护。
+- 新增 Error Memory：无。
+- ADR：新增 [ADR-2026-04-14-search-preference-and-enter-filter-rule](vibe/vibe-doc/adr/2026-04-14-search-preference-and-enter-filter-rule.md)。
+- Glossary：无。
+
 ## 2026-04-10 — 图片预览布局优化 / 滚动方向修复
 
 ### 变更摘要
