@@ -246,7 +246,7 @@ import {
 import { activateLayer, deactivateLayer, getCurrentLayer } from "../global/hotkeyLayers";
 import { registerFeature, setMainState } from "../global/hotkeyRegistry";
 import { formatShortcutDisplay } from "../global/shortcutKey";
-import { copyAndPasteAndExit } from "../utils";
+import { copyAndPasteAndExit, itemMatchesBodyKeyword } from "../utils";
 import { batchDelete } from "../global/batchOperations";
 import ClipItemList from "../cpns/ClipItemList.vue";
 import ClipFullData from "../cpns/ClipFullData.vue";
@@ -490,16 +490,8 @@ const parseStarFilter = (raw) => {
     return { isStar: true, tagKeyword, bodyKeyword };
 };
 
-const bodyFilterCallBack = (item, bodyKeyword) => {
-    if (!bodyKeyword) return true;
-    if (item.type === "image") return false;
-    const data = (item.data || "").toLowerCase();
-    if (bodyKeyword.indexOf(" ") !== -1) {
-        const parts = bodyKeyword.split(" ");
-        return parts.every((f) => data.indexOf(f.toLowerCase()) !== -1);
-    }
-    return data.indexOf(bodyKeyword.toLowerCase()) !== -1;
-};
+const bodyFilterCallBack = (item, bodyKeyword) =>
+    itemMatchesBodyKeyword(item, bodyKeyword);
 
 const tagMatch = (item, tagKeyword) => {
     if (!tagKeyword) return true;
@@ -517,7 +509,11 @@ const matchSearchableItemType = (item, keyword, tabType = activeTab.value) => {
     if (tabType === "text") return item.type === "text";
     if (tabType === "image") return item.type === "image";
     if (tabType === "file") return item.type === "file";
-    // all tab 或其他情况：只在有搜索关键词时过滤图片
+    if (tabType === "collect") return true;
+    // 全部：有关键词时图片仅在与别名/标签匹配时参与（正文为 base64 不做检索）
+    if (keyword && item.type === "image") {
+        return itemMatchesBodyKeyword(item, keyword);
+    }
     return keyword ? item.type !== "image" : true;
 };
 
@@ -953,7 +949,7 @@ const collectedIds = computed(() => {
 const searchPlaceholder = computed(() => {
     if (activeTab.value === "collect") {
         const n = window.db?.getCollects?.()?.length ?? 0;
-        return `在 ${n} 条收藏中检索，按 * 标签筛选`;
+        return `在 ${n} 条收藏中检索正文、别名与分组标签，按 * 标签筛选`;
     }
     if (parseStarFilter(filterText.value).isStar)
         return "按 * 标签与正文筛选";
