@@ -193,6 +193,11 @@ export const HOTKEY_BINDINGS = [
   },
   {
     layer: "tag-edit",
+    shortcutId: "ctrl+s",
+    features: ["tag-edit-save"],
+  },
+  {
+    layer: "tag-edit",
     shortcutId: "*",
     features: ["tag-edit-block"],
   },
