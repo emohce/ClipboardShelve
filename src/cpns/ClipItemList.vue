@@ -186,6 +186,10 @@ const props = defineProps({
         type: String,
         required: true,
     },
+    lockFilter: {
+        type: String,
+        default: "all",
+    },
     isSearchPanelExpand: {
         type: Boolean,
         required: true,
@@ -1327,8 +1331,12 @@ const estimateItemSize = (index = activeIndex.value) => {
     if (item.type === "image") return 76;
     return props.isMultiple && activeIndex.value === index ? 72 : 52;
 };
+const getListVisibleInsets = () => ({
+    top: 8,
+    bottom: 8,
+});
 const {
-    scrollToIndex: scrollVirtualIndexIntoView,
+    applyScrollToItemIndex,
     getPageStep: virtualPageStep,
     getPageTargetIndex,
     scrollByPage,
@@ -1339,6 +1347,7 @@ const {
     virtualizer: null,
     getEstimateSize: () => estimateItemSize(),
     getCount: () => props.showList.length,
+    getVisibleInsets: getListVisibleInsets,
 });
 const handleVirtualScroll = () => {
     const container = scrollParentRef.value;
@@ -1677,6 +1686,10 @@ const buildNavigationAction = (type, payload = {}) => ({
 const canRunNavigationAction = (action) => {
     const current = currentNavigationAction.value;
     if (!current) return true;
+    // hold-scroll 只作为长按期间的瞬时动作，不应阻塞后续普通导航
+    if (current.type === "hold-scroll" && action.type !== "hold-scroll") {
+        return true;
+    }
     if (action.priority !== current.priority) {
         return action.priority > current.priority;
     }
@@ -1695,29 +1708,73 @@ const normalizeNavigationScrollOptions = (options = {}) => {
         (options.block === "start" || options.block === "end"
             ? options.block
             : undefined);
-    let centerStartIndex = options.centerStartIndex;
-    if (
-        scrollMode === "center-preferred" &&
-        !Number.isInteger(centerStartIndex)
-    ) {
-        if (options.actionType === "step-nav") {
-            centerStartIndex = 5;
-        } else {
-            centerStartIndex = 0;
-        }
-    }
     return {
         source: options.source || "keyboard",
         forceScroll: options.forceScroll === true,
         scrollMode,
         edge,
         block: options.block,
-        centerStartIndex,
     };
 };
 
 const scrollActiveNodeIntoView = (index = activeIndex.value, options = {}) => {
-    scrollVirtualIndexIntoView(index, options);
+    applyScrollToItemIndex(index, options);
+};
+
+const syncActiveIndexVisibility = (index = activeIndex.value, options = {}) => {
+    nextTick(() => {
+        if (!Array.isArray(props.showList) || props.showList.length === 0) return;
+        const targetIndex = clampActiveIndex(index);
+        applyScrollToItemIndex(targetIndex, {
+            scrollMode: "nearest",
+            ...options,
+        });
+    });
+};
+
+const syncShowListItemPatch = (itemId, patch = {}) => {
+    if (!itemId || !patch || typeof patch !== "object") return;
+    const showListItem = props.showList.find((item) => item.id === itemId);
+    if (showListItem) {
+        Object.assign(showListItem, patch);
+    }
+};
+
+const syncShowListLockedState = (itemIds = [], locked) => {
+    const ids = Array.isArray(itemIds) ? itemIds.filter(Boolean) : [];
+    ids.forEach((itemId) => {
+        syncShowListItemPatch(itemId, { locked });
+    });
+};
+
+const shouldRefreshListAfterLockChange = () => props.lockFilter === "locked";
+
+const setItemLockedState = (itemId, locked, skipFileWrite = false) => {
+    if (!itemId || typeof window.setLock !== "function") return false;
+    syncShowListLockedState([itemId], locked);
+    const updated = window.setLock(itemId, locked, skipFileWrite);
+    if (!updated) {
+        syncShowListLockedState([itemId], !locked);
+    }
+    return updated;
+};
+
+const setItemsLockedState = (itemIds = [], locked, skipFileWrite = false) => {
+    const ids = Array.isArray(itemIds) ? itemIds.filter(Boolean) : [];
+    if (!ids.length) return false;
+    syncShowListLockedState(ids, locked);
+    if (typeof window.setLocks === "function") {
+        const updated = window.setLocks(ids, locked, skipFileWrite);
+        if (!updated) {
+            syncShowListLockedState(ids, !locked);
+        }
+        return updated;
+    }
+    let changed = false;
+    ids.forEach((itemId) => {
+        changed = setItemLockedState(itemId, locked, skipFileWrite) || changed;
+    });
+    return changed;
 };
 
 const runNavigationScroll = (action, attempt = 0) => {
@@ -1727,12 +1784,9 @@ const runNavigationScroll = (action, attempt = 0) => {
         edge: action.edge,
         block: action.block,
         forceScroll: action.forceScroll,
-        centerStartIndex: action.centerStartIndex,
     });
     if (attempt >= 2 || action.type === "hold-scroll") {
-        if (action.type !== "hold-scroll") {
-            clearNavigationAction(action.id);
-        }
+        clearNavigationAction(action.id);
         return;
     }
     scheduleNavigationFrame(() => runNavigationScroll(action, attempt + 1));
@@ -1780,6 +1834,7 @@ defineExpose({
     emptySelectItemList,
     activeIndex, // 暴露当前高亮的索引
     setKeyboardActiveIndex, // 暴露设置高亮索引的方法
+    syncActiveIndexVisibility,
     prepareDeleteRecovery: (anchor) => setDeleteAnchor(anchor),
     clearPendingStates, // 暴露清除待处理状态的方法
     // scrollToBottom, // 暴露滚动到底部的方法
@@ -1816,15 +1871,21 @@ const STEP_NAV_EDGE_END_OPTIONS = Object.freeze({
     edge: "end",
     forceScroll: true,
 });
+const STEP_NAV_UP_REVEAL_OPTIONS = Object.freeze({
+    actionType: "step-nav",
+    scrollMode: "edge-align",
+    edge: "end",
+    forceScroll: false,
+});
 const LOAD_RECOVERY_OPTIONS = Object.freeze({
     source: "load-more",
     scrollMode: "center-preferred",
-    forceScroll: true,
+    forceScroll: false,
 });
 const DELETE_RECOVERY_OPTIONS = Object.freeze({
     source: "delete",
     scrollMode: "center-preferred",
-    forceScroll: true,
+    forceScroll: false,
 });
 const findPreferredKeptItemId = (keepIdSet, startIndex) => {
     for (let i = startIndex; i < props.showList.length; i++) {
@@ -1939,9 +2000,7 @@ watch(
         if (newLen > oldLen && target < newLen) {
             pendingNavAfterLoad.value = null;
             submitNavigationAction("load-recovery", target, {
-                source: "load-more",
-                scrollMode: "center-preferred",
-                forceScroll: true,
+                ...LOAD_RECOVERY_OPTIONS,
             });
         }
     },
@@ -1960,6 +2019,7 @@ watch(
             return;
         }
         setActiveIndex(activeIndex.value);
+        syncActiveIndexVisibility(activeIndex.value);
     },
 );
 
@@ -1997,18 +2057,14 @@ function registerListHotkeyFeatures() {
             return true;
         }
 
-        // 正常向上移动：接近列表顶部的若干项用 end 对齐，避免 center 把 0..n 留在视窗外
+        // 正常向上移动：保持“完全可见则不滚；一旦需要滚动则用 end 对齐”，给上方留出一行。
         const nextIdx = activeIndex.value - 1;
         if (nextIdx <= 0) {
             return setKeyboardActiveIndex(nextIdx, {
                 ...STEP_NAV_EDGE_START_OPTIONS,
             });
         }
-        const STEP_UP_TOP_BAND = 8;
-        if (nextIdx <= STEP_UP_TOP_BAND) {
-            return setKeyboardActiveIndex(nextIdx, { ...STEP_NAV_EDGE_END_OPTIONS });
-        }
-        return setKeyboardActiveIndex(nextIdx, { ...STEP_NAV_CENTER_OPTIONS });
+        return setKeyboardActiveIndex(nextIdx, { ...STEP_NAV_UP_REVEAL_OPTIONS });
     });
     registerFeature("list-nav-down", (e) => {
         if (isAliasDialogOpen()) return false;
@@ -2155,8 +2211,8 @@ function registerListHotkeyFeatures() {
         if (e && (e.isComposing || e.key === "Process")) return false;
         if (!props.isMultiple && props.showList[activeIndex.value]) {
             const current = props.showList[activeIndex.value];
+            setItemLockedState(current.id, true);
             copyAndPasteAndExit(current, { respectImageCopyGuard: true });
-            window.setLock(current.id, true);
             return true;
         }
         if (props.isMultiple && selectItemList.value.length) {
@@ -2288,28 +2344,18 @@ function registerListHotkeyFeatures() {
         if (props.isMultiple && targets.length) {
             preserveSelection();
             const shouldLock = !allSelectedLocked.value;
-            targets.forEach((item) => {
-                window.setLock(item.id, shouldLock);
-                // 直接在 showList 中查找并修改对应的 item 对象
-                const showListItem = props.showList.find((i) => i.id === item.id);
-                if (showListItem) {
-                    showListItem.locked = shouldLock;
-                }
-            });
-            if (window.setLocks?.(targets.map((item) => item.id), shouldLock, true)) {
-                window.queuePersistDb?.();
-            }
+            setItemsLockedState(
+                targets.map((item) => item.id),
+                shouldLock,
+            );
             allSelectedLocked.value = shouldLock;
         } else {
             targets.forEach((item) => {
-                window.setLock(item.id, item.locked !== true);
-                const showListItem = props.showList.find((i) => i.id === item.id);
-                if (showListItem) {
-                    showListItem.locked = !showListItem.locked;
-                }
+                const shouldLock = item.locked !== true;
+                setItemLockedState(item.id, shouldLock);
             });
         }
-        if (targets.length) {
+        if (targets.length && shouldRefreshListAfterLockChange()) {
             emit("onDataRemove");
         }
         return true;
@@ -2454,14 +2500,14 @@ const startAutoScroll = (direction) => {
     const scroll = () => {
         if (direction === "up") {
             if (activeIndex.value > 0) {
-                runPageNavigation("up", { center: true, forceScroll: true });
+                runPageNavigation("up", { center: true, forceScroll: false });
             } else {
                 stopAutoScroll();
                 return;
             }
         } else if (direction === "down") {
             if (activeIndex.value < props.showList.length - 1) {
-                runPageNavigation("down", { center: true, forceScroll: true });
+                runPageNavigation("down", { center: true, forceScroll: false });
             } else {
                 const oldLen = props.showList.length;
                 hoverPreviewSuspendedByKeyboard.value = true;
@@ -2474,7 +2520,7 @@ const startAutoScroll = (direction) => {
                         submitNavigationAction("hold-scroll", targetIndex, {
                             source: "hold-scroll",
                             scrollMode: "center-preferred",
-                            forceScroll: true,
+                            forceScroll: false,
                         });
                         stopAutoScroll();
                     },
