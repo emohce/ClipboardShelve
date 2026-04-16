@@ -26,7 +26,7 @@
   修改后可能影响插件运行时、窗口行为、热键链、持久化或核心交互的目录，例如 `public/` 和 `src/global/`。
 
 - `uTools default window`
-  用户未主动调整尺寸时，插件默认打开的窗口大小。涉及滚动、布局、可见区域时优先按这个环境考虑。
+  用户未主动调整尺寸时，插件默认打开的窗口大小（**macOS 上 uTools 内嵌插件窗为首要场景**，独立拉大窗口或仅浏览器全屏 **不是**默认验收环境）。列表区有效高度 **远小于**常见桌面浏览器窗口；**图片类**列表项默认约 **2×** 单行文字条目的行高，描述「一屏可见量」时需区分 **条目数**（约 **6 条**量级）与 **等效行/栅格**（约 **12 行**量级），勿混用两个数字。涉及滚动、布局、可见区域时优先在该环境下考虑。见 [EM-2026-04-16-utools-default-window-list-visibility](ai-error-memory/2026-04-16-utools-default-window-list-visibility.md)。
 
 - `alias material`（别名落盘缓存）
   为「按别名粘贴为文件」而在磁盘上生成的真实文件及其元数据目录，位于 `userData/.../alias-material/<条目 id>/`，与仅存在内存/剪贴板中的图片数据区分；与 `item.alias.map` 中的**别名文本**持久化相互独立又通过 `itemId` 关联。见 [EM-2026-04-10-alias-material-lifecycle](ai-error-memory/2026-04-10-alias-material-lifecycle.md)。

@@ -132,6 +132,7 @@
             :fullData="fullData"
             :isMultiple="isMultiple"
             :currentActiveTab="activeTab"
+            :lockFilter="lockFilter"
             :isSearchPanelExpand="isSearchPanelExpand"
             @onMultiCopyExecute="handleMultiCopyBtnClick"
             @toggleMultiSelect="handleToggleMultiSelect"
@@ -675,6 +676,11 @@ const updateShowList = (type, toTop = true) => {
         nextTick(() => {
             if (ClipItemListRef.value && shouldAutoTop) {
                 setActiveIndex(0);
+                syncActiveIndexVisibility(0, {
+                    scrollMode: "edge-align",
+                    edge: "start",
+                    forceScroll: true,
+                });
             }
         });
         if (shouldAutoTop) {
@@ -1022,6 +1028,10 @@ const setActiveIndex = (val) => {
     } else if (ai && typeof ai === "object" && "value" in ai) {
         ai.value = val;
     }
+};
+
+const syncActiveIndexVisibility = (val, options = {}) => {
+    ClipItemListRef.value?.syncActiveIndexVisibility?.(val, options);
 };
 
 const adjustActiveIndexAfterDelete = (baseIndex) => {
