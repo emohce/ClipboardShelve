@@ -1570,10 +1570,7 @@ const handleItemClick = (ev, item) => {
             
             // 复制后移动到下一个item
             nextTick(() => {
-                const nextIndex = Math.min(currentIndex + 1, props.showList.length - 1);
-                if (nextIndex !== currentIndex) {
-                    setKeyboardActiveIndex(nextIndex, { block: "center" });
-                }
+                moveToNextItemFromIndex(currentIndex);
             });
         } else if (button === 2) {
             // 右键 打开抽屉并移动到下一个item
@@ -1582,10 +1579,7 @@ const handleItemClick = (ev, item) => {
             
             // 打开抽屉后移动到下一个item
             nextTick(() => {
-                const nextIndex = Math.min(currentIndex + 1, props.showList.length - 1);
-                if (nextIndex !== currentIndex) {
-                    setKeyboardActiveIndex(nextIndex, { block: "center" });
-                }
+                moveToNextItemFromIndex(currentIndex);
             });
         }
     }
@@ -1806,6 +1800,101 @@ const isAtBottomBoundary = () => {
     return activeIndex.value >= props.showList.length - 1;
 };
 
+const STEP_NAV_CENTER_OPTIONS = Object.freeze({
+    actionType: "step-nav",
+    scrollMode: "center-preferred",
+});
+const STEP_NAV_EDGE_START_OPTIONS = Object.freeze({
+    actionType: "step-nav",
+    scrollMode: "edge-align",
+    edge: "start",
+    forceScroll: true,
+});
+const STEP_NAV_EDGE_END_OPTIONS = Object.freeze({
+    actionType: "step-nav",
+    scrollMode: "edge-align",
+    edge: "end",
+    forceScroll: true,
+});
+const LOAD_RECOVERY_OPTIONS = Object.freeze({
+    source: "load-more",
+    scrollMode: "center-preferred",
+    forceScroll: true,
+});
+const DELETE_RECOVERY_OPTIONS = Object.freeze({
+    source: "delete",
+    scrollMode: "center-preferred",
+    forceScroll: true,
+});
+const findPreferredKeptItemId = (keepIdSet, startIndex) => {
+    for (let i = startIndex; i < props.showList.length; i++) {
+        const it = props.showList[i];
+        if (keepIdSet.has(it?.id)) return it.id;
+    }
+    for (let i = startIndex - 1; i >= 0; i--) {
+        const it = props.showList[i];
+        if (keepIdSet.has(it?.id)) return it.id;
+    }
+    return null;
+};
+const getDeleteAnchorMeta = (itemsToDelete, options = {}) => {
+    const idx = activeIndex.value;
+    const len = props.showList.length;
+    const force = options.force === true;
+    if (!props.isMultiple) {
+        let preferItemId = null;
+        if (len > 0) {
+            if (idx < len - 1) preferItemId = props.showList[idx + 1]?.id ?? null;
+            else if (idx > 0) preferItemId = props.showList[idx - 1]?.id ?? null;
+        }
+        return {
+            anchor: { anchorIndex: idx, preferItemId },
+            toKeep: null,
+        };
+    }
+    const toKeep = selectItemList.value.filter((item) => !itemsToDelete.includes(item));
+    const keepIdSet = new Set(toKeep.map((item) => item.id));
+    const highlighted = props.showList[idx];
+    const preferItemId = highlighted && keepIdSet.has(highlighted.id)
+        ? highlighted.id
+        : findPreferredKeptItemId(keepIdSet, idx);
+    if (!force) {
+        selectedItemIds.value = toKeep.map((item) => item.id);
+    }
+    return {
+        anchor: { anchorIndex: idx, preferItemId: preferItemId ?? null },
+        toKeep,
+    };
+};
+const applyDeleteRecovery = (newList, anchor) => {
+    if (!anchor || !Array.isArray(newList) || newList.length === 0) return;
+    let nextIdx = Math.min(Math.max(0, anchor.anchorIndex), newList.length - 1);
+    if (anchor.preferItemId) {
+        const idx = newList.findIndex((item) => item.id === anchor.preferItemId);
+        if (idx !== -1) nextIdx = idx;
+    }
+    submitNavigationAction("delete-recovery", nextIdx, DELETE_RECOVERY_OPTIONS);
+};
+const runLoadMoreRecovery = (oldLen, onNoMore, onLoaded) => {
+    nextTick(() => {
+        if (pendingNavAfterLoad.value === null) return;
+        if (props.showList.length <= oldLen) {
+            pendingNavAfterLoad.value = null;
+            onNoMore?.();
+            return;
+        }
+        const targetIndex = oldLen;
+        pendingNavAfterLoad.value = null;
+        onLoaded?.(targetIndex);
+    });
+};
+const moveToNextItemFromIndex = (currentIndex) => {
+    const nextIndex = Math.min(currentIndex + 1, props.showList.length - 1);
+    if (nextIndex !== currentIndex) {
+        setKeyboardActiveIndex(nextIndex, { ...STEP_NAV_CENTER_OPTIONS });
+    }
+};
+
 const handleRowMouseLeave = (index) => {
     if (hoverPreviewTimer) {
         clearTimeout(hoverPreviewTimer);
@@ -1862,44 +1951,15 @@ watch(
 watch(
     () => props.showList,
     (newList, oldList) => {
-        if (newList && oldList && newList !== oldList) {
-            restoreSelection();
-            if (deleteAnchor.value) {
-                const anchor = deleteAnchor.value;
-                deleteAnchor.value = null;
-                if (newList.length > 0) {
-                    let nextIdx = Math.min(
-                        Math.max(0, anchor.anchorIndex),
-                        newList.length - 1,
-                    );
-                    if (anchor.preferItemId) {
-                        const idx = newList.findIndex(
-                            (item) => item.id === anchor.preferItemId,
-                        );
-                        if (idx !== -1) nextIdx = idx;
-                    }
-                    submitNavigationAction("delete-recovery", nextIdx, {
-                        source: "delete",
-                        scrollMode: "center-preferred",
-                        forceScroll: true,
-                    });
-                }
-            }
-        }
-    },
-);
-
-// 列表长度变化时校正 activeIndex，避免越界
-watch(
-    () => props.showList,
-    (newList) => {
-        if (!Array.isArray(newList) || newList.length === 0) {
-            activeIndex.value = 0;
+        if (!newList || !oldList || newList === oldList) return;
+        restoreSelection();
+        const anchor = deleteAnchor.value;
+        deleteAnchor.value = null;
+        if (anchor) {
+            applyDeleteRecovery(newList, anchor);
             return;
         }
-        if (activeIndex.value >= newList.length) {
-            activeIndex.value = newList.length - 1;
-        }
+        setActiveIndex(activeIndex.value);
     },
 );
 
@@ -1933,12 +1993,7 @@ function registerListHotkeyFeatures() {
 
         // 边界检测：如果在顶部，停止移动并确保可见
         if (activeIndex.value <= 0) {
-            setKeyboardActiveIndex(0, {
-                actionType: "step-nav",
-                scrollMode: "edge-align",
-                edge: "start",
-                forceScroll: true,
-            });
+            setKeyboardActiveIndex(0, { ...STEP_NAV_EDGE_START_OPTIONS });
             return true;
         }
 
@@ -1946,25 +2001,14 @@ function registerListHotkeyFeatures() {
         const nextIdx = activeIndex.value - 1;
         if (nextIdx <= 0) {
             return setKeyboardActiveIndex(nextIdx, {
-                actionType: "step-nav",
-                scrollMode: "edge-align",
-                edge: "start",
-                forceScroll: true,
+                ...STEP_NAV_EDGE_START_OPTIONS,
             });
         }
         const STEP_UP_TOP_BAND = 8;
         if (nextIdx <= STEP_UP_TOP_BAND) {
-            return setKeyboardActiveIndex(nextIdx, {
-                actionType: "step-nav",
-                scrollMode: "edge-align",
-                edge: "end",
-                forceScroll: true,
-            });
+            return setKeyboardActiveIndex(nextIdx, { ...STEP_NAV_EDGE_END_OPTIONS });
         }
-        return setKeyboardActiveIndex(nextIdx, {
-            actionType: "step-nav",
-            scrollMode: "center-preferred",
-        });
+        return setKeyboardActiveIndex(nextIdx, { ...STEP_NAV_CENTER_OPTIONS });
     });
     registerFeature("list-nav-down", (e) => {
         if (isAliasDialogOpen()) return false;
@@ -1982,32 +2026,18 @@ function registerListHotkeyFeatures() {
             const oldLen = props.showList.length;
             setPendingNavAfterLoad(oldLen);
             emit("loadMore");
-
-            nextTick(() => {
-                nextTick(() => {
-                    if (pendingNavAfterLoad.value === null) return;
-                    if (props.showList.length <= oldLen) {
-                        pendingNavAfterLoad.value = null;
-                        // 没有更多数据，确保最后一个item完全可见
-                        const lastIndex = props.showList.length - 1;
-                        setKeyboardActiveIndex(lastIndex, {
-                            actionType: "step-nav",
-                            scrollMode: "edge-align",
-                            edge: "end",
-                            forceScroll: true,
-                        });
-                    } else {
-                        // 有新数据，移动到新加载区首项
-                        const targetIndex = oldLen;
-                        pendingNavAfterLoad.value = null;
-                        submitNavigationAction("load-recovery", targetIndex, {
-                            source: "load-more",
-                            scrollMode: "center-preferred",
-                            forceScroll: true,
-                        });
-                    }
-                });
-            });
+            runLoadMoreRecovery(
+                oldLen,
+                () => {
+                    const lastIndex = props.showList.length - 1;
+                    setKeyboardActiveIndex(lastIndex, { ...STEP_NAV_EDGE_END_OPTIONS });
+                },
+                (targetIndex) => {
+                    submitNavigationAction("load-recovery", targetIndex, {
+                        ...LOAD_RECOVERY_OPTIONS,
+                    });
+                },
+            );
             return true;
         }
 
@@ -2015,17 +2045,9 @@ function registerListHotkeyFeatures() {
         const nextIdx = activeIndex.value + 1;
         const lastI = props.showList.length - 1;
         if (nextIdx >= lastI) {
-            return setKeyboardActiveIndex(nextIdx, {
-                actionType: "step-nav",
-                scrollMode: "edge-align",
-                edge: "end",
-                forceScroll: true,
-            });
+            return setKeyboardActiveIndex(nextIdx, { ...STEP_NAV_EDGE_END_OPTIONS });
         }
-        return setKeyboardActiveIndex(nextIdx, {
-            actionType: "step-nav",
-            scrollMode: "center-preferred",
-        });
+        return setKeyboardActiveIndex(nextIdx, { ...STEP_NAV_CENTER_OPTIONS });
     });
     registerFeature("list-page-up", () => {
         if (isAliasDialogOpen()) return false;
@@ -2309,48 +2331,11 @@ function registerListHotkeyFeatures() {
         );
         const skippedLocked = itemsToDelete.length - deletableItems.length;
         if (deletableItems.length) {
-            const idx = activeIndex.value;
-            const len = props.showList.length;
-            let preferItemId = null;
-            if (props.isMultiple) {
-                const toKeep = selectItemList.value.filter(
-                    (item) => !deletableItems.includes(item),
-                );
-                selectedItemIds.value = toKeep.map((item) => item.id);
-                replaceSelectedItems(toKeep);
-                const keepIdSet = new Set(toKeep.map((item) => item.id));
-                const highlighted = props.showList[idx];
-                if (highlighted && keepIdSet.has(highlighted.id)) {
-                    preferItemId = highlighted.id;
-                } else if (toKeep.length) {
-                    let picked = null;
-                    for (let i = idx; i < props.showList.length; i++) {
-                        const it = props.showList[i];
-                        if (keepIdSet.has(it.id)) {
-                            picked = it.id;
-                            break;
-                        }
-                    }
-                    if (picked == null) {
-                        for (let i = idx - 1; i >= 0; i--) {
-                            const it = props.showList[i];
-                            if (keepIdSet.has(it.id)) {
-                                picked = it.id;
-                                break;
-                            }
-                        }
-                    }
-                    preferItemId = picked;
-                } else {
-                    preferItemId = null;
-                }
-            } else if (len > 0) {
-                if (idx < len - 1)
-                    preferItemId = props.showList[idx + 1]?.id ?? null;
-                else if (idx > 0)
-                    preferItemId = props.showList[idx - 1]?.id ?? null;
+            const deleteMeta = getDeleteAnchorMeta(deletableItems, { force: false });
+            if (props.isMultiple && deleteMeta.toKeep) {
+                replaceSelectedItems(deleteMeta.toKeep);
             }
-            setDeleteAnchor({ anchorIndex: idx, preferItemId });
+            setDeleteAnchor(deleteMeta.anchor);
             deletableItems.forEach((item, index) =>
                 emit("onItemDelete", item, {
                     anchorIndex: activeIndex.value,
@@ -2379,41 +2364,10 @@ function registerListHotkeyFeatures() {
               ? [props.showList[activeIndex.value]]
               : [];
         if (itemsToDelete.length) {
-            const idx = activeIndex.value;
-            const len = props.showList.length;
-            let preferItemId = null;
+            const deleteMeta = getDeleteAnchorMeta(itemsToDelete, { force: true });
             if (props.isMultiple) {
-                const toKeep = selectItemList.value.filter(
-                    (item) => !itemsToDelete.includes(item),
-                );
-                const keepIdSet = new Set(toKeep.map((item) => item.id));
-                const highlighted = props.showList[idx];
-                if (highlighted && keepIdSet.has(highlighted.id)) {
-                    preferItemId = highlighted.id;
-                } else if (toKeep.length) {
-                    let picked = null;
-                    for (let i = idx; i < props.showList.length; i++) {
-                        const it = props.showList[i];
-                        if (keepIdSet.has(it.id)) {
-                            picked = it.id;
-                            break;
-                        }
-                    }
-                    if (picked == null) {
-                        for (let i = idx - 1; i >= 0; i--) {
-                            const it = props.showList[i];
-                            if (keepIdSet.has(it.id)) {
-                                picked = it.id;
-                                break;
-                            }
-                        }
-                    }
-                    preferItemId = picked;
-                } else {
-                    preferItemId = null;
-                }
-                setDeleteAnchor({ anchorIndex: idx, preferItemId });
-                replaceSelectedItems(toKeep);
+                setDeleteAnchor(deleteMeta.anchor);
+                replaceSelectedItems(deleteMeta.toKeep);
                 itemsToDelete.forEach((item, index) =>
                     emit("onItemDelete", item, {
                         anchorIndex: activeIndex.value,
@@ -2425,13 +2379,7 @@ function registerListHotkeyFeatures() {
                 replaceSelectedItems([]);
                 emit("toggleMultiSelect", false);
             } else {
-                if (len > 0) {
-                    if (idx < len - 1)
-                        preferItemId = props.showList[idx + 1]?.id ?? null;
-                    else if (idx > 0)
-                        preferItemId = props.showList[idx - 1]?.id ?? null;
-                }
-                setDeleteAnchor({ anchorIndex: idx, preferItemId });
+                setDeleteAnchor(deleteMeta.anchor);
                 itemsToDelete.forEach((item, index) =>
                     emit("onItemDelete", item, {
                         anchorIndex: activeIndex.value,
@@ -2519,28 +2467,21 @@ const startAutoScroll = (direction) => {
                 hoverPreviewSuspendedByKeyboard.value = true;
                 setPendingNavAfterLoad(oldLen);
                 emit("loadMore");
-
-                nextTick(() => {
-                    nextTick(() => {
-                        if (pendingNavAfterLoad.value === null) return;
-                        if (props.showList.length <= oldLen) {
-                            pendingNavAfterLoad.value = null;
-                            const targetIndex = scrollHalfPage(
-                                direction,
-                                activeIndex.value,
-                            );
-                            submitNavigationAction("hold-scroll", targetIndex, {
-                                source: "hold-scroll",
-                                scrollMode: "center-preferred",
-                                forceScroll: true,
-                            });
-                            stopAutoScroll(); // 没有更多数据，半页兜底后停止
-                            return;
-                        }
-                        // 确保不会滚动超过当前太多
+                runLoadMoreRecovery(
+                    oldLen,
+                    () => {
+                        const targetIndex = scrollHalfPage(direction, activeIndex.value);
+                        submitNavigationAction("hold-scroll", targetIndex, {
+                            source: "hold-scroll",
+                            scrollMode: "center-preferred",
+                            forceScroll: true,
+                        });
+                        stopAutoScroll();
+                    },
+                    () => {
                         autoScrollTimer.value = setTimeout(scroll, autoScrollSpeed.value);
-                    });
-                });
+                    },
+                );
                 return;
             }
         }
