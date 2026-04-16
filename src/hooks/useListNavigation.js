@@ -7,8 +7,6 @@ import { ref } from 'vue'
 export function useListNavigation(getItems) {
   const activeIndex = ref(0)
   const pendingNavAfterLoad = ref(null)
-  const pendingHighlightedItemId = ref(null)
-  const pendingActiveIndexAfterDelete = ref(null)
   const deleteAnchor = ref(null)
 
   const clampActiveIndex = (nextIndex) => {
@@ -31,33 +29,17 @@ export function useListNavigation(getItems) {
 
   const clearPendingStates = () => {
     pendingNavAfterLoad.value = null
-    pendingHighlightedItemId.value = null
-    pendingActiveIndexAfterDelete.value = null
     deleteAnchor.value = null
-  }
-
-  const getNavigationTarget = () => {
-    // 优先级：deleteAnchor > pendingNavAfterLoad > activeIndex
-    if (deleteAnchor.value) {
-      return deleteAnchor.value
-    }
-    if (pendingNavAfterLoad.value !== null) {
-      return pendingNavAfterLoad.value
-    }
-    return activeIndex.value
   }
 
   return {
     activeIndex,
     pendingNavAfterLoad,
-    pendingHighlightedItemId,
-    pendingActiveIndexAfterDelete,
     deleteAnchor,
     clampActiveIndex,
     setActiveIndex,
     setPendingNavAfterLoad,
     setDeleteAnchor,
-    clearPendingStates,
-    getNavigationTarget
+    clearPendingStates
   }
 }
