@@ -193,6 +193,12 @@ onMounted(() => {
         e.preventDefault();
         return true;
     });
+    registerFeature("tag-edit-save", (e) => {
+        if (!props.visible) return false;
+        e.preventDefault();
+        save();
+        return true;
+    });
     registerFeature("tag-edit-block", () => ({
         handled: true,
         preventDefault: false,
