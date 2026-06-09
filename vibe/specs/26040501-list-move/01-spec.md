@@ -6,13 +6,13 @@
 - 保证搜索、筛选、收藏混排和懒加载场景下的移动、删除、选中与滚动规则仍然稳定，不引入新的性能回归。
 
 ## 2. 背景
-- 原始需求来自 [`docs/todo/260405-交互优化/移动效果优化/zt-move-原始需求.md`](../../docs/todo/260405-%E4%BA%A4%E4%BA%92%E4%BC%98%E5%8C%96/%E7%A7%BB%E5%8A%A8%E6%95%88%E6%9E%9C%E4%BC%98%E5%8C%96/zt-move-%E5%8E%9F%E5%A7%8B%E9%9C%80%E6%B1%82.md#L1)，核心诉求是“长按分页并居中、单步可见则不滚、删除后不乱、锁状态及时更新、单行渲染稳定”。
-- 主界面当前实际展示列表由 [`src/views/Main.vue`](../../src/views/Main.vue#L922) 到 [`src/views/Main.vue`](../../src/views/Main.vue#L931) 组合 `showList` 与 `collectBlockList` 计算 `currentShowList`，说明导航和删除恢复必须基于最终展示列表，而不能只基于单一数据源。
-- 列表导航、滚动定位、长按检测、删除、锁定、收藏等核心逻辑集中在 [`src/cpns/ClipItemList.vue`](../../src/cpns/ClipItemList.vue#L1518) 到 [`src/cpns/ClipItemList.vue`](../../src/cpns/ClipItemList.vue#L2433)，是本次问题的主入口。
-- 当前已经存在“完全可见”判断 [`src/cpns/ClipItemList.vue`](../../src/cpns/ClipItemList.vue#L1518)，但 `scrollActiveNodeIntoView` 在虚拟滚动分支会直接 `scrollToItem`，导致单步移动仍可能在目标项已可见时强制滚动 [`src/cpns/ClipItemList.vue`](../../src/cpns/ClipItemList.vue#L1528)。
-- 当前长按和方向键重复触发还存在两套自动滚动路径：`startKeyHoldAutoScroll` 与 `startAutoScroll` [`src/cpns/ClipItemList.vue`](../../src/cpns/ClipItemList.vue#L1783) [`src/cpns/ClipItemList.vue`](../../src/cpns/ClipItemList.vue#L2330)，容易造成分页语义不一致或重复推进。
-- 删除后高亮恢复同时分布在 `ClipItemList` 内部 watcher 和 `Main.vue` 的 `adjustActiveIndexAfterDelete` 中 [`src/cpns/ClipItemList.vue`](../../src/cpns/ClipItemList.vue#L1870) [`src/views/Main.vue`](../../src/views/Main.vue#L984)，是选中错乱和闪烁的直接风险点。
-- 列表项头部图标、时间、标签在 [`src/cpns/ClipItemRow.vue`](../../src/cpns/ClipItemRow.vue#L19) 到 [`src/cpns/ClipItemRow.vue`](../../src/cpns/ClipItemRow.vue#L30) 串行渲染，配套样式在 [`src/style/cpns/clip-item-list.less`](../../src/style/cpns/clip-item-list.less#L184) 到 [`src/style/cpns/clip-item-list.less`](../../src/style/cpns/clip-item-list.less#L221)，已具备单行布局基础，但仍需进一步约束空间压缩和即时刷新。
+- 原始需求来自 ``docs/todo/260405-交互优化/移动效果优化/zt-move-原始需求.md`` (`../../docs/todo/260405-%E4%BA%A4%E4%BA%92%E4%BC%98%E5%8C%96/%E7%A7%BB%E5%8A%A8%E6%95%88%E6%9E%9C%E4%BC%98%E5%8C%96/zt-move-%E5%8E%9F%E5%A7%8B%E9%9C%80%E6%B1%82.md#L1`)，核心诉求是“长按分页并居中、单步可见则不滚、删除后不乱、锁状态及时更新、单行渲染稳定”。
+- 主界面当前实际展示列表由 ``src/views/Main.vue`` (`../../src/views/Main.vue#L922`) 到 ``src/views/Main.vue`` (`../../src/views/Main.vue#L931`) 组合 `showList` 与 `collectBlockList` 计算 `currentShowList`，说明导航和删除恢复必须基于最终展示列表，而不能只基于单一数据源。
+- 列表导航、滚动定位、长按检测、删除、锁定、收藏等核心逻辑集中在 ``src/cpns/ClipItemList.vue`` (`../../src/cpns/ClipItemList.vue#L1518`) 到 ``src/cpns/ClipItemList.vue`` (`../../src/cpns/ClipItemList.vue#L2433`)，是本次问题的主入口。
+- 当前已经存在“完全可见”判断 ``src/cpns/ClipItemList.vue`` (`../../src/cpns/ClipItemList.vue#L1518`)，但 `scrollActiveNodeIntoView` 在虚拟滚动分支会直接 `scrollToItem`，导致单步移动仍可能在目标项已可见时强制滚动 ``src/cpns/ClipItemList.vue`` (`../../src/cpns/ClipItemList.vue#L1528`)。
+- 当前长按和方向键重复触发还存在两套自动滚动路径：`startKeyHoldAutoScroll` 与 `startAutoScroll` ``src/cpns/ClipItemList.vue`` (`../../src/cpns/ClipItemList.vue#L1783`) ``src/cpns/ClipItemList.vue`` (`../../src/cpns/ClipItemList.vue#L2330`)，容易造成分页语义不一致或重复推进。
+- 删除后高亮恢复同时分布在 `ClipItemList` 内部 watcher 和 `Main.vue` 的 `adjustActiveIndexAfterDelete` 中 ``src/cpns/ClipItemList.vue`` (`../../src/cpns/ClipItemList.vue#L1870`) ``src/views/Main.vue`` (`../../src/views/Main.vue#L984`)，是选中错乱和闪烁的直接风险点。
+- 列表项头部图标、时间、标签在 ``src/cpns/ClipItemRow.vue`` (`../../src/cpns/ClipItemRow.vue#L19`) 到 ``src/cpns/ClipItemRow.vue`` (`../../src/cpns/ClipItemRow.vue#L30`) 串行渲染，配套样式在 ``src/style/cpns/clip-item-list.less`` (`../../src/style/cpns/clip-item-list.less#L184`) 到 ``src/style/cpns/clip-item-list.less`` (`../../src/style/cpns/clip-item-list.less#L221`)，已具备单行布局基础，但仍需进一步约束空间压缩和即时刷新。
 
 ## 3. 用户场景 / 使用场景
 - 用户单击 `↑/↓` 逐项移动时，目标项已完全可见则列表不滚动；目标项部分露出或不可见时，列表只补充滚动到完全可见。
@@ -45,10 +45,10 @@
 - 搜索框聚焦、Shift 预览、多选、懒加载等现有键盘层级行为不能因导航收敛而被破坏。
 
 ## 7. 影响范围
-- [`src/views/Main.vue`](../../src/views/Main.vue#L922)：`currentShowList` 计算、删除后高亮恢复、混排列表索引落点。
-- [`src/cpns/ClipItemList.vue`](../../src/cpns/ClipItemList.vue#L1518)：完全可见判定、滚动定位、单步/长按/分页导航、删除恢复、多选同步、懒加载衔接。
-- [`src/cpns/ClipItemRow.vue`](../../src/cpns/ClipItemRow.vue#L19)：锁/收藏图标、时间、标签的单行渲染结构。
-- [`src/style/cpns/clip-item-list.less`](../../src/style/cpns/clip-item-list.less#L184)：头部图标和标签压缩策略、选中态样式稳定性。
+- ``src/views/Main.vue`` (`../../src/views/Main.vue#L922`)：`currentShowList` 计算、删除后高亮恢复、混排列表索引落点。
+- ``src/cpns/ClipItemList.vue`` (`../../src/cpns/ClipItemList.vue#L1518`)：完全可见判定、滚动定位、单步/长按/分页导航、删除恢复、多选同步、懒加载衔接。
+- ``src/cpns/ClipItemRow.vue`` (`../../src/cpns/ClipItemRow.vue#L19`)：锁/收藏图标、时间、标签的单行渲染结构。
+- ``src/style/cpns/clip-item-list.less`` (`../../src/style/cpns/clip-item-list.less#L184`)：头部图标和标签压缩策略、选中态样式稳定性。
 - [`specs/26040501-list-move/02-plan.md`](./02-plan.md#L1)：后续实现计划主文档。
 
 ## 8. 待确认项

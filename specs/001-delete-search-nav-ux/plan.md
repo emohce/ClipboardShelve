@@ -16,7 +16,7 @@
 **Target Platform**: uTools 插件环境（Chromium 内核）  
 **Project Type**: Desktop 插件（单页 Vue 前端 + `public` 预加载脚本）  
 **Performance Goals**: 列表虚拟滚动保持交互流畅；键盘事件处理保持轻量（现有代码已在 `ClipSearch` 的 keydown 中注明）  
-**Constraints**: 须遵守 [AGENTS.md](../../AGENTS.md) 高风险区（`public/plugin.json`、`preload.js`、`listener.js`、`src/global/`）；列表滚动须基于**真实滚动容器**与已记录的 `scrollIntoView` 通路（[EM-2026-04-06-scroll-path](../../vibe/vibe-doc/ai-error-memory/2026-04-06-scroll-path.md)）  
+**Constraints**: 须遵守 [AGENTS.md](../../AGENTS.md) 高风险区（`public/plugin.json`、`preload.js`、`listener.js`、`src/global/`）；列表滚动须基于**真实滚动容器**与已记录的 `scrollIntoView` 通路（`EM-2026-04-06-scroll-path` (`../../vibe/knowledge/error-memory/2026-04-06-scroll-path.md`)）  
 **Scale/Scope**: 单窗口列表 + 搜索面板 + 全局热键分层（`src/global/hotkeyRegistry.js`、`hotkeyBindings.js`）
 
 ## Constitution Check
@@ -70,7 +70,7 @@ public/
 
 **Structure Decision**: 单仓库 SPA 插件；本特性主要触及 `src/cpns`、`src/views`、`src/hooks`，持久化类修改仅在有证据指向 `initPlugin`/防抖写盘时进入 `src/global`。
 
-**Layout（本轮补充）**：[`Main.vue`](../../src/views/Main.vue) 中 `.clip-break` 为固定顶栏预留竖向空间，须与 [`clip-switch.less`](../../src/style/cpns/clip-switch.less) 实际高度一致；详见 [research.md R-005](./research.md)、错误记忆 [EM-2026-04-08-clipboard-nav-scroll-search-layout](../../vibe/vibe-doc/ai-error-memory/2026-04-08-clipboard-nav-scroll-search-layout.md)。
+**Layout（本轮补充）**：[`Main.vue`](../../src/views/Main.vue) 中 `.clip-break` 为固定顶栏预留竖向空间，须与 [`clip-switch.less`](../../src/style/cpns/clip-switch.less) 实际高度一致；详见 [research.md R-005](./research.md)、错误记忆 `EM-2026-04-08-clipboard-nav-scroll-search-layout` (`../../vibe/knowledge/error-memory/2026-04-08-clipboard-nav-scroll-search-layout.md`)。
 
 ## Complexity Tracking
 

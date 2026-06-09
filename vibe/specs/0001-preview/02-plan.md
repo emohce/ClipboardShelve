@@ -6,10 +6,10 @@
 - 在 Shift 长按预览期间锁定当前预览目标，避免鼠标移入其他行导致 `activeIndex` 变化后触发预览刷新。
 
 ## 2. 现状与根因
-- [`src/cpns/ClipItemList.vue`](../../src/cpns/ClipItemList.vue) 中 `.image-preview-content` 当前为顶部对齐，直接导致矮图视觉贴顶。
+- ``src/cpns/ClipItemList.vue`` (`../../src/cpns/ClipItemList.vue`) 中 `.image-preview-content` 当前为顶部对齐，直接导致矮图视觉贴顶。
 - `showImagePreview` 当前只做 `maxWidth` 限制，没有“窄图按可用宽度放大”的策略。
 - `handleImagePreviewKeydown` 目前只支持 `Shift + ↑/↓`，缺少图片横向溢出的 `Shift + ←/→` 处理。
-- [`src/global/hotkeyBindings.js`](../../src/global/hotkeyBindings.js) 当前仅将 `shift+ArrowUp/Down` 绑定给 `text-preview-scroll-*`，图片与文字预览滚动入口割裂。
+- ``src/global/hotkeyBindings.js`` (`../../src/global/hotkeyBindings.js`) 当前仅将 `shift+ArrowUp/Down` 绑定给 `text-preview-scroll-*`，图片与文字预览滚动入口割裂。
 - `handleMouseOver` 会在鼠标移入时改写 `activeIndex`，而 `watch(activeIndex)` 在 `keyboardTriggeredPreview` 为真时会刷新预览，导致 Shift 预览期间鼠标划过列表会切换预览对象。
 
 ## 3. 设计方案
@@ -29,9 +29,9 @@
   - 继续沿用现有 `keyboardTriggeredPreview`、hover preview 挂起/恢复链路，不引入新的全局状态机。
 
 ## 4. 受影响文件
-- [`src/cpns/ClipItemList.vue`](../../src/cpns/ClipItemList.vue): 预览状态、图片/文字弹层样式计算、Shift 锁定、统一滚动逻辑与必要的模板包裹层调整。
-- [`src/global/hotkeyBindings.js`](../../src/global/hotkeyBindings.js): 预览滚动快捷键绑定扩展，包括 `shift+ArrowLeft/Right`。
-- [`src/global/hotkeyLabels.js`](../../src/global/hotkeyLabels.js): 预览滚动相关 feature 文案说明。
+- ``src/cpns/ClipItemList.vue`` (`../../src/cpns/ClipItemList.vue`): 预览状态、图片/文字弹层样式计算、Shift 锁定、统一滚动逻辑与必要的模板包裹层调整。
+- ``src/global/hotkeyBindings.js`` (`../../src/global/hotkeyBindings.js`): 预览滚动快捷键绑定扩展，包括 `shift+ArrowLeft/Right`。
+- ``src/global/hotkeyLabels.js`` (`../../src/global/hotkeyLabels.js`): 预览滚动相关 feature 文案说明。
 
 ## 5. 数据与状态变更
 - 仅新增组件内瞬时状态或派生状态，不引入持久化变更。
@@ -74,7 +74,7 @@
 - flex 居中与滚动并存可能造成长图首屏偏移或滚动死区，需要通过真实大图验证。
 - 热键可能被全局注册和弹层监听重复消费，需保证单次响应。
 - 小图放大后高度可能超出视区，依赖滚动容器兜底。
-- 回滚集中在 [`src/cpns/ClipItemList.vue`](../../src/cpns/ClipItemList.vue)、[`src/global/hotkeyBindings.js`](../../src/global/hotkeyBindings.js)、[`src/global/hotkeyLabels.js`](../../src/global/hotkeyLabels.js) 三处后续实现改动。
+- 回滚集中在 ``src/cpns/ClipItemList.vue`` (`../../src/cpns/ClipItemList.vue`)、``src/global/hotkeyBindings.js`` (`../../src/global/hotkeyBindings.js`)、``src/global/hotkeyLabels.js`` (`../../src/global/hotkeyLabels.js`) 三处后续实现改动。
 
 ## 10. 待确认项
 - 无

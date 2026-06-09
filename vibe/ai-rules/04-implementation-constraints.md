@@ -1,48 +1,14 @@
-# Implementation Constraints
+# Legacy Rule Redirect: 04-implementation-constraints
 
-## 目标
-- 在实现阶段保持最小改动、风格一致、验证闭环和知识沉淀闭环。
+Status: migrated legacy rule.
 
-## 实现前检查
-- 已阅读本次任务涉及文件。
-- 已检索 [`ai-rules/00-error-memory.md`](00-error-memory.md)，并记录命中结果。
-- 已确认真实运行通路、真实数据源、真实事件链，而不是只看表面症状。
-- 已确认是否涉及高风险目录。
-- 已确认最小改动路径，不做无必要重构。
-- 已确认本次可能需要更新的 `spec`、`verify`、错误记录、ADR、术语表。
+This file is retained only for historical compatibility. Do not use it as an active instruction source.
 
-## 通用约束
-- 先读相关文件，再动手修改。
-- 优先修根因，不做表面绕过。
-- 非必要不新增依赖、不改目录结构、不改公共命名。
-- 不擅自改动无关文件。
-- 修改必须覆盖边界条件、空值、异常路径、异步行为。
+Current authoritative rules:
 
-## 注释规范
-- 说明性文字用简体中文，API / 变量 / 选项名 / 文件名保留英文原文。
-- 注释只写“为什么 / 边界 / 非显而易见约束”，不复述显而易见的代码行为。
-- 示例：`// 已完全可见且未 forceScroll 时不滚动`
-- 禁止无意义占位注释、过期注释、与行为不符的注释。
+- [Project rule index](../rules/README.md)
+- [Project constraints](../rules/project.md)
+- [Workflow rules](../rules/workflow.md)
+- [Knowledge routing](../rules/knowledge.md)
 
-## 当前仓库实现约束
-- 使用现有 Vue 3 + JavaScript 风格，不引入 TypeScript。
-- 保持 2 空格缩进与现有 `SFC` 结构。
-- 组件命名沿用现有约定，避免为了“更优雅”重命名。
-- 优先复用 `src/global/`、`src/utils/`、`src/hooks/` 现有能力。
-- `less` 样式优先在现有文件增量调整，避免新增无必要入口。
-- `dist/` 为构建产物，不手动编辑。
-
-## 高风险目录规则
-- 修改 `public/plugin.json`、`public/preload.js`、`public/listener.js` 前，必须说明影响范围、运行时风险、回退点。
-- 修改 `src/global/` 前，必须说明会影响的快捷键链、窗口行为、监听链或持久化路径。
-- 修改列表滚动、焦点、高亮、删除恢复、加载恢复前，必须确认真实滚动祖先和真实焦点通路。
-
-## 实施顺序
-- 先改底层约束与数据流，再改界面呈现和交互细节。
-- 先保证行为正确，再补文档和说明。
-- 如果计划包含多个任务，只实现当前批准任务，不扩写未批准范围。
-
-## 完成标准
-- 代码变更与 `spec`、`plan` 一致。
-- 验证记录真实可追溯。
-- 如产生新失败模式、新长期决策或新术语，已同步落盘。
+Reusable project-specific constraints from the old rule set have been merged into the current rule files.

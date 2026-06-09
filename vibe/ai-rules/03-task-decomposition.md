@@ -1,34 +1,14 @@
-# Task Decomposition Rules
+# Legacy Rule Redirect: 03-task-decomposition
 
-## 目标
-- 基于 `02-plan.md` 生成可独立实施、独立验证、独立回滚的 `03-tasks.md`。
+Status: migrated legacy rule.
 
-## 输出格式
-```md
-# Tasks
+This file is retained only for historical compatibility. Do not use it as an active instruction source.
 
-- [ ] T1 任务名称
-- [ ] T2 任务名称
-- [ ] T3 任务名称
-```
+Current authoritative rules:
 
-## 拆分规则
-- 一个任务只解决一个明确目标。
-- 一个任务完成后必须有明确验证动作。
-- 任务顺序要符合依赖链：先通路和约束，再业务逻辑，再 UI/交互，最后文档和验证。
-- 大改动按“数据层 / 业务层 / UI 层 / 验证与知识沉淀”拆分。
-- 涉及多个目录时，优先按闭环拆分，而不是按文件数量拆分。
-- 复杂任务必须保持 bounded scope，单个任务不承担多个未知量。
+- [Project rule index](../rules/README.md)
+- [Project constraints](../rules/project.md)
+- [Workflow rules](../rules/workflow.md)
+- [Knowledge routing](../rules/knowledge.md)
 
-## 单任务描述要求
-- 任务名要直接看出动作和对象。
-- 必要时补一句预期结果，但保持精简。
-- 不写“完善细节”“处理相关逻辑”这类模糊描述。
-- 如果任务命中历史错误记录，要在任务描述中说明“复用已确认通路”或“避开已证伪路径”。
-
-## 推荐检查点
-- 是否能单独提交。
-- 是否能单独验证。
-- 是否能在失败时局部回滚。
-- 是否依赖尚未确认的前提。
-- 是否需要同步更新错误记录、ADR 或术语表。
+Reusable project-specific constraints from the old rule set have been merged into the current rule files.

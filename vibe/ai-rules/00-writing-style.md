@@ -1,40 +1,14 @@
-# AI Writing Style
+# Legacy Rule Redirect: 00-writing-style
 
-## 目标
-- 输出服务于当前工程任务，优先帮助实现、验证、交付和知识沉淀。
-- 结论先行，再给必要依据，不写空泛背景。
+Status: migrated legacy rule.
 
-## 编码规范
-- 仓库内新增或重写的规则文档、`spec`、`plan`、`tasks`、`verify`、复盘、ADR 统一使用 `UTF-8`。
-- 如果发现规则文档存在乱码或非 `UTF-8` 编码，优先修复编码问题，再继续扩写内容。
-- 不在乱码文本上叠加补丁，避免错误规则持续传播。
+This file is retained only for historical compatibility. Do not use it as an active instruction source.
 
-## 语言规范
-- 默认使用简体中文叙述业务、设计、验证、复盘和决策内容。
-- 代码、命令、路径、配置键、API 名、提交信息保持英文原文。
-- 统一采用“简体中文说明 + 英文标识符 / API / 路径”的中英文混排方式。
-- 未经明确要求，不使用繁体中文，不混用多套中文书写体系。
+Current authoritative rules:
 
-## 引用规范
-- 只要涉及代码、配置、样式、脚本、规则文档，必须附带可点击的 Markdown 链接。
-- 链接默认使用仓库相对路径，并尽量附带明确行号。
-- 推荐格式：`[src/cpns/ClipItemList.vue#L120](src/cpns/ClipItemList.vue#L120)`。
-- 若引用的是具体逻辑而不是整个文件，至少给出起始行号，不能只写文件名。
+- [Project rule index](../rules/README.md)
+- [Project constraints](../rules/project.md)
+- [Workflow rules](../rules/workflow.md)
+- [Knowledge routing](../rules/knowledge.md)
 
-## 输出格式
-- 优先使用短段落或单层要点列表，不使用嵌套列表。
-- 避免空洞背景、重复铺垫、无结论展开。
-- 说明同一问题时，优先按“结论 -> 依据 -> 风险 / 下一步”组织。
-
-## 工程表达
-- 注释和说明遵循“中文说明 + 英文术语 / 标识符保留”的写法。
-- 需求要写清目标、范围、验收标准、边界条件。
-- 方案要写清受影响文件、调用链、数据结构、接口变化、风险。
-- 验证记录只写真实执行结果，不写主观推断。
-- 如果命中历史错误记录，要明确记录编号和采用 / 规避策略。
-
-## 禁止项
-- 不把猜测写成事实。
-- 不省略关键限制条件。
-- 不输出无法执行的“建议清单式空话”。
-- 不把一次性聊天内容当长期规则，除非已落盘到仓库。
+Reusable project-specific constraints from the old rule set have been merged into the current rule files.

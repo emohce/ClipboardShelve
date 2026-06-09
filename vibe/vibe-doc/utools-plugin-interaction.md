@@ -61,13 +61,13 @@ utools.redirect(["JSON 编辑器", "Json"], {
 
 获取所有动态指令或特定指令。
 
-#### 类型定义
+#### 类型定义 (重复标题: utools.getFeatures([codes]) #2)
 
 ```typescript
 function getFeatures(codes?: string[]): Feature[];
 ```
 
-#### 参数说明
+#### 参数说明 (重复标题: utools.getFeatures([codes]) #2)
 
 **codes**
 - 类型：`string[]`
@@ -87,7 +87,7 @@ interface Feature {
 }
 ```
 
-#### 示例代码
+#### 示例代码 (重复标题: utools.getFeatures([codes]) #2)
 
 ```javascript
 // 获取所有动态功能
@@ -103,13 +103,13 @@ console.log(features);
 
 设置动态指令。
 
-#### 类型定义
+#### 类型定义 (重复标题: utools.setFeature(feature) #3)
 
 ```typescript
 function setFeature(feature: Feature): void;
 ```
 
-#### 示例代码
+#### 示例代码 (重复标题: utools.setFeature(feature) #3)
 
 ```javascript
 utools.setFeature({
@@ -126,7 +126,7 @@ utools.setFeature({
 
 删除动态指令。
 
-#### 类型定义
+#### 类型定义 (重复标题: utools.removeFeature(code) #4)
 
 ```typescript
 function removeFeature(code: string): void;

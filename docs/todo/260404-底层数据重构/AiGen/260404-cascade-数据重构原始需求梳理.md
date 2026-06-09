@@ -1,7 +1,7 @@
 # 底层数据重构原始需求梳理
 
 **梳理者**: Cascade  
-**原始需求文档**: [260404-czz-数据重构原始需求梳理.md](../todo/260404-底层数据重构/260404-czz-数据重构原始需求梳理.md)  
+**原始需求文档**: `260404-czz-数据重构原始需求梳理.md` (`../todo/260404-底层数据重构/260404-czz-数据重构原始需求梳理.md`)  
 **梳理日期**: 2026-04-04
 
 ---
@@ -33,12 +33,12 @@ defaultDB = {
   - 文件监听（`watch`）实现多进程数据同步
   - 通过 `listener.emit('view-change')` 触发视图更新
 
-**代码位置**: [src/global/initPlugin.js#L111-L273](../../src/global/initPlugin.js#L111-L273)
+**代码位置**: `src/global/initPlugin.js#L111-L273` (`../../src/global/initPlugin.js#L111-L273`)
 
 ### 1.2 数据加载流程
 
 #### 初始化流程
-1. **数据库初始化** ([initPlugin.js#L128-L273](../../src/global/initPlugin.js#L128-L273))
+1. **数据库初始化** (`initPlugin.js#L128-L273` (`../../src/global/initPlugin.js#L128-L273`))
    - 检查数据库文件是否存在
    - 存在则读取并解析 JSON
    - 执行数据迁移（collects 字段迁移、collectData 补充、字段标准化）
@@ -50,7 +50,7 @@ defaultDB = {
    - **collectData 补充**: 从 `data` 数组复制收藏项到 `collectData`，添加 `collectTime`、`tags`、`remarks` 字段
    - **字段标准化**: 补充 `locked`、`originPaths` 等字段
 
-3. **文件监听** ([initPlugin.js#L274-L292](../../src/global/initPlugin.js#L274-L292))
+3. **文件监听** (`initPlugin.js#L274-L292` (`../../src/global/initPlugin.js#L274-L292`))
    - 使用 `fs.watch` 监听数据库文件变化
    - 文件变更时重新读取并更新内存数据
    - 触发 `view-change` 事件通知视图层
@@ -60,17 +60,17 @@ defaultDB = {
 #### 双模式监听架构
 ClipboardShelve 实现了**原生监听 + 轮询降级**的双保险机制：
 
-1. **原生监听器** ([initPlugin.js#L1099-L1146](../../src/global/initPlugin.js#L1099-L1146))
+1. **原生监听器** (`initPlugin.js#L1099-L1146` (`../../src/global/initPlugin.js#L1099-L1146`))
    - 使用 uTools 提供的 `listener` 模块
    - 监听 `change`、`close`、`exit`、`error` 事件
    - 异常时自动降级到轮询模式
 
-2. **轮询模式** ([initPlugin.js#L1072-L1097](../../src/global/initPlugin.js#L1072-L1097))
+2. **轮询模式** (`initPlugin.js#L1072-L1097` (`../../src/global/initPlugin.js#L1072-L1097`))
    - 300ms 轮询间隔
    - 通过 `pbpaste()` 读取剪贴板内容
    - MD5 哈希比对避免重复处理
 
-3. **防循环机制** ([initPlugin.js#L978-L1031](../../src/global/initPlugin.js#L978-L1031))
+3. **防循环机制** (`initPlugin.js#L978-L1031` (`../../src/global/initPlugin.js#L978-L1031`))
    - `isRestoringClipboard` 标志防止写回循环
    - `lastRestoredItemId` 和 `lastRestoredItemHash` 双重校验
    - `MAX_RESTORE_COUNT` 限制最大连续恢复次数（3次）
@@ -78,7 +78,7 @@ ClipboardShelve 实现了**原生监听 + 轮询降级**的双保险机制：
 
 ### 1.4 数据处理流程
 
-#### 剪贴板内容读取 ([initPlugin.js#L886-L951](../../src/global/initPlugin.js#L886-L951))
+#### 剪贴板内容读取 (`initPlugin.js#L886-L951` (`../../src/global/initPlugin.js#L886-L951`))
 ```
 pbpaste() 优先级:
 1. file 类型 (utools.getCopyedFiles) → 检查是否来自插件临时目录
@@ -86,7 +86,7 @@ pbpaste() 优先级:
 3. image 类型 (clipboard.readImage) → 大图卡顿来源
 ```
 
-#### 数据入库逻辑 ([initPlugin.js#L1033-L1070](../../src/global/initPlugin.js#L1033-L1070))
+#### 数据入库逻辑 (`initPlugin.js#L1033-L1070` (`../../src/global/initPlugin.js#L1033-L1070`))
 1. 计算 MD5 哈希作为 ID
 2. 防循环校验
 3. 已存在则更新 `updateTime` 并重新排序
@@ -102,7 +102,7 @@ pbpaste() 优先级:
 - **收藏操作**: 从 `data` 移除并深拷贝到 `collectData`，添加 `collectTime`
 - **取消收藏**: 从 `collectData` 移除并还原到 `data` 头部
 
-**代码位置**: [src/global/initPlugin.js#L440-L557](../../src/global/initPlugin.js#L440-L557)
+**代码位置**: `src/global/initPlugin.js#L440-L557` (`../../src/global/initPlugin.js#L440-L557`)
 
 ### 1.6 标签系统
 
@@ -112,24 +112,24 @@ pbpaste() 优先级:
 - 标签自动补全建议 (`getTagSuggestions`)
 - 未使用标签自动清理 (`cleanupUnusedTags`)
 
-**代码位置**: [src/global/initPlugin.js#L573-L776](../../src/global/initPlugin.js#L573-L776)
+**代码位置**: `src/global/initPlugin.js#L573-L776` (`../../src/global/initPlugin.js#L573-L776`)
 
 ### 1.7 视图层渲染逻辑
 
-#### 列表渲染 ([src/views/Main.vue](../../src/views/Main.vue))
+#### 列表渲染 (`src/views/Main.vue` (`../../src/views/Main.vue`))
 - **懒加载**: 每次 GAP=15 条
 - **过滤逻辑**: 支持搜索、锁定状态、标签筛选
 - **收藏块**: 非收藏 tab 下展示匹配的收藏结果（`*` 前缀触发）
 - **v-memo 优化**: 基于 item、locked、activeIndex、selectedItemIdSet、isCollected 进行 memo
 
-**代码位置**: [src/views/Main.vue#L442-L657](../../src/views/Main.vue#L442-L657)
+**代码位置**: `src/views/Main.vue#L442-L657` (`../../src/views/Main.vue#L442-L657`)
 
-#### 列表组件 ([src/cpns/ClipItemList.vue](../../src/cpns/ClipItemList.vue))
+#### 列表组件 (`src/cpns/ClipItemList.vue` (`../../src/cpns/ClipItemList.vue`))
 - 使用 `v-memo` 优化渲染性能
 - 图片预览使用 Teleport 到 body
 - 长文本预览模态框
 
-**代码位置**: [src/cpns/ClipItemList.vue#L1-L200](../../src/cpns/ClipItemList.vue#L1-L200)
+**代码位置**: `src/cpns/ClipItemList.vue#L1-L200` (`../../src/cpns/ClipItemList.vue#L1-L200`)
 
 ---
 
@@ -145,7 +145,7 @@ pbpaste() 优先级:
 | 字段标准化 | locked、originPaths、collectTime 等 | 基础字段 |
 | 数据迁移 | 多层迁移逻辑 | 简单过期清理 |
 
-**ClipboardManager 代码**: [src/global/initPlugin.js#L16-L138](../../../ClipboardManager/src/global/initPlugin.js#L16-L138)
+**ClipboardManager 代码**: `src/global/initPlugin.js#L16-L138` (`../../../ClipboardManager/src/global/initPlugin.js#L16-L138`)
 
 ### 2.2 剪贴板监听对比
 
@@ -157,7 +157,7 @@ pbpaste() 优先级:
 | 源窗口信息 | 支持（readActiveWindowInfo） | 不支持 |
 | 文件路径解析 | 支持（readClipboardSourcePaths） | 不支持 |
 
-**ClipboardManager 代码**: [src/global/initPlugin.js#L196-L229](../../../ClipboardManager/src/global/initPlugin.js#L196-L229)
+**ClipboardManager 代码**: `src/global/initPlugin.js#L196-L229` (`../../../ClipboardManager/src/global/initPlugin.js#L196-L229`)
 
 ### 2.3 性能优化对比
 
@@ -177,7 +177,7 @@ ClipboardShelve 实现了完整的热键分层系统：
 - **用户自定义**: 支持通过 `dbStorage` 覆盖快捷键
 - **Mac 兼容**: Cmd 与 Ctrl 同根处理
 
-**代码位置**: [src/global/hotkeyBindings.js](../../src/global/hotkeyBindings.js)
+**代码位置**: `src/global/hotkeyBindings.js` (`../../src/global/hotkeyBindings.js`)
 
 ClipboardManager 无复杂快捷键系统。
 
@@ -285,12 +285,12 @@ worker.postMessage({ type: 'batchDelete', ids: [...] })
 3. **频繁重新渲染**: 搜索、筛选时触发全量重新计算
 4. **v-memo 依赖过多**: memo 依赖项过多导致失效频繁
 
-**代码位置**: [src/views/Main.vue#L609-L657](../../src/views/Main.vue#L609-L657)
+**代码位置**: `src/views/Main.vue#L609-L657` (`../../src/views/Main.vue#L609-L657`)
 
 #### 性能瓶颈点
 - `updateShowList()` 每次都重新过滤全量数据
 - `applyCollectFilters()` 多层 filter 链式调用
-- 图片 `toDataURL()` 阻塞主线程 ([initPlugin.js#L933](../../src/global/initPlugin.js#L933))
+- 图片 `toDataURL()` 阻塞主线程 (`initPlugin.js#L933` (`../../src/global/initPlugin.js#L933`))
 
 ### 4.2 数据存储方式不合理
 
@@ -300,7 +300,7 @@ worker.postMessage({ type: 'batchDelete', ids: [...] })
 3. **无索引**: 查找依赖数组遍历，时间复杂度 O(n)
 4. **图片膨胀**: Base64 编码导致文件体积膨胀 33%
 
-**代码位置**: [src/global/initPlugin.js#L302-L310](../../src/global/initPlugin.js#L302-L310)
+**代码位置**: `src/global/initPlugin.js#L302-L310` (`../../src/global/initPlugin.js#L302-L310`)
 
 #### 数据量影响
 - 1000 条记录约 5-10MB
@@ -309,13 +309,13 @@ worker.postMessage({ type: 'batchDelete', ids: [...] })
 
 ### 4.3 批量操作导致页面卡死
 
-#### 根本原因
+#### 根本原因 (重复标题: 4.3 批量操作导致页面卡死 #2)
 1. **同步批量操作**: 批量删除、批量收藏在主线程同步执行
 2. **频繁磁盘写入**: 每次操作都触发 `updateDataBaseLocal()`
 3. **无进度反馈**: 用户无法感知操作进度
 4. **无取消机制**: 操作开始后无法中断
 
-**代码位置**: [src/views/Main.vue#L683-L721](../../src/views/Main.vue#L683-L721)
+**代码位置**: `src/views/Main.vue#L683-L721` (`../../src/views/Main.vue#L683-L721`)
 
 #### 卡死场景
 - 批量删除 100+ 条记录
@@ -330,7 +330,7 @@ worker.postMessage({ type: 'batchDelete', ids: [...] })
 3. **冲突检测缺失**: 无快捷键冲突检测机制
 4. **宏功能缺失**: 不支持快捷键序列、条件触发等高级功能
 
-**代码位置**: [src/global/hotkeyBindings.js](../../src/global/hotkeyBindings.js)
+**代码位置**: `src/global/hotkeyBindings.js` (`../../src/global/hotkeyBindings.js`)
 
 #### 设计缺陷
 ```javascript
@@ -575,19 +575,19 @@ function detectConflict(newBinding, existingBindings) {
 ## 八、参考文档
 
 ### 代码关联
-- [数据库初始化](../../src/global/initPlugin.js#L111-L273)
-- [剪贴板监听](../../src/global/initPlugin.js#L1072-L1146)
-- [收藏系统](../../src/global/initPlugin.js#L440-L557)
-- [标签系统](../../src/global/initPlugin.js#L573-L776)
-- [视图渲染](../../src/views/Main.vue#L442-L657)
-- [列表组件](../../src/cpns/ClipItemList.vue#L1-L200)
-- [快捷键绑定](../../src/global/hotkeyBindings.js)
-- [快捷键注册](../../src/global/hotkeyRegistry.js)
+- `数据库初始化` (`../../src/global/initPlugin.js#L111-L273`)
+- `剪贴板监听` (`../../src/global/initPlugin.js#L1072-L1146`)
+- `收藏系统` (`../../src/global/initPlugin.js#L440-L557`)
+- `标签系统` (`../../src/global/initPlugin.js#L573-L776`)
+- `视图渲染` (`../../src/views/Main.vue#L442-L657`)
+- `列表组件` (`../../src/cpns/ClipItemList.vue#L1-L200`)
+- `快捷键绑定` (`../../src/global/hotkeyBindings.js`)
+- `快捷键注册` (`../../src/global/hotkeyRegistry.js`)
 
 ### 外部参考
 - [uTools 开发者文档](https://www.u-tools.cn/docs/developer/docs.html)
 - [uTools 本地数据库 API](https://www.u-tools.cn/docs/developer/api-reference/db/local-db.html)
-- [ClipboardManager 实现](../../../ClipboardManager/src/global/initPlugin.js)
+- `ClipboardManager 实现` (`../../../ClipboardManager/src/global/initPlugin.js`)
 
 ---
 

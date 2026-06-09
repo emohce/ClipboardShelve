@@ -2,7 +2,7 @@
 
 ## 用途
 - 作为新需求目录的起始模板。
-- 复制 `0000-template` 后重命名为 `specs/<feature-id>/` 使用。
+- 复制 `spec-template` 后重命名为 `specs/<feature-id>/` 使用。
 
 ## 包含文件
 - `01-spec.md`：定义需求、边界、验收标准

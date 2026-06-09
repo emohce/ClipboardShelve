@@ -35,7 +35,7 @@
 - ...
 
 ## 9. 关联文件 / 模块
-- [path/to/file#L1](path/to/file#L1)
+- `path/to/file#L1`
 
 ## 10. 后续观察点
 - ...

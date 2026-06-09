@@ -23,7 +23,7 @@ description: "Task list for 001-delete-search-nav-ux (delete, search, IME, list 
 
 **Purpose**: 实现前对齐已知错误记忆与基线复现，不改动产品代码。
 
-- [x] T001 按 [vibe/ai-rules/00-error-memory.md](../../vibe/ai-rules/00-error-memory.md) 通读索引命中项正文：[vibe/vibe-doc/ai-error-memory/2026-04-06-json-db-debounce-persist.md](../../vibe/vibe-doc/ai-error-memory/2026-04-06-json-db-debounce-persist.md)（删除/持久化）、[vibe/vibe-doc/ai-error-memory/2026-04-06-scroll-path.md](../../vibe/vibe-doc/ai-error-memory/2026-04-06-scroll-path.md)（滚动通路）
+- [x] T001 按 [vibe/knowledge/error-memory/README.md](../../vibe/knowledge/error-memory/README.md) 通读索引命中项正文：`vibe/knowledge/error-memory/2026-04-06-json-db-debounce-persist.md` (`../../vibe/knowledge/error-memory/2026-04-06-json-db-debounce-persist.md`)（删除/持久化）、`vibe/knowledge/error-memory/2026-04-06-scroll-path.md` (`../../vibe/knowledge/error-memory/2026-04-06-scroll-path.md`)（滚动通路）
 - [x] T002 按 [specs/001-delete-search-nav-ux/quickstart.md](./quickstart.md) 第 1–4 节执行基线复现（或确认无法复现），将字符/场景登记表记回 [specs/001-delete-search-nav-ux/quickstart.md](./quickstart.md) 或附录备注
 
 ---
@@ -108,7 +108,7 @@ description: "Task list for 001-delete-search-nav-ux (delete, search, IME, list 
 **Purpose**: 整体验收与知识沉淀
 
 - [x] T015 全量跑 [specs/001-delete-search-nav-ux/quickstart.md](./quickstart.md) 第 5 节回归嗅探（多选/收藏/标签等）
-- [x] T016 若确认新失败模式或证伪路径：更新 [vibe/vibe-doc/ai-error-memory/](../../vibe/vibe-doc/ai-error-memory/) 与 [vibe/ai-rules/00-error-memory.md](../../vibe/ai-rules/00-error-memory.md) 索引；否则在 PR 说明中写“无需新错误记录”
+- [x] T016 若确认新失败模式或证伪路径：更新 [vibe/knowledge/error-memory/](../../vibe/knowledge/error-memory/) 与 [vibe/knowledge/error-memory/README.md](../../vibe/knowledge/error-memory/README.md) 索引；否则在 PR 说明中写“无需新错误记录”
 
 ---
 
@@ -178,7 +178,7 @@ T010 → src/views/Main.vue
 
 ## Notes
 
-- 修改 [public/plugin.json](../../public/plugin.json)、[public/preload.js](../../public/preload.js)、[public/listener.js](../../public/listener.js) 前须按 AGENTS.md 评估影响；本任务列表默认以 `src/` 为主。
+- 修改 `public/plugin.json` (`../../public/plugin.json`)、`public/preload.js` (`../../public/preload.js`)、`public/listener.js` (`../../public/listener.js`) 前须按 AGENTS.md 评估影响；本任务列表默认以 `src/` 为主。
 - 任务格式校验：每条均为 `- [ ] Tnnn ...` 且含路径；用户故事任务均含 `[USn]`。
 
 ---

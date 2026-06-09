@@ -1,43 +1,14 @@
-# Verification Checklist
+# Legacy Rule Redirect: 05-verification-checklist
 
-## 目标
-- 让验证记录可追溯、可复核，并覆盖历史失败通路是否真正被绕开。
+Status: migrated legacy rule.
 
-## 默认验证顺序
-1. 代码静态检查：确认逻辑链、边界条件、引用路径、空值与异常分支。
-2. 关键人工验证：按用户最关心的真实使用路径检查。
-3. 文档回写：更新 `04-verify.md`、错误记录、ADR、术语表。
-4. 构建或命令验证：仅在用户明确要求、或任务本身必须依赖时执行。
+This file is retained only for historical compatibility. Do not use it as an active instruction source.
 
-## 强制检查项
-- 是否验证了主路径，而不是只验证了辅助路径。
-- 是否验证了历史失败通路已被真正绕开。
-- 是否明确写出未验证项，而不是默认视为通过。
-- 是否区分“代码推断”“人工观察”“实际运行结果”。
-- 是否说明验证环境，例如浏览器、`uTools` 插件、开发态或生产态。
+Current authoritative rules:
 
-## 输出建议
-```md
-# Verify
+- [Project rule index](../rules/README.md)
+- [Project constraints](../rules/project.md)
+- [Workflow rules](../rules/workflow.md)
+- [Knowledge routing](../rules/knowledge.md)
 
-## Checked
-- ...
-
-## Not Checked
-- ...
-
-## Historical Record Coverage
-- 命中记录: ...
-- 已绕开路径: ...
-
-## Knowledge Capture
-- Error Memory: ...
-- ADR: ...
-- Glossary: ...
-```
-
-## 规则
-- 不把未执行验证写成已通过。
-- 不把静态阅读结论写成运行时结论。
-- 如果用户要求“不跑 build”，必须遵守，并在验证里明确说明。
-- 如果命中错误记录，`Historical Record Coverage` 不能为空。
+Reusable project-specific constraints from the old rule set have been merged into the current rule files.

@@ -18,5 +18,5 @@
 - 是否命中相关错误记录。
 
 ## 相关历史记录
-- [`vibe/vibe-doc/ai-error-memory/2026-04-06-scroll-path.md`](../../vibe/vibe-doc/ai-error-memory/2026-04-06-scroll-path.md)
-- [`vibe/vibe-doc/adr/2026-04-06-scroll-path-choice.md`](../../vibe/vibe-doc/adr/2026-04-06-scroll-path-choice.md)
+- ``vibe/knowledge/error-memory/2026-04-06-scroll-path.md`` (`../../vibe/knowledge/error-memory/2026-04-06-scroll-path.md`)
+- ``vibe/knowledge/adr/2026-04-06-scroll-path-choice.md`` (`../../vibe/knowledge/adr/2026-04-06-scroll-path-choice.md`)

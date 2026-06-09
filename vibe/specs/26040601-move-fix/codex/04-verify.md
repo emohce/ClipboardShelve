@@ -17,7 +17,7 @@
 ## T3 将删除后的高亮恢复职责统一到父层展示列表回流
 - status: pass
 - build: 同上，构建通过
-- manual-check: 未执行；代码层已移除子组件基于 `deleteAnchor` 的删除恢复，统一由 [src/views/Main.vue](../../../src/views/Main.vue) 在刷新后恢复高亮
+- manual-check: 未执行；代码层已移除子组件基于 `deleteAnchor` 的删除恢复，统一由 `src/views/Main.vue` (`../../../src/views/Main.vue`) 在刷新后恢复高亮
 - docs: 已更新 [03-tasks.md](./03-tasks.md)
 - notes: 普通删除、批量删除、搜索删除的落点规则仍需手工确认是否完全符合“下一条优先，否则最后一条”
 

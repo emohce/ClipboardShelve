@@ -13,8 +13,8 @@
 - 快捷键执行分支：[`src/cpns/ClipItemList.vue`](../src/cpns/ClipItemList.vue)
 - 规格补充：[`specs/003-quick-item-operation/spec.md`](../specs/003-quick-item-operation/spec.md)
 - 快速回归说明：[`specs/003-quick-item-operation/quickstart.md`](../specs/003-quick-item-operation/quickstart.md)
-- 错误记忆正文：[`vibe/vibe-doc/ai-error-memory/2026-04-09-alias-prompt-hotkey-layer.md`](../vibe/vibe-doc/ai-error-memory/2026-04-09-alias-prompt-hotkey-layer.md)
-- 错误索引：[`vibe/ai-rules/00-error-memory.md`](../vibe/ai-rules/00-error-memory.md)
+- 错误记忆正文：``vibe/knowledge/error-memory/2026-04-09-alias-prompt-hotkey-layer.md`` (`../vibe/knowledge/error-memory/2026-04-09-alias-prompt-hotkey-layer.md`)
+- 错误索引：[`vibe/knowledge/error-memory/README.md`](../vibe/knowledge/error-memory/README.md)
 
 ## 验证前准备
 - [ ] 插件已重新加载到最新代码。

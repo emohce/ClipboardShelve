@@ -48,16 +48,16 @@
 
 ### 2.1 新增文件
 
-- [src/global/utoolsDB.js](../../src/global/utoolsDB.js) - uTools DB 实现
-- [src/global/dbMigration.js](../../src/global/dbMigration.js) - 数据迁移工具
+- `src/global/utoolsDB.js` (`../../src/global/utoolsDB.js`) - uTools DB 实现
+- `src/global/dbMigration.js` (`../../src/global/dbMigration.js`) - 数据迁移工具
 
 ### 2.2 修改文件
 
-- [src/global/initPlugin.js#L17](../../src/global/initPlugin.js#L17) - 导入 UToolsDB
-- [src/global/initPlugin.js#L1055-1069](../../src/global/initPlugin.js#L1055-1069) - 添加存储模式切换逻辑
-- [src/views/Setting.vue#L63-88](../../src/views/Setting.vue#L63-88) - 添加存储模式 UI
-- [src/views/Setting.vue#L400-404](../../src/views/Setting.vue#L400-404) - 添加存储模式状态变量
-- [src/views/Setting.vue#L894-994](../../src/views/Setting.vue#L894-994) - 添加存储模式 watch 和迁移处理函数
+- `src/global/initPlugin.js#L17` (`../../src/global/initPlugin.js#L17`) - 导入 UToolsDB
+- `src/global/initPlugin.js#L1055-1069` (`../../src/global/initPlugin.js#L1055-1069`) - 添加存储模式切换逻辑
+- `src/views/Setting.vue#L63-88` (`../../src/views/Setting.vue#L63-88`) - 添加存储模式 UI
+- `src/views/Setting.vue#L400-404` (`../../src/views/Setting.vue#L400-404`) - 添加存储模式状态变量
+- `src/views/Setting.vue#L894-994` (`../../src/views/Setting.vue#L894-994`) - 添加存储模式 watch 和迁移处理函数
 
 ---
 

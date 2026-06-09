@@ -104,4 +104,4 @@
 - “完整可见”指条目主体文本与关键缩略信息在用户典型字号与主题下可被阅读，不要求展示全部超长文本的每一个像素。
 - 规格中的“系统”指用户可感知的剪贴板插件界面与交互整体，不绑定具体技术栈。
 - **主界面布局**：固定顶栏（Tab、操作按钮或搜索条）与下方列表正文之间的垂直留白，应与顶栏实际占用高度匹配，保持紧凑；避免出现与功能无关的“大块空白”，同时不得使列表首行与顶栏重叠。
-- **验证沉淀**：本需求迭代中已确认的交互与排错要点，汇总在仓库错误记忆 [EM-2026-04-08-clipboard-nav-scroll-search-layout](../../vibe/vibe-doc/ai-error-memory/2026-04-08-clipboard-nav-scroll-search-layout.md)（与既有 [EM-2026-04-06-scroll-path](../../vibe/vibe-doc/ai-error-memory/2026-04-06-scroll-path.md)、[EM-2026-04-06-json-db-debounce-persist](../../vibe/vibe-doc/ai-error-memory/2026-04-06-json-db-debounce-persist.md) 配合查阅）。
+- **验证沉淀**：本需求迭代中已确认的交互与排错要点，汇总在仓库错误记忆 `EM-2026-04-08-clipboard-nav-scroll-search-layout` (`../../vibe/knowledge/error-memory/2026-04-08-clipboard-nav-scroll-search-layout.md`)（与既有 `EM-2026-04-06-scroll-path` (`../../vibe/knowledge/error-memory/2026-04-06-scroll-path.md`)、`EM-2026-04-06-json-db-debounce-persist` (`../../vibe/knowledge/error-memory/2026-04-06-json-db-debounce-persist.md`) 配合查阅）。

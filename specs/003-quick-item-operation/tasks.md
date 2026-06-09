@@ -89,7 +89,7 @@
 **Purpose**: 文档同步、知识沉淀、回归收口
 
 - [X] T020 [P] 同步 `specs/003-quick-item-operation/spec.md` 与 `specs/003-quick-item-operation/quickstart.md` 的 Enter/Esc 与别名展示验收描述
-- [X] T021 [P] 在 `vibe/vibe-doc/ai-error-memory/` 新增本次错误记录并在 `vibe/ai-rules/00-error-memory.md` 更新索引
+- [X] T021 [P] 在 `vibe/knowledge/error-memory/` 新增本次错误记录并在 `vibe/knowledge/error-memory/README.md` 更新索引
 - [ ] T022 [P] 对照 `specs/003-quick-item-operation/quickstart.md` 执行手工回归并回填结果到 `specs/003-quick-item-operation/quickstart.md`
 - [X] T023 更新 `docs/用户简明说明.md` 与 `changelog.md` 的快捷键迁移和别名交互说明
 

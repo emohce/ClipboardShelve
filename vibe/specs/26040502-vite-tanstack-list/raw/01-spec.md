@@ -6,10 +6,10 @@
 - 降低当前列表交互层的耦合度，使导航、滚动、删除恢复、懒加载、行渲染具备清晰职责边界，并为后续迭代提供可维护基础。
 
 ## 2. 背景
-- 当前仓库仍以 [`package.json`](../../package.json#L1) 中的 `Vue CLI + webpack 4 + vue-virtual-scroller` 组合为声明基线，但锁文件已解析到更高版本依赖，构建层与运行层边界并不理想。
-- 当前主列表复杂逻辑集中在 [`src/cpns/ClipItemList.vue`](../../src/cpns/ClipItemList.vue#L1518) 到 [`src/cpns/ClipItemList.vue`](../../src/cpns/ClipItemList.vue#L2433)，已同时承担滚动控制、分页、长按、删除恢复、懒加载和多选同步，维护成本过高。
-- 当前展示列表由 [`src/views/Main.vue`](../../src/views/Main.vue#L922) 到 [`src/views/Main.vue`](../../src/views/Main.vue#L931) 组合 `currentShowList`，说明任何新列表实现都必须继续兼容普通列表、收藏块混排、搜索和筛选结果。
-- 已完成最新框架适配评估，结论记录在 [`docs/todo/260405-交互优化/移动效果优化/260405-最新框架适配评估.md`](../../docs/todo/260405-%E4%BA%A4%E4%BA%92%E4%BC%98%E5%8C%96/%E7%A7%BB%E5%8A%A8%E6%95%88%E6%9E%9C%E4%BC%98%E5%8C%96/260405-%E6%9C%80%E6%96%B0%E6%A1%86%E6%9E%B6%E9%80%82%E9%85%8D%E8%AF%84%E4%BC%B0.md#L1)，并已确认选用 S2。
+- 当前仓库仍以 ``package.json`` (`../../package.json#L1`) 中的 `Vue CLI + webpack 4 + vue-virtual-scroller` 组合为声明基线，但锁文件已解析到更高版本依赖，构建层与运行层边界并不理想。
+- 当前主列表复杂逻辑集中在 ``src/cpns/ClipItemList.vue`` (`../../src/cpns/ClipItemList.vue#L1518`) 到 ``src/cpns/ClipItemList.vue`` (`../../src/cpns/ClipItemList.vue#L2433`)，已同时承担滚动控制、分页、长按、删除恢复、懒加载和多选同步，维护成本过高。
+- 当前展示列表由 ``src/views/Main.vue`` (`../../src/views/Main.vue#L922`) 到 ``src/views/Main.vue`` (`../../src/views/Main.vue#L931`) 组合 `currentShowList`，说明任何新列表实现都必须继续兼容普通列表、收藏块混排、搜索和筛选结果。
+- 已完成最新框架适配评估，结论记录在 ``docs/todo/260405-交互优化/移动效果优化/260405-最新框架适配评估.md`` (`../../docs/todo/260405-%E4%BA%A4%E4%BA%92%E4%BC%98%E5%8C%96/%E7%A7%BB%E5%8A%A8%E6%95%88%E6%9E%9C%E4%BC%98%E5%8C%96/260405-%E6%9C%80%E6%96%B0%E6%A1%86%E6%9E%B6%E9%80%82%E9%85%8D%E8%AF%84%E4%BC%B0.md#L1`)，并已确认选用 S2。
 - `uTools` 官方文档要求插件仍以静态 `html` 入口和 `preload.js` 运行，说明迁移目标应是“现代静态构建产物 + 保留插件运行方式”，而不是引入 SSR 或服务端渲染能力。来源：[uTools plugin.json 文档](https://www.u-tools.cn/docs/developer/information/plugin-json.html)、[uTools 窗口 API](https://www.u-tools.cn/docs/developer/utools-api/window.html)。
 
 ## 3. 用户场景 / 使用场景
@@ -51,16 +51,16 @@
 
 ## 7. 影响范围
 - 构建与入口：
-  - [`package.json`](../../package.json#L1)
-  - [`public/plugin.json`](../../public/plugin.json#L1)
-  - [`public/preload.js`](../../public/preload.js#L1)
-  - [`public/index.html`](../../public/index.html#L1)
+  - ``package.json`` (`../../package.json#L1`)
+  - ``public/plugin.json`` (`../../public/plugin.json#L1`)
+  - ``public/preload.js`` (`../../public/preload.js#L1`)
+  - ``public/index.html`` (`../../public/index.html#L1`)
   - 新增 `vite.config.*`、必要构建脚本与资源路径配置
 - 主列表核心：
-  - [`src/cpns/ClipItemList.vue`](../../src/cpns/ClipItemList.vue#L1)
-  - [`src/views/Main.vue`](../../src/views/Main.vue#L922)
-  - [`src/cpns/ClipItemRow.vue`](../../src/cpns/ClipItemRow.vue#L19)
-  - [`src/style/cpns/clip-item-list.less`](../../src/style/cpns/clip-item-list.less#L192)
+  - ``src/cpns/ClipItemList.vue`` (`../../src/cpns/ClipItemList.vue#L1`)
+  - ``src/views/Main.vue`` (`../../src/views/Main.vue#L922`)
+  - ``src/cpns/ClipItemRow.vue`` (`../../src/cpns/ClipItemRow.vue#L19`)
+  - ``src/style/cpns/clip-item-list.less`` (`../../src/style/cpns/clip-item-list.less#L192`)
 - 若采用新列表抽象：
   - 允许新增 `src/hooks/`、`src/utils/` 或 `src/cpns/` 内与导航状态机、虚拟滚动策略相关的模块
 - 文档：

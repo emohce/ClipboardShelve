@@ -10,7 +10,7 @@
 - 原始需求见 [../BjVkZ-zt-move.md](../BjVkZ-zt-move.md)。
 - 当前 `ClipItemList` 同时存在单步导航、长按自动滚动、分页滚动等多套路径，行为不一致。
 - 单步移动时偶发高亮不可见或缺失，与滚动策略及虚拟列表可见区域判断有关。
-- 当前删除后高亮索引可能由 [src/views/Main.vue](../../../src/views/Main.vue) 与 [src/cpns/ClipItemList.vue](../../../src/cpns/ClipItemList.vue) 共同维护，存在互相覆盖风险。
+- 当前删除后高亮索引可能由 `src/views/Main.vue` (`../../../src/views/Main.vue`) 与 `src/cpns/ClipItemList.vue` (`../../../src/cpns/ClipItemList.vue`) 共同维护，存在互相覆盖风险。
 - 当前锁定切换未及时驱动展示列表更新时，筛选视图下可能出现延迟。
 
 ## 3. 用户场景 / 使用场景
@@ -40,10 +40,10 @@
 - 多种移动入口（单击键、长按、鼠标等）不得在同一时刻产生互相覆盖的重复滚动调用；需收敛到单一底层导航/滚动路径。
 
 ## 7. 影响范围
-- [src/cpns/ClipItemList.vue](../../../src/cpns/ClipItemList.vue)：键盘导航、长按滚动、删除后恢复选中、锁状态与列表刷新协调。
-- [src/cpns/ClipItemRow.vue](../../../src/cpns/ClipItemRow.vue)：单行展示、锁/收藏图标区域布局与缩略，避免换行与性能回退。
-- [src/views/Main.vue](../../../src/views/Main.vue)：删除回写与父子索引恢复职责收敛。
-- [src/style/cpns/clip-item-list.less](../../../src/style/cpns/clip-item-list.less)：列表与行头紧凑布局、高亮与图标区域样式。
+- `src/cpns/ClipItemList.vue` (`../../../src/cpns/ClipItemList.vue`)：键盘导航、长按滚动、删除后恢复选中、锁状态与列表刷新协调。
+- `src/cpns/ClipItemRow.vue` (`../../../src/cpns/ClipItemRow.vue`)：单行展示、锁/收藏图标区域布局与缩略，避免换行与性能回退。
+- `src/views/Main.vue` (`../../../src/views/Main.vue`)：删除回写与父子索引恢复职责收敛。
+- `src/style/cpns/clip-item-list.less` (`../../../src/style/cpns/clip-item-list.less`)：列表与行头紧凑布局、高亮与图标区域样式。
 
 ## 8. 待确认项
 - 长按「分页」步长沿用现有 `scrollByPage` / 虚拟列表行为，不单独新增配置文件项，除非实现中发现步长与产品预期明显不一致。

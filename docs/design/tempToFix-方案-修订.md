@@ -17,7 +17,7 @@
 
 ## 1. 数据持久化：保存时间「不限制」
 
-- **初始代码**：在 [setting.json](src/data/setting.json) 与 [restoreSetting.js](src/global/restoreSetting.js) 中，默认 `database.maxage` 设为 `null`（不限制），无需用户手动配置。
+- **初始代码**：在 [setting.json](../../src/data/setting.json) 与 [restoreSetting.js](../../src/global/restoreSetting.js) 中，默认 `database.maxage` 设为 `null`（不限制），无需用户手动配置。
 - Setting.vue：最长保存时间下拉增加「不限制」选项，值为 `null`（供用户可选；默认从上述配置读取）。
 - initPlugin.js：`maxage == null` 时不按时间删除。
 
@@ -27,11 +27,11 @@
 
 **原则**：默认直接写在初始代码内，无需用户手动配置。
 
-- **初始代码**：[setting.json](src/data/setting.json) 的 `operation.custom` 中**不再包含**以下三项（从源码中删除）：
+- **初始代码**：[setting.json](../../src/data/setting.json) 的 `operation.custom` 中**不再包含**以下三项（从源码中删除）：
   - 百度搜索（`redirect:百度一下`）
   - 统计文本字数（`redirect:统计文本次数`）
   - 翻译（`redirect:翻译`）
-- **已有用户**：在 [readSetting.js](src/global/readSetting.js)（或首次加载设置时）做一次迁移：从已存储的 `operation.custom` 中移除上述三项，再写回存储，使配置内不再体现。
+- **已有用户**：在 [readSetting.js](../../src/global/readSetting.js)（或首次加载设置时）做一次迁移：从已存储的 `operation.custom` 中移除上述三项，再写回存储，使配置内不再体现。
 - **结果**：新安装/重置后默认即无这三项；主界面与抽屉自然不展示，无需用户做任何配置。
 
 ---
@@ -54,7 +54,7 @@
 ### 3.3 Esc 触发与左方向键相同的返回效果
 
 - 在**抽屉层**：**Esc** 与 **左方向键** 均触发返回普通层/关闭抽屉。
-- 当前 [hotkeyBindings.js](src/global/hotkeyBindings.js) 已配置：
+- 当前 [hotkeyBindings.js](../../src/global/hotkeyBindings.js) 已配置：
   - `clip-drawer` + `Escape` → `drawer-close`
   - `clip-drawer` + `ArrowLeft` → `drawer-close`
 - 无需改代码，仅在方案中**明确**：Esc 与左方向键效果一致，均为关闭抽屉并返回普通层。

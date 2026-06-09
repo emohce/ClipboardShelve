@@ -7,13 +7,13 @@
 
 ## 2. 现状与根因
 - 工程层面：
-  - 当前 [`package.json`](../../package.json#L1) 仍以 `vue-cli-service` 构建，而锁文件已解析到更新版本的 Vue 生态，说明声明依赖与实际安装存在漂移。
+  - 当前 ``package.json`` (`../../package.json#L1`) 仍以 `vue-cli-service` 构建，而锁文件已解析到更新版本的 Vue 生态，说明声明依赖与实际安装存在漂移。
   - 当前产物和插件入口依赖 `public/` 目录约定，迁移构建工具时需要重新梳理静态资源与输出目录契约。
 - 列表层面：
-  - [`src/cpns/ClipItemList.vue`](../../src/cpns/ClipItemList.vue#L1528) 中 `scrollActiveNodeIntoView` 的虚拟滚动分支和 DOM 分支行为不一致，是“可见却仍滚”的直接根因。
-  - [`src/cpns/ClipItemList.vue`](../../src/cpns/ClipItemList.vue#L1783)、[`src/cpns/ClipItemList.vue`](../../src/cpns/ClipItemList.vue#L2012)、[`src/cpns/ClipItemList.vue`](../../src/cpns/ClipItemList.vue#L2330) 三处维护不同分页路径，是长按和分页不稳定的根因。
-  - [`src/cpns/ClipItemList.vue`](../../src/cpns/ClipItemList.vue#L1870) 与 [`src/views/Main.vue`](../../src/views/Main.vue#L984) 双重维护删除恢复，是删除后高亮错位和闪烁的根因。
-  - [`src/cpns/ClipItemRow.vue`](../../src/cpns/ClipItemRow.vue#L19) 和 [`src/style/cpns/clip-item-list.less`](../../src/style/cpns/clip-item-list.less#L192) 已有压缩样式基础，但状态刷新和布局规则仍过于依赖主列表刷新时机。
+  - ``src/cpns/ClipItemList.vue`` (`../../src/cpns/ClipItemList.vue#L1528`) 中 `scrollActiveNodeIntoView` 的虚拟滚动分支和 DOM 分支行为不一致，是“可见却仍滚”的直接根因。
+  - ``src/cpns/ClipItemList.vue`` (`../../src/cpns/ClipItemList.vue#L1783`)、``src/cpns/ClipItemList.vue`` (`../../src/cpns/ClipItemList.vue#L2012`)、``src/cpns/ClipItemList.vue`` (`../../src/cpns/ClipItemList.vue#L2330`) 三处维护不同分页路径，是长按和分页不稳定的根因。
+  - ``src/cpns/ClipItemList.vue`` (`../../src/cpns/ClipItemList.vue#L1870`) 与 ``src/views/Main.vue`` (`../../src/views/Main.vue#L984`) 双重维护删除恢复，是删除后高亮错位和闪烁的根因。
+  - ``src/cpns/ClipItemRow.vue`` (`../../src/cpns/ClipItemRow.vue#L19`) 和 ``src/style/cpns/clip-item-list.less`` (`../../src/style/cpns/clip-item-list.less#L192`) 已有压缩样式基础，但状态刷新和布局规则仍过于依赖主列表刷新时机。
 - 架构层面：
   - 当前列表组件同时处理虚拟滚动、键盘事件、hover 预览、多选、删除、锁定和懒加载，导致任意交互变化都容易产生牵一发动全身的副作用。
 
@@ -39,16 +39,16 @@
 
 ## 4. 受影响文件
 - 构建层：
-  - [`package.json`](../../package.json#L1)：替换脚本、更新依赖。
-  - [`public/index.html`](../../public/index.html#L1)：适配 Vite 入口格式。
-  - [`public/plugin.json`](../../public/plugin.json#L1)：仅在开发入口或产物路径需要时做必要调整。
-  - [`public/preload.js`](../../public/preload.js#L1)：核验在 Vite 产物模式下仍可正常工作。
+  - ``package.json`` (`../../package.json#L1`)：替换脚本、更新依赖。
+  - ``public/index.html`` (`../../public/index.html#L1`)：适配 Vite 入口格式。
+  - ``public/plugin.json`` (`../../public/plugin.json#L1`)：仅在开发入口或产物路径需要时做必要调整。
+  - ``public/preload.js`` (`../../public/preload.js#L1`)：核验在 Vite 产物模式下仍可正常工作。
   - 新增 `vite.config.*`、必要的脚本与可能的别名配置。
 - 列表层：
-  - [`src/cpns/ClipItemList.vue`](../../src/cpns/ClipItemList.vue#L1)：大概率重写。
-  - [`src/views/Main.vue`](../../src/views/Main.vue#L922)：适配新列表接口和删除恢复主控逻辑。
-  - [`src/cpns/ClipItemRow.vue`](../../src/cpns/ClipItemRow.vue#L19)：行头渲染和即时刷新兼容。
-  - [`src/style/cpns/clip-item-list.less`](../../src/style/cpns/clip-item-list.less#L192)：新列表结构下的样式适配。
+  - ``src/cpns/ClipItemList.vue`` (`../../src/cpns/ClipItemList.vue#L1`)：大概率重写。
+  - ``src/views/Main.vue`` (`../../src/views/Main.vue#L922`)：适配新列表接口和删除恢复主控逻辑。
+  - ``src/cpns/ClipItemRow.vue`` (`../../src/cpns/ClipItemRow.vue#L19`)：行头渲染和即时刷新兼容。
+  - ``src/style/cpns/clip-item-list.less`` (`../../src/style/cpns/clip-item-list.less#L192`)：新列表结构下的样式适配。
 - 可新增模块：
   - `src/hooks/useListNavigation.js`
   - `src/hooks/useVirtualListScroll.js`

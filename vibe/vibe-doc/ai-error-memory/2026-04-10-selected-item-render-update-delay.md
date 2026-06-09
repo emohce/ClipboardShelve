@@ -109,11 +109,11 @@
 
 ## 6. 相关代码位置
 
-- [src/cpns/ClipItemList.vue#L201-L209](src/cpns/ClipItemList.vue#L201-L209) - `isItemCollected` 函数
-- [src/cpns/ClipItemList.vue#L239-L250](src/cpns/ClipItemList.vue#L239-L250) - `getItemAlias` 函数
-- [src/cpns/ClipItemList.vue#L2230-L2236](src/cpns/ClipItemList.vue#L2230-L2236) - 加锁操作修改 showList
-- [src/cpns/ClipItemList.vue#L2199-L2203](src/cpns/ClipItemList.vue#L2199-L2203) - 收藏操作修改 showList
-- [src/cpns/ClipItemList.vue#L275-L279](src/cpns/ClipItemList.vue#L275-L279) - 别名编辑操作修改 showList
+- [src/cpns/ClipItemList.vue#L201-L209](../../../src/cpns/ClipItemList.vue#L201-L209) - `isItemCollected` 函数
+- [src/cpns/ClipItemList.vue#L239-L250](../../../src/cpns/ClipItemList.vue#L239-L250) - `getItemAlias` 函数
+- [src/cpns/ClipItemList.vue#L2230-L2236](../../../src/cpns/ClipItemList.vue#L2230-L2236) - 加锁操作修改 showList
+- [src/cpns/ClipItemList.vue#L2199-L2203](../../../src/cpns/ClipItemList.vue#L2199-L2203) - 收藏操作修改 showList
+- [src/cpns/ClipItemList.vue#L275-L279](../../../src/cpns/ClipItemList.vue#L275-L279) - 别名编辑操作修改 showList
 
 ## 7. 验证方法
 

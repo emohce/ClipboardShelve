@@ -6,7 +6,7 @@
 
 ## 目录结构
 ```text
-specs/ai-tools-use/
+specs/tool-usage-templates/
   README.md
   cursor-prompts.md
   codex-prompts.md

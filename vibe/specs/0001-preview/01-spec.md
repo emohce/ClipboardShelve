@@ -6,9 +6,9 @@
 - 优化 Shift 预览交互：Shift 长按预览期间，鼠标移动不切换预览对象；松开 Shift 后恢复现有联动。
 
 ## 2. 背景
-- 原始需求见 [`docs/todo/260405-交互优化/预览效果优化/zt-Preview-原始需求.md`](../../docs/todo/260405-交互优化/预览效果优化/zt-Preview-原始需求.md)。
-- 当前预览主逻辑集中在 [`src/cpns/ClipItemList.vue`](../../src/cpns/ClipItemList.vue)。
-- 图片预览容器当前在 [`src/cpns/ClipItemList.vue`](../../src/cpns/ClipItemList.vue) 中使用顶部对齐，导致矮图视觉上贴顶。
+- 原始需求见 ``docs/todo/260405-交互优化/预览效果优化/zt-Preview-原始需求.md`` (`../../docs/todo/260405-交互优化/预览效果优化/zt-Preview-原始需求.md`)。
+- 当前预览主逻辑集中在 ``src/cpns/ClipItemList.vue`` (`../../src/cpns/ClipItemList.vue`)。
+- 图片预览容器当前在 ``src/cpns/ClipItemList.vue`` (`../../src/cpns/ClipItemList.vue`) 中使用顶部对齐，导致矮图视觉上贴顶。
 - 文字预览当前使用 `pre-wrap` 与自动换行，不符合单行文本“铺满宽度 + 省略”的目标。
 - 当前 `activeIndex` 会在鼠标移入时更新，而 `keyboardTriggeredPreview` 激活期间会基于 `activeIndex` 刷新预览，导致 Shift 预览时鼠标划过列表会切换预览对象。
 
@@ -23,8 +23,8 @@
 ## 4. 非目标
 - 不重做预览架构，不新增预览类型，不引入新依赖。
 - 不改变现有预览触发方式，`Shift` 长按触发机制保持现状。
-- 不修改 [`public/plugin.json`](../../public/plugin.json)、[`public/preload.js`](../../public/preload.js)、[`public/listener.js`](../../public/listener.js) 与 `src/global/` 之外的运行时契约。
-- 不纳入 [`src/cpns/ClipItemList.vue`](../../src/cpns/ClipItemList.vue) 中 `openExternalPreview` 外部窗口预览行为。
+- 不修改 ``public/plugin.json`` (`../../public/plugin.json`)、``public/preload.js`` (`../../public/preload.js`)、``public/listener.js`` (`../../public/listener.js`) 与 `src/global/` 之外的运行时契约。
+- 不纳入 ``src/cpns/ClipItemList.vue`` (`../../src/cpns/ClipItemList.vue`) 中 `openExternalPreview` 外部窗口预览行为。
 - 不把鼠标滚轮、触控板手势列入本次必做项。
 
 ## 5. 验收标准
@@ -48,11 +48,11 @@
 - `Shift + 方向键` 在预览打开时应优先服务预览滚动，不应误触发列表导航。
 
 ## 7. 影响范围
-- 主要逻辑：[`src/cpns/ClipItemList.vue`](../../src/cpns/ClipItemList.vue)
+- 主要逻辑：``src/cpns/ClipItemList.vue`` (`../../src/cpns/ClipItemList.vue`)
   - 图片预览样式计算、文字预览展示模式、Shift 锁定、预览滚动与鼠标移入切换。
-- 快捷键配置：[`src/global/hotkeyBindings.js`](../../src/global/hotkeyBindings.js)
+- 快捷键配置：``src/global/hotkeyBindings.js`` (`../../src/global/hotkeyBindings.js`)
   - 预览滚动相关快捷键绑定。
-- 快捷键文案：[`src/global/hotkeyLabels.js`](../../src/global/hotkeyLabels.js)
+- 快捷键文案：``src/global/hotkeyLabels.js`` (`../../src/global/hotkeyLabels.js`)
   - 新增或调整预览滚动相关文案说明。
 
 ## 8. 待确认项

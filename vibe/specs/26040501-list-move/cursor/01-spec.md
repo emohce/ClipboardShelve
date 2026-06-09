@@ -15,9 +15,9 @@
 
 ## 2. 背景
 
-- 原始需求见 [`docs/todo/260405-交互优化/移动效果优化/zt-move-原始需求.md`](../../../docs/todo/260405-交互优化/移动效果优化/zt-move-原始需求.md)。
-- 列表键盘导航、分页、`setKeyboardActiveIndex` / `scrollActiveNodeIntoView`、虚拟列表滚动对齐等集中在 [`src/cpns/ClipItemList.vue`](../../../src/cpns/ClipItemList.vue)。
-- 主窗口热键在 [`src/global/hotkeyBindings.js`](../../../src/global/hotkeyBindings.js) 中注册 `list-nav-up` / `list-nav-down`（单步）与 `list-page-up` / `list-page-down`（Ctrl+方向键分页）等 feature。
+- 原始需求见 ``docs/todo/260405-交互优化/移动效果优化/zt-move-原始需求.md`` (`../../../docs/todo/260405-交互优化/移动效果优化/zt-move-原始需求.md`)。
+- 列表键盘导航、分页、`setKeyboardActiveIndex` / `scrollActiveNodeIntoView`、虚拟列表滚动对齐等集中在 ``src/cpns/ClipItemList.vue`` (`../../../src/cpns/ClipItemList.vue`)。
+- 主窗口热键在 ``src/global/hotkeyBindings.js`` (`../../../src/global/hotkeyBindings.js`) 中注册 `list-nav-up` / `list-nav-down`（单步）与 `list-page-up` / `list-page-down`（Ctrl+方向键分页）等 feature。
 - 原始描述中「可键」按**笔误**理解为「**可见**」。已确认：**仅部分露出不算可见**，须**完全在列表可视区内**才适用「不滚动」。
 
 ## 3. 用户场景 / 使用场景
@@ -31,7 +31,7 @@
 
 ## 4. 非目标
 
-- 不改变 uTools 插件入口契约、[`public/plugin.json`](../../../public/plugin.json) / preload 等与本列表交互无直接关系的全局配置，除非验证证明必须联动修改。
+- 不改变 uTools 插件入口契约、``public/plugin.json`` (`../../../public/plugin.json`) / preload 等与本列表交互无直接关系的全局配置，除非验证证明必须联动修改。
 - 不将本次扩展为「重做虚拟列表库」或引入新的列表滚动框架。
 - 不强制在本次修改「设置页」热键文案或默认键位（若与行为冲突，在实现阶段于 plan 中说明是否仅文档同步）。
 - 「联网检索」作为实现阶段的参考手段，不在 spec 中规定具体检索关键词或工具。
@@ -58,9 +58,9 @@
 
 ## 7. 影响范围
 
-- **主要**：[`src/cpns/ClipItemList.vue`](../../../src/cpns/ClipItemList.vue) — `activeIndex`、`setKeyboardActiveIndex`、`scrollActiveNodeIntoView`、`registerFeature("list-nav-*" | "list-page-*")`、删除项与列表同步相关 watch、`startAutoScroll` / `startKeyHoldAutoScroll` / `unifiedKeyHandler`。
-- **热键**：[`src/global/hotkeyBindings.js`](../../../src/global/hotkeyBindings.js)、[`src/global/hotkeyRegistry.js`](../../../src/global/hotkeyRegistry.js) — 仅在需调整绑定或 repeat 策略时修改。
-- **样式**：[`src/style/cpns/clip-item-list.less`](../../../src/style/cpns/clip-item-list.less) 及 [`src/cpns/ClipItemRow.vue`](../../../src/cpns/ClipItemRow.vue) 中与行内图标、省略、`.active` 相关的样式与结构。
+- **主要**：``src/cpns/ClipItemList.vue`` (`../../../src/cpns/ClipItemList.vue`) — `activeIndex`、`setKeyboardActiveIndex`、`scrollActiveNodeIntoView`、`registerFeature("list-nav-*" | "list-page-*")`、删除项与列表同步相关 watch、`startAutoScroll` / `startKeyHoldAutoScroll` / `unifiedKeyHandler`。
+- **热键**：``src/global/hotkeyBindings.js`` (`../../../src/global/hotkeyBindings.js`)、``src/global/hotkeyRegistry.js`` (`../../../src/global/hotkeyRegistry.js`) — 仅在需调整绑定或 repeat 策略时修改。
+- **样式**：``src/style/cpns/clip-item-list.less`` (`../../../src/style/cpns/clip-item-list.less`) 及 ``src/cpns/ClipItemRow.vue`` (`../../../src/cpns/ClipItemRow.vue`) 中与行内图标、省略、`.active` 相关的样式与结构。
 - **文档**：本 feature 目录下 `02-plan.md`、`03-tasks.md`、`04-verify.md`。
 
 ## 8. 已确认项

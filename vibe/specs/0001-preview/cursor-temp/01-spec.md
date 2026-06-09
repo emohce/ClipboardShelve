@@ -8,7 +8,7 @@
 
 ## 2. 背景
 
-- 当前实现集中在列表组件内：图片与长文本预览、`Shift` 长按触发预览、悬浮预览配置等均在 [`src/cpns/ClipItemList.vue`](../../src/cpns/ClipItemList.vue) 及相关样式中。
+- 当前实现集中在列表组件内：图片与长文本预览、`Shift` 长按触发预览、悬浮预览配置等均在 ``src/cpns/ClipItemList.vue`` (`../../src/cpns/ClipItemList.vue`) 及相关样式中。
 - 图片预览容器当前为顶部对齐（`align-items: flex-start`），矮图在遮罩内视觉上偏上；文字预览使用 `pre-wrap` 与自动换行，与「单行铺满 + 省略」的期望不一致。
 - `activeIndex` 在鼠标移入行时会更新，且在 `Shift` 长按预览开启时会触发「随当前行刷新预览」的逻辑，导致鼠标划过列表即可切换预览对象，与「预览中锁定目标直至松开 Shift」冲突。
 
@@ -23,7 +23,7 @@
 
 ## 4. 非目标
 
-- 不改变 uTools 插件入口、全局快捷键注册方式、[`public/plugin.json`](../../public/plugin.json) / preload 等与预览无直接关系的契约（除非验证中发现硬性依赖）。
+- 不改变 uTools 插件入口、全局快捷键注册方式、``public/plugin.json`` (`../../public/plugin.json`) / preload 等与预览无直接关系的契约（除非验证中发现硬性依赖）。
 - 不将本次需求扩展为「重做整个预览架构」或引入新依赖（如新富文本引擎）。
 - 不将「鼠标滚轮 / 触控板」在预览内的行为列为本次必改项（除非与 Shift+方向键冲突需统一说明）。
 - 不要求修改「设置页」中悬浮预览开关与延迟配置的语义，仅当与 Shift 锁定逻辑冲突时在实现阶段再对齐。
@@ -43,15 +43,15 @@
 
 ## 6. 边界与异常
 
-- 窗口尺寸变化、高分屏、极窄或极矮窗口：预览仍不应崩溃；居中与滚动条表现可降级为「可滚动即可」，但需在 [`04-verify.md`](04-verify.md) 中记录实测窗口范围。
+- 窗口尺寸变化、高分屏、极窄或极矮窗口：预览仍不应崩溃；居中与滚动条表现可降级为「可滚动即可」，但需在 ``04-verify.md`` (`04-verify.md`) 中记录实测窗口范围。
 - 图片加载失败、非可解码资源：保持现有错误提示路径，不因布局调整而丢失。
 - 多选模式、搜索框聚焦、方向键挂起悬浮预览等**既有**行为与本次改动交叉时，以不破坏原有「挂起 / 恢复」语义为原则；若冲突，在实现阶段在 `02-plan.md` 中写明取舍。
 - 与 **悬浮预览**（非 Shift）同时存在时：本次需求以 **Shift 长按预览**与「预览中鼠标不切换」为主；悬浮预览是否需同样「锁定」不在本 spec 强制范围，若需一致则在 `待确认项` 中决策。
 
 ## 7. 影响范围
 
-- **主要**：[`src/cpns/ClipItemList.vue`](../../src/cpns/ClipItemList.vue) — 图片/文字预览状态、`showImagePreview` / `showTextPreview`、`handleMouseOver` 与 `activeIndex` 联动、`keyboardTriggeredPreview` 相关 watch、图片/文字预览键盘滚动逻辑。
-- **样式**：同文件 scoped 样式及/或 [`src/style/cpns/clip-item-list.less`](../../src/style/cpns/clip-item-list.less) 中与 `.image-preview-modal`、`.text-preview-modal` 相关的布局与滚动。
+- **主要**：``src/cpns/ClipItemList.vue`` (`../../src/cpns/ClipItemList.vue`) — 图片/文字预览状态、`showImagePreview` / `showTextPreview`、`handleMouseOver` 与 `activeIndex` 联动、`keyboardTriggeredPreview` 相关 watch、图片/文字预览键盘滚动逻辑。
+- **样式**：同文件 scoped 样式及/或 ``src/style/cpns/clip-item-list.less`` (`../../src/style/cpns/clip-item-list.less`) 中与 `.image-preview-modal`、`.text-preview-modal` 相关的布局与滚动。
 - **快捷键**：若 Shift+方向键滚动需与列表导航注册 feature 协调，可能涉及同文件内 `registerFeature("text-preview-scroll-*")` 等（以实际代码为准）。
 - **文档**：本 feature 目录下后续 `02-plan.md`、`03-tasks.md`、`04-verify.md`；不涉及改用户面向说明文档，除非产品要求同步。
 

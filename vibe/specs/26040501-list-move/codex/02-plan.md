@@ -9,23 +9,23 @@
 ## 2. 现状与根因
 
 - 当前展示层存在两层列表语义：
-  - `Main.vue` 中先维护 `showList` 和 `collectBlockList`，再组合出 `displayList/currentShowList`，见 [`src/views/Main.vue#L922`](../../../src/views/Main.vue#L922) 到 [`src/views/Main.vue#L931`](../../../src/views/Main.vue#L931)。
-  - `ClipItemList.vue` 内部所有导航、删除、选中都只感知传入的 `props.showList`，见 [`src/cpns/ClipItemList.vue#L9`](../../../src/cpns/ClipItemList.vue#L9) 到 [`src/cpns/ClipItemList.vue#L64`](../../../src/cpns/ClipItemList.vue#L64)。
+  - `Main.vue` 中先维护 `showList` 和 `collectBlockList`，再组合出 `displayList/currentShowList`，见 ``src/views/Main.vue#L922`` (`../../../src/views/Main.vue#L922`) 到 ``src/views/Main.vue#L931`` (`../../../src/views/Main.vue#L931`)。
+  - `ClipItemList.vue` 内部所有导航、删除、选中都只感知传入的 `props.showList`，见 ``src/cpns/ClipItemList.vue#L9`` (`../../../src/cpns/ClipItemList.vue#L9`) 到 ``src/cpns/ClipItemList.vue#L64`` (`../../../src/cpns/ClipItemList.vue#L64`)。
   - 这说明后续修复必须始终以 `currentShowList` 作为唯一展示真相，否则 `*` 搜索场景中顶部收藏块会再次打乱索引。
 - 当前导航存在双重推进风险：
-  - hotkey feature 中 `list-nav-up/down` 负责 `activeIndex` 推进和 `startKeyHoldAutoScroll`，见 [`src/cpns/ClipItemList.vue#L1877`](../../../src/cpns/ClipItemList.vue#L1877) 到 [`src/cpns/ClipItemList.vue#L1957`](../../../src/cpns/ClipItemList.vue#L1957)。
-  - 捕获阶段 `unifiedKeyHandler` 又会在 `ArrowUp/ArrowDown` 时启动 `startAutoScroll`，见 [`src/cpns/ClipItemList.vue#L2375`](../../../src/cpns/ClipItemList.vue#L2375) 到 [`src/cpns/ClipItemList.vue#L2382`](../../../src/cpns/ClipItemList.vue#L2382)。
+  - hotkey feature 中 `list-nav-up/down` 负责 `activeIndex` 推进和 `startKeyHoldAutoScroll`，见 ``src/cpns/ClipItemList.vue#L1877`` (`../../../src/cpns/ClipItemList.vue#L1877`) 到 ``src/cpns/ClipItemList.vue#L1957`` (`../../../src/cpns/ClipItemList.vue#L1957`)。
+  - 捕获阶段 `unifiedKeyHandler` 又会在 `ArrowUp/ArrowDown` 时启动 `startAutoScroll`，见 ``src/cpns/ClipItemList.vue#L2375`` (`../../../src/cpns/ClipItemList.vue#L2375`) 到 ``src/cpns/ClipItemList.vue#L2382`` (`../../../src/cpns/ClipItemList.vue#L2382`)。
   - 这两套路径叠加，会让“单击一步”“长按分页”的语义被相互覆盖。
 - 当前滚动定位不稳定：
-  - `scrollActiveNodeIntoView` 先查 DOM，再调用 `scrollIntoView`，找不到节点时回退到 `scrollToItem` 或固定高度估算，见 [`src/cpns/ClipItemList.vue#L1490`](../../../src/cpns/ClipItemList.vue#L1490) 到 [`src/cpns/ClipItemList.vue#L1577`](../../../src/cpns/ClipItemList.vue#L1577)。
+  - `scrollActiveNodeIntoView` 先查 DOM，再调用 `scrollIntoView`，找不到节点时回退到 `scrollToItem` 或固定高度估算，见 ``src/cpns/ClipItemList.vue#L1490`` (`../../../src/cpns/ClipItemList.vue#L1490`) 到 ``src/cpns/ClipItemList.vue#L1577`` (`../../../src/cpns/ClipItemList.vue#L1577`)。
   - 兜底路径中仍保留“最多滚半屏”的人工限制，结合动态高度列表会制造“目标项未真正进入可视区但高亮已变更”的错觉。
 - 当前删除恢复存在父子双侧竞争：
-  - `ClipItemList` 在删除前记录 `pendingHighlightedItemId/pendingActiveIndexAfterDelete`，并在 `showList` watcher 中尝试恢复，见 [`src/cpns/ClipItemList.vue#L1816`](../../../src/cpns/ClipItemList.vue#L1816) 到 [`src/cpns/ClipItemList.vue#L1838`](../../../src/cpns/ClipItemList.vue#L1838)。
-  - `Main.vue` 在 `handleItemDelete` 后又会执行 `adjustActiveIndexAfterDelete`，见 [`src/views/Main.vue#L984`](../../../src/views/Main.vue#L984) 到 [`src/views/Main.vue#L1058`](../../../src/views/Main.vue#L1058)。
+  - `ClipItemList` 在删除前记录 `pendingHighlightedItemId/pendingActiveIndexAfterDelete`，并在 `showList` watcher 中尝试恢复，见 ``src/cpns/ClipItemList.vue#L1816`` (`../../../src/cpns/ClipItemList.vue#L1816`) 到 ``src/cpns/ClipItemList.vue#L1838`` (`../../../src/cpns/ClipItemList.vue#L1838`)。
+  - `Main.vue` 在 `handleItemDelete` 后又会执行 `adjustActiveIndexAfterDelete`，见 ``src/views/Main.vue#L984`` (`../../../src/views/Main.vue#L984`) 到 ``src/views/Main.vue#L1058`` (`../../../src/views/Main.vue#L1058`)。
   - 同一条删除路径被两处恢复逻辑竞争时，就容易出现删除后先跳到 0 再跳回、或高亮与内容短暂不一致。
 - 当前锁定与收藏头部渲染虽然已纳入 `v-memo` 依赖，但布局仍比较脆弱：
-  - 行头状态元素直接平铺在 `.clip-time` 中，见 [`src/cpns/ClipItemRow.vue#L20`](../../../src/cpns/ClipItemRow.vue#L20) 到 [`src/cpns/ClipItemRow.vue#L35`](../../../src/cpns/ClipItemRow.vue#L35)。
-  - 样式上 `.clip-tags` 只有 `max-width: 80px`，图标、日期、标签并排时可压缩空间有限，见 [`src/style/cpns/clip-item-list.less#L171`](../../../src/style/cpns/clip-item-list.less#L171) 到 [`src/style/cpns/clip-item-list.less#L221`](../../../src/style/cpns/clip-item-list.less#L221)。
+  - 行头状态元素直接平铺在 `.clip-time` 中，见 ``src/cpns/ClipItemRow.vue#L20`` (`../../../src/cpns/ClipItemRow.vue#L20`) 到 ``src/cpns/ClipItemRow.vue#L35`` (`../../../src/cpns/ClipItemRow.vue#L35`)。
+  - 样式上 `.clip-tags` 只有 `max-width: 80px`，图标、日期、标签并排时可压缩空间有限，见 ``src/style/cpns/clip-item-list.less#L171`` (`../../../src/style/cpns/clip-item-list.less#L171`) 到 ``src/style/cpns/clip-item-list.less#L221`` (`../../../src/style/cpns/clip-item-list.less#L221`)。
 
 ## 3. 设计方案
 

@@ -6,11 +6,11 @@
 - 修正锁定/收藏状态的即时刷新与头部布局压缩，保证单行展示稳定且不引入明显性能退化。
 
 ## 2. 现状与根因
-- `currentShowList` 由 [`src/views/Main.vue`](../../src/views/Main.vue#L922) 到 [`src/views/Main.vue`](../../src/views/Main.vue#L931) 组合生成，但 `ClipItemList` 内部导航与删除逻辑只直接消费 `props.showList`，因此任何恢复策略都必须明确以最终展示列表为准。
-- `scrollActiveNodeIntoView` 已有 DOM 分支的“完全可见则跳过滚动”判断，但虚拟滚动分支会直接 `scrollToItem` 后返回 [`src/cpns/ClipItemList.vue`](../../src/cpns/ClipItemList.vue#L1528)，导致单步移动在可见场景下仍可能强制滚动。
-- 长按路径同时存在 `startKeyHoldAutoScroll` 和 `startAutoScroll` 两套推进逻辑 [`src/cpns/ClipItemList.vue`](../../src/cpns/ClipItemList.vue#L1783) [`src/cpns/ClipItemList.vue`](../../src/cpns/ClipItemList.vue#L2330)，而 `list-page-up/down` 也各自维护分页规则 [`src/cpns/ClipItemList.vue`](../../src/cpns/ClipItemList.vue#L2012)，形成三处分叉；其中顶部 `window.toTop()` 还是额外的边界语义源。
-- 删除恢复逻辑既在 `ClipItemList` 的 `pendingHighlightedItemId/pendingActiveIndexAfterDelete` watcher 中处理 [`src/cpns/ClipItemList.vue`](../../src/cpns/ClipItemList.vue#L1870)，又在 `Main.vue` 里通过 `adjustActiveIndexAfterDelete` 处理 [`src/views/Main.vue`](../../src/views/Main.vue#L984)，存在覆盖顺序和双重跳转风险。
-- 锁定操作分为多选批量内存更新和单项 `window.setLock` 两条路径 [`src/cpns/ClipItemList.vue`](../../src/cpns/ClipItemList.vue#L2183)，行头布局虽然已有 `flex` 和 `ellipsis` 基础样式 [`src/style/cpns/clip-item-list.less`](../../src/style/cpns/clip-item-list.less#L184)，但图标、时间、标签的压缩边界仍不够明确。
+- `currentShowList` 由 ``src/views/Main.vue`` (`../../src/views/Main.vue#L922`) 到 ``src/views/Main.vue`` (`../../src/views/Main.vue#L931`) 组合生成，但 `ClipItemList` 内部导航与删除逻辑只直接消费 `props.showList`，因此任何恢复策略都必须明确以最终展示列表为准。
+- `scrollActiveNodeIntoView` 已有 DOM 分支的“完全可见则跳过滚动”判断，但虚拟滚动分支会直接 `scrollToItem` 后返回 ``src/cpns/ClipItemList.vue`` (`../../src/cpns/ClipItemList.vue#L1528`)，导致单步移动在可见场景下仍可能强制滚动。
+- 长按路径同时存在 `startKeyHoldAutoScroll` 和 `startAutoScroll` 两套推进逻辑 ``src/cpns/ClipItemList.vue`` (`../../src/cpns/ClipItemList.vue#L1783`) ``src/cpns/ClipItemList.vue`` (`../../src/cpns/ClipItemList.vue#L2330`)，而 `list-page-up/down` 也各自维护分页规则 ``src/cpns/ClipItemList.vue`` (`../../src/cpns/ClipItemList.vue#L2012`)，形成三处分叉；其中顶部 `window.toTop()` 还是额外的边界语义源。
+- 删除恢复逻辑既在 `ClipItemList` 的 `pendingHighlightedItemId/pendingActiveIndexAfterDelete` watcher 中处理 ``src/cpns/ClipItemList.vue`` (`../../src/cpns/ClipItemList.vue#L1870`)，又在 `Main.vue` 里通过 `adjustActiveIndexAfterDelete` 处理 ``src/views/Main.vue`` (`../../src/views/Main.vue#L984`)，存在覆盖顺序和双重跳转风险。
+- 锁定操作分为多选批量内存更新和单项 `window.setLock` 两条路径 ``src/cpns/ClipItemList.vue`` (`../../src/cpns/ClipItemList.vue#L2183`)，行头布局虽然已有 `flex` 和 `ellipsis` 基础样式 ``src/style/cpns/clip-item-list.less`` (`../../src/style/cpns/clip-item-list.less#L184`)，但图标、时间、标签的压缩边界仍不够明确。
 
 ## 3. 设计方案
 - 统一滚动判定：
@@ -26,14 +26,14 @@
   - 子层 `ClipItemList.vue` 只保留必要的边界归一化和多选同步，删除恢复 watcher 需要降权或移除重复职责，避免双写。
   - 删除恢复规则统一为“原位置优先落下一条，越界则落最后一条，空列表归零”。
 - 稳定行头渲染：
-  - 保持 [`src/cpns/ClipItemRow.vue`](../../src/cpns/ClipItemRow.vue#L19) 现有结构，不新增抽象层，只强化图标不收缩、标签和正文可缩略、容器最小宽度为 0 的约束。
+  - 保持 ``src/cpns/ClipItemRow.vue`` (`../../src/cpns/ClipItemRow.vue#L19`) 现有结构，不新增抽象层，只强化图标不收缩、标签和正文可缩略、容器最小宽度为 0 的约束。
   - 确保锁定/收藏状态变化直接驱动当前行渲染，不依赖再次移动高亮才能刷新。
 
 ## 4. 受影响文件
-- [`src/cpns/ClipItemList.vue`](../../src/cpns/ClipItemList.vue#L1518)：统一完全可见判定、滚动策略、分页入口、长按逻辑、删除恢复职责边界。
-- [`src/views/Main.vue`](../../src/views/Main.vue#L984)：删除后索引恢复、`currentShowList` 下的高亮落点和懒加载衔接。
-- [`src/cpns/ClipItemRow.vue`](../../src/cpns/ClipItemRow.vue#L19)：行头状态展示结构检查，确认即时刷新路径。
-- [`src/style/cpns/clip-item-list.less`](../../src/style/cpns/clip-item-list.less#L184)：图标、时间、标签和正文的单行压缩样式。
+- ``src/cpns/ClipItemList.vue`` (`../../src/cpns/ClipItemList.vue#L1518`)：统一完全可见判定、滚动策略、分页入口、长按逻辑、删除恢复职责边界。
+- ``src/views/Main.vue`` (`../../src/views/Main.vue#L984`)：删除后索引恢复、`currentShowList` 下的高亮落点和懒加载衔接。
+- ``src/cpns/ClipItemRow.vue`` (`../../src/cpns/ClipItemRow.vue#L19`)：行头状态展示结构检查，确认即时刷新路径。
+- ``src/style/cpns/clip-item-list.less`` (`../../src/style/cpns/clip-item-list.less#L184`)：图标、时间、标签和正文的单行压缩样式。
 - [`specs/26040501-list-move/01-spec.md`](./01-spec.md#L1)：本计划对应的需求基线。
 
 ## 5. 数据与状态变更

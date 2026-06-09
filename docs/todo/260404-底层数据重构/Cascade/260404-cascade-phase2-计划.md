@@ -1,7 +1,7 @@
 # Phase 2 实施计划：数据库迁移到 uTools DB API
 
 **实施日期**: 2026-04-04  
-**基于方案**: [clipboard-shelve-refactor-plan-cf3340.md](../../../../../.windsurf/plans/clipboard-shelve-refactor-plan-cf3340.md)
+**基于方案**: `clipboard-shelve-refactor-plan-cf3340.md` (`../../../../../.windsurf/plans/clipboard-shelve-refactor-plan-cf3340.md`)
 
 ---
 

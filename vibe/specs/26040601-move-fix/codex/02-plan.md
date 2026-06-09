@@ -7,8 +7,8 @@
 
 ## 2. 现状与根因
 - 当前展示层存在两层列表语义：
-  - [src/views/Main.vue](../../../src/views/Main.vue) 先维护 `showList` 与 `collectBlockList`，再组合出最终传给列表组件的展示结果。
-  - [src/cpns/ClipItemList.vue](../../../src/cpns/ClipItemList.vue) 内部所有导航、删除、选中都只感知传入的 `props.showList`。
+  - `src/views/Main.vue` (`../../../src/views/Main.vue`) 先维护 `showList` 与 `collectBlockList`，再组合出最终传给列表组件的展示结果。
+  - `src/cpns/ClipItemList.vue` (`../../../src/cpns/ClipItemList.vue`) 内部所有导航、删除、选中都只感知传入的 `props.showList`。
   - 这意味着后续修复必须始终以最终展示列表为唯一真相，否则 `*` 搜索场景中顶部收藏块会再次打乱索引。
 - 当前导航存在双重推进风险：
   - hotkey feature 中的 `list-nav-up/down` 负责 `activeIndex` 推进和滚动修正。
@@ -19,10 +19,10 @@
   - 但 `ClipItemList` 中不同入口传入的 `block` 策略、边界逻辑、加载更多后的恢复逻辑并不统一，导致单步、长按、翻页体验不一致。
 - 当前删除恢复存在父子双侧竞争：
   - 子组件内已有 `deleteAnchor`、`pendingHighlightedItemId`、`pendingActiveIndexAfterDelete` 等恢复状态。
-  - 父组件 [src/views/Main.vue](../../../src/views/Main.vue) 又保留了 `adjustActiveIndexAfterDelete` 之类的索引修正逻辑。
+  - 父组件 `src/views/Main.vue` (`../../../src/views/Main.vue`) 又保留了 `adjustActiveIndexAfterDelete` 之类的索引修正逻辑。
   - 同一条删除路径被两处恢复逻辑竞争时，就容易出现删除后先跳到 0 再跳回、或高亮与内容短暂不一致。
 - 当前锁定与收藏头部渲染虽然已纳入 `v-memo` 依赖，但布局仍较脆弱：
-  - 行头状态元素在 [src/cpns/ClipItemRow.vue](../../../src/cpns/ClipItemRow.vue) 中直接顺序平铺。
+  - 行头状态元素在 `src/cpns/ClipItemRow.vue` (`../../../src/cpns/ClipItemRow.vue`) 中直接顺序平铺。
   - 图标、时间、标签并排时可压缩空间有限，容易在窄宽度下挤压主体内容或触发异常换行。
 
 ## 3. 设计方案
@@ -45,17 +45,17 @@
   - 局部渲染继续依赖现有 `v-memo` 条件，不引入新依赖或大规模组件拆分。
 
 ## 4. 受影响文件
-- [src/cpns/ClipItemList.vue](../../../src/cpns/ClipItemList.vue)
+- `src/cpns/ClipItemList.vue` (`../../../src/cpns/ClipItemList.vue`)
   - 导航入口统一、滚动策略收敛、长按行为、删除恢复 watcher 精简、边界与 `loadMore` 衔接。
-- [src/views/Main.vue](../../../src/views/Main.vue)
+- `src/views/Main.vue` (`../../../src/views/Main.vue`)
   - 删除后高亮恢复、展示列表与 `activeIndex` 同步、搜索/收藏混排场景的索引落点规则。
-- [src/hooks/useVirtualListScroll.js](../../../src/hooks/useVirtualListScroll.js)
+- `src/hooks/useVirtualListScroll.js` (`../../../src/hooks/useVirtualListScroll.js`)
   - 可见性判断、对齐策略与滚动辅助能力的复用边界。
-- [src/hooks/useListNavigation.js](../../../src/hooks/useListNavigation.js)
+- `src/hooks/useListNavigation.js` (`../../../src/hooks/useListNavigation.js`)
   - `deleteAnchor` 与待恢复高亮等导航状态的职责边界。
-- [src/cpns/ClipItemRow.vue](../../../src/cpns/ClipItemRow.vue)
+- `src/cpns/ClipItemRow.vue` (`../../../src/cpns/ClipItemRow.vue`)
   - 行头状态结构与 class，避免图标挤换行。
-- [src/style/cpns/clip-item-list.less](../../../src/style/cpns/clip-item-list.less)
+- `src/style/cpns/clip-item-list.less` (`../../../src/style/cpns/clip-item-list.less`)
   - 紧凑行、状态图标、标签缩略、选中行样式微调。
 
 ## 5. 数据与状态变更
@@ -120,9 +120,9 @@
 - 风险 3：头部布局压缩可能影响当前列表项高度，间接触发虚拟滚动重测。
 - 风险 4：`currentShowList` 混排场景下索引语义如果处理不彻底，`*` 搜索仍可能残留错位。
 - 回滚点优先集中在：
-  - [src/cpns/ClipItemList.vue](../../../src/cpns/ClipItemList.vue) 的导航与删除恢复改动块
-  - [src/views/Main.vue](../../../src/views/Main.vue) 的删除落点逻辑
-  - [src/cpns/ClipItemRow.vue](../../../src/cpns/ClipItemRow.vue) 与 [src/style/cpns/clip-item-list.less](../../../src/style/cpns/clip-item-list.less) 的单行布局样式
+  - `src/cpns/ClipItemList.vue` (`../../../src/cpns/ClipItemList.vue`) 的导航与删除恢复改动块
+  - `src/views/Main.vue` (`../../../src/views/Main.vue`) 的删除落点逻辑
+  - `src/cpns/ClipItemRow.vue` (`../../../src/cpns/ClipItemRow.vue`) 与 `src/style/cpns/clip-item-list.less` (`../../../src/style/cpns/clip-item-list.less`) 的单行布局样式
 
 ## 10. 待确认项
 - 默认按 spec 继续采用“长按 = 使用 `getPageStep()` 的分页式步长”推进；若后续任务阶段发现体感明显不符，再在 tasks 中细化。
