@@ -25,13 +25,13 @@
 
 ## 5. 已确认通路
 
-- **列表滚动容器**：[`src/cpns/ClipItemList.vue`](../../src/cpns/ClipItemList.vue) 内 `scrollParentRef`（`.clip-item-scroll`）；对齐 [EM-2026-04-06-scroll-path](2026-04-06-scroll-path.md) 的 DOM + `scrollIntoView` 主通路（**首项例外见下**）。
-- **首项顶对齐**：在 [`src/hooks/useVirtualListScroll.js`](../../src/hooks/useVirtualListScroll.js) 中 **`index === 0` 且 `align === 'start'` 时设置 `container.scrollTop = 0`**，不再对该路径调用 `scrollIntoView`，避免误滚祖先。
+- **列表滚动容器**：``src/cpns/ClipItemList.vue`` (`../../src/cpns/ClipItemList.vue`) 内 `scrollParentRef`（`.clip-item-scroll`）；对齐 [EM-2026-04-06-scroll-path](2026-04-06-scroll-path.md) 的 DOM + `scrollIntoView` 主通路（**首项例外见下**）。
+- **首项顶对齐**：在 ``src/hooks/useVirtualListScroll.js`` (`../../src/hooks/useVirtualListScroll.js`) 中 **`index === 0` 且 `align === 'start'` 时设置 `container.scrollTop = 0`**，不再对该路径调用 `scrollIntoView`，避免误滚祖先。
 - **上移接近顶部**：对较小目标索引（如 `nextIdx <= 8`）使用 **`edge-align` + `end` + `forceScroll`**，把高亮落在视窗偏下，腾出上方空间露出顶部多项；`nextIdx <= 0` 仍用 **`edge-align` + `start`** 并与 `scrollTop = 0` 协同。
-- **搜索**：[`src/views/Main.vue`](../../src/views/Main.vue) 在搜索已展开且事件目标在 `.clip-search` 内时 **不再 `window.focus()`**；[`src/cpns/ClipSearch.vue`](../../src/cpns/ClipSearch.vue) 用 composition 状态抑制误触发 `onEmpty`，`compositionend` 补偿合法清空（规避 reveal-guard 与 `onEmpty` 冲突）。
-- **IME + Enter**：[`src/global/hotkeyRegistry.js`](../../src/global/hotkeyRegistry.js) 在 **`e.isComposing`** 时不分发快捷键；[`list-enter` / `list-ctrl-enter`](../../src/cpns/ClipItemList.vue) 在搜索框聚焦或 `Process` 时 **`return false`**。
+- **搜索**：``src/views/Main.vue`` (`../../src/views/Main.vue`) 在搜索已展开且事件目标在 `.clip-search` 内时 **不再 `window.focus()`**；``src/cpns/ClipSearch.vue`` (`../../src/cpns/ClipSearch.vue`) 用 composition 状态抑制误触发 `onEmpty`，`compositionend` 补偿合法清空（规避 reveal-guard 与 `onEmpty` 冲突）。
+- **IME + Enter**：``src/global/hotkeyRegistry.js`` (`../../src/global/hotkeyRegistry.js`) 在 **`e.isComposing`** 时不分发快捷键；``list-enter` / `list-ctrl-enter`` (`../../src/cpns/ClipItemList.vue`) 在搜索框聚焦或 `Process` 时 **`return false`**。
 - **删除持久化**：删除路径 `updateDataBaseLocal(undefined, { immediate: true })`（见 [EM-2026-04-06-json-db-debounce-persist](2026-04-06-json-db-debounce-persist.md) 体系）；多选删除 **`preferItemId`** 仅在**未删除的保留项**中选取邻近 id。
-- **顶栏占位**：[`src/views/Main.vue`](../../src/views/Main.vue) 中 **`.clip-break`** / **`.clip-break--with-sub`（收藏 + 子标签）** 高度与 [`ClipSwitch`](../../src/style/cpns/clip-switch.less) 固定顶栏实际占位匹配；**窄屏**原 **仅单行** `clip-break` `132px` 级、**收藏双行** `144px` 级均偏大致大块空隙，已按「单行紧、双行 = 单行 + ~30px 量级」收紧，并与 `clip-empty-status` 的 `min-height` 联动校验。
+- **顶栏占位**：``src/views/Main.vue`` (`../../src/views/Main.vue`) 中 **`.clip-break`** / **`.clip-break--with-sub`（收藏 + 子标签）** 高度与 ``ClipSwitch`` (`../../src/style/cpns/clip-switch.less`) 固定顶栏实际占位匹配；**窄屏**原 **仅单行** `clip-break` `132px` 级、**收藏双行** `144px` 级均偏大致大块空隙，已按「单行紧、双行 = 单行 + ~30px 量级」收紧，并与 `clip-empty-status` 的 `min-height` 联动校验。
 
 ## 6. 适用触发条件
 

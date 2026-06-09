@@ -1,6 +1,6 @@
 # 问题排查：点击/Enter 无法自动粘贴到外部编辑框 & uTools 窗口自动弹出
 
-已沉淀错误记录：[EM-2026-04-06-hideMainWindow-showMainWindow-api-race](ai-error-memory/2026-04-06-hideMainWindow-showMainWindow-api-race.md)。
+已沉淀错误记录：`EM-2026-04-06-hideMainWindow-showMainWindow-api-race` (`ai-error-memory/2026-04-06-hideMainWindow-showMainWindow-api-race.md`)。
 
 ## 1. 症状描述
 
@@ -117,7 +117,7 @@ const handleWindowBlur = () => {
 };
 ```
 
-- `window.addEventListener("blur", handleWindowBlur)` 在 [`ClipItemList.vue`](src/cpns/ClipItemList.vue) 的 `onMounted` 中注册。
+- `window.addEventListener("blur", handleWindowBlur)` 在 [`ClipItemList.vue`](../src/cpns/ClipItemList.vue) 的 `onMounted` 中注册。
 - `utools.hideMainWindow()` 会导致窗口失焦，触发 `blur` 事件。
 - `handleWindowBlur` → `resetTransientPreviewState` → `stopImagePreview(true)` → `closeExternalPreview`。**修复前**：`closeExternalPreview` 末尾无条件 `focusUtoolsMainWindow` → `utools.showMainWindow()`。**修复后**（方案 A 已落地）：仅在实际关闭仍存在的外部预览窗口后调用 `focusUtoolsMainWindow`；无外部预览时不应再误弹主窗口。
 
@@ -132,7 +132,7 @@ const handleWindowBlur = () => {
 **嫌疑等级：★★★☆☆**
 
 **发现：**
-- [src/global/hotkeyBindings.js#L284](src/global/hotkeyBindings.js#L284) 中有绑定：
+- [src/global/hotkeyBindings.js#L284](../src/global/hotkeyBindings.js#L284) 中有绑定：
   ```javascript
   { layer: "main", shortcutId: "Shift", features: ["list-shift"] }
   ```
@@ -148,7 +148,7 @@ const handleWindowBlur = () => {
 **嫌疑等级：★★★☆☆（历史）**
 
 **原问题：**
-- [`ClipItemList.vue`](src/cpns/ClipItemList.vue) 中较早注册的 `onUnmounted` 曾调用 `stopKeyHold()`，但 `src/` 内无定义，卸载时可能抛出 `ReferenceError: stopKeyHold is not defined`。
+- [`ClipItemList.vue`](../src/cpns/ClipItemList.vue) 中较早注册的 `onUnmounted` 曾调用 `stopKeyHold()`，但 `src/` 内无定义，卸载时可能抛出 `ReferenceError: stopKeyHold is not defined`。
 
 **修复：**
 - 已移除无效调用。`shiftKeyTimer` 等由较晚的 `onUnmounted` 末尾 `resetTransientPreviewState()` 一并清理。
@@ -285,7 +285,7 @@ utools.simulateKeyboardTap = function(...args) {
 
 ## 7. 最小修复方案（草案）
 
-**落地说明：** 方案 A 已按下文实现于 [`src/cpns/ClipItemList.vue`](src/cpns/ClipItemList.vue) 的 `closeExternalPreview`；方案 B 未采用，留作备选。
+**落地说明：** 方案 A 已按下文实现于 [`src/cpns/ClipItemList.vue`](../src/cpns/ClipItemList.vue) 的 `closeExternalPreview`；方案 B 未采用，留作备选。
 
 ### 方案 A：`closeExternalPreview` 守卫
 
@@ -339,11 +339,11 @@ const handleWindowBlur = () => {
 
 | 文件 | 关键行 | 角色 |
 |------|--------|------|
-| [src/utils/index.js](src/utils/index.js) | L42-L63, L96-L128 | `copy`, `paste`, `copyAndPasteAndExit` 核心粘贴逻辑 |
-| [src/cpns/ClipItemList.vue](src/cpns/ClipItemList.vue) | L794-L816, L1396-L1468, L1945-L1958, L2319-L2333, L2335-L2377 | 点击/Enter handler、预览清理、blur handler |
-| [src/cpns/HotkeyProvider.vue](src/cpns/HotkeyProvider.vue) | L10-L11 | 全局 keydown 捕获 → dispatch |
-| [src/global/hotkeyRegistry.js](src/global/hotkeyRegistry.js) | L143-L238 | 热键分发核心 |
-| [src/global/hotkeyBindings.js](src/global/hotkeyBindings.js) | L260, L284 | Enter / Shift 绑定配置 |
-| [src/views/Main.vue](src/views/Main.vue) | L340-L346, L1142 | `resetPluginUiState` 定义与挂载 |
-| [src/global/initPlugin.js](src/global/initPlugin.js) | L1283-L1323 | `onPluginEnter` 窗口焦点管理 |
-| [public/preload.js](public/preload.js) | L1-L28 | Node 模块暴露（clipboard, utools 等） |
+| [src/utils/index.js](../src/utils/index.js) | L42-L63, L96-L128 | `copy`, `paste`, `copyAndPasteAndExit` 核心粘贴逻辑 |
+| [src/cpns/ClipItemList.vue](../src/cpns/ClipItemList.vue) | L794-L816, L1396-L1468, L1945-L1958, L2319-L2333, L2335-L2377 | 点击/Enter handler、预览清理、blur handler |
+| [src/cpns/HotkeyProvider.vue](../src/cpns/HotkeyProvider.vue) | L10-L11 | 全局 keydown 捕获 → dispatch |
+| [src/global/hotkeyRegistry.js](../src/global/hotkeyRegistry.js) | L143-L238 | 热键分发核心 |
+| [src/global/hotkeyBindings.js](../src/global/hotkeyBindings.js) | L260, L284 | Enter / Shift 绑定配置 |
+| [src/views/Main.vue](../src/views/Main.vue) | L340-L346, L1142 | `resetPluginUiState` 定义与挂载 |
+| [src/global/initPlugin.js](../src/global/initPlugin.js) | L1283-L1323 | `onPluginEnter` 窗口焦点管理 |
+| `public/preload.js` | L1-L28 | Node 模块暴露（clipboard, utools 等） |

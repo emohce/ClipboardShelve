@@ -1,7 +1,7 @@
 # Phase 1 重构实施记录
 
 **实施日期**: 2026-04-04  
-**基于方案**: [clipboard-shelve-refactor-plan-cf3340.md](../../../../../.windsurf/plans/clipboard-shelve-refactor-plan-cf3340.md)
+**基于方案**: `clipboard-shelve-refactor-plan-cf3340.md` (`../../../../../.windsurf/plans/clipboard-shelve-refactor-plan-cf3340.md`)
 
 ---
 
@@ -17,7 +17,7 @@
 - 默认使用 300ms 防抖写入，仅关键操作（如初始化新建数据库）使用立即写入
 
 **代码变更**:
-- [src/global/initPlugin.js#L302-L317](../../src/global/initPlugin.js#L302-L317)
+- `src/global/initPlugin.js#L302-L317` (`../../src/global/initPlugin.js#L302-L317`)
 
 **影响范围**:
 - 所有数据库写入操作现在默认使用防抖
@@ -38,10 +38,10 @@
 - 每批处理后让出主线程 10ms
 
 **代码变更**:
-- 新建 [src/global/batchOperations.js](../../src/global/batchOperations.js)
-- 修改 [src/views/Main.vue#L684-L717](../../src/views/Main.vue#L684-L717) - `clearRegularTabItems`
-- 修改 [src/views/Main.vue#L719-L757](../../src/views/Main.vue#L719-L757) - `clearCollectTabItems`
-- 修改 [src/views/Main.vue#L778-L786](../../src/views/Main.vue#L778-L786) - `handleClearConfirm`
+- 新建 `src/global/batchOperations.js` (`../../src/global/batchOperations.js`)
+- 修改 `src/views/Main.vue#L684-L717` (`../../src/views/Main.vue#L684-L717`) - `clearRegularTabItems`
+- 修改 `src/views/Main.vue#L719-L757` (`../../src/views/Main.vue#L719-L757`) - `clearCollectTabItems`
+- 修改 `src/views/Main.vue#L778-L786` (`../../src/views/Main.vue#L778-L786`) - `handleClearConfirm`
 
 **影响范围**:
 - 批量删除操作不再阻塞主线程
@@ -62,14 +62,14 @@
 - 添加必要的 CSS 样式确保滚动容器高度正确
 
 **代码变更**:
-- [src/cpns/ClipItemList.vue#L95-L96](../../src/cpns/ClipItemList.vue#L95-L96) - 导入 RecycleScroller 和样式
-- [src/cpns/ClipItemList.vue#L7-L38](../../src/cpns/ClipItemList.vue#L7-L38) - 替换模板为 RecycleScroller
-- [src/cpns/ClipItemList.vue#L8](../../src/cpns/ClipItemList.vue#L8) - 添加 scrollerRef
-- [src/cpns/ClipItemList.vue#L861](../../src/cpns/ClipItemList.vue#L861) - 声明 scrollerRef
-- [src/cpns/ClipItemList.vue#L1147-L1161](../../src/cpns/ClipItemList.vue#L1147-L1161) - 更新 scrollActiveNodeIntoView
-- [src/cpns/ClipItemList.vue#L1174-L1179](../../src/cpns/ClipItemList.vue#L1174-L1179) - 更新 getPageStep
-- [src/cpns/ClipItemList.vue#L1549](../../src/cpns/ClipItemList.vue#L1549) - 替换 DOM 查询为 scrollActiveNodeIntoView
-- [src/cpns/ClipItemList.vue#L1635-L1642](../../src/cpns/ClipItemList.vue#L1635-L1642) - 添加虚拟滚动样式
+- `src/cpns/ClipItemList.vue#L95-L96` (`../../src/cpns/ClipItemList.vue#L95-L96`) - 导入 RecycleScroller 和样式
+- `src/cpns/ClipItemList.vue#L7-L38` (`../../src/cpns/ClipItemList.vue#L7-L38`) - 替换模板为 RecycleScroller
+- `src/cpns/ClipItemList.vue#L8` (`../../src/cpns/ClipItemList.vue#L8`) - 添加 scrollerRef
+- `src/cpns/ClipItemList.vue#L861` (`../../src/cpns/ClipItemList.vue#L861`) - 声明 scrollerRef
+- `src/cpns/ClipItemList.vue#L1147-L1161` (`../../src/cpns/ClipItemList.vue#L1147-L1161`) - 更新 scrollActiveNodeIntoView
+- `src/cpns/ClipItemList.vue#L1174-L1179` (`../../src/cpns/ClipItemList.vue#L1174-L1179`) - 更新 getPageStep
+- `src/cpns/ClipItemList.vue#L1549` (`../../src/cpns/ClipItemList.vue#L1549`) - 替换 DOM 查询为 scrollActiveNodeIntoView
+- `src/cpns/ClipItemList.vue#L1635-L1642` (`../../src/cpns/ClipItemList.vue#L1635-L1642`) - 添加虚拟滚动样式
 
 **影响范围**:
 - 列表渲染性能大幅提升，支持 10000+ 条数据流畅滚动
@@ -96,12 +96,12 @@
 - 缩略图生成阈值：数据长度 > 50KB
 
 **代码变更**:
-- 新建 [src/global/imageUtils.js](../../src/global/imageUtils.js) - 图片处理工具模块
-- [src/global/initPlugin.js#L16](../../src/global/initPlugin.js#L16) - 导入图片工具函数
-- [src/global/initPlugin.js#L283](../../src/global/initPlugin.js#L283) - init 中调用缩略图迁移
-- [src/global/initPlugin.js#L332-343](../../src/global/initPlugin.js#L332-343) - addItem 中异步生成缩略图
-- [src/global/initPlugin.js#L825-871](../../src/global/initPlugin.js#L825-871) - migrateImageThumbnails 方法
-- [src/cpns/ClipItemList.vue#L197-201](../../src/cpns/ClipItemList.vue#L197-201) - getItemImageSrc 优先使用缩略图
+- 新建 `src/global/imageUtils.js` (`../../src/global/imageUtils.js`) - 图片处理工具模块
+- `src/global/initPlugin.js#L16` (`../../src/global/initPlugin.js#L16`) - 导入图片工具函数
+- `src/global/initPlugin.js#L283` (`../../src/global/initPlugin.js#L283`) - init 中调用缩略图迁移
+- `src/global/initPlugin.js#L332-343` (`../../src/global/initPlugin.js#L332-343`) - addItem 中异步生成缩略图
+- `src/global/initPlugin.js#L825-871` (`../../src/global/initPlugin.js#L825-871`) - migrateImageThumbnails 方法
+- `src/cpns/ClipItemList.vue#L197-201` (`../../src/cpns/ClipItemList.vue#L197-201`) - getItemImageSrc 优先使用缩略图
 
 **影响范围**:
 - 大图片（>50KB）会自动生成缩略图

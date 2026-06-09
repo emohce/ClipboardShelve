@@ -18,4 +18,4 @@
 - ...
 
 ## 关联文件
-- [path/to/file#L1](path/to/file#L1)
+- `path/to/file#L1`

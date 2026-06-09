@@ -8,13 +8,13 @@
 
 ## 2. 背景
 
-- 原始需求见 [`docs/todo/260405-交互优化/移动效果优化/zt-move-原始需求.md`](../../../docs/todo/260405-%E4%BA%A4%E4%BA%92%E4%BC%98%E5%8C%96/%E7%A7%BB%E5%8A%A8%E6%95%88%E6%9E%9C%E4%BC%98%E5%8C%96/zt-move-%E5%8E%9F%E5%A7%8B%E9%9C%80%E6%B1%82.md)。
-- 当前主列表展示由 [`src/views/Main.vue#L119`](../../../src/views/Main.vue#L119) 到 [`src/views/Main.vue#L142`](../../../src/views/Main.vue#L142) 将 `currentShowList` 传入 [`src/cpns/ClipItemList.vue`](../../../src/cpns/ClipItemList.vue)，并在非收藏页额外渲染收藏结果块 [`src/views/Main.vue#L119`](../../../src/views/Main.vue#L119) 到 [`src/views/Main.vue#L124`](../../../src/views/Main.vue#L124)。
-- 列表交互职责高度集中在 [`src/cpns/ClipItemList.vue#L1579`](../../../src/cpns/ClipItemList.vue#L1579) 到 [`src/cpns/ClipItemList.vue#L2237`](../../../src/cpns/ClipItemList.vue#L2237)，包括高亮索引、滚动定位、长按检测、删除、锁定、收藏等；仓库基线文档也明确该组件承担“选中态/焦点态异常、键盘上下移动行为、图片/文件预览体验”等问题的主入口，见 [`docs/VersionDesc/20260331-v0-当前版本架构与迭代基线说明.md#L288`](../../../docs/VersionDesc/20260331-v0-%E5%BD%93%E5%89%8D%E7%89%88%E6%9C%AC%E6%9E%B6%E6%9E%84%E4%B8%8E%E8%BF%AD%E4%BB%A3%E5%9F%BA%E7%BA%BF%E8%AF%B4%E6%98%8E.md#L288)。
-- 当前单步移动通过 [`src/cpns/ClipItemList.vue#L1877`](../../../src/cpns/ClipItemList.vue#L1877) 到 [`src/cpns/ClipItemList.vue#L1957`](../../../src/cpns/ClipItemList.vue#L1957) 调整 `activeIndex`，但滚动策略混用了 `scrollIntoView`、`scrollToItem` 与固定高度估算兜底 [`src/cpns/ClipItemList.vue#L1579`](../../../src/cpns/ClipItemList.vue#L1579) 到 [`src/cpns/ClipItemList.vue#L1716`](../../../src/cpns/ClipItemList.vue#L1716)，容易让“可见则不滚、不可见才滚”的语义失稳。
-- 当前长按上下键除了 hotkey feature 内的 `startKeyHoldAutoScroll` 外，还保留了捕获阶段的 `unifiedKeyHandler/startAutoScroll` 入口 [`src/cpns/ClipItemList.vue#L2360`](../../../src/cpns/ClipItemList.vue#L2360) 到 [`src/cpns/ClipItemList.vue#L2403`](../../../src/cpns/ClipItemList.vue#L2403)，与仓库历史修复记录中提到的“双重驱动风险”一致，见 [`docs/todo/260404-底层数据重构/Codex/260404-codex-Clipboard修复计划.md#L32`](../../../docs/todo/260404-%E5%BA%95%E5%B1%82%E6%95%B0%E6%8D%AE%E9%87%8D%E6%9E%84/Codex/260404-codex-Clipboard%E4%BF%AE%E5%A4%8D%E8%AE%A1%E5%88%92.md#L32)。
-- 删除后高亮恢复当前分散在删除事件、`showList` watcher 和多选恢复逻辑中，见 [`src/cpns/ClipItemList.vue#L1816`](../../../src/cpns/ClipItemList.vue#L1816) 到 [`src/cpns/ClipItemList.vue#L1853`](../../../src/cpns/ClipItemList.vue#L1853)、[`src/cpns/ClipItemList.vue#L2154`](../../../src/cpns/ClipItemList.vue#L2154) 到 [`src/cpns/ClipItemList.vue#L2235`](../../../src/cpns/ClipItemList.vue#L2235)，与需求中的“删除 item 导致选中效果错乱、渲染错误”直接相关。
-- 列表行头部状态目前由 [`src/cpns/ClipItemRow.vue#L20`](../../../src/cpns/ClipItemRow.vue#L20) 到 [`src/cpns/ClipItemRow.vue#L35`](../../../src/cpns/ClipItemRow.vue#L35) 直接串行渲染收藏图标、锁图标、时间、标签；原始需求要求锁状态及时更新且图标不挤压换行，因此本次需要把它视为受影响的用户可见区域。
+- 原始需求见 ``docs/todo/260405-交互优化/移动效果优化/zt-move-原始需求.md`` (`../../../docs/todo/260405-%E4%BA%A4%E4%BA%92%E4%BC%98%E5%8C%96/%E7%A7%BB%E5%8A%A8%E6%95%88%E6%9E%9C%E4%BC%98%E5%8C%96/zt-move-%E5%8E%9F%E5%A7%8B%E9%9C%80%E6%B1%82.md`)。
+- 当前主列表展示由 ``src/views/Main.vue#L119`` (`../../../src/views/Main.vue#L119`) 到 ``src/views/Main.vue#L142`` (`../../../src/views/Main.vue#L142`) 将 `currentShowList` 传入 ``src/cpns/ClipItemList.vue`` (`../../../src/cpns/ClipItemList.vue`)，并在非收藏页额外渲染收藏结果块 ``src/views/Main.vue#L119`` (`../../../src/views/Main.vue#L119`) 到 ``src/views/Main.vue#L124`` (`../../../src/views/Main.vue#L124`)。
+- 列表交互职责高度集中在 ``src/cpns/ClipItemList.vue#L1579`` (`../../../src/cpns/ClipItemList.vue#L1579`) 到 ``src/cpns/ClipItemList.vue#L2237`` (`../../../src/cpns/ClipItemList.vue#L2237`)，包括高亮索引、滚动定位、长按检测、删除、锁定、收藏等；仓库基线文档也明确该组件承担“选中态/焦点态异常、键盘上下移动行为、图片/文件预览体验”等问题的主入口，见 ``docs/VersionDesc/20260331-v0-当前版本架构与迭代基线说明.md#L288`` (`../../../docs/VersionDesc/20260331-v0-%E5%BD%93%E5%89%8D%E7%89%88%E6%9C%AC%E6%9E%B6%E6%9E%84%E4%B8%8E%E8%BF%AD%E4%BB%A3%E5%9F%BA%E7%BA%BF%E8%AF%B4%E6%98%8E.md#L288`)。
+- 当前单步移动通过 ``src/cpns/ClipItemList.vue#L1877`` (`../../../src/cpns/ClipItemList.vue#L1877`) 到 ``src/cpns/ClipItemList.vue#L1957`` (`../../../src/cpns/ClipItemList.vue#L1957`) 调整 `activeIndex`，但滚动策略混用了 `scrollIntoView`、`scrollToItem` 与固定高度估算兜底 ``src/cpns/ClipItemList.vue#L1579`` (`../../../src/cpns/ClipItemList.vue#L1579`) 到 ``src/cpns/ClipItemList.vue#L1716`` (`../../../src/cpns/ClipItemList.vue#L1716`)，容易让“可见则不滚、不可见才滚”的语义失稳。
+- 当前长按上下键除了 hotkey feature 内的 `startKeyHoldAutoScroll` 外，还保留了捕获阶段的 `unifiedKeyHandler/startAutoScroll` 入口 ``src/cpns/ClipItemList.vue#L2360`` (`../../../src/cpns/ClipItemList.vue#L2360`) 到 ``src/cpns/ClipItemList.vue#L2403`` (`../../../src/cpns/ClipItemList.vue#L2403`)，与仓库历史修复记录中提到的“双重驱动风险”一致，见 ``docs/todo/260404-底层数据重构/Codex/260404-codex-Clipboard修复计划.md#L32`` (`../../../docs/todo/260404-%E5%BA%95%E5%B1%82%E6%95%B0%E6%8D%AE%E9%87%8D%E6%9E%84/Codex/260404-codex-Clipboard%E4%BF%AE%E5%A4%8D%E8%AE%A1%E5%88%92.md#L32`)。
+- 删除后高亮恢复当前分散在删除事件、`showList` watcher 和多选恢复逻辑中，见 ``src/cpns/ClipItemList.vue#L1816`` (`../../../src/cpns/ClipItemList.vue#L1816`) 到 ``src/cpns/ClipItemList.vue#L1853`` (`../../../src/cpns/ClipItemList.vue#L1853`)、``src/cpns/ClipItemList.vue#L2154`` (`../../../src/cpns/ClipItemList.vue#L2154`) 到 ``src/cpns/ClipItemList.vue#L2235`` (`../../../src/cpns/ClipItemList.vue#L2235`)，与需求中的“删除 item 导致选中效果错乱、渲染错误”直接相关。
+- 列表行头部状态目前由 ``src/cpns/ClipItemRow.vue#L20`` (`../../../src/cpns/ClipItemRow.vue#L20`) 到 ``src/cpns/ClipItemRow.vue#L35`` (`../../../src/cpns/ClipItemRow.vue#L35`) 直接串行渲染收藏图标、锁图标、时间、标签；原始需求要求锁状态及时更新且图标不挤压换行，因此本次需要把它视为受影响的用户可见区域。
 - 针对“联网检索合理的高效实现”，已补充核验虚拟滚动上游资料：Akryum `vue-virtual-scroller` 官方仓库与发布记录都持续强调 `DynamicScroller`/`scrollToItem`/动态高度测量的定位边界；据此可推断后续 plan 需要优先复用现有 scroller 能力，减少基于固定 `44px` 的强估算滚动。这里是基于上游资料的推断，不构成当前 spec 的实现承诺。来源：[Akryum/vue-virtual-scroller](https://github.com/Akryum/vue-virtual-scroller)、[Releases](https://github.com/Akryum/vue-virtual-scroller/releases)。
 
 ## 3. 用户场景 / 使用场景
@@ -61,20 +61,20 @@
 
 ## 6. 边界与异常
 
-- 空列表、仅一条数据、顶部/底部边界、懒加载无更多数据时，方向键行为必须安全退出，不能继续推进越界索引，参考 [`src/cpns/ClipItemList.vue#L1882`](../../../src/cpns/ClipItemList.vue#L1882) 到 [`src/cpns/ClipItemList.vue#L1888`](../../../src/cpns/ClipItemList.vue#L1888)、[`src/cpns/ClipItemList.vue#L1913`](../../../src/cpns/ClipItemList.vue#L1913) 到 [`src/cpns/ClipItemList.vue#L1941`](../../../src/cpns/ClipItemList.vue#L1941)。
+- 空列表、仅一条数据、顶部/底部边界、懒加载无更多数据时，方向键行为必须安全退出，不能继续推进越界索引，参考 ``src/cpns/ClipItemList.vue#L1882`` (`../../../src/cpns/ClipItemList.vue#L1882`) 到 ``src/cpns/ClipItemList.vue#L1888`` (`../../../src/cpns/ClipItemList.vue#L1888`)、``src/cpns/ClipItemList.vue#L1913`` (`../../../src/cpns/ClipItemList.vue#L1913`) 到 ``src/cpns/ClipItemList.vue#L1941`` (`../../../src/cpns/ClipItemList.vue#L1941`)。
 - 虚拟滚动尚未渲染目标 DOM 节点时，滚动定位不能依赖单一元素查询失败后直接造成错误高亮；降级策略需要保证“至少可见”，不能制造新的半屏错位。这里是边界约束，不预设最终实现。
-- 删除语义需继续区分“普通删除、取消收藏、清理、强制删除”，不能因统一高亮恢复而破坏现有删除规则，见 [`docs/VersionDesc/20260331-v0-当前版本架构与迭代基线说明.md#L422`](../../../docs/VersionDesc/20260331-v0-%E5%BD%93%E5%89%8D%E7%89%88%E6%9C%AC%E6%9E%B6%E6%9E%84%E4%B8%8E%E8%BF%AD%E4%BB%A3%E5%9F%BA%E7%BA%BF%E8%AF%B4%E6%98%8E.md#L422)。
-- 锁定项默认删除受限，强制删除例外；本次只修复状态同步与展示，不改变安全默认值，参考 [`src/cpns/ClipItemList.vue#L2154`](../../../src/cpns/ClipItemList.vue#L2154) 到 [`src/cpns/ClipItemList.vue#L2197`](../../../src/cpns/ClipItemList.vue#L2197)。
-- 搜索输入聚焦、Shift 预览、hover preview、多选等现有层级行为不能被列表导航修复破坏；尤其是捕获阶段键盘监听与 hotkeyRegistry 的协同路径需要保持功能兼容，参考 [`src/cpns/ClipItemList.vue#L2360`](../../../src/cpns/ClipItemList.vue#L2360) 到 [`src/cpns/ClipItemList.vue#L2450`](../../../src/cpns/ClipItemList.vue#L2450)。
-- 由于收藏与普通历史分离存储，删除和取消收藏后的展示恢复必须避免把收藏项与普通项混淆，相关模型约束见 [`docs/VersionDesc/20260331-v0-当前版本架构与迭代基线说明.md#L145`](../../../docs/VersionDesc/20260331-v0-%E5%BD%93%E5%89%8D%E7%89%88%E6%9C%AC%E6%9E%B6%E6%9E%84%E4%B8%8E%E8%BF%AD%E4%BB%A3%E5%9F%BA%E7%BA%BF%E8%AF%B4%E6%98%8E.md#L145)。
+- 删除语义需继续区分“普通删除、取消收藏、清理、强制删除”，不能因统一高亮恢复而破坏现有删除规则，见 ``docs/VersionDesc/20260331-v0-当前版本架构与迭代基线说明.md#L422`` (`../../../docs/VersionDesc/20260331-v0-%E5%BD%93%E5%89%8D%E7%89%88%E6%9C%AC%E6%9E%B6%E6%9E%84%E4%B8%8E%E8%BF%AD%E4%BB%A3%E5%9F%BA%E7%BA%BF%E8%AF%B4%E6%98%8E.md#L422`)。
+- 锁定项默认删除受限，强制删除例外；本次只修复状态同步与展示，不改变安全默认值，参考 ``src/cpns/ClipItemList.vue#L2154`` (`../../../src/cpns/ClipItemList.vue#L2154`) 到 ``src/cpns/ClipItemList.vue#L2197`` (`../../../src/cpns/ClipItemList.vue#L2197`)。
+- 搜索输入聚焦、Shift 预览、hover preview、多选等现有层级行为不能被列表导航修复破坏；尤其是捕获阶段键盘监听与 hotkeyRegistry 的协同路径需要保持功能兼容，参考 ``src/cpns/ClipItemList.vue#L2360`` (`../../../src/cpns/ClipItemList.vue#L2360`) 到 ``src/cpns/ClipItemList.vue#L2450`` (`../../../src/cpns/ClipItemList.vue#L2450`)。
+- 由于收藏与普通历史分离存储，删除和取消收藏后的展示恢复必须避免把收藏项与普通项混淆，相关模型约束见 ``docs/VersionDesc/20260331-v0-当前版本架构与迭代基线说明.md#L145`` (`../../../docs/VersionDesc/20260331-v0-%E5%BD%93%E5%89%8D%E7%89%88%E6%9C%AC%E6%9E%B6%E6%9E%84%E4%B8%8E%E8%BF%AD%E4%BB%A3%E5%9F%BA%E7%BA%BF%E8%AF%B4%E6%98%8E.md#L145`)。
 
 ## 7. 影响范围
 
-- 主界面展示层：[`src/views/Main.vue#L119`](../../../src/views/Main.vue#L119)
+- 主界面展示层：``src/views/Main.vue#L119`` (`../../../src/views/Main.vue#L119`)
   - `currentShowList` 传递、收藏结果块混排、删除/加载更多事件回流。
-- 列表交互核心：[`src/cpns/ClipItemList.vue#L1579`](../../../src/cpns/ClipItemList.vue#L1579)
+- 列表交互核心：``src/cpns/ClipItemList.vue#L1579`` (`../../../src/cpns/ClipItemList.vue#L1579`)
   - `activeIndex`、滚动定位、长按检测、删除恢复、锁定与收藏动作、高亮与多选同步。
-- 列表项头部展示：[`src/cpns/ClipItemRow.vue#L20`](../../../src/cpns/ClipItemRow.vue#L20)
+- 列表项头部展示：``src/cpns/ClipItemRow.vue#L20`` (`../../../src/cpns/ClipItemRow.vue#L20`)
   - 收藏图标、锁图标、时间、标签的单行渲染与空间压缩。
 - 样式文件：`src/style/cpns/clip-item-list.less`、`src/style/index.less` 或组件内关联样式
   - 仅在后续 plan 证明必要时增量调整，用于修复选中态、图标挤压、单行头部排布。

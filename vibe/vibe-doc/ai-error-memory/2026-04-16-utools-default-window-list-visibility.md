@@ -31,10 +31,10 @@
 
 ## 5. 已确认通路
 
-- **列表程序滚动主通路**：[`src/hooks/useVirtualListScroll.js`](../../src/hooks/useVirtualListScroll.js) 中 **`applyScrollToItemIndex`**（`scrollToIndex` 为其别名）为 **唯一 DOM 滚动入口**；只要目标节点存在，**优先直接调用原生 `scrollIntoView()`**，让浏览器沿真实可滚动祖先链决定是否滚动。这一条必须先对齐 [EM-2026-04-06-scroll-path](2026-04-06-scroll-path.md)。
+- **列表程序滚动主通路**：``src/hooks/useVirtualListScroll.js`` (`../../src/hooks/useVirtualListScroll.js`) 中 **`applyScrollToItemIndex`**（`scrollToIndex` 为其别名）为 **唯一 DOM 滚动入口**；只要目标节点存在，**优先直接调用原生 `scrollIntoView()`**，让浏览器沿真实可滚动祖先链决定是否滚动。这一条必须先对齐 [EM-2026-04-06-scroll-path](2026-04-06-scroll-path.md)。
 - **首项特例**：`index === 0 && align === 'start'` 仍优先 **`container.scrollTop = 0`**，避免 `scrollIntoView(start)` 在嵌套 WebView 中误滚祖先（对齐 [EM-2026-04-08-clipboard-nav-scroll-search-layout](2026-04-08-clipboard-nav-scroll-search-layout.md)）。
 - **补滚方式**：`scrollIntoView()` 后允许少量 `requestAnimationFrame` 内 `ensure-visible` 兜底，但这只是补充，**不是主路径**。
-- **业务中枢**：[`src/cpns/ClipItemList.vue`](../../src/cpns/ClipItemList.vue) **`submitNavigationAction`** → **`runNavigationScroll`** 是键盘导航唯一主入口；`Main.vue` 等直接改 `activeIndex` 的旁路，必须额外调用可见性同步。
+- **业务中枢**：``src/cpns/ClipItemList.vue`` (`../../src/cpns/ClipItemList.vue`) **`submitNavigationAction`** → **`runNavigationScroll`** 是键盘导航唯一主入口；`Main.vue` 等直接改 `activeIndex` 的旁路，必须额外调用可见性同步。
 - **单步语义**：
   - **下移**：目标项完整可见则不滚；不完整可见时由原生 DOM 通路补滚到完整可见。
   - **上移**：目标项完整可见则不滚；一旦需要滚动，**用 `edge-align + end`** 给上方留出一条，避免“上移漏一个”。
@@ -59,14 +59,14 @@
 
 - 先读 [EM-2026-04-06-scroll-path](2026-04-06-scroll-path.md) 再读本条：**先用原生 `scrollIntoView()` 打通真实滚动链，再谈“无必要不滚”的细化语义**。
 - 单步导航目标固定为：**完整可见则不滚；不完整可见才滚到完整可见**，不要退回恒定居中。
-- 上移问题优先检查 [`list-nav-up`](../../src/cpns/ClipItemList.vue) 是否保留 **`edge-align + end`** reveal 语义；下移问题优先检查是否误把 `scrollIntoView()` 主通路短路掉。
+- 上移问题优先检查 ``list-nav-up`` (`../../src/cpns/ClipItemList.vue`) 是否保留 **`edge-align + end`** reveal 语义；下移问题优先检查是否误把 `scrollIntoView()` 主通路短路掉。
 - 验收固定在 **uTools 默认窗 + 图片 Tab + 长距离下移/上移**，不要只在浏览器大窗口判断。
 
 ## 9. 关联文件 / 模块
 
-- [`src/hooks/useVirtualListScroll.js`](../../src/hooks/useVirtualListScroll.js)
-- [`src/cpns/ClipItemList.vue`](../../src/cpns/ClipItemList.vue)
-- [`vibe/vibe-doc/glossary.md`](../glossary.md)（`uTools default window`）
+- ``src/hooks/useVirtualListScroll.js`` (`../../src/hooks/useVirtualListScroll.js`)
+- ``src/cpns/ClipItemList.vue`` (`../../src/cpns/ClipItemList.vue`)
+- [`vibe/knowledge/glossary.md`](../glossary.md)（`uTools default window`）
 
 ## 10. 后续观察点
 

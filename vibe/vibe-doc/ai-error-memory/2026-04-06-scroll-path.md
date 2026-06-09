@@ -42,9 +42,9 @@
 - 先打通真实通路，再调居中、半页、长按等策略细节。
 
 ## 9. 关联文件 / 模块
-- [src/cpns/ClipItemList.vue](../../src/cpns/ClipItemList.vue)
-- [src/hooks/useVirtualListScroll.js](../../src/hooks/useVirtualListScroll.js)
-- [src/style/cpns/clip-item-list.less](../../src/style/cpns/clip-item-list.less)
+- `src/cpns/ClipItemList.vue` (`../../src/cpns/ClipItemList.vue`)
+- `src/hooks/useVirtualListScroll.js` (`../../src/hooks/useVirtualListScroll.js`)
+- `src/style/cpns/clip-item-list.less` (`../../src/style/cpns/clip-item-list.less`)
 
 ## 10. 后续观察点
 - 若后续重新引入虚拟列表，必须重新验证真实滚动祖先和定位链路。

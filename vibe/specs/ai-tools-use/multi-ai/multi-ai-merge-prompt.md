@@ -23,7 +23,7 @@
 - ai-rules/01-spec-extraction.md
 - ai-rules/02-architecture-planning.md
 - ai-rules/05-verification-checklist.md
-- specs/ai-tools-use/multi-ai-merge-checklist.md
+- specs/tool-usage-templates/multi-ai-merge-checklist.md
 
 当前阶段：
 - stage: <spec|plan|verify>

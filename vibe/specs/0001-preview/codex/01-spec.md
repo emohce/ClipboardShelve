@@ -8,11 +8,11 @@
 
 ## 2. 背景
 
-- 原始需求见 [`docs/todo/260405-交互优化/预览效果优化/zt-Preview-原始需求.md`](../../../docs/todo/260405-%E4%BA%A4%E4%BA%92%E4%BC%98%E5%8C%96/%E9%A2%84%E8%A7%88%E6%95%88%E6%9E%9C%E4%BC%98%E5%8C%96/zt-Preview-%E5%8E%9F%E5%A7%8B%E9%9C%80%E6%B1%82.md)。
-- 当前预览主逻辑集中在 [`src/cpns/ClipItemList.vue#L236`](../../../src/cpns/ClipItemList.vue#L236)、[`src/cpns/ClipItemList.vue#L667`](../../../src/cpns/ClipItemList.vue#L667)、[`src/cpns/ClipItemList.vue#L1214`](../../../src/cpns/ClipItemList.vue#L1214)。
-- 图片预览当前整体容器虽然是遮罩居中，但内容区在 [`src/cpns/ClipItemList.vue#L2322`](../../../src/cpns/ClipItemList.vue#L2322) 采用 `align-items: flex-start`，导致矮图视觉上贴顶。
-- 文字预览当前在 [`src/cpns/ClipItemList.vue#L738`](../../../src/cpns/ClipItemList.vue#L738) 使用 `pre-wrap` 与 `word-break: break-word`，会自动换行，不符合“单行铺满 + 省略”的目标。
-- Shift 预览当前通过 [`src/cpns/ClipItemList.vue#L696`](../../../src/cpns/ClipItemList.vue#L696) 和 [`src/cpns/ClipItemList.vue#L1605`](../../../src/cpns/ClipItemList.vue#L1605) 绑定到 `activeIndex`，而鼠标移入行会在 [`src/cpns/ClipItemList.vue#L1214`](../../../src/cpns/ClipItemList.vue#L1214) 更新 `activeIndex`，因此预览中移动鼠标会刷新预览对象。
+- 原始需求见 ``docs/todo/260405-交互优化/预览效果优化/zt-Preview-原始需求.md`` (`../../../docs/todo/260405-%E4%BA%A4%E4%BA%92%E4%BC%98%E5%8C%96/%E9%A2%84%E8%A7%88%E6%95%88%E6%9E%9C%E4%BC%98%E5%8C%96/zt-Preview-%E5%8E%9F%E5%A7%8B%E9%9C%80%E6%B1%82.md`)。
+- 当前预览主逻辑集中在 ``src/cpns/ClipItemList.vue#L236`` (`../../../src/cpns/ClipItemList.vue#L236`)、``src/cpns/ClipItemList.vue#L667`` (`../../../src/cpns/ClipItemList.vue#L667`)、``src/cpns/ClipItemList.vue#L1214`` (`../../../src/cpns/ClipItemList.vue#L1214`)。
+- 图片预览当前整体容器虽然是遮罩居中，但内容区在 ``src/cpns/ClipItemList.vue#L2322`` (`../../../src/cpns/ClipItemList.vue#L2322`) 采用 `align-items: flex-start`，导致矮图视觉上贴顶。
+- 文字预览当前在 ``src/cpns/ClipItemList.vue#L738`` (`../../../src/cpns/ClipItemList.vue#L738`) 使用 `pre-wrap` 与 `word-break: break-word`，会自动换行，不符合“单行铺满 + 省略”的目标。
+- Shift 预览当前通过 ``src/cpns/ClipItemList.vue#L696`` (`../../../src/cpns/ClipItemList.vue#L696`) 和 ``src/cpns/ClipItemList.vue#L1605`` (`../../../src/cpns/ClipItemList.vue#L1605`) 绑定到 `activeIndex`，而鼠标移入行会在 ``src/cpns/ClipItemList.vue#L1214`` (`../../../src/cpns/ClipItemList.vue#L1214`) 更新 `activeIndex`，因此预览中移动鼠标会刷新预览对象。
 
 ## 3. 用户场景 / 使用场景
 
@@ -46,21 +46,21 @@
 
 ## 6. 边界与异常
 
-- 空列表、空文本、非长文本、无效图片源时，不应强行打开预览；保持当前安全退出路径，参考 [`src/cpns/ClipItemList.vue#L668`](../../../src/cpns/ClipItemList.vue#L668)。
-- 图片加载失败时，继续显示现有错误提示，不因布局调整丢失失败态，参考 [`src/cpns/ClipItemList.vue#L205`](../../../src/cpns/ClipItemList.vue#L205) 与 [`src/cpns/ClipItemList.vue#L2361`](../../../src/cpns/ClipItemList.vue#L2361)。
-- 多选状态、搜索输入聚焦、键盘导航挂起 hover preview 的既有语义不能回归，尤其是 [`src/cpns/ClipItemList.vue#L1251`](../../../src/cpns/ClipItemList.vue#L1251) 和 [`src/cpns/ClipItemList.vue#L1397`](../../../src/cpns/ClipItemList.vue#L1397) 的挂起/恢复路径。
+- 空列表、空文本、非长文本、无效图片源时，不应强行打开预览；保持当前安全退出路径，参考 ``src/cpns/ClipItemList.vue#L668`` (`../../../src/cpns/ClipItemList.vue#L668`)。
+- 图片加载失败时，继续显示现有错误提示，不因布局调整丢失失败态，参考 ``src/cpns/ClipItemList.vue#L205`` (`../../../src/cpns/ClipItemList.vue#L205`) 与 ``src/cpns/ClipItemList.vue#L2361`` (`../../../src/cpns/ClipItemList.vue#L2361`)。
+- 多选状态、搜索输入聚焦、键盘导航挂起 hover preview 的既有语义不能回归，尤其是 ``src/cpns/ClipItemList.vue#L1251`` (`../../../src/cpns/ClipItemList.vue#L1251`) 和 ``src/cpns/ClipItemList.vue#L1397`` (`../../../src/cpns/ClipItemList.vue#L1397`) 的挂起/恢复路径。
 - `Shift + ↑/↓` 在预览打开时应优先服务预览滚动，不应误触发列表高亮移动；若图片预览与文字预览处理方式不同，需要在后续 `02-plan.md` 明确。
-- 文件类型中内嵌图片目前也会复用图片预览入口，参考 [`src/cpns/ClipItemList.vue#L684`](../../../src/cpns/ClipItemList.vue#L684)；本次布局规则默认同样生效。
+- 文件类型中内嵌图片目前也会复用图片预览入口，参考 ``src/cpns/ClipItemList.vue#L684`` (`../../../src/cpns/ClipItemList.vue#L684`)；本次布局规则默认同样生效。
 
 ## 7. 影响范围
 
-- 主要逻辑：[`src/cpns/ClipItemList.vue#L236`](../../../src/cpns/ClipItemList.vue#L236)
+- 主要逻辑：``src/cpns/ClipItemList.vue#L236`` (`../../../src/cpns/ClipItemList.vue#L236`)
   - 图片预览样式计算、焦点、滚动、Shift 锁定、鼠标移入切换。
-- 文本预览：[`src/cpns/ClipItemList.vue#L738`](../../../src/cpns/ClipItemList.vue#L738)
+- 文本预览：``src/cpns/ClipItemList.vue#L738`` (`../../../src/cpns/ClipItemList.vue#L738`)
   - 单行 / 多行展示策略、滚动行为。
-- 列表交互：[`src/cpns/ClipItemList.vue#L1214`](../../../src/cpns/ClipItemList.vue#L1214)、[`src/cpns/ClipItemList.vue#L1583`](../../../src/cpns/ClipItemList.vue#L1583)、[`src/cpns/ClipItemList.vue#L1695`](../../../src/cpns/ClipItemList.vue#L1695)
+- 列表交互：``src/cpns/ClipItemList.vue#L1214`` (`../../../src/cpns/ClipItemList.vue#L1214`)、``src/cpns/ClipItemList.vue#L1583`` (`../../../src/cpns/ClipItemList.vue#L1583`)、``src/cpns/ClipItemList.vue#L1695`` (`../../../src/cpns/ClipItemList.vue#L1695`)
   - 鼠标移入、移出、方向键导航、Shift 长按预览与 activeIndex 联动。
-- 样式：[`src/cpns/ClipItemList.vue#L2313`](../../../src/cpns/ClipItemList.vue#L2313)
+- 样式：``src/cpns/ClipItemList.vue#L2313`` (`../../../src/cpns/ClipItemList.vue#L2313`)
   - `.text-preview-modal`、`.image-preview-modal` 的滚动、对齐、溢出表现。
 
 ## 8. 待确认项

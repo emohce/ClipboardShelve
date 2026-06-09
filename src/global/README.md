@@ -18,4 +18,4 @@
 - 是否需要新增 `ADR`。
 
 ## 相关历史记录
-- [`vibe/vibe-doc/ai-error-memory/2026-04-06-scroll-path.md`](../../vibe/vibe-doc/ai-error-memory/2026-04-06-scroll-path.md)
+- ``vibe/knowledge/error-memory/2026-04-06-scroll-path.md`` (`../../vibe/knowledge/error-memory/2026-04-06-scroll-path.md`)

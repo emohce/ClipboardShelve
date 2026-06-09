@@ -32,7 +32,7 @@
 *GATE: Must pass before Phase 0 research. Re-check after Phase 1 design.*
 
 - `.specify/memory/constitution.md` 当前为模板占位文本，暂无可执行硬性门禁条款。
-- 本计划改为遵循仓库规则门禁（`AGENTS.md` 与 `vibe/ai-rules/*`）：
+- 本计划改为遵循仓库规则门禁（`AGENTS.md` 与 `vibe/rules/README.md`）：
   - 实现前检索错误记忆索引：通过（已命中并扩展 `00-error-memory.md`）。
   - 高风险目录评估：本次未改 `public/plugin.json` / `public/preload.js` / `public/listener.js`，通过。
   - 最小改动原则：通过（热键映射与行渲染点状补丁）。

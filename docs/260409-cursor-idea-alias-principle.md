@@ -1,6 +1,6 @@
 # 260409 IDEA 别名粘贴实现原理说明
 
-> **基线（相对历史稿）**：别名用于粘贴的磁盘文件已从「仅 `temp` 随机子目录」调整为 **`userData` 下按条目持久 + 内容指纹复用 + 删条目/改别名清理**；详见 [EM-2026-04-10-alias-material-lifecycle](../vibe/vibe-doc/ai-error-memory/2026-04-10-alias-material-lifecycle.md)。
+> **基线（相对历史稿）**：别名用于粘贴的磁盘文件已从「仅 `temp` 随机子目录」调整为 **`userData` 下按条目持久 + 内容指纹复用 + 删条目/改别名清理**；详见 `EM-2026-04-10-alias-material-lifecycle` (`../vibe/knowledge/error-memory/2026-04-10-alias-material-lifecycle.md`)。
 
 ## 目的
 - 解释当前“别名粘贴”是怎么实现的。

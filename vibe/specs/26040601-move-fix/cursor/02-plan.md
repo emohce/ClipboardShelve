@@ -6,12 +6,12 @@
 - 锁/收藏状态变更后展示列表及时一致；行头图标在窄宽下不换行、可缩略。
 
 ## 2. 现状与根因
-- [src/cpns/ClipItemList.vue](../../../src/cpns/ClipItemList.vue) 中同时存在：
-  - 热键注册的 `list-nav-up` / `list-nav-down`（单击步进，`setKeyboardActiveIndex` + [src/hooks/useVirtualListScroll.js](../../../src/hooks/useVirtualListScroll.js) 的「整项可见则不滚」）。
+- `src/cpns/ClipItemList.vue` (`../../../src/cpns/ClipItemList.vue`) 中同时存在：
+  - 热键注册的 `list-nav-up` / `list-nav-down`（单击步进，`setKeyboardActiveIndex` + `src/hooks/useVirtualListScroll.js` (`../../../src/hooks/useVirtualListScroll.js`) 的「整项可见则不滚」）。
   - `document` 捕获阶段的 `unifiedKeyHandler`：在无 Shift 时，对首次 `ArrowUp`/`ArrowDown` 即调用 `startAutoScroll`，经 `AUTO_SCROLL_INITIAL_DELAY` 后按页步长 + `center` + `forceScroll` 连续滚动。
   - 上述两条会在一次按下过程中叠加：短按也会为长按定时器铺线；若时序与释放时刻交错，易出现与「先单步、再分页」不一致或重复滚动。
 - `startAutoScroll` 内部自行按 `getPageStep()` 计算目标索引，与 `scrollByPage` 的 align（up 为 `end`、down 为 `start`）不完全一致，长按与 `list-page-up/down` 的视觉结果可能不统一。
-- 删除恢复：[src/hooks/useListNavigation.js](../../../src/hooks/useListNavigation.js) 的 `deleteAnchor` 已在子组件 `watch(showList)` 中消费并回写 `activeIndex`；但 [src/views/Main.vue](../../../src/views/Main.vue) 在批量删除、搜索结果删除等路径仍调用 `adjustActiveIndexAfterDelete`，与 `deleteAnchor` 的 `nextTick` 滚动可能形成二次抢占或不必要 `block: "center"`。
+- 删除恢复：`src/hooks/useListNavigation.js` (`../../../src/hooks/useListNavigation.js`) 的 `deleteAnchor` 已在子组件 `watch(showList)` 中消费并回写 `activeIndex`；但 `src/views/Main.vue` (`../../../src/views/Main.vue`) 在批量删除、搜索结果删除等路径仍调用 `adjustActiveIndexAfterDelete`，与 `deleteAnchor` 的 `nextTick` 滚动可能形成二次抢占或不必要 `block: "center"`。
 - 锁/筛选：收藏通过 `onDataRemove` 等路径刷新；锁定切换若未走同一套 `showList` 刷新，则在 `locked` 筛选下会滞后（需对照具体 toggle 是否向父层 emit `row-data-change` / `onDataRemove`）。
 
 ## 3. 设计方案
@@ -20,15 +20,15 @@
   - 单击：仅步进 ±1，对齐策略以 `nearest` 为主，首尾边界保留 `start`/`end` + `forceScroll`（与现实现接近，可收紧判断避免多余滚动）。
   - 长按：在确认「按住」后再启动定时分页（与首次单击步进解耦），分页跳转复用 `scrollByPage`（或与其等价的步长与 align 规则），目标项需落在视口内且选中样式明确；若贴近底部且无更多数据，按 Spec 可再评估 `scrollHalfPage` 半页兜底。
 - **删除索引**：单条/已设置 `deleteAnchor` 的流程以子组件 `watch` 恢复为准；`Main` 侧删掉与之一致的重复 `adjustActiveIndexAfterDelete`，或对未设 anchor 的批量删除统一补一层「唯一恢复策略」（避免两条路径同时改写）。
-- **锁/收藏 UI**：在 [src/cpns/ClipItemRow.vue](../../../src/cpns/ClipItemRow.vue) 收紧行头状态区布局（flex、最小宽度、`min-width: 0`、省略号），样式落在 [src/style/cpns/clip-item-list.less](../../../src/style/cpns/clip-item-list.less)；状态变更后继续走既有数据刷新链路，使父层 `showList` 与行 `item` 同步。
+- **锁/收藏 UI**：在 `src/cpns/ClipItemRow.vue` (`../../../src/cpns/ClipItemRow.vue`) 收紧行头状态区布局（flex、最小宽度、`min-width: 0`、省略号），样式落在 `src/style/cpns/clip-item-list.less` (`../../../src/style/cpns/clip-item-list.less`)；状态变更后继续走既有数据刷新链路，使父层 `showList` 与行 `item` 同步。
 
 ## 4. 受影响文件
-- [src/cpns/ClipItemList.vue](../../../src/cpns/ClipItemList.vue)：协调 `unifiedKeyHandler` / `startAutoScroll` / `list-nav-*`；按需让长按复用 `scrollByPage`；删除/多选相关 `watch` 与滚动调用次序。
-- [src/views/Main.vue](../../../src/views/Main.vue)：收敛 `adjustActiveIndexAfterDelete` 使用场景；保证批量删除与 `deleteAnchor` 策略不打架。
-- [src/hooks/useVirtualListScroll.js](../../../src/hooks/useVirtualListScroll.js)：若需统一 align 或暴露「仅判可见不滚」的辅助函数供多处调用，可小幅扩展（保持无新依赖）。
-- [src/hooks/useListNavigation.js](../../../src/hooks/useListNavigation.js)：仅在 `deleteAnchor` 形状或清理时机需要与父组件协同时才改动。
-- [src/cpns/ClipItemRow.vue](../../../src/cpns/ClipItemRow.vue)：行头状态区 DOM 结构与 class，避免图标挤换行。
-- [src/style/cpns/clip-item-list.less](../../../src/style/cpns/clip-item-list.less)：紧凑行、状态图标、选中行样式微调。
+- `src/cpns/ClipItemList.vue` (`../../../src/cpns/ClipItemList.vue`)：协调 `unifiedKeyHandler` / `startAutoScroll` / `list-nav-*`；按需让长按复用 `scrollByPage`；删除/多选相关 `watch` 与滚动调用次序。
+- `src/views/Main.vue` (`../../../src/views/Main.vue`)：收敛 `adjustActiveIndexAfterDelete` 使用场景；保证批量删除与 `deleteAnchor` 策略不打架。
+- `src/hooks/useVirtualListScroll.js` (`../../../src/hooks/useVirtualListScroll.js`)：若需统一 align 或暴露「仅判可见不滚」的辅助函数供多处调用，可小幅扩展（保持无新依赖）。
+- `src/hooks/useListNavigation.js` (`../../../src/hooks/useListNavigation.js`)：仅在 `deleteAnchor` 形状或清理时机需要与父组件协同时才改动。
+- `src/cpns/ClipItemRow.vue` (`../../../src/cpns/ClipItemRow.vue`)：行头状态区 DOM 结构与 class，避免图标挤换行。
+- `src/style/cpns/clip-item-list.less` (`../../../src/style/cpns/clip-item-list.less`)：紧凑行、状态图标、选中行样式微调。
 
 ## 5. 数据与状态变更
 - 不新增持久化字段。
@@ -47,7 +47,7 @@
 6. `pnpm run build` 与 Spec 中手工用例回归。
 
 ## 8. 测试与验证方案
-- 命令：仓库根目录 [package.json](../../../package.json) 约定下执行 `pnpm run build`。
+- 命令：仓库根目录 `package.json` (`../../../package.json`) 约定下执行 `pnpm run build`。
 - 手工（`pnpm run serve`，主列表窗口）：
   - 上下键单步：项已在视口内完整可见时不应额外滚动；裁切或不可见时滚入视口。
   - 按住上/下键：进入分页式跳转，目标居中且选中清晰；底部无更多数据时行为符合 Spec。

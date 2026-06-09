@@ -538,7 +538,7 @@ export async function createClipboardStore({
 - 数据缓存
 - 迁移期辅助能力
 
-### 计划动作
+### 计划动作 (重复标题: 6.2 `src/global/utoolsDB.js` #2)
 
 1. 改为统一 store 实现
 2. 补齐缺失接口
@@ -546,7 +546,7 @@ export async function createClipboardStore({
 4. 明确哪些方法是公共接口，哪些是内部辅助方法
 5. 迁移层依赖的内部方法要么封装成 public import/export API，要么通过注释明确边界
 
-### 具体关注位置
+### 具体关注位置 (重复标题: 6.2 `src/global/utoolsDB.js` #2)
 
 - `266-301`：当前删除实现 `removeItem`
 - `369-408`：取消收藏逻辑
@@ -566,7 +566,7 @@ export async function createClipboardStore({
 - `window.remove(...)`
 - `window.db.removeCollect(...)`
 
-### 计划动作
+### 计划动作 (重复标题: 6.3 `src/views/Main.vue` #3)
 
 第一阶段仅做最小改动：
 
@@ -578,7 +578,7 @@ export async function createClipboardStore({
 - 把 `window.db.dataBase.data` 改成 `window.db.getData()`
 - 尽量避免 UI 直接依赖 `dataBase` 内部结构
 
-### 具体关注位置
+### 具体关注位置 (重复标题: 6.3 `src/views/Main.vue` #3)
 
 - `680-685`：列表数据来源
 - `701-745`：普通数据批量清除
@@ -589,7 +589,7 @@ export async function createClipboardStore({
 
 ## 6.4 `src/hooks/useClipOperate.js`
 
-### 当前问题
+### 当前问题 (重复标题: 6.4 `src/hooks/useClipOperate.js` #2)
 
 直接调用：
 
@@ -598,7 +598,7 @@ export async function createClipboardStore({
 - `window.db.isCollected`
 - `window.remove`
 
-### 计划动作
+### 计划动作 (重复标题: 6.4 `src/hooks/useClipOperate.js` #4)
 
 第一阶段：
 
@@ -608,7 +608,7 @@ export async function createClipboardStore({
 
 - 可考虑把“删除 / 收藏 / 取消收藏”的规则沉到 service 层，减少 Hook 里的业务分支
 
-### 具体关注位置
+### 具体关注位置 (重复标题: 6.4 `src/hooks/useClipOperate.js` #4)
 
 - `48-57`
 - `72-108`
@@ -618,7 +618,7 @@ export async function createClipboardStore({
 
 ## 6.5 `src/cpns/TagEditModal.vue`
 
-### 当前问题
+### 当前问题 (重复标题: 6.5 `src/cpns/TagEditModal.vue` #3)
 
 对 store 的能力要求很高：
 
@@ -629,7 +629,7 @@ export async function createClipboardStore({
 
 JSON 模式有这些接口，uTools 模式目前不完整。
 
-### 计划动作
+### 计划动作 (重复标题: 6.5 `src/cpns/TagEditModal.vue` #5)
 
 确保统一 store 明确支持：
 
@@ -638,7 +638,7 @@ JSON 模式有这些接口，uTools 模式目前不完整。
 - `updateItemData`
 - `removeCollect`
 
-### 具体关注位置
+### 具体关注位置 (重复标题: 6.5 `src/cpns/TagEditModal.vue` #5)
 
 - `254-281`
 - `286-310`
@@ -647,7 +647,7 @@ JSON 模式有这些接口，uTools 模式目前不完整。
 
 ## 6.6 `src/cpns/ClipItemList.vue`
 
-### 当前问题
+### 当前问题 (重复标题: 6.6 `src/cpns/ClipItemList.vue` #4)
 
 键盘快捷键路径里依赖：
 
@@ -657,11 +657,11 @@ JSON 模式有这些接口，uTools 模式目前不完整。
 - `window.setLock`
 - `window.setLocks`
 
-### 计划动作
+### 计划动作 (重复标题: 6.6 `src/cpns/ClipItemList.vue` #6)
 
 第一阶段不改行为，只要求统一 store 提供完整兼容接口。
 
-### 具体关注位置
+### 具体关注位置 (重复标题: 6.6 `src/cpns/ClipItemList.vue` #6)
 
 - `1893-1916` 收藏逻辑
 - `1918-1941` 锁定逻辑
@@ -671,7 +671,7 @@ JSON 模式有这些接口，uTools 模式目前不完整。
 
 ## 6.7 `src/views/Setting.vue`
 
-### 当前问题
+### 当前问题 (重复标题: 6.7 `src/views/Setting.vue` #5)
 
 配置页既负责：
 
@@ -681,7 +681,7 @@ JSON 模式有这些接口，uTools 模式目前不完整。
 
 但当前模型里“路径”的语义偏混杂。
 
-### 计划动作
+### 计划动作 (重复标题: 6.7 `src/views/Setting.vue` #7)
 
 第一阶段：
 
@@ -693,7 +693,7 @@ JSON 模式有这些接口，uTools 模式目前不完整。
 - 明确 `database.path` 是 JSON 数据源路径，而非 uTools DB 路径
 - 优化文案，避免用户误以为 uTools 模式仍依赖这个 JSON 文件作为主库
 
-### 具体关注位置
+### 具体关注位置 (重复标题: 6.7 `src/views/Setting.vue` #7)
 
 - `400-405`：存储模式状态
 - `772-807`：保存逻辑
@@ -705,11 +705,11 @@ JSON 模式有这些接口，uTools 模式目前不完整。
 
 ## 6.8 `src/global/dbMigration.js`
 
-### 当前问题
+### 当前问题 (重复标题: 6.8 `src/global/dbMigration.js` #6)
 
 迁移层直接调用 `UToolsDB` 内部实现细节，耦合较深。
 
-### 计划动作
+### 计划动作 (重复标题: 6.8 `src/global/dbMigration.js` #8)
 
 第一阶段：
 
@@ -725,7 +725,7 @@ JSON 模式有这些接口，uTools 模式目前不完整。
 
 这样迁移不需要了解 `_putCollects / _putTags / _putIndex` 等内部方法。
 
-### 具体关注位置
+### 具体关注位置 (重复标题: 6.8 `src/global/dbMigration.js` #8)
 
 - `73-122`：迁移写入逻辑
 - `172-178`：实例化并清空 uTools DB

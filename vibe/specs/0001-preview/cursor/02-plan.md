@@ -7,9 +7,9 @@
 
 ## 2. 现状与根因
 
-- **图片布局**：[`src/cpns/ClipItemList.vue`](../../../src/cpns/ClipItemList.vue) 中 `.image-preview-content` 使用 `display: flex`、`align-items: flex-start`（约 2323–2327 行 scoped 样式），滚动容器内图片贴顶，矮图视觉上不居中。
+- **图片布局**：``src/cpns/ClipItemList.vue`` (`../../../src/cpns/ClipItemList.vue`) 中 `.image-preview-content` 使用 `display: flex`、`align-items: flex-start`（约 2323–2327 行 scoped 样式），滚动容器内图片贴顶，矮图视觉上不居中。
 - **窄图未「扩宽」**：`showImagePreview` 为 `<img>` 设置 `maxWidth: availableWidth`、`width: height: auto`（约 285–293 行），仅限制上限不放大；小于视区宽度的图保持原始显示宽度，与「宽度小则扩至可用宽度（再滚动）」不一致。
-- **横向滚动快捷键**：`handleImagePreviewKeydown` 仅处理 `Shift + ArrowUp/Down`（约 352–373 行），无 `ArrowLeft/ArrowRight`；[`src/global/hotkeyBindings.js`](../../../src/global/hotkeyBindings.js) 中无 `shift+ArrowLeft/Right` 绑定。
+- **横向滚动快捷键**：`handleImagePreviewKeydown` 仅处理 `Shift + ArrowUp/Down`（约 352–373 行），无 `ArrowLeft/ArrowRight`；``src/global/hotkeyBindings.js`` (`../../../src/global/hotkeyBindings.js`) 中无 `shift+ArrowLeft/Right` 绑定。
 - **全局 Shift+上下与图片预览**：`shift+ArrowUp/Down` 绑定到 `text-preview-scroll-up/down`（`hotkeyBindings.js` 254–255 行），处理器只操作 `.text-preview-modal`（约 1833–1851 行）。图片预览依赖弹层 `@keydown`；若焦点或分发顺序导致弹层未先消费按键，存在与列表行为冲突的风险，应在同一套「预览滚动」逻辑中**显式**处理 `imagePreview.show`（见设计方案）。
 - **文字预览**：`showTextPreview` 与 scoped 样式为 `white-space: pre-wrap`、`word-break: break-word`（约 753–771、2313–2319 行），与单行「不换行 + 省略」冲突；需按单行/多行分支。
 - **Shift 预览时鼠标切换条目**：`watch(() => activeIndex, …)` 在 `keyboardTriggeredPreview` 为真时调用 `triggerKeyboardPreview()`（约 1604–1616 行），会按当前 `activeIndex` 刷新预览；同时 `handleMouseOver` 在非多选且未挂起时**始终** `activeIndex = index`（约 1214–1221 行）。按住 Shift 预览时鼠标移入其他行会改 `activeIndex`，从而触发 watch 切换预览，与 spec 冲突。根因是**未在键盘触发的预览持续期间抑制由鼠标引起的 `activeIndex` 更新**。
@@ -28,7 +28,7 @@
 - **窄图扩宽**：在 `showImagePreview` 或 `@load` 中根据 `naturalWidth/naturalHeight` 与 `availableWidth` 计算展示宽度：在不变形前提下将显示宽度提升至不超过 `availableWidth`（例如 `min(naturalWidth, availableWidth)` 与按比例缩放高度，或保持 `object-fit: contain` 下宽拉满）；与现有「以宽度为准」注释一致，避免改变 PNG/JPEG 像素以外的语义（仍是 CSS 尺寸，非 uTools 缩放 API）。
 - **Shift+上下/左右滚动**：  
   - 在 `handleImagePreviewKeydown` 中增加 `ArrowLeft`/`ArrowRight` 与 Shift 组合，对 `imagePreviewContentRef` 做 `scrollLeft` 步进（与现有 `scrollTop` 步进一致的量级可配置同一常量）。  
-  - 在 [`hotkeyBindings.js`](../../../src/global/hotkeyBindings.js) 增加 `shift+ArrowLeft`、`shift+ArrowRight` 绑定，并在 `registerListHotkeyFeatures` 内注册对应 feature，行为为：仅当 `imagePreview.show` 时横向滚动并 `return true`，否则 `return false`，避免与 Tab 切换等冲突。  
+  - 在 ``hotkeyBindings.js`` (`../../../src/global/hotkeyBindings.js`) 增加 `shift+ArrowLeft`、`shift+ArrowRight` 绑定，并在 `registerListHotkeyFeatures` 内注册对应 feature，行为为：仅当 `imagePreview.show` 时横向滚动并 `return true`，否则 `return false`，避免与 Tab 切换等冲突。  
   - **统一 Shift+上下**：将 `text-preview-scroll-up/down` 的处理器扩展为：若 `imagePreview.show`，则滚动图片容器并 `return true`；否则保持现有文字预览滚动逻辑。这样无论焦点在何处，全局热键与 spec 一致。若与 `handleImagePreviewKeydown` 重复消费，需二选一：**以 registry 为准**时在弹层上不再重复处理，或 **以弹层为准**时在 feature 内检测目标并跳过；实现时保证**只消费一次**（在 `04-verify.md` 记录）。
 
 ### 3.3 文字：单行 vs 多行
@@ -38,18 +38,18 @@
 
 ### 3.4 外部窗口 `openExternalPreview`
 
-- 本计划**不修改** `openExternalPreview` 注入的 HTML/CSS（[`ClipItemList.vue`](../../../src/cpns/ClipItemList.vue) 约 385–577 行）。若运行时仍调用该路径，行为保持原样；与 [`01-spec.md`](01-spec.md) §8.3 一致，以插件内 Teleport 预览为主。
+- 本计划**不修改** `openExternalPreview` 注入的 HTML/CSS（``ClipItemList.vue`` (`../../../src/cpns/ClipItemList.vue`) 约 385–577 行）。若运行时仍调用该路径，行为保持原样；与 [`01-spec.md`](01-spec.md) §8.3 一致，以插件内 Teleport 预览为主。
 
 ## 4. 受影响文件
 
 | 文件 | 改动意图 |
 |------|----------|
-| [`src/cpns/ClipItemList.vue`](../../../src/cpns/ClipItemList.vue) | `handleMouseOver` 条件；图片样式与 load 后尺寸；`handleImagePreviewKeydown` 四方向；`showTextPreview` 单行/多行分支；扩展 `text-preview-scroll-*` 注册逻辑；必要时模板增加包裹层 ref |
-| [`src/global/hotkeyBindings.js`](../../../src/global/hotkeyBindings.js) | 新增 `shift+ArrowLeft`、`shift+ArrowRight` 与 feature 列表 |
-| [`src/global/hotkeyLabels.js`](../../../src/global/hotkeyLabels.js) | 为新 feature 增加用户可见说明（若项目要求与现有 `text-preview` 标签一致） |
-| [`specs/0001-preview/cursor/04-verify.md`](04-verify.md) | 实现阶段按 [`vibe/ai-rules/05-verification-checklist.md`](../../../vibe/ai-rules/05-verification-checklist.md) 记录验证项 |
+| ``src/cpns/ClipItemList.vue`` (`../../../src/cpns/ClipItemList.vue`) | `handleMouseOver` 条件；图片样式与 load 后尺寸；`handleImagePreviewKeydown` 四方向；`showTextPreview` 单行/多行分支；扩展 `text-preview-scroll-*` 注册逻辑；必要时模板增加包裹层 ref |
+| ``src/global/hotkeyBindings.js`` (`../../../src/global/hotkeyBindings.js`) | 新增 `shift+ArrowLeft`、`shift+ArrowRight` 与 feature 列表 |
+| ``src/global/hotkeyLabels.js`` (`../../../src/global/hotkeyLabels.js`) | 为新 feature 增加用户可见说明（若项目要求与现有 `text-preview` 标签一致） |
+| ``specs/0001-preview/cursor/04-verify.md`` (`04-verify.md`) | 实现阶段按 ``vibe/rules/workflow.md`` (`../../../vibe/rules/workflow.md`) 记录验证项 |
 
-不涉及 [`public/plugin.json`](../../../public/plugin.json)、preload、listener，除非验证中发现热键层冲突。
+不涉及 ``public/plugin.json`` (`../../../public/plugin.json`)、preload、listener，除非验证中发现热键层冲突。
 
 ## 5. 数据与状态变更
 

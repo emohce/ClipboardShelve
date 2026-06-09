@@ -27,7 +27,7 @@
 ## 4. 非目标
 - 不重做整个快捷键系统。
 - 不替换现有虚拟滚动方案，不新增依赖。
-- 不修改 [public/plugin.json](../../../public/plugin.json)、[public/preload.js](../../../public/preload.js)、[public/listener.js](../../../public/listener.js)。
+- 不修改 `public/plugin.json` (`../../../public/plugin.json`)、`public/preload.js` (`../../../public/preload.js`)、`public/listener.js` (`../../../public/listener.js`)。
 - 不改动 tab 体系、搜索语法、收藏数据模型和全局快捷键配置名。
 - 不在本阶段引入新的性能监控埋点或设置项。
 
@@ -63,17 +63,17 @@
 - 由于收藏与普通历史分离存储，删除与取消收藏后的展示恢复必须避免把收藏项与普通项混淆。
 
 ## 7. 影响范围
-- [src/cpns/ClipItemList.vue](../../../src/cpns/ClipItemList.vue)
+- `src/cpns/ClipItemList.vue` (`../../../src/cpns/ClipItemList.vue`)
   - 列表移动、高亮、滚动、删除后选中恢复、不同移动触发方式的冲突收敛。
-- [src/views/Main.vue](../../../src/views/Main.vue)
+- `src/views/Main.vue` (`../../../src/views/Main.vue`)
   - 删除后的父层列表刷新、当前展示数据同步、搜索/收藏混排场景的索引落点。
-- [src/hooks/useVirtualListScroll.js](../../../src/hooks/useVirtualListScroll.js)
+- `src/hooks/useVirtualListScroll.js` (`../../../src/hooks/useVirtualListScroll.js`)
   - 可见性判断与滚动对齐策略的复用边界。
-- [src/hooks/useListNavigation.js](../../../src/hooks/useListNavigation.js)
+- `src/hooks/useListNavigation.js` (`../../../src/hooks/useListNavigation.js`)
   - 删除锚点、待恢复高亮等导航状态的职责边界。
-- [src/cpns/ClipItemRow.vue](../../../src/cpns/ClipItemRow.vue)
+- `src/cpns/ClipItemRow.vue` (`../../../src/cpns/ClipItemRow.vue`)
   - 单行头部渲染结构、锁/收藏图标与选中标记展示。
-- [src/style/cpns/clip-item-list.less](../../../src/style/cpns/clip-item-list.less)
+- `src/style/cpns/clip-item-list.less` (`../../../src/style/cpns/clip-item-list.less`)
   - 紧凑布局下的单行样式、图标和标签压缩展示。
 
 ## 8. 待确认项

@@ -8,7 +8,7 @@
 
 ### 2.1 滚动与「完全可见」
 
-- [`ClipItemList.vue`](../../../src/cpns/ClipItemList.vue) 已存在 `isNodeFullyVisible(node, container)`（约 1457–1464 行）：用 `getBoundingClientRect` 比较**整行**是否落在容器上下边界内，语义与 spec「部分露出不算可见」一致。
+- ``ClipItemList.vue`` (`../../../src/cpns/ClipItemList.vue`) 已存在 `isNodeFullyVisible(node, container)`（约 1457–1464 行）：用 `getBoundingClientRect` 比较**整行**是否落在容器上下边界内，语义与 spec「部分露出不算可见」一致。
 - **根因 A**：`scrollActiveNodeIntoView` 在存在 `scrollerRef.scrollToItem` 时（约 1476–1485 行）**直接** `scrollToItem(index, { align })` 并 `return`，**未**先判断当前节点是否已完全可见；而降级 DOM 路径（约 1488–1501 行）会在 `!forceScroll && isNodeFullyVisible` 时提前返回。虚拟列表路径与 DOM 路径不一致，易导致「已可见仍滚动」或滚动过于频繁。
 - **根因 B**：单步导航传入 `block: "nearest"`（如 `list-nav-up` / `list-nav-down` 约 1913–1916、1969–1974 行；`startAutoScroll` 首次单步约 2320–2323、2335–2338 行）。`vue-virtual-scroller` 的 `align: "nearest"` 与 spec 要求的「完全可见才免滚」**不等价**，需以显式 `isNodeFullyVisible`（或等效几何判定）为准。
 
@@ -21,7 +21,7 @@
 
 ### 2.3 热键与 `list-nav-*` 守卫
 
-- `registerFeature("list-nav-up", (e) => { if (e?.key === "ArrowUp") return false; ... })`（约 1899–1901 行）在 `key === "ArrowUp"` 时直接 `return false`。与 [`hotkeyRegistry.js`](../../../src/global/hotkeyRegistry.js) 的 `dispatch` 配合时，该守卫决定 **feature 是否消费事件**；与 `document` 捕获阶段的 `unifiedKeyHandler` + `startAutoScroll`（约 2394–2419、2309+ 行）形成**双通道**。根因需在任务阶段厘清：避免重复移动、重复计时或与 `stopKeyHold` 竞态。
+- `registerFeature("list-nav-up", (e) => { if (e?.key === "ArrowUp") return false; ... })`（约 1899–1901 行）在 `key === "ArrowUp"` 时直接 `return false`。与 ``hotkeyRegistry.js`` (`../../../src/global/hotkeyRegistry.js`) 的 `dispatch` 配合时，该守卫决定 **feature 是否消费事件**；与 `document` 捕获阶段的 `unifiedKeyHandler` + `startAutoScroll`（约 2394–2419、2309+ 行）形成**双通道**。根因需在任务阶段厘清：避免重复移动、重复计时或与 `stopKeyHold` 竞态。
 
 ### 2.4 删除与选中
 
@@ -29,7 +29,7 @@
 
 ### 2.5 锁/收藏与单行布局
 
-- 行模板在 [`ClipItemRow.vue`](../../../src/cpns/ClipItemRow.vue)：`clip-time` 内顺序展示收藏星标、锁、`relative-date`、tags（约 19–35 行）；样式集中在 [`clip-item-list.less`](../../../src/style/cpns/clip-item-list.less)（以实际选择器为准）。
+- 行模板在 ``ClipItemRow.vue`` (`../../../src/cpns/ClipItemRow.vue`)：`clip-time` 内顺序展示收藏星标、锁、`relative-date`、tags（约 19–35 行）；样式集中在 ``clip-item-list.less`` (`../../../src/style/cpns/clip-item-list.less`)（以实际选择器为准）。
 - **根因 F**：若锁/收藏更新依赖列表重算或滞后于 `activeIndex` 变更，会出现「移动后才更新」；若 `clip-info` / `clip-data` 未约束 `min-width: 0`、省略与 `flex` 换行，易出现图标与文字**异常换行**。
 
 ## 3. 设计方案
@@ -71,15 +71,15 @@
 
 | 文件 | 改动意图 |
 |------|----------|
-| [`src/cpns/ClipItemList.vue`](../../../src/cpns/ClipItemList.vue) | 统一完全可见判定与 `scrollToItem` 路径；抽取分页函数；协调单步/长按/Ctrl；必要时调整删除后滚动与 watch |
-| [`src/cpns/ClipItemRow.vue`](../../../src/cpns/ClipItemRow.vue) | 单行布局与结构微调（ellipsis、防换行），保证锁/收藏与标题同屏展示 |
-| [`src/style/cpns/clip-item-list.less`](../../../src/style/cpns/clip-item-list.less) | 配套 flex/省略/图标列样式 |
-| [`src/global/hotkeyBindings.js`](../../../src/global/hotkeyBindings.js) | 仅在分页键位或 feature 映射需调整时修改（默认不改键位） |
-| [`src/global/hotkeyRegistry.js`](../../../src/global/hotkeyRegistry.js) | 仅在 repeat/分发策略必须配合时小改（默认尽量少动） |
-| [`specs/26040501-list-move/cursor/03-tasks.md`](03-tasks.md) | 实现阶段原子任务拆分 |
-| [`specs/26040501-list-move/cursor/04-verify.md`](04-verify.md) | 验证记录与 300ms 采样说明 |
+| ``src/cpns/ClipItemList.vue`` (`../../../src/cpns/ClipItemList.vue`) | 统一完全可见判定与 `scrollToItem` 路径；抽取分页函数；协调单步/长按/Ctrl；必要时调整删除后滚动与 watch |
+| ``src/cpns/ClipItemRow.vue`` (`../../../src/cpns/ClipItemRow.vue`) | 单行布局与结构微调（ellipsis、防换行），保证锁/收藏与标题同屏展示 |
+| ``src/style/cpns/clip-item-list.less`` (`../../../src/style/cpns/clip-item-list.less`) | 配套 flex/省略/图标列样式 |
+| ``src/global/hotkeyBindings.js`` (`../../../src/global/hotkeyBindings.js`) | 仅在分页键位或 feature 映射需调整时修改（默认不改键位） |
+| ``src/global/hotkeyRegistry.js`` (`../../../src/global/hotkeyRegistry.js`) | 仅在 repeat/分发策略必须配合时小改（默认尽量少动） |
+| ``specs/26040501-list-move/cursor/03-tasks.md`` (`03-tasks.md`) | 实现阶段原子任务拆分 |
+| ``specs/26040501-list-move/cursor/04-verify.md`` (`04-verify.md`) | 验证记录与 300ms 采样说明 |
 
-**默认不修改** [`public/plugin.json`](../../../public/plugin.json)、`preload.js`、`listener.js`，除非验证证明热键层必须调整。
+**默认不修改** ``public/plugin.json`` (`../../../public/plugin.json`)、`preload.js`、`listener.js`，除非验证证明热键层必须调整。
 
 ## 5. 数据与状态变更
 
