@@ -1,0 +1,24 @@
+---
+description: EzClipboard project rules, global CodeNote routing, and task-specific memory loading.
+globs:
+  - "**/*"
+alwaysApply: true
+---
+
+# EzClipboard Cursor Adapter
+
+Read first:
+
+- [../../AGENTS.md](../../AGENTS.md)
+- [../../vibe/rules/README.md](../../vibe/rules/README.md)
+- [../../.agents/skills/ezclipboard-rules/SKILL.md](../../.agents/skills/ezclipboard-rules/SKILL.md)
+- [../../../CzzProj/CodeNote/AiRef/VibePractice/Vibe_Rules/VibeAi.md](../../../CzzProj/CodeNote/AiRef/VibePractice/Vibe_Rules/VibeAi.md)
+
+Rules:
+
+- Keep project-specific rules in `vibe/rules/`; do not copy the CodeNote master into this repository.
+- Load task-specific memories from `.agents/skills/ezclipboard-rules/SKILL.md` instead of pasting every rule into the model context.
+- For UI changes, read the UI guardrail memory before editing and verify search, keyboard navigation, virtual scroll, delete anchor, and input behavior.
+- For storage changes, read the storage performance memory before editing and verify SQLite, JSON fallback, migration, repeat-import protection, and settings status.
+- Preserve user changes and unrelated business code.
+- Final replies must include verification status and memory/process-document status.

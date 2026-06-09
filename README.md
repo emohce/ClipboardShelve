@@ -8,6 +8,8 @@
 - 收藏分离：收藏独立存储并保留收藏时间，可锁定避免误删。
 - 来源信息：尝试读取文件路径、前台窗口标题，便于追溯来源。
 - 稳健监听：优先原生监听，失败自动降级 300ms 轮询。
+- 高性能存储：底层采用 SQLite + FTS5 全文索引，大数据量下依然流畅。
+- 虚拟列表：长列表使用虚拟滚动，条目再多也不卡顿。
 - 多选合并：批量复制/粘贴，含图片/文件时自动走文件合并流程。
 - 操作区可配：主页功能可勾选、排序，支持自定义跳转功能。
 - 快捷键分层：主界面/搜索态/抽屉/清除对话框/全文预览/设置层屏蔽删键。
@@ -45,8 +47,9 @@
 > 快捷键可在设置页通过 hotkeyOverrides 覆盖，存储在 utools.dbStorage。
 
 ## 数据与配置
-- 存储结构：本地 JSON 含 data（历史）、collects（收藏 ID）、collectData（收藏数据）；路径按设备 ID 区分，启动自动迁移/初始化 @src/global/initPlugin.js#53-190.
+- 存储结构：底层 SQLite 存储，含剪贴板历史、收藏、标签等；首次启动自动迁移旧 JSON 数据并备份，路径按设备 ID 区分 @src/global/initPlugin.js#53-190.
 - 清理策略：maxsize 控制最大条数（历史）；maxage 控制最长天数（收藏不受影响）；设置来源 `readSetting` @src/global/initPlugin.js#233-268 @src/global/initPlugin.js#160-178.
+- 迁移与回退：首次启动自动检测旧 JSON 数据，备份后迁移至 SQLite；保留 JSON 回退机制 @src/storage/jsonMigration.js.
 - 来源信息：解析剪贴板文件路径/前台窗口标题存入 item.sourcePaths/sourceApp/sourceWindowTitle @src/global/initPlugin.js#488-635.
 - 文件处理：文件/图片保留 originPaths，列表支持图片预览和原始路径展示 @src/global/initPlugin.js#144-159 @src/cpns/ClipItemList.vue#47-101.
 - 自定义功能：类型/正则匹配 + redirect 命令，设置页维护，默认示例见 `setting.json` @src/data/setting.json#12-78.

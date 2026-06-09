@@ -65,7 +65,8 @@
                         :show-after="150"
                     >
                         <span
-                            class="clip-switch-btn"
+                            class="clip-switch-btn clip-setting-btn"
+                            :class="{ 'has-storage-notice': storageStatus.noticeUnread }"
                             v-show="!isMultiple"
                             @click="emit('showSetting')"
                             >设置</span
@@ -139,9 +140,10 @@
             @onDataChange="toggleFullData"
             @onDataRemove="handleDataRemove"
             @onItemDelete="handleItemDelete"
+            @onItemsDelete="handleItemsDelete"
             @openCleanDialog="handleOpenCleanDialog"
             @openTagEdit="openTagEditModal"
-            @loadMore="loadMoreData"
+            @loadMore="handleListLoadMore"
         >
         </ClipItemList>
 
@@ -234,7 +236,7 @@
 </template>
 
 <script setup>
-import { ref, watch, onMounted, onUnmounted, computed, nextTick } from "vue";
+import { ref, shallowRef, watch, onMounted, onUnmounted, computed, nextTick } from "vue";
 import {
     ElMessage,
     ElMessageBox,
@@ -248,7 +250,6 @@ import { activateLayer, deactivateLayer, getCurrentLayer } from "../global/hotke
 import { registerFeature, setMainState } from "../global/hotkeyRegistry";
 import { formatShortcutDisplay } from "../global/shortcutKey";
 import { copyAndPasteAndExit, itemMatchesBodyKeyword } from "../utils";
-import { batchDelete } from "../global/batchOperations";
 import ClipItemList from "../cpns/ClipItemList.vue";
 import ClipFullData from "../cpns/ClipFullData.vue";
 import ClipSearch from "../cpns/ClipSearch.vue";
@@ -256,6 +257,10 @@ import ClipSwitch from "../cpns/ClipSwitch.vue";
 import TagEditModal from "../cpns/TagEditModal.vue";
 import TagSearchModal from "../cpns/TagSearchModal.vue";
 import notify from "../data/notify.json";
+import {
+    STORAGE_STATUS_EVENT,
+    getStorageRuntimeStatus,
+} from "../storage/storageRuntimeStatus";
 
 const CLEAR_RANGE_OPTIONS = [
     { label: "1 小时内", value: "1h" },
@@ -470,10 +475,20 @@ const GAP = 15; // 懒加载 每次添加的条数
 const offset = ref(0); // 懒加载 偏移量
 const filterText = ref(""); // 搜索框绑定值
 const lockFilter = ref("all"); // 锁定状态筛选
-const list = ref([]); // 全部数据
-const showList = ref([]); // 展示的数据
-const collectBlockList = ref([]); // 非收藏 tab 且 * 前缀时，上方展示的收藏匹配结果
+const list = shallowRef([]); // 全部数据快照
+const showList = shallowRef([]); // 展示的数据
+const collectBlockList = shallowRef([]); // 非收藏 tab 且 * 前缀时，上方展示的收藏匹配结果
 const collectVersion = ref(0); // 收藏列表变更时自增，用于驱动星标等 UI 更新
+const queryCursor = ref(null);
+const currentQueryTotal = ref(0);
+let pendingDataRefresh = false;
+let lastSyncedDbVersion = 0;
+const TAB_PREFETCH_PAGES = 3;
+const NEXT_PAGE_PREFETCH_THRESHOLD = 6;
+const PREFETCH_TABS = ["all", "text", "image", "file", "collect"];
+const tabQueryCache = new Map();
+let tabPrefetchTimer = null;
+let isLoadingNextPage = false;
 
 /** 普通 tab 下收藏块仅在此条件下展示：输入第一个字符为 *。* 后紧跟着的非空格到第一个空格为标签条件；* 后紧跟空格则搜索全部收藏。 */
 const parseStarFilter = (raw) => {
@@ -634,11 +649,84 @@ const getCollectSubTab = () => {
 
 const COLLECT_BLOCK_CAP = 20;
 
+const getQueryCacheKey = (type) =>
+    JSON.stringify({
+        tab: type,
+        keyword: filterText.value,
+        lockFilter: lockFilter.value,
+        collectTag: type === "collect" ? getCollectSubTab() : "*全部*",
+        version: getDbVersion(),
+    });
+
+const getQueryOptions = (type, cursor = 0, limit = GAP) => ({
+    tab: type,
+    keyword: filterText.value,
+    lockFilter: lockFilter.value,
+    collectTag: type === "collect" ? getCollectSubTab() : "*全部*",
+    cursor,
+    limit,
+});
+
+const setShowListFromQueryResult = (result, loadedCount = null) => {
+    collectBlockList.value = [];
+    showList.value = result.items;
+    queryCursor.value =
+        result.nextCursor == null
+            ? null
+            : loadedCount != null
+              ? Math.min(loadedCount, result.total)
+              : result.nextCursor;
+    currentQueryTotal.value = result.total;
+    offset.value = showList.value.length;
+};
+
+const prefetchTabPages = (type) => {
+    if (!window.db?.query || parseStarFilter(filterText.value).isStar) return;
+    if (filterText.value.trim() || lockFilter.value !== "all") return;
+    const key = getQueryCacheKey(type);
+    if (tabQueryCache.has(key)) return;
+    const limit = GAP * TAB_PREFETCH_PAGES;
+    const result = window.db.query(getQueryOptions(type, 0, limit));
+    tabQueryCache.set(key, {
+        result,
+        loadedCount: result.items.length,
+        version: getDbVersion(),
+        createdAt: Date.now(),
+    });
+};
+
+const scheduleTabPrefetch = (activeType) => {
+    if (tabPrefetchTimer) clearTimeout(tabPrefetchTimer);
+    if (!window.db?.query || parseStarFilter(filterText.value).isStar) return;
+    if (filterText.value.trim() || lockFilter.value !== "all") return;
+    tabPrefetchTimer = setTimeout(() => {
+        tabPrefetchTimer = null;
+        const activeIndex = PREFETCH_TABS.indexOf(activeType);
+        const orderedTabs = activeIndex === -1
+            ? [activeType]
+            : [
+                  PREFETCH_TABS[(activeIndex + 1) % PREFETCH_TABS.length],
+                  PREFETCH_TABS[(activeIndex - 1 + PREFETCH_TABS.length) % PREFETCH_TABS.length],
+              ];
+        orderedTabs.forEach(prefetchTabPages);
+    }, 180);
+};
+
 const updateShowList = (type, toTop = true) => {
     offset.value = 0;
+    queryCursor.value = null;
     const parsed = parseStarFilter(filterText.value);
 
-    if (type === "collect") {
+    if (window.db?.query && !parsed.isStar) {
+        const cache = tabQueryCache.get(getQueryCacheKey(type));
+        if (cache) {
+            setShowListFromQueryResult(cache.result, cache.loadedCount);
+        } else {
+            const result = window.db.query(getQueryOptions(type, 0, GAP));
+            setShowListFromQueryResult(result);
+        }
+        scheduleTabPrefetch(type);
+    } else if (type === "collect") {
         const subTab = getCollectSubTab();
         let baseList =
             subTab === "*全部*"
@@ -647,6 +735,8 @@ const updateShowList = (type, toTop = true) => {
         baseList = applyCollectFilters(baseList, parsed);
         collectBlockList.value = [];
         showList.value = baseList.slice(0, GAP);
+        queryCursor.value = showList.value.length < baseList.length ? showList.value.length : null;
+        currentQueryTotal.value = baseList.length;
     } else {
         const mainBase = getItemsByTab(type);
         if (parsed.isStar) {
@@ -661,13 +751,17 @@ const updateShowList = (type, toTop = true) => {
                 .filter((item) => !window.db.isCollected(item.id))
                 .filter((item) => matchMainTabItem(item, parsed.bodyKeyword, type));
             showList.value = mainFiltered.slice(0, GAP);
+            queryCursor.value = showList.value.length < mainFiltered.length ? showList.value.length : null;
+            currentQueryTotal.value = mainFiltered.length + collectBlockList.value.length;
         } else {
             collectBlockList.value = [];
-            showList.value = mainBase
+            const mainFiltered = mainBase
                 .filter((item) => !window.db.isCollected(item.id))
                 .filter((item) => matchLockFilter(item))
-                .filter((item) => textFilterCallBack(item))
-                .slice(0, GAP);
+                .filter((item) => textFilterCallBack(item));
+            showList.value = mainFiltered.slice(0, GAP);
+            queryCursor.value = showList.value.length < mainFiltered.length ? showList.value.length : null;
+            currentQueryTotal.value = mainFiltered.length;
         }
     }
     if (toTop) {
@@ -713,10 +807,22 @@ const filterItemsByRange = (items, rangeValue, options = {}) => {
     });
 };
 
+const measureOperation = (name, operation) => {
+    const measureName = `ezclipboard:${name}`;
+    const startMark = `${measureName}:start`;
+    const endMark = `${measureName}:end`;
+    globalThis.performance?.mark?.(startMark);
+    const result = operation();
+    globalThis.performance?.mark?.(endMark);
+    globalThis.performance?.measure?.(measureName, startMark, endMark);
+    return result;
+};
+
 const clearRegularTabItems = async (tabType, rangeValue) => {
     const candidates = filterItemsByRange(getItemsByTab(tabType), rangeValue);
+    const removable = candidates.filter((item) => item.locked !== true);
+    const skippedLocked = candidates.length - removable.length;
     let removed = 0;
-    let skippedLocked = 0;
 
     // 初始化进度
     clearProgress.value = {
@@ -725,35 +831,22 @@ const clearRegularTabItems = async (tabType, rangeValue) => {
         percentage: 0
     };
 
-    // 使用异步批量删除，避免主线程阻塞
-    const results = await batchDelete(
-        candidates,
-        (item) => {
-            const ok = window.remove(item);
-            if (ok) {
-                removed++;
-                return true;
-            } else if (item.locked) {
-                skippedLocked++;
-                return false;
-            }
-            return false;
-        },
-        {
-            batchSize: 50,
-            onProgress: (progress) => {
-                // 更新进度 UI
-                clearProgress.value = {
-                    current: progress.current,
-                    total: progress.total,
-                    percentage: (progress.current / progress.total) * 100
-                };
-            }
-        }
+    const removableIds = removable.map((item) => item.id);
+    clearProgress.value = {
+        current: removable.length,
+        total: candidates.length,
+        percentage: candidates.length ? (removable.length / candidates.length) * 100 : 100
+    };
+    const result = measureOperation("clear-regular-items", () =>
+        window.db.removeItems
+            ? window.db.removeItems(removableIds, { force: false })
+            : { removed: 0 },
     );
+    removed = result.removed || 0;
 
     if (removed) {
-        handleDataRemove();
+        removeVisibleItemsByIds(removableIds);
+        scheduleDataRefresh();
         // 删除恢复已由 ClipItemList 统一处理，无需此处调整
         // adjustActiveIndexAfterDelete(0);
     }
@@ -771,6 +864,8 @@ const clearCollectTabItems = async (rangeValue, collectSubTab) => {
     });
     let removed = 0;
     let skippedLocked = 0;
+    const removable = candidates.filter((item) => item.locked !== true);
+    skippedLocked = candidates.length - removable.length;
 
     // 初始化进度
     clearProgress.value = {
@@ -779,35 +874,21 @@ const clearCollectTabItems = async (rangeValue, collectSubTab) => {
         percentage: 0
     };
 
-    // 使用异步批量删除，避免主线程阻塞
-    const results = await batchDelete(
-        candidates,
-        (item) => {
-            if (item.locked) {
-                skippedLocked++;
-                return false;
-            }
-            if (window.db.removeCollect(item.id, false) !== false) {
-                removed++;
-                return true;
-            }
-            return false;
-        },
-        {
-            batchSize: 50,
-            onProgress: (progress) => {
-                // 更新进度 UI
-                clearProgress.value = {
-                    current: progress.current,
-                    total: progress.total,
-                    percentage: (progress.current / progress.total) * 100
-                };
-            }
-        }
+    const removableIds = removable.map((item) => item.id);
+    clearProgress.value = {
+        current: removable.length,
+        total: candidates.length,
+        percentage: candidates.length ? (removable.length / candidates.length) * 100 : 100
+    };
+    const result = measureOperation("clear-collect-items", () =>
+        window.db.removeCollects
+            ? window.db.removeCollects(removableIds, false)
+            : { removed: 0 },
     );
+    removed = result.removed || 0;
 
     if (removed) {
-        handleDataRemove();
+        scheduleDataRefresh();
     }
     return { removed, skippedLocked };
 };
@@ -946,6 +1027,16 @@ const currentShowList = computed(() => {
     return showList.value;
 });
 
+const getDbVersion = () =>
+    typeof window.db?.getVersion === "function" ? window.db.getVersion() : Date.now();
+
+const removeVisibleItemsByIds = (ids = []) => {
+    const idSet = new Set(ids.filter(Boolean));
+    if (!idSet.size) return;
+    showList.value = showList.value.filter((item) => !idSet.has(item.id));
+    collectBlockList.value = collectBlockList.value.filter((item) => !idSet.has(item.id));
+};
+
 const collectedIds = computed(() => {
     collectVersion.value;
     const list = window.db?.getCollects?.() ?? [];
@@ -963,6 +1054,9 @@ const searchPlaceholder = computed(() => {
 });
 
 const currentSearchItemCount = computed(() => {
+    if (window.db?.query && !parseStarFilter(filterText.value).isStar) {
+        return currentQueryTotal.value;
+    }
     if (activeTab.value === "collect") {
         return getItemsByTab("collect").length;
     }
@@ -972,6 +1066,24 @@ const currentSearchItemCount = computed(() => {
 });
 
 const loadMoreData = () => {
+    if (isLoadingNextPage) return;
+    if (window.db?.query && queryCursor.value != null && !parseStarFilter(filterText.value).isStar) {
+        isLoadingNextPage = true;
+        try {
+            const result = window.db.query(getQueryOptions(activeTab.value, queryCursor.value, GAP));
+            if (!result.items.length) {
+                queryCursor.value = null;
+                return;
+            }
+            showList.value = [...showList.value, ...result.items];
+            queryCursor.value = result.nextCursor;
+            currentQueryTotal.value = result.total;
+            offset.value = showList.value.length;
+            return;
+        } finally {
+            isLoadingNextPage = false;
+        }
+    }
     const parsed = parseStarFilter(filterText.value);
     const start = offset.value + GAP;
     let addition = [];
@@ -1004,13 +1116,48 @@ const loadMoreData = () => {
     showList.value.push(...addition);
 };
 
+const maybePrefetchNextPage = (visibleIndex = currentShowList.value.length - 1) => {
+    if (queryCursor.value == null || isLoadingNextPage) return;
+    const remaining = currentShowList.value.length - 1 - visibleIndex;
+    if (remaining <= NEXT_PAGE_PREFETCH_THRESHOLD) {
+        loadMoreData();
+    }
+};
+
+const handleListLoadMore = (payload = {}) => {
+    if (typeof payload?.index === "number") {
+        maybePrefetchNextPage(payload.index);
+        return;
+    }
+    loadMoreData();
+};
+
 const handleDataRemove = () => {
+    tabQueryCache.clear();
     list.value = window.db.dataBase.data;
     offset.value = 0;
     collectVersion.value++;
+    lastSyncedDbVersion = getDbVersion();
     const tab = ClipSwitchRef.value?.activeTab;
     const type = tab?.value ?? tab ?? activeTab.value;
     updateShowList(type, false);
+};
+
+const scheduleDataRefresh = () => {
+    if (pendingDataRefresh) return;
+    pendingDataRefresh = true;
+    const run = () => {
+        pendingDataRefresh = false;
+        const version = getDbVersion();
+        if (version === lastSyncedDbVersion) return;
+        tabQueryCache.clear();
+        handleDataRemove();
+    };
+    if (typeof window.requestAnimationFrame === "function") {
+        window.requestAnimationFrame(run);
+    } else {
+        setTimeout(run, 0);
+    }
 };
 
 const suppressAutoTopCount = ref(0);
@@ -1083,7 +1230,8 @@ const handleItemDelete = (item, metadata = {}) => {
                     anchorIndex: ai,
                     preferItemId: preferId,
                 });
-                handleDataRemove();
+                removeVisibleItemsByIds([item.id]);
+                scheduleDataRefresh();
             }
             return;
         }
@@ -1106,7 +1254,8 @@ const handleItemDelete = (item, metadata = {}) => {
         suppressAutoTopCount.value = 2;
         window.remove(item, { force });
         if (isLast) {
-            handleDataRemove();
+            removeVisibleItemsByIds([item.id]);
+            scheduleDataRefresh();
             // 删除恢复已由 ClipItemList 统一处理，无需此处调整
             // adjustActiveIndexAfterDelete(currentActiveIndex);
         }
@@ -1115,11 +1264,75 @@ const handleItemDelete = (item, metadata = {}) => {
     }
 };
 
+const handleItemsDelete = (items = [], metadata = {}) => {
+    const { anchorIndex, force = false } = metadata;
+    const list = Array.isArray(items) ? items.filter(Boolean) : [];
+    if (!list.length) return;
+    const activeTabValue =
+        typeof ClipSwitchRef.value?.activeTab === "object"
+            ? ClipSwitchRef.value.activeTab.value
+            : ClipSwitchRef.value?.activeTab || activeTab.value;
+    const ai = typeof anchorIndex === "number" ? anchorIndex : getActiveIndex();
+
+    if (activeTabValue === "collect") {
+        if (!force) {
+            ElMessage({
+                message: "收藏内容不允许删除，请先取消收藏",
+                type: "warning",
+            });
+            return;
+        }
+        const result = window.db.removeCollects
+            ? window.db.removeCollects(list.map((item) => item.id), false)
+            : { removed: 0 };
+        const removed = result.removed || 0;
+        if (removed) {
+            const preferId = currentShowList.value[ai]?.id;
+            ClipItemListRef.value?.prepareDeleteRecovery?.({
+                anchorIndex: ai,
+                preferItemId: preferId,
+            });
+            removeVisibleItemsByIds(list.map((item) => item.id));
+            scheduleDataRefresh();
+        }
+        return;
+    }
+
+    const candidates = force
+        ? list
+        : list.filter((item) => !window.db.isCollected(item.id));
+    const skippedCollected = force ? 0 : list.length - candidates.length;
+    suppressAutoTopCount.value = 2;
+    const result = window.db.removeItems
+        ? window.db.removeItems(candidates.map((item) => item.id), { force })
+        : { removed: 0, skippedLocked: 0, skippedCollected: 0 };
+    if (result.removed > 0) {
+        const preferId = currentShowList.value[ai]?.id;
+        ClipItemListRef.value?.prepareDeleteRecovery?.({
+            anchorIndex: ai,
+            preferItemId: preferId,
+        });
+        removeVisibleItemsByIds(candidates.map((item) => item.id));
+        scheduleDataRefresh();
+    }
+    const skipped = skippedCollected + (result.skippedLocked || 0) + (result.skippedCollected || 0);
+    if (skipped > 0) {
+        ElMessage({
+            type: "info",
+            message: `已跳过 ${skipped} 条不可删除记录`,
+        });
+    }
+};
+
 const emit = defineEmits(["showSetting"]);
 const multiSelectTooltip = computed(() =>
     isMultiple.value ? "Esc" : formatShortcutDisplay("Space"),
 );
 const settingTooltip = computed(() => formatShortcutDisplay("ctrl+alt+s"));
+const storageStatus = ref(getStorageRuntimeStatus());
+const refreshStorageStatus = (event) => {
+    storageStatus.value = event?.detail || getStorageRuntimeStatus();
+};
 const clearTooltip = computed(
     () =>
         [
@@ -1145,6 +1358,8 @@ const activeTabLabel = computed(() => {
 const isClearingCollectTab = computed(() => activeTab.value === "collect");
 
 onMounted(() => {
+    window.addEventListener(STORAGE_STATUS_EVENT, refreshStorageStatus);
+    refreshStorageStatus();
     window.resetPluginUiState = resetPluginUiState;
     utools.onPluginEnter(() => {
         window.focus();
@@ -1192,6 +1407,7 @@ onMounted(() => {
         },
         (newVal, oldVal) => {
             if (activeTab.value === "collect") {
+                tabQueryCache.clear();
                 // 保存旧收藏子 tab 的状态
                 if (oldVal && ClipItemListRef.value?.activeIndex !== undefined) {
                     const key = `collect-${oldVal}`;
@@ -1259,7 +1475,10 @@ onMounted(() => {
     });
 
     // 监听搜索与筛选
-    watch([filterText, lockFilter], () => updateShowList(activeTab.value));
+    watch([filterText, lockFilter], () => {
+        tabQueryCache.clear();
+        updateShowList(activeTab.value);
+    });
 
     // 展示通知
     if (notifyShown.value) {
@@ -1422,7 +1641,6 @@ onMounted(() => {
                   ? tabTypes[0]
                   : tabTypes[index + 1];
             toggleNav(target);
-            updateShowList(target);
             return true;
         });
         const switchMainTabByOffset = (delta) => {
@@ -1432,7 +1650,6 @@ onMounted(() => {
             const nextIndex = (index + delta + tabTypes.length) % tabTypes.length;
             const target = tabTypes[nextIndex];
             toggleNav(target);
-            updateShowList(target);
             return true;
         };
         registerFeature("main-tab-prev", () => switchMainTabByOffset(-1));
@@ -1451,7 +1668,6 @@ onMounted(() => {
             const idx = list.findIndex((s) => s.type === current);
             const nextIdx = idx < 0 ? 0 : (idx + 1) % list.length;
             switchRef.setCollectSubTab(list[nextIdx].type);
-            updateShowList("collect");
             return true;
         });
         registerFeature("collect-sub-tab-prev", () => {
@@ -1468,7 +1684,6 @@ onMounted(() => {
             const idx = list.findIndex((s) => s.type === current);
             const prevIdx = idx <= 0 ? list.length - 1 : idx - 1;
             switchRef.setCollectSubTab(list[prevIdx].type);
-            updateShowList("collect");
             return true;
         });
         registerFeature("main-focus-search", () => {
@@ -1495,7 +1710,6 @@ onMounted(() => {
                 const target = tabTypes[Math.min(n - 1, tabTypes.length - 1)];
                 if (target) {
                     toggleNav(target);
-                    updateShowList(target);
                     return true;
                 }
                 return false;
@@ -1546,13 +1760,12 @@ onMounted(() => {
                 ElMessage({ message: "没有符合条件的搜索结果", type: "info" });
                 return true;
             }
-            let removed = 0;
-            let skippedLocked = 0;
-            candidates.forEach((item) => {
-                const ok = window.remove(item, { force: false });
-                if (ok) removed++;
-                else if (item.locked) skippedLocked++;
-            });
+            const removable = candidates.filter((item) => item.locked !== true);
+            const skippedLocked = candidates.length - removable.length;
+            const result = window.db.removeItems
+                ? window.db.removeItems(removable.map((item) => item.id), { force: false })
+                : { removed: 0 };
+            const removed = result.removed || 0;
             if (removed > 0) {
                 const ai = getActiveIndex();
                 const preferId = currentShowList.value[ai]?.id;
@@ -1560,7 +1773,8 @@ onMounted(() => {
                     anchorIndex: ai,
                     preferItemId: preferId,
                 });
-                handleDataRemove();
+                removeVisibleItemsByIds(removable.map((item) => item.id));
+                scheduleDataRefresh();
                 ElMessage({
                     type: "success",
                     message:
@@ -1588,10 +1802,10 @@ onMounted(() => {
                 ElMessage({ message: "没有符合条件的搜索结果", type: "info" });
                 return true;
             }
-            let removed = 0;
-            candidates.forEach((item) => {
-                if (window.remove(item, { force: true })) removed++;
-            });
+            const result = window.db.removeItems
+                ? window.db.removeItems(candidates.map((item) => item.id), { force: true })
+                : { removed: 0 };
+            const removed = result.removed || 0;
             if (removed > 0) {
                 const ai = getActiveIndex();
                 const preferId = currentShowList.value[ai]?.id;
@@ -1599,7 +1813,8 @@ onMounted(() => {
                     anchorIndex: ai,
                     preferItemId: preferId,
                 });
-                handleDataRemove();
+                removeVisibleItemsByIds(candidates.map((item) => item.id));
+                scheduleDataRefresh();
                 ElMessage({
                     type: "success",
                     message: `已强制删除 ${removed} 条搜索结果`,
@@ -1610,8 +1825,13 @@ onMounted(() => {
     };
     nextTick(() => registerMainHotkeyFeatures());
 
-    onUnmounted(() => {
-        delete window.resetPluginUiState;
+onUnmounted(() => {
+    window.removeEventListener(STORAGE_STATUS_EVENT, refreshStorageStatus);
+    if (tabPrefetchTimer) {
+        clearTimeout(tabPrefetchTimer);
+        tabPrefetchTimer = null;
+    }
+    delete window.resetPluginUiState;
         document.removeEventListener("scroll", scrollCallBack);
         document.removeEventListener("keydown", keyDownCallBack, true);
     });
@@ -1623,6 +1843,20 @@ onMounted(() => {
 /* 为 fixed 顶栏预留纵向空间；须盖住单行·双行布局，避免过小重叠或过大空隙 */
 .clip-break {
     height: 52px;
+}
+.clip-setting-btn {
+    position: relative;
+}
+.clip-setting-btn.has-storage-notice::after {
+    content: "";
+    position: absolute;
+    top: 4px;
+    right: 4px;
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: #e5484d;
+    box-shadow: 0 0 0 2px #fff;
 }
 /* 收藏 Tab + 子标签第二行：在单行基础上约 +30px，与无子栏收窄风格一致 */
 .clip-break--with-sub {

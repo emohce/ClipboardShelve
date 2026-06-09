@@ -10,6 +10,13 @@
 3. 按记录中的“推荐优先策略”实施。
 4. 如果本次发现了新的失败模式，新增一条记录并回填索引。
 
+## 当前重点记录
+- [2026-06-09-ui-structure-interaction-guardrails.md](2026-06-09-ui-structure-interaction-guardrails.md): 当前 UI 页面结构、回滚后交互约束和防误改规则。
+- [2026-06-09-storage-performance-rewrite-pitfalls.md](2026-06-09-storage-performance-rewrite-pitfalls.md): SQLite / JSON fallback / 虚拟列表 / 大数据查询改造的高频错误。
+- [2026-04-10-utools-runtime-assets.md](2026-04-10-utools-runtime-assets.md): uTools 运行时入口资产、`preload.js` 和 `window.exports` 缺失。
+- [2026-04-08-clipboard-nav-scroll-search-layout.md](2026-04-08-clipboard-nav-scroll-search-layout.md): 列表导航、搜索、IME、删除 anchor 和布局误判。
+- [2026-04-06-json-db-debounce-persist.md](2026-04-06-json-db-debounce-persist.md): JSON 防抖落盘导致删除后复活。
+
 ## 命名规则
 - 文件名格式：`YYYY-MM-DD-slug.md`
 - 记录编号格式：`EM-YYYY-MM-DD-slug`

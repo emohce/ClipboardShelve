@@ -1,0 +1,17 @@
+# EzClipboard Windsurf Adapter
+
+Read first:
+
+- [AGENTS.md](AGENTS.md)
+- [vibe/rules/README.md](vibe/rules/README.md)
+- [.agents/skills/ezclipboard-rules/SKILL.md](.agents/skills/ezclipboard-rules/SKILL.md)
+- [../CzzProj/CodeNote/AiRef/VibePractice/Vibe_Rules/VibeAi.md](../CzzProj/CodeNote/AiRef/VibePractice/Vibe_Rules/VibeAi.md)
+
+Rules:
+
+- Keep this file as a routing adapter only; do not copy the full global rules here.
+- Use `.agents/skills/ezclipboard-rules/SKILL.md` as the task-specific context router.
+- UI edits require the UI guardrail memory and focused verification.
+- Storage edits require the storage performance memory and migration/fallback verification.
+- Preserve user changes and unrelated business code.
+- Final replies must include verification status and memory/process-document status.
