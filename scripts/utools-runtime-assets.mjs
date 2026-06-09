@@ -33,6 +33,7 @@ const {
   mkdirSync,
   watch,
   copyFileSync,
+  statSync,
   rmSync,
   unlinkSync,
   rmdirSync
@@ -52,6 +53,7 @@ window.exports = {
   readFileSync,
   writeFileSync,
   copyFileSync,
+  statSync,
   mkdirSync,
   watch,
   rmSync,
@@ -185,4 +187,3 @@ export function prepareUToolsRuntimeAssets(rootDir = process.cwd()) {
   })
   copyFileSync(logoSource, path.resolve(distDir, 'logo.png'))
 }
-

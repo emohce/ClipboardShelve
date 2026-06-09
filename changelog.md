@@ -15,12 +15,12 @@
 ### 关键文件
 
 | 路径 | 作用 |
-|------|------|
+|------|------|https://kal8gqdp2wn.feishu.cn/wiki/E6yGwydgpixvjAk4VNUcgPYLnee
 | [src/views/Main.vue](src/views/Main.vue) | 搜索匹配逻辑升级；收藏与全部 tab 的图片搜索参与规则调整；搜索占位文案更新 |
 | [src/utils/index.js](src/utils/index.js) | 新增别名解析与“正文+别名+标签”统一匹配 helper |
 | [src/cpns/ClipItemList.vue](src/cpns/ClipItemList.vue) | `list-enter` / `list-ctrl-enter` / `list-save-by-alias` 去除搜索焦点短路 |
 | `vibe/knowledge/adr/2026-04-14-search-preference-and-enter-filter-rule.md` | 新增长期决策记录 |
-
+https://kal8gqdp2wn.feishu.cn/wiki/E6yGwydgpixvjAk4VNUcgPYLnee
 ### 风险 / 兼容性影响
 
 - **匹配范围扩大**：部分历史关键词可能命中更多条目（例如标签或别名命中），需适应结果集增大。

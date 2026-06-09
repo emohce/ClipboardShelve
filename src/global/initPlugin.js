@@ -14,6 +14,10 @@ import { copy, paste, createFile, getNativeId, cleanupAliasStateForDeletedItem, 
 import setting from './readSetting'
 import { initWindowManager, setPluginWindowSize } from './windowManager'
 import { generateThumbnail, shouldGenerateThumbnail } from './imageUtils'
+import { createClipboardRepository } from '../storage/clipboardRepository'
+import { JSON_DB_SCHEMA_VERSION, shouldMigrateJsonDb } from '../storage/jsonMigration'
+import { createSQLiteClipboardRepository } from '../storage/sqliteClipboardRepository'
+import { updateStorageRuntimeStatus } from '../storage/storageRuntimeStatus'
 
 // 忽略 ResizeObserver 噪声错误，避免 dev overlay 反复弹出
 const RESIZE_OBSERVER_ERROR_PATTERNS = [
@@ -131,8 +135,22 @@ export default async function initPlugin() {
         collectData: [], // 收藏的完整项目数据（单独存储，不可删除）
         tags: [], // 所有使用过的标签
         tagUsage: {}, // 标签使用统计 {tagName: count}
+        schemaVersion: JSON_DB_SCHEMA_VERSION,
         createTime: this.createTime,
         updateTime: this.updateTime
+      }
+    }
+    backupBeforeMigration() {
+      try {
+        if (!existsSync(this.path)) return null
+        const backupPath = `${this.path}.schema-v${JSON_DB_SCHEMA_VERSION}.backup.${Date.now()}`
+        const raw = readFileSync(this.path)
+        writeFileSync(backupPath, raw)
+        console.log('[DB.migration] 已备份旧 JSON 数据:', backupPath)
+        return backupPath
+      } catch (err) {
+        console.warn('[DB.migration] 备份旧 JSON 数据失败:', err)
+        return null
       }
     }
     init() {
@@ -147,6 +165,15 @@ export default async function initPlugin() {
           // 读取磁盘记录到内存
           const dataBase = JSON.parse(data)
           this.dataBase = dataBase
+          const needsMigration = shouldMigrateJsonDb(this.dataBase)
+          if (needsMigration) {
+            const backupPath = this.backupBeforeMigration()
+            this.dataBase.lastMigrationBackupPath = backupPath
+            this.dataBase.lastMigrationAt = Date.now()
+          }
+          if (!Array.isArray(this.dataBase.data)) {
+            this.dataBase.data = []
+          }
           
           // 数据迁移：如果collects字段不存在，从旧的item.collect迁移
           if (!this.dataBase.collects) {
@@ -288,6 +315,8 @@ export default async function initPlugin() {
           
           // 数据迁移：为图片生成缩略图（异步，不阻塞初始化）
           this.migrateImageThumbnails()
+
+          this.dataBase.schemaVersion = JSON_DB_SCHEMA_VERSION
           
           this.updateDataBaseLocal()
           this.watchDataBaseUpdate()
@@ -448,7 +477,7 @@ export default async function initPlugin() {
           const index = this.dataBase.data.indexOf(item)
           this.dataBase.data.splice(index, 1)
           console.log('[DB.removeItemViaId] 已从data数组删除，索引:', index)
-          this.updateDataBaseLocal(undefined, { immediate: true })
+          this.updateDataBaseLocal()
           try {
             cleanupAliasStateForDeletedItem(id)
           } catch (e) {}
@@ -458,6 +487,52 @@ export default async function initPlugin() {
       }
       console.log('[DB.removeItemViaId] 未找到项目, ID:', id)
       return false
+    }
+    removeItemsViaIds(ids = [], options = {}) {
+      const { force = false, immediate = false } = options
+      const idSet = new Set((Array.isArray(ids) ? ids : []).filter(Boolean))
+      if (!idSet.size) {
+        return { removed: 0, skippedLocked: 0, skippedCollected: 0, missing: 0 }
+      }
+      const collectIds = new Set(this.dataBase.collects || [])
+      let removed = 0
+      let skippedLocked = 0
+      let skippedCollected = 0
+      const foundIds = new Set()
+      const nextData = []
+
+      for (const item of this.dataBase.data || []) {
+        if (!idSet.has(item.id)) {
+          nextData.push(item)
+          continue
+        }
+        foundIds.add(item.id)
+        if (collectIds.has(item.id) && !force) {
+          skippedCollected++
+          nextData.push(item)
+          continue
+        }
+        if (item.locked && !force) {
+          skippedLocked++
+          nextData.push(item)
+          continue
+        }
+        removed++
+        try {
+          cleanupAliasStateForDeletedItem(item.id)
+        } catch (e) {}
+      }
+
+      this.dataBase.data = nextData
+      if (removed > 0) {
+        this.updateDataBaseLocal(undefined, { immediate })
+      }
+      return {
+        removed,
+        skippedLocked,
+        skippedCollected,
+        missing: Math.max(0, idSet.size - foundIds.size)
+      }
     }
     setLock(itemId, locked = true, skipFileWrite = false) {
       const target =
@@ -611,6 +686,41 @@ export default async function initPlugin() {
       
       this.updateDataBaseLocal()
       return true
+    }
+    removeCollects(itemIds = [], log = false, options = {}) {
+      const { immediate = false } = options
+      const idSet = new Set((Array.isArray(itemIds) ? itemIds : []).filter(Boolean))
+      if (!idSet.size) return { removed: 0 }
+      if (!Array.isArray(this.dataBase.collects)) this.dataBase.collects = []
+      if (!Array.isArray(this.dataBase.collectData)) this.dataBase.collectData = []
+
+      const now = Date.now()
+      const nextCollects = []
+      const nextCollectData = []
+      const restoreItems = []
+      let removed = 0
+
+      this.dataBase.collects.forEach((id) => {
+        if (!idSet.has(id)) nextCollects.push(id)
+      })
+
+      this.dataBase.collectData.forEach((item) => {
+        if (!idSet.has(item.id)) {
+          nextCollectData.push(item)
+          return
+        }
+        const restored = { ...item, updateTime: now }
+        restoreItems.push(restored)
+        removed++
+      })
+
+      if (!removed) return { removed: 0 }
+      this.dataBase.collects = nextCollects
+      this.dataBase.collectData = nextCollectData
+      this.dataBase.data.unshift(...restoreItems)
+      this.updateDataBaseLocal(undefined, { immediate })
+      if (log) console.log('[DB.removeCollects] 批量移除收藏, 数量:', removed)
+      return { removed }
     }
     // 检查是否已收藏
     isCollected(itemId) {
@@ -988,6 +1098,20 @@ export default async function initPlugin() {
     }
   }
 
+  const enrichSourceWindowInfoLater = (item) => {
+    if (!item?.hasSourceInfo || item.sourceApp || item.sourceWindowTitle) return
+    setTimeout(() => {
+      try {
+        const info = readActiveWindowInfo()
+        if (!info.sourceApp && !info.sourceWindowTitle) return
+        Object.assign(item, info)
+        if (item.id) {
+          db.updateItem?.(item.id, info)
+        }
+      } catch (e) {}
+    }, 0)
+  }
+
   const pbpaste = () => {
     console.log('[pbpaste] 开始读取剪贴板内容')
     // file
@@ -1016,7 +1140,6 @@ export default async function initPlugin() {
     }
     const sourcePaths = readClipboardSourcePaths()
     const hasSourceInfo = sourcePaths.length > 0
-    const { sourceApp, sourceWindowTitle } = hasSourceInfo ? readActiveWindowInfo() : { sourceApp: '', sourceWindowTitle: '' }
     // text
     const text = clipboard.readText()
     console.log('[pbpaste] 检查文本:', text ? `长度 ${text.length}` : '无文本')
@@ -1025,9 +1148,7 @@ export default async function initPlugin() {
         type: 'text',
         data: text,
         fromFileSource: hasSourceInfo,
-        hasSourceInfo,
-        sourceApp,
-        sourceWindowTitle
+        hasSourceInfo
       }
       if (hasSourceInfo) {
         result.sourcePaths = sourcePaths
@@ -1035,17 +1156,22 @@ export default async function initPlugin() {
       return result
     }
     // image
-    const image = clipboard.readImage() // 大图卡顿来源
+    const formats = typeof clipboard.availableFormats === 'function' ? clipboard.availableFormats() : []
+    const hasImageFormat = formats.some((format) => /^image\//i.test(format) || /png|jpeg|bitmap/i.test(format))
+    if (!hasImageFormat) {
+      return undefined
+    }
+    globalThis.performance?.mark?.('ezclipboard:clipboard-image-read:start')
+    const image = clipboard.readImage() // 大图卡顿来源，已延后到确认存在图片格式后
     const isEmpty = image.isEmpty()
     if (!isEmpty) {
       const data = image.toDataURL()
+      globalThis.performance?.mark?.('ezclipboard:clipboard-image-read:end')
       const result = {
         type: 'image',
         data: data,
         fromFileSource: hasSourceInfo,
-        hasSourceInfo,
-        sourceApp,
-        sourceWindowTitle
+        hasSourceInfo
       }
       if (hasSourceInfo) {
         result.sourcePaths = sourcePaths
@@ -1062,15 +1188,129 @@ export default async function initPlugin() {
   console.log('[initPlugin] 数据库路径:', dbPath)
   
   const jsonDbExists = window.exports.existsSync(dbPath)
-  const storageMode = 'json'
-  utools.dbStorage.setItem('storageMode', storageMode)
-  console.log('[initPlugin] 存储模式:', storageMode, '(JSON文件存在:', jsonDbExists, ')')
+  const sqlitePath = dbPath.endsWith('.sqlite') ? dbPath : `${dbPath}.sqlite`
+  const assetDir = `${sqlitePath}.assets`
+  updateStorageRuntimeStatus({
+    mode: 'unknown',
+    migrationStatus: 'checking',
+    noticeUnread: false,
+    progress: 5,
+    stepText: '检查存储文件',
+    sqlitePath,
+    jsonPath: dbPath,
+    assetDir,
+    errorMessage: ''
+  })
+  console.log('[initPlugin] 存储检查: (JSON文件存在:', jsonDbExists, ')')
 
   console.log('[initPlugin] 使用 JSON 文件')
-  const db = new DB(dbPath)
-  db.init()
+  const legacyDb = new DB(dbPath)
+  legacyDb.init()
+  let db
+  const bindStorageRuntime = (nextDb) => {
+    db = nextDb
+    window.db = db
+    window.remove = (item, options = {}) => db.removeItemViaId(item.id, options)
+    window.setLock = (id, locked, skipFileWrite) => db.setLock(id, locked, skipFileWrite)
+    window.setLocks = (ids, locked, skipFileWrite) => db.setLocks(ids, locked, skipFileWrite)
+    window.queuePersistDb = () => db.queuePersist()
+    window.isLocked = (id) => db.isLocked(id)
+    window.dispatchEvent?.(new CustomEvent('ezclipboard:storage-runtime-replaced', { detail: db }))
+  }
+  const createSqliteWithRetry = async ({ manual = false } = {}) => {
+    const delays = [0, 200, 500]
+    let lastError = null
+    let importedLegacy = false
+    for (let index = 0; index < delays.length; index++) {
+      if (delays[index] > 0) {
+        await new Promise((resolve) => setTimeout(resolve, delays[index]))
+      }
+      try {
+        updateStorageRuntimeStatus({
+          mode: db ? utools.dbStorage.getItem('storageMode') || 'unknown' : 'unknown',
+          migrationStatus: 'checking',
+          progress: 8,
+          stepText: `${manual ? '手动重试' : '初始化'} SQLite（第 ${index + 1} 次）`,
+          sqlitePath,
+          jsonPath: dbPath,
+          assetDir,
+          errorMessage: ''
+        })
+        const nextDb = await createSQLiteClipboardRepository({
+          dbPath,
+          legacyDb,
+          onProgress: ({ progress, stepText }) => {
+            if (String(stepText || '').includes('导入旧 JSON')) importedLegacy = true
+            updateStorageRuntimeStatus({
+              mode: 'sqlite',
+              migrationStatus: importedLegacy ? 'migrating' : 'checking',
+              progress,
+              stepText,
+              sqlitePath,
+              jsonPath: dbPath,
+              assetDir,
+              errorMessage: ''
+            })
+          }
+        })
+        utools.dbStorage.setItem('storageMode', 'sqlite')
+        updateStorageRuntimeStatus({
+          mode: 'sqlite',
+          migrationStatus: importedLegacy ? 'migrated' : 'already-migrated',
+          noticeUnread: importedLegacy || manual,
+          progress: 100,
+          stepText: importedLegacy ? '已迁移并应用 SQLite' : 'SQLite 存储已就绪',
+          sqlitePath,
+          jsonPath: dbPath,
+          assetDir,
+          errorMessage: ''
+        })
+        return nextDb
+      } catch (err) {
+        lastError = err
+        console.warn('[initPlugin] SQLite 初始化失败:', err)
+        updateStorageRuntimeStatus({
+          mode: db ? utools.dbStorage.getItem('storageMode') || 'unknown' : 'unknown',
+          migrationStatus: 'checking',
+          progress: Math.min(90, 20 + index * 25),
+          stepText: `SQLite 初始化失败，准备重试（第 ${index + 1} 次）`,
+          sqlitePath,
+          jsonPath: dbPath,
+          assetDir,
+          errorMessage: err?.message || String(err)
+        })
+      }
+    }
+    throw lastError || new Error('SQLite 初始化失败')
+  }
+  try {
+    db = await createSqliteWithRetry()
+    utools.dbStorage.setItem('storageMode', 'sqlite')
+    console.log('[initPlugin] SQLite 存储初始化完成')
+  } catch (err) {
+    console.warn('[initPlugin] SQLite 初始化重试失败，回退 JSON facade:', err)
+    db = createClipboardRepository(legacyDb)
+    db.init()
+    utools.dbStorage.setItem('storageMode', 'json-fallback')
+    updateStorageRuntimeStatus({
+      mode: 'json-fallback',
+      migrationStatus: 'failed',
+      noticeUnread: true,
+      progress: 100,
+      stepText: 'SQLite 迁移失败，已临时使用 JSON 降级模式',
+      sqlitePath,
+      jsonPath: dbPath,
+      assetDir,
+      errorMessage: err?.message || String(err)
+    })
+  }
 
   const remove = (item, options = {}) => db.removeItemViaId(item.id, options)
+  window.retryStorageMigration = async () => {
+    const nextDb = await createSqliteWithRetry({ manual: true })
+    bindStorageRuntime(nextDb)
+    return true
+  }
 
   const focus = (isBlur = false) => {
     const searchEl = document.querySelector('.clip-search')
@@ -1163,6 +1403,7 @@ export default async function initPlugin() {
     // 计算项目ID
     const itemId = crypto.createHash('md5').update(item.data).digest('hex')
     item.id = itemId
+    enrichSourceWindowInfoLater(item)
 
     // 额外防护：如果是刚恢复的项目，跳过处理
     if (lastRestoredItemId === itemId) {

@@ -38,7 +38,7 @@
             <div class="setting-section-title">存储</div>
             <el-divider></el-divider>
             <div class="setting-row">
-              <span class="setting-label">存储位置</span>
+              <span class="setting-label">数据根路径</span>
               <el-input class="path" v-model="path" :title="path" disabled></el-input>
               <el-button type="primary" @click="handlePathBtnClick('modify')">修改</el-button>
               <el-button @click="handlePathBtnClick('open')" v-show="path">打开</el-button>
@@ -64,11 +64,62 @@
             <div class="setting-section-title">存储模式</div>
             <div class="setting-row">
               <span class="setting-label">存储引擎</span>
-              <span class="setting-static-value">JSON 文件</span>
+              <span class="setting-static-value" :class="storageModeClass">{{ storageModeLabel }}</span>
+            </div>
+            <div class="setting-row">
+              <span class="setting-label">迁移状态</span>
+              <span class="setting-static-value">{{ storageMigrationLabel }}</span>
+              <el-button
+                v-if="storageStatus.migrationStatus === 'failed'"
+                type="primary"
+                size="small"
+                :loading="isRetryingMigration"
+                @click="handleRetryStorageMigration"
+              >
+                再次尝试迁移
+              </el-button>
+            </div>
+            <div class="setting-row">
+              <span class="setting-label">SQLite 文件</span>
+              <span class="setting-static-value" :title="storageSqlitePath">{{ storageSqlitePath }}</span>
+            </div>
+            <div class="setting-row">
+              <span class="setting-label">JSON 备份</span>
+              <span class="setting-static-value" :title="storageJsonPath">{{ storageJsonPath }}</span>
+            </div>
+            <div class="setting-row">
+              <span class="setting-label">素材目录</span>
+              <span class="setting-static-value" :title="storageAssetDir">{{ storageAssetDir }}</span>
+            </div>
+            <div class="setting-row" v-if="isStorageMigrationActive || storageStatus.migrationStatus === 'failed'">
+              <span class="setting-label">当前步骤</span>
+              <div class="storage-progress">
+                <el-progress
+                  :percentage="storageStatus.progress"
+                  :status="storageStatus.migrationStatus === 'failed' ? 'exception' : undefined"
+                />
+                <span class="setting-inline-hint">{{ storageStatus.stepText || '等待存储状态' }}</span>
+              </div>
+            </div>
+            <div class="setting-row" v-if="storageStatus.errorMessage">
+              <span class="setting-label">错误信息</span>
+              <span class="setting-static-value setting-static-value--danger" :title="storageStatus.errorMessage">
+                {{ storageStatus.errorMessage }}
+              </span>
+            </div>
+            <div class="setting-row" v-if="storageStatus.migrationStatus === 'failed'">
+              <span class="setting-label">排查方式</span>
+              <span class="setting-inline-hint">
+                失败详情已记录在 uTools dbStorage 的 storageRuntimeStatus.errorMessage；dev 模式也会输出到控制台。
+              </span>
+            </div>
+            <div class="setting-row">
+              <span class="setting-label">更新时间</span>
+              <span class="setting-static-value">{{ storageUpdatedAtLabel }}</span>
             </div>
             <div class="setting-row setting-row--hint">
               <span class="setting-inline-hint">
-                当前版本仅使用 JSON 文件存储，已停用 uTools DB 切换与迁移入口。
+                旧 JSON 会保留为备份；正常运行优先使用 SQLite，迁移失败时临时使用 JSON 降级模式。
               </span>
             </div>
           </div>
@@ -372,6 +423,11 @@ import { getNativeId } from '../utils'
 import SettingPagedTable from '../cpns/SettingPagedTable.vue'
 import HotkeyTreeView from '../cpns/HotkeyTreeView.vue'
 import HelpHint from '../cpns/HelpHint.vue'
+import {
+  STORAGE_STATUS_EVENT,
+  getStorageRuntimeStatus,
+  markStorageNoticeRead
+} from '../storage/storageRuntimeStatus'
 
 const emit = defineEmits(['back'])
 const { database, operation } = setting
@@ -381,6 +437,43 @@ const unlimitedVal = 'unlimited'
 const path = ref(database.path[nativeId])
 const maxsize = ref(database.maxsize ?? unlimitedVal)
 const maxage = ref(database.maxage ?? unlimitedVal)
+const sqlitePath = computed(() => (path.value ? `${path.value}.sqlite` : ''))
+const assetDir = computed(() => (path.value ? `${path.value}.sqlite.assets` : ''))
+const storageStatus = ref(getStorageRuntimeStatus())
+const isRetryingMigration = ref(false)
+const refreshStorageStatus = (event) => {
+  storageStatus.value = event?.detail || getStorageRuntimeStatus()
+}
+const storageSqlitePath = computed(() => storageStatus.value.sqlitePath || sqlitePath.value)
+const storageJsonPath = computed(() => storageStatus.value.jsonPath || path.value)
+const storageAssetDir = computed(() => storageStatus.value.assetDir || assetDir.value)
+const storageModeLabel = computed(() => {
+  if (storageStatus.value.mode === 'sqlite') return 'SQLite 索引库 + 文件映射'
+  if (storageStatus.value.mode === 'json-fallback') return 'JSON 降级模式'
+  return '检测中'
+})
+const storageModeClass = computed(() => ({
+  'setting-static-value--danger': storageStatus.value.mode === 'json-fallback'
+}))
+const storageMigrationLabel = computed(() => {
+  const map = {
+    idle: '未开始',
+    checking: '检查中',
+    migrating: '迁移中',
+    migrated: '已迁移并应用 SQLite',
+    'already-migrated': 'SQLite 已是最新',
+    failed: '迁移失败'
+  }
+  return map[storageStatus.value.migrationStatus] || storageStatus.value.migrationStatus || '未知'
+})
+const isStorageMigrationActive = computed(() =>
+  ['checking', 'migrating'].includes(storageStatus.value.migrationStatus)
+)
+const storageUpdatedAtLabel = computed(() => {
+  const ts = Number(storageStatus.value.updatedAt)
+  if (!ts) return '暂无'
+  return new Date(ts).toLocaleString()
+})
 
 const custom = ref(operation.custom.map((c) => ({ ...c })))
 const hotkeyOverrides = ref({ ...(setting.hotkeyOverrides || {}) })
@@ -747,6 +840,24 @@ function validateFeatureConfig() {
   return true
 }
 
+async function handleRetryStorageMigration() {
+  if (typeof window.retryStorageMigration !== 'function') {
+    ElMessage.error('当前环境不支持手动迁移重试')
+    return
+  }
+  isRetryingMigration.value = true
+  try {
+    await window.retryStorageMigration()
+    refreshStorageStatus()
+    ElMessage.success('迁移重试成功，已切换到 SQLite')
+  } catch (err) {
+    refreshStorageStatus()
+    ElMessage.error(`迁移重试失败：${err?.message || err}`)
+  } finally {
+    isRetryingMigration.value = false
+  }
+}
+
 const handleSaveBtnClick = () => {
   if (path.value === '') {
     ElMessage.error('数据库路径不能为空')
@@ -856,6 +967,11 @@ const keyDownHandler = (e) => {
 }
 
 onMounted(() => {
+  window.addEventListener(STORAGE_STATUS_EVENT, refreshStorageStatus)
+  refreshStorageStatus()
+  if (storageStatus.value.noticeUnread) {
+    storageStatus.value = markStorageNoticeRead()
+  }
   registerFeature('setting-scroll-up', () => scrollSettingBy(-120))
   registerFeature('setting-scroll-down', () => scrollSettingBy(120))
   registerFeature('setting-tab-prev', () => switchSettingTabByOffset(-1))
@@ -871,6 +987,7 @@ watch(hoverPreviewEnabled, (enabled) => {
 })
 
 onUnmounted(() => {
+  window.removeEventListener(STORAGE_STATUS_EVENT, refreshStorageStatus)
   document.removeEventListener('keydown', keyDownHandler)
   deactivateLayer('setting')
 })
@@ -1067,6 +1184,7 @@ onUnmounted(() => {
 .setting-static-value {
   display: inline-flex;
   align-items: center;
+  max-width: min(520px, 58vw);
   min-height: 34px;
   padding: 0 12px;
   border-radius: 12px;
@@ -1074,6 +1192,19 @@ onUnmounted(() => {
   border: 1px solid var(--border-color);
   font-size: 13px;
   color: var(--text-color);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.setting-static-value--danger {
+  color: #b42318;
+  border-color: rgba(180, 35, 24, 0.28);
+  background: rgba(255, 241, 240, 0.88);
+}
+.storage-progress {
+  flex: 1;
+  min-width: 180px;
+  max-width: 520px;
 }
 .setting-row--hint {
   margin-top: -4px;

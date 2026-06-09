@@ -9,12 +9,14 @@ Tool: codex
 - Project rules: [project.md](project.md)
 - Workflow rules: [workflow.md](workflow.md)
 - Knowledge routing: [knowledge.md](knowledge.md)
+- Context loading and tool adapters: [context-loading.md](context-loading.md)
 
 ## Rule Boundary
 
 - CodeNote stores cross-project AI collaboration rules.
 - This project stores only project-specific stack, commands, paths, business rules, risk areas, and verification notes.
 - Legacy AI rules are preserved under `vibe/knowledge/legacy/` when replaced by this structure.
+- Tool-specific adapters are discovery surfaces only; the authoritative rule tree remains this directory plus CodeNote.
 
 ## Task Closeout
 

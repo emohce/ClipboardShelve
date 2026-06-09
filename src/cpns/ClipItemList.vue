@@ -14,7 +14,7 @@
             <div class="clip-item-list-body">
                 <div
                     v-for="(item, index) in showList"
-                    :key="item?.id ?? index"
+                        :key="`${item?.id ?? index}-${lockedRenderVersion}`"
                     class="clip-item-list-row"
                     :class="{
                         'clip-item-list-row--compact': showList.length <= 3,
@@ -205,6 +205,7 @@ const emit = defineEmits([
     "onMultiCopyExecute",
     "toggleMultiSelect",
     "onItemDelete",
+    "onItemsDelete",
     "openCleanDialog",
     "openTagEdit",
     "loadMore",
@@ -232,9 +233,13 @@ const getAliasMap = () => {
     const map = utools?.dbStorage?.getItem?.(ITEM_ALIAS_DB_KEY);
     return map && typeof map === "object" ? map : {};
 };
+const aliasMapRef = ref(getAliasMap());
+const refreshAliasMap = () => {
+    aliasMapRef.value = getAliasMap();
+};
 const setItemAlias = (itemId, alias) => {
     if (!itemId) return;
-    const map = getAliasMap();
+    const map = { ...aliasMapRef.value };
     const prev = typeof map[itemId] === "string" ? map[itemId].trim() : undefined;
     const next = typeof alias === "string" && alias.trim() ? alias.trim() : undefined;
     if (prev !== next) {
@@ -245,13 +250,14 @@ const setItemAlias = (itemId, alias) => {
     } else {
         delete map[itemId];
     }
+    aliasMapRef.value = map;
     utools.dbStorage.setItem(ITEM_ALIAS_DB_KEY, map);
 };
 const getItemAlias = (item) => {
     if (!item) return "";
     // 优先检查 item 对象的 alias 属性（用于即时更新）
     if (typeof item.alias === "string" && item.alias.trim()) return item.alias.trim();
-    const map = getAliasMap();
+    const map = aliasMapRef.value;
     const fromStore = typeof map[item.id] === "string" ? map[item.id].trim() : "";
     if (fromStore) return fromStore;
     if (typeof item.remark === "string" && item.remark.trim()) return item.remark.trim();
@@ -1295,6 +1301,7 @@ const {
     clearPendingStates,
 } = useListNavigation(() => props.showList);
 const allSelectedLocked = ref(false); // 临时标志：记录所有选中项是否都已锁定
+const lockedRenderVersion = ref(0);
 
 // 图片预览相关
 const imagePreview = ref({
@@ -1464,6 +1471,7 @@ const applyHoverPreviewConfig = (nextSetting = setting) => {
 };
 
 const handleSettingUpdated = (event) => {
+    refreshAliasMap();
     applyHoverPreviewConfig(event?.detail || setting);
 };
 
@@ -1741,18 +1749,37 @@ const syncShowListItemPatch = (itemId, patch = {}) => {
 };
 
 const syncShowListLockedState = (itemIds = [], locked) => {
-    const ids = Array.isArray(itemIds) ? itemIds.filter(Boolean) : [];
-    ids.forEach((itemId) => {
-        syncShowListItemPatch(itemId, { locked });
+    const idSet = new Set(Array.isArray(itemIds) ? itemIds.filter(Boolean) : []);
+    if (!idSet.size) return;
+    let changed = false;
+    props.showList.forEach((item) => {
+        if (idSet.has(item.id) && item.locked !== locked) {
+            item.locked = locked;
+            changed = true;
+        }
     });
+    if (changed) lockedRenderVersion.value++;
 };
 
 const shouldRefreshListAfterLockChange = () => props.lockFilter === "locked";
 
+const measureOperation = (name, operation) => {
+    const measureName = `ezclipboard:${name}`;
+    const startMark = `${measureName}:start`;
+    const endMark = `${measureName}:end`;
+    globalThis.performance?.mark?.(startMark);
+    const result = operation();
+    globalThis.performance?.mark?.(endMark);
+    globalThis.performance?.measure?.(measureName, startMark, endMark);
+    return result;
+};
+
 const setItemLockedState = (itemId, locked, skipFileWrite = false) => {
     if (!itemId || typeof window.setLock !== "function") return false;
     syncShowListLockedState([itemId], locked);
-    const updated = window.setLock(itemId, locked, skipFileWrite);
+    const updated = measureOperation("set-item-lock", () =>
+        window.setLock(itemId, locked, skipFileWrite),
+    );
     if (!updated) {
         syncShowListLockedState([itemId], !locked);
     }
@@ -1764,7 +1791,9 @@ const setItemsLockedState = (itemIds = [], locked, skipFileWrite = false) => {
     if (!ids.length) return false;
     syncShowListLockedState(ids, locked);
     if (typeof window.setLocks === "function") {
-        const updated = window.setLocks(ids, locked, skipFileWrite);
+        const updated = measureOperation("set-items-lock", () =>
+            window.setLocks(ids, locked, skipFileWrite),
+        );
         if (!updated) {
             syncShowListLockedState(ids, !locked);
         }
@@ -2382,14 +2411,19 @@ function registerListHotkeyFeatures() {
                 replaceSelectedItems(deleteMeta.toKeep);
             }
             setDeleteAnchor(deleteMeta.anchor);
-            deletableItems.forEach((item, index) =>
-                emit("onItemDelete", item, {
+            if (props.isMultiple && deletableItems.length > 1) {
+                emit("onItemsDelete", deletableItems, {
                     anchorIndex: activeIndex.value,
-                    isBatch: props.isMultiple && deletableItems.length > 1,
-                    isLast: index === deletableItems.length - 1,
                     force: false,
-                }),
-            );
+                });
+            } else {
+                emit("onItemDelete", deletableItems[0], {
+                    anchorIndex: activeIndex.value,
+                    isBatch: false,
+                    isLast: true,
+                    force: false,
+                });
+            }
         }
         if (skippedLocked > 0)
             ElMessage({
@@ -2414,14 +2448,10 @@ function registerListHotkeyFeatures() {
             if (props.isMultiple) {
                 setDeleteAnchor(deleteMeta.anchor);
                 replaceSelectedItems(deleteMeta.toKeep);
-                itemsToDelete.forEach((item, index) =>
-                    emit("onItemDelete", item, {
-                        anchorIndex: activeIndex.value,
-                        isBatch: true,
-                        isLast: index === itemsToDelete.length - 1,
-                        force: true,
-                    }),
-                );
+                emit("onItemsDelete", itemsToDelete, {
+                    anchorIndex: activeIndex.value,
+                    force: true,
+                });
                 replaceSelectedItems([]);
                 emit("toggleMultiSelect", false);
             } else {
@@ -2644,6 +2674,7 @@ const handleWindowBlur = () => {
 };
 
 onMounted(() => {
+    refreshAliasMap();
     applyHoverPreviewConfig(setting);
     registerListHotkeyFeatures();
     // 移除延时隐藏，文字预览只在Shift键释放时隐藏

@@ -1,3 +1,6 @@
+const assert = require('assert');
+const fs = require('fs');
+
 // Simple syntax test for the modified functions
 const ref = (val) => ({ value: val });
 const nextTick = (fn) => setTimeout(fn, 0);
@@ -46,5 +49,19 @@ const startKeyHoldAutoScroll = (direction) => {
         autoScroll();
     }, KEY_HOLD_DELAY);
 };
+
+const sqliteRepositorySource = fs.readFileSync(
+    'src/storage/sqliteClipboardRepository.js',
+    'utf8',
+);
+
+assert.ok(
+    sqliteRepositorySource.includes('this.isCollected(item.id) && !force'),
+    'SQLite removeItems must check collection state with the current item id',
+);
+assert.ok(
+    !sqliteRepositorySource.includes('this.isCollected(id) && !force'),
+    'SQLite removeItems must not reference an undefined id variable',
+);
 
 console.log('Syntax test passed - no errors found');
