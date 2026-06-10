@@ -8,7 +8,7 @@
             <div class="pin-group-editor-header">
                 <div>
                     <h3>置顶组合</h3>
-                    <span>拖拽或用 Alt+U / Alt+E 调整顺序</span>
+                    <span>上下移动高亮，空格多选，Alt+U / Alt+E 批量排序</span>
                 </div>
                 <button class="pin-group-editor-close" @click="close">×</button>
             </div>
@@ -29,6 +29,9 @@
                             @click="setActiveIndex(index, $event)"
                         >
                             <span class="pin-group-drag">⋮⋮</span>
+                            <span class="pin-group-check" aria-hidden="true">
+                                {{ selectedIndexSet.has(index) ? "✓" : "" }}
+                            </span>
                             <span class="pin-group-index">{{ index + 1 }}</span>
                             <span class="pin-group-type">{{ getTypeLabel(element) }}</span>
                             <span class="pin-group-text">{{ getItemSummary(element) }}</span>
@@ -37,10 +40,15 @@
                 </draggable>
             </div>
             <div class="pin-group-editor-footer">
-                <button class="pin-group-secondary" @click="clear">取消组合</button>
                 <div class="pin-group-editor-actions">
-                    <button class="pin-group-secondary" @click="close">取消</button>
-                    <button class="pin-group-primary" @click="save">保存组合</button>
+                    <button class="pin-group-secondary" @click="close">
+                        <span>取消</span>
+                        <small>Esc</small>
+                    </button>
+                    <button class="pin-group-primary" @click="save">
+                        <span>保存组合</span>
+                        <small>Enter</small>
+                    </button>
                 </div>
             </div>
         </div>
@@ -71,7 +79,7 @@ const selectedIndexSet = computed(() => new Set(selectedIndices.value));
 const resetDraft = () => {
     draftItems.value = Array.isArray(props.items) ? props.items.filter(Boolean) : [];
     activeIndex.value = 0;
-    selectedIndices.value = draftItems.value.length ? [0] : [];
+    selectedIndices.value = [];
 };
 
 watch(
@@ -129,16 +137,38 @@ const normalizeActive = () => {
     );
 };
 
+const scrollActiveIntoView = () => {
+    nextTick(() => {
+        document
+            .querySelector(`.pin-group-item:nth-child(${activeIndex.value + 1})`)
+            ?.scrollIntoView?.({ block: "nearest" });
+    });
+};
+
+const moveActive = (delta) => {
+    if (!draftItems.value.length) return true;
+    activeIndex.value = Math.min(
+        Math.max(activeIndex.value + delta, 0),
+        draftItems.value.length - 1,
+    );
+    scrollActiveIntoView();
+    return true;
+};
+
 const setActiveIndex = (index, event) => {
     activeIndex.value = index;
-    if (event?.shiftKey) {
-        const set = new Set(selectedIndices.value);
-        if (set.has(index)) set.delete(index);
-        else set.add(index);
-        selectedIndices.value = [...set].sort((a, b) => a - b);
-    } else {
-        selectedIndices.value = [index];
-    }
+    if (event?.shiftKey || event?.metaKey || event?.ctrlKey) toggleActiveSelection(index);
+};
+
+const toggleActiveSelection = (index = activeIndex.value, options = {}) => {
+    if (index < 0 || index >= draftItems.value.length) return true;
+    const set = new Set(selectedIndices.value);
+    const wasSelected = set.has(index);
+    if (wasSelected) set.delete(index);
+    else set.add(index);
+    selectedIndices.value = [...set].sort((a, b) => a - b);
+    if (!wasSelected && options.advance !== false) moveActive(1);
+    return true;
 };
 
 const moveSelection = (delta) => {
@@ -146,29 +176,35 @@ const moveSelection = (delta) => {
     const selected = selectedIndices.value.length
         ? [...selectedIndices.value].sort((a, b) => a - b)
         : [activeIndex.value];
-    if (delta < 0 && selected[0] <= 0) return true;
-    if (delta > 0 && selected[selected.length - 1] >= draftItems.value.length - 1) return true;
-    const moving = new Set(selected);
-    const items = [...draftItems.value];
-    const order = delta < 0 ? selected : [...selected].reverse();
-    order.forEach((index) => {
-        const target = index + delta;
-        if (target < 0 || target >= items.length || moving.has(target)) return;
-        [items[index], items[target]] = [items[target], items[index]];
-    });
+    const selectedSet = new Set(selected);
+    const selectedItems = selected.map((index) => draftItems.value[index]);
+    const restItems = draftItems.value.filter((_, index) => !selectedSet.has(index));
+    const min = selected[0];
+    const max = selected[selected.length - 1];
+    const count = selected.length;
+    let insertIndex = delta < 0 ? max - count : min + 1;
+    insertIndex = Math.min(Math.max(insertIndex, 0), restItems.length);
+    const items = [
+        ...restItems.slice(0, insertIndex),
+        ...selectedItems,
+        ...restItems.slice(insertIndex),
+    ];
     draftItems.value = items;
-    selectedIndices.value = selected.map((index) => index + delta);
-    activeIndex.value = Math.min(Math.max(activeIndex.value + delta, 0), items.length - 1);
-    nextTick(() => {
-        document
-            .querySelector(`.pin-group-item:nth-child(${activeIndex.value + 1})`)
-            ?.scrollIntoView?.({ block: "nearest" });
-    });
+    selectedIndices.value = selectedItems.map((_, index) => insertIndex + index);
+    activeIndex.value = selectedIndices.value[Math.min(
+        selectedIndices.value.length - 1,
+        Math.max(0, selected.indexOf(activeIndex.value)),
+    )] ?? insertIndex;
+    scrollActiveIntoView();
     return true;
 };
 
 function registerHotkeys() {
     registerFeature("pin-group-edit-close", () => {
+        if (selectedIndices.value.length) {
+            selectedIndices.value = [];
+            return true;
+        }
         close();
         return true;
     });
@@ -176,6 +212,9 @@ function registerHotkeys() {
         save();
         return true;
     });
+    registerFeature("pin-group-edit-nav-up", () => moveActive(-1));
+    registerFeature("pin-group-edit-nav-down", () => moveActive(1));
+    registerFeature("pin-group-edit-toggle-select", () => toggleActiveSelection(activeIndex.value));
     registerFeature("pin-group-edit-up", () => moveSelection(-1));
     registerFeature("pin-group-edit-down", () => moveSelection(1));
     registerFeature("pin-group-edit-block", () => true);
@@ -238,7 +277,7 @@ onUnmounted(() => deactivateLayer("pin-group-edit"));
 }
 .pin-group-item {
     display: grid;
-    grid-template-columns: 24px 28px 42px minmax(0, 1fr);
+    grid-template-columns: 24px 22px 28px 42px minmax(0, 1fr);
     align-items: center;
     gap: 8px;
     min-height: 42px;
@@ -249,13 +288,24 @@ onUnmounted(() => deactivateLayer("pin-group-edit"));
     background: #f8fafc;
     color: #1f2937;
     cursor: pointer;
+    transition: border-color 0.12s ease, background 0.12s ease, box-shadow 0.12s ease;
 }
 .pin-group-item.active {
     border-color: rgba(53, 95, 157, 0.36);
     background: #eef4fb;
+    box-shadow: 0 0 0 1px rgba(53, 95, 157, 0.12);
 }
 .pin-group-item.selected {
+    border-color: rgba(53, 95, 157, 0.3);
+    background: rgba(53, 95, 157, 0.08);
     box-shadow: inset 3px 0 0 #355f9d;
+}
+.pin-group-item.active.selected {
+    border-color: rgba(53, 95, 157, 0.46);
+    background: rgba(53, 95, 157, 0.12);
+    box-shadow:
+        inset 3px 0 0 #355f9d,
+        0 0 0 1px rgba(53, 95, 157, 0.16);
 }
 .pin-group-item-ghost {
     opacity: 0.5;
@@ -263,6 +313,20 @@ onUnmounted(() => deactivateLayer("pin-group-edit"));
 .pin-group-drag {
     color: #94a3b8;
     cursor: grab;
+}
+.pin-group-check {
+    width: 16px;
+    height: 16px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border: 1px solid rgba(53, 95, 157, 0.24);
+    border-radius: 5px;
+    color: #355f9d;
+    background: rgba(255, 255, 255, 0.72);
+    font-size: 12px;
+    font-weight: 800;
+    line-height: 1;
 }
 .pin-group-index,
 .pin-group-type {
@@ -278,7 +342,7 @@ onUnmounted(() => deactivateLayer("pin-group-edit"));
 .pin-group-editor-footer {
     display: flex;
     align-items: center;
-    justify-content: space-between;
+    justify-content: flex-end;
     gap: 12px;
     padding: 14px 16px;
     border-top: 1px solid rgba(53, 95, 157, 0.12);
@@ -294,6 +358,17 @@ onUnmounted(() => deactivateLayer("pin-group-edit"));
     border-radius: 10px;
     border: 1px solid rgba(53, 95, 157, 0.18);
     cursor: pointer;
+    display: inline-flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 2px;
+    line-height: 1.1;
+}
+.pin-group-primary small,
+.pin-group-secondary small {
+    font-size: 10px;
+    opacity: 0.68;
 }
 .pin-group-primary {
     background: #355f9d;
