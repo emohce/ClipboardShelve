@@ -130,6 +130,7 @@
             ref="ClipItemListRef"
             :showList="currentShowList"
             :collectedIds="collectedIds"
+            :pinnedMap="pinnedMap"
             :fullData="fullData"
             :isMultiple="isMultiple"
             :currentActiveTab="activeTab"
@@ -144,6 +145,8 @@
             @openCleanDialog="handleOpenCleanDialog"
             @openTagEdit="openTagEditModal"
             @togglePin="handleTogglePin"
+            @pastePinGroupAll="pastePinGroupAll"
+            @editPinGroup="openExistingPinGroupEditor"
             @loadMore="handleListLoadMore"
         >
         </ClipItemList>
@@ -233,6 +236,13 @@
             @close="closeTagSearchModal"
             @selectTag="handleTagSelect"
         />
+        <PinGroupEditor
+            :visible="pinGroupEditorVisible"
+            :items="pinGroupEditorItems"
+            @close="closePinGroupEditor"
+            @save="handlePinGroupSave"
+            @clear="handlePinGroupClear"
+        />
     </div>
 </template>
 
@@ -257,6 +267,7 @@ import ClipSearch from "../cpns/ClipSearch.vue";
 import ClipSwitch from "../cpns/ClipSwitch.vue";
 import TagEditModal from "../cpns/TagEditModal.vue";
 import TagSearchModal from "../cpns/TagSearchModal.vue";
+import PinGroupEditor from "../cpns/PinGroupEditor.vue";
 import notify from "../data/notify.json";
 import {
     STORAGE_STATUS_EVENT,
@@ -264,8 +275,13 @@ import {
 } from "../storage/storageRuntimeStatus";
 import {
     getLastActiveContext,
+    getPinGroup,
     getPinnedMap,
+    advancePinGroupCursor,
+    clearPinGroup,
+    removePinGroupItems,
     removePinnedItems,
+    savePinGroup,
     setLastActiveContext,
     sortPinnedItems,
     togglePinnedItem,
@@ -490,6 +506,9 @@ const collectBlockList = shallowRef([]); // 非收藏 tab 且 * 前缀时，上�
 const collectVersion = ref(0); // 收藏列表变更时自增，用于驱动星标等 UI 更新
 const pinnedMap = shallowRef(getPinnedMap());
 const currentClipboardItemId = ref(null);
+const pinGroup = shallowRef(getPinGroup());
+const pinGroupEditorVisible = ref(false);
+const pinGroupEditorItems = shallowRef([]);
 const queryCursor = ref(null);
 const currentQueryTotal = ref(0);
 let pendingDataRefresh = false;
@@ -766,6 +785,60 @@ const getCurrentClipboardItemForContext = (context = getCurrentFilterContext()) 
     const item = getAllKnownItems().find((candidate) => candidate.id === id);
     return itemMatchesContext(item, context) ? item : null;
 };
+
+const getItemInlineSummary = (item) => {
+    if (!item) return "";
+    if (item.type === "text") return String(item.data || "").replace(/\s+/g, " ").slice(0, 32);
+    if (item.type === "image") return "图片";
+    if (item.type === "file") {
+        try {
+            const files = JSON.parse(item.data);
+            const first = Array.isArray(files) ? files[0] : null;
+            return first?.name || first?.path || "文件";
+        } catch (_) {
+            return "文件";
+        }
+    }
+    return String(item.data || "").slice(0, 32);
+};
+
+const getFileNameFromPath = (file = {}) =>
+    file.name || String(file.path || "").split(/[/\\]/).pop() || "文件";
+
+const getFilePreviewType = (fileName = "") => {
+    const ext = String(fileName).split(".").pop()?.toLowerCase() || "";
+    if (ext === "txt") return "";
+    if (["png", "jpg", "jpeg", "gif", "webp", "bmp", "svg", "heic"].includes(ext)) return "pic";
+    if (["zip", "rar", "7z", "tar", "gz"].includes(ext)) return "zip";
+    if (["xls", "xlsx", "xlsm", "csv"].includes(ext)) return "excel";
+    if (["doc", "docx"].includes(ext)) return "word";
+    if (["ppt", "pptx"].includes(ext)) return "ppt";
+    if (ext === "pdf") return "pdf";
+    return ext || "file";
+};
+
+const getPinGroupPreviewLines = (items = []) =>
+    items.flatMap((item) => {
+        if (!item) return [];
+        if (item.type === "text") {
+            const text = String(item.data || "").replace(/\s+/g, " ").trim();
+            return [text ? text.slice(0, 60) : "文本内容"];
+        }
+        if (item.type === "image") return [{ type: "pic", name: "图片内容" }];
+        if (item.type === "file") {
+            try {
+                const files = JSON.parse(item.data);
+                if (!Array.isArray(files) || !files.length) return [{ type: "file", name: "文件内容" }];
+                return files.map((file) => {
+                    const name = getFileNameFromPath(file);
+                    return { type: getFilePreviewType(name), name };
+                });
+            } catch (_) {
+                return [{ type: "file", name: "文件内容" }];
+            }
+        }
+        return [String(item.data || "").slice(0, 60)];
+    });
 
 const getBaseTopItemsForContext = (context = getCurrentFilterContext()) => {
     const source =
@@ -1140,7 +1213,40 @@ const currentShowList = computed(() => {
         collectBlockList.value.length > 0 && activeTab.value !== "collect"
             ? displayList.value
             : showList.value;
-    return composeTopItems(base);
+    const composed = composeTopItems(base);
+    return pinGroupListItem.value ? [pinGroupListItem.value, ...composed] : composed;
+});
+
+const pinGroupItems = computed(() => {
+    list.value;
+    collectVersion.value;
+    const ids = pinGroup.value?.itemIds || [];
+    if (!ids.length) return [];
+    const byId = new Map(getAllKnownItems().map((item) => [item.id, item]));
+    return ids.map((id) => byId.get(id)).filter(Boolean);
+});
+
+const pinGroupCursorIndex = computed(() => {
+    const len = pinGroupItems.value.length;
+    if (!len) return 0;
+    return Math.min(Math.max(Number(pinGroup.value?.cursor) || 0, 0), len - 1);
+});
+
+const pinGroupListItem = computed(() => {
+    const items = pinGroupItems.value;
+    if (!items.length) return null;
+    const previewLines = getPinGroupPreviewLines(items);
+    return {
+        id: "__ez_pin_group__",
+        type: "text",
+        data: `置顶组合 · ${items.length} 项 · Enter 一次性粘贴\n${previewLines
+            .map((line) => (typeof line === "string" ? line : `${line.type ? `${line.type} ` : ""}${line.name}`))
+            .join("\n")}`,
+        updateTime: pinGroup.value?.updatedAt || Date.now(),
+        createTime: pinGroup.value?.updatedAt || Date.now(),
+        __pinGroup: true,
+        __pinGroupPreviewLines: previewLines,
+    };
 });
 
 const getDbVersion = () =>
@@ -1150,6 +1256,7 @@ const removeVisibleItemsByIds = (ids = []) => {
     const idSet = new Set(ids.filter(Boolean));
     if (!idSet.size) return;
     pinnedMap.value = removePinnedItems([...idSet]);
+    pinGroup.value = removePinGroupItems([...idSet]);
     showList.value = showList.value.filter((item) => !idSet.has(item.id));
     collectBlockList.value = collectBlockList.value.filter((item) => !idSet.has(item.id));
 };
@@ -1169,6 +1276,102 @@ const pasteTopItemForLastActiveContext = () => {
     const item = composeTopItems(baseItems, context, { includeCurrentClipboard: true })[0];
     if (!item) return false;
     return copyAndPasteAndExit(item, { respectImageCopyGuard: true });
+};
+
+const openPinGroupEditor = (items = []) => {
+    const list = Array.isArray(items) ? items.filter(Boolean) : [];
+    if (!list.length) {
+        ElMessage({ type: "info", message: "请先多选要组合的条目" });
+        return;
+    }
+    pinGroupEditorItems.value = list;
+    pinGroupEditorVisible.value = true;
+};
+
+const openExistingPinGroupEditor = () => {
+    const items = pinGroupItems.value;
+    if (!items.length) {
+        ElMessage({ type: "info", message: "当前没有可编辑的置顶组合" });
+        return;
+    }
+    openPinGroupEditor(items);
+};
+
+const closePinGroupEditor = () => {
+    pinGroupEditorVisible.value = false;
+};
+
+const handlePinGroupSave = (items = []) => {
+    const ids = items.map((item) => item?.id).filter(Boolean);
+    pinGroup.value = savePinGroup(ids, { cursor: 0 });
+    pinGroupEditorVisible.value = false;
+    isMultiple.value = false;
+    ClipItemListRef.value?.emptySelectItemList?.();
+    ElMessage({ type: "success", message: `已保存 ${ids.length} 条置顶组合` });
+};
+
+const handlePinGroupClear = () => {
+    pinGroup.value = clearPinGroup();
+    pinGroupEditorVisible.value = false;
+    ElMessage({ type: "success", message: "已取消置顶组合" });
+};
+
+const pastePinGroupItem = (index) => {
+    const item = pinGroupItems.value[index];
+    if (!item) return false;
+    pinGroup.value = savePinGroup(pinGroup.value.itemIds, { cursor: index });
+    return copyAndPasteAndExit(item, { respectImageCopyGuard: true });
+};
+
+const pasteNextPinGroupItem = () => {
+    const items = pinGroupItems.value;
+    if (!items.length) return false;
+    const index = pinGroupCursorIndex.value;
+    const item = items[index];
+    if (!item) return false;
+    const ok = copyAndPasteAndExit(item, { respectImageCopyGuard: true });
+    if (ok) pinGroup.value = advancePinGroupCursor();
+    return ok;
+};
+
+const pastePinGroupAll = () => {
+    const items = pinGroupItems.value;
+    if (!items.length) return false;
+    if (items.length === 1) {
+        return copyAndPasteAndExit(items[0], { respectImageCopyGuard: true });
+    }
+    const nonImageItems = items.filter((item) => item.type !== "image");
+    if (!nonImageItems.length) {
+        ElMessage({ type: "info", message: "多张图片无法合并粘贴，已粘贴组合首项" });
+        return copyAndPasteAndExit(items[0], { respectImageCopyGuard: true });
+    }
+    const hasFile = nonImageItems.some((item) => item.type === "file");
+    if (hasFile) {
+        const filePathArray = [];
+        nonImageItems.forEach((item) => {
+            if (item.type === "text") {
+                const textFile = window.createFile(item);
+                filePathArray.push({ path: textFile });
+            } else if (item.type === "file") {
+                try {
+                    const files = JSON.parse(item.data);
+                    if (Array.isArray(files)) filePathArray.push(...files);
+                } catch (_) {}
+            }
+        });
+        if (!filePathArray.length) return false;
+        return copyAndPasteAndExit(
+            { type: "file", data: JSON.stringify(filePathArray) },
+            { respectImageCopyGuard: true },
+        );
+    }
+    const eol =
+        (window?.exports && window.exports.os && window.exports.os.EOL) ||
+        (navigator.userAgent.includes("Windows") ? "\r\n" : "\n");
+    return copyAndPasteAndExit(
+        { type: "text", data: nonImageItems.map((item) => item.data).join(eol) },
+        { respectImageCopyGuard: true },
+    );
 };
 
 const collectedIds = computed(() => {
@@ -1529,6 +1732,10 @@ onMounted(() => {
     utools.onPluginEnter((action) => {
         if (action?.code === "quick-paste-top") {
             pasteTopItemForLastActiveContext();
+            return;
+        }
+        if (action?.code === "quick-paste-pin-group") {
+            pasteNextPinGroupItem();
             return;
         }
         window.focus();
@@ -1894,6 +2101,14 @@ onMounted(() => {
         });
         registerFeature("tag-search", () => {
             openTagSearchModal();
+            return true;
+        });
+        registerFeature("pin-group-open", () => {
+            if (!isMultiple.value) {
+                ElMessage({ type: "info", message: "请先进入多选并选择组合条目" });
+                return true;
+            }
+            openPinGroupEditor(ClipItemListRef.value?.selectItemList || []);
             return true;
         });
         registerFeature("main-escape", (e) => {
