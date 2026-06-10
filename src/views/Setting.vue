@@ -398,24 +398,32 @@
               <div class="feature-config-row">
                 <div class="feature-config-meta">
                   <div class="feature-config-title-row">
-                    <strong>快捷粘贴顶部项</strong>
+                    <strong>全局快捷粘贴</strong>
                     <HelpHint
                       aria-label="查看快捷粘贴说明"
-                      content="这是 uTools 全局功能快捷键，不占用系统粘贴键；触发后按当前剪贴板、置顶项、当前筛选普通顶部项的顺序粘贴"
+                      content="这是 uTools 全局功能快捷键，不占用系统粘贴键；顶部项按当前剪贴板、置顶项、当前筛选普通顶部项的顺序粘贴，组合项按已保存组合循环粘贴"
                     />
                   </div>
                   <p class="feature-config-desc">
-                    建议在 uTools 全局功能中绑定 Ctrl/Command+Shift+V。
+                    建议分别绑定 Ctrl/Command+Shift+V 与 Ctrl/Command+Shift+P。
                   </p>
                 </div>
-                <div class="feature-config-control">
+                <div class="feature-config-control feature-config-actions">
                   <el-button
                     type="primary"
                     plain
                     class="feature-config-action"
-                    @click="openQuickPasteHotkeySetting"
+                    @click="openUtoolsHotkeySetting('粘贴置顶顶部项')"
                   >
-                    去绑定
+                    绑定顶部项
+                  </el-button>
+                  <el-button
+                    type="primary"
+                    plain
+                    class="feature-config-action"
+                    @click="openUtoolsHotkeySetting('循环粘贴置顶组合项')"
+                  >
+                    绑定组合项
                   </el-button>
                 </div>
               </div>
@@ -867,13 +875,12 @@ function validateFeatureConfig() {
   return true
 }
 
-function openQuickPasteHotkeySetting() {
-  const label = '粘贴置顶顶部项'
+function openUtoolsHotkeySetting(label) {
   if (typeof utools !== 'undefined' && typeof utools?.redirectHotKeySetting === 'function') {
     utools.redirectHotKeySetting(label)
     return
   }
-  ElMessage.info('当前环境不支持跳转，请在 uTools 全局功能中搜索“粘贴置顶顶部项”并绑定快捷键')
+  ElMessage.info(`当前环境不支持跳转，请在 uTools 全局功能中搜索“${label}”并绑定快捷键`)
 }
 
 async function handleRetryStorageMigration() {
@@ -1509,6 +1516,9 @@ onUnmounted(() => {
 .feature-config-action {
   flex: 0 0 auto;
   white-space: nowrap;
+}
+.feature-config-actions {
+  flex-wrap: wrap;
 }
 .feature-config-inline-row {
   display: inline-flex;

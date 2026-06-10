@@ -23,6 +23,11 @@ const pluginManifest = {
       code: 'quick-paste-top',
       explain: '粘贴隐藏前标签页的顶部可展示项',
       cmds: ['粘贴置顶顶部项']
+    },
+    {
+      code: 'quick-paste-pin-group',
+      explain: '循环粘贴置顶组合内的项目',
+      cmds: ['循环粘贴置顶组合项']
     }
   ]
 }
