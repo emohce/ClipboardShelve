@@ -67,6 +67,7 @@ export const FEATURE_LABELS = {
   'pin-group-edit-toggle-select': '置顶组合内切换选中',
   'pin-group-edit-up': '置顶组合内上移选中项',
   'pin-group-edit-down': '置顶组合内下移选中项',
+  'pin-group-edit-clear': '清空置顶组合',
   'pin-group-edit-block': '拦截置顶组合编辑外按键',
 
   'search-delete-normal': '搜索中删除选中项',

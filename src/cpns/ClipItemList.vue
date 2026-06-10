@@ -216,6 +216,7 @@ const emit = defineEmits([
     "togglePin",
     "pastePinGroupAll",
     "editPinGroup",
+    "clearPinGroup",
     "loadMore",
 ]);
 const isItemCollected = (item) => {
@@ -2481,6 +2482,10 @@ function registerListHotkeyFeatures() {
             : props.showList[activeIndex.value]
               ? [props.showList[activeIndex.value]]
               : [];
+        if (itemsToDelete.some((item) => item?.__pinGroup)) {
+            emit("clearPinGroup");
+            return true;
+        }
         if (itemsToDelete.length) {
             const deleteMeta = getDeleteAnchorMeta(itemsToDelete, { force: true });
             if (props.isMultiple) {

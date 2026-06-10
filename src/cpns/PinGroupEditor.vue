@@ -8,7 +8,7 @@
             <div class="pin-group-editor-header">
                 <div>
                     <h3>置顶组合</h3>
-                    <span>上下移动高亮，空格多选，Alt+U / Alt+E 批量排序</span>
+                    <span>上下移动高亮，空格多选，Alt+U / Alt+E 排序，Alt+G 清空</span>
                 </div>
                 <button class="pin-group-editor-close" @click="close">×</button>
             </div>
@@ -44,6 +44,10 @@
                     <button class="pin-group-secondary" @click="close">
                         <span>取消</span>
                         <small>Esc</small>
+                    </button>
+                    <button class="pin-group-secondary" @click="clear">
+                        <span>清空组合</span>
+                        <small>Alt+G</small>
                     </button>
                     <button class="pin-group-primary" @click="save">
                         <span>保存组合</span>
@@ -217,6 +221,10 @@ function registerHotkeys() {
     registerFeature("pin-group-edit-toggle-select", () => toggleActiveSelection(activeIndex.value));
     registerFeature("pin-group-edit-up", () => moveSelection(-1));
     registerFeature("pin-group-edit-down", () => moveSelection(1));
+    registerFeature("pin-group-edit-clear", () => {
+        clear();
+        return true;
+    });
     registerFeature("pin-group-edit-block", () => true);
 }
 
