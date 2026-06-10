@@ -8,15 +8,17 @@
 
 - [../../../src/storage/pinnedItems.js](../../../src/storage/pinnedItems.js:1)：保存 `pin.item.map` 和 `pin.lastActiveContext`。
 - [../../../src/views/Main.vue](../../../src/views/Main.vue:770)：组合置顶项与普通列表；`quick-paste-top` 才显式包含当前剪贴板候选。
+- [../../../src/cpns/ClipItemRow.vue](../../../src/cpns/ClipItemRow.vue:29)：置顶 item 在状态区显示图钉图标 `📌`，与收藏 `⭐`、锁定 `🔒` 并列。
 - [../../../src/cpns/ClipItemList.vue](../../../src/cpns/ClipItemList.vue:2345)：注册 `list-pin-toggle`，由 `Alt+P` 触发。
 - [../../../src/global/hotkeyBindings.js](../../../src/global/hotkeyBindings.js:281)：绑定 `alt+p`。
-- [../../../src/views/Setting.vue](../../../src/views/Setting.vue:397)：在“功能配置”中提供 uTools 全局快捷键绑定入口。
+- [../../../src/views/Setting.vue](../../../src/views/Setting.vue:398)：在“功能配置”中提供 uTools 全局快捷键绑定入口。
 - [../../../scripts/utools-runtime-assets.mjs](../../../scripts/utools-runtime-assets.mjs:22)：注册 uTools 功能指令 `quick-paste-top`。
 
 == 行为规则
 
 - `Alt+P` 只切换当前高亮 item 的置顶状态。
 - 多个置顶项按 `pinnedAt desc` 排在普通列表上方。
+- 置顶项显示图钉状态图标；该图标只是视觉状态，不改变 item 数据结构或 SQLite 表结构。
 - 置顶项必须符合当前 tab、收藏子 tab、搜索词和锁定筛选。
 - 当前剪贴板临时项不在列表中悬浮展示。
 - `Ctrl/Cmd+Shift+V` 由用户绑定到 uTools 指令“粘贴置顶顶部项”，触发后按最后 active context 选择：当前剪贴板临时项 > 置顶项 > 普通列表首项。

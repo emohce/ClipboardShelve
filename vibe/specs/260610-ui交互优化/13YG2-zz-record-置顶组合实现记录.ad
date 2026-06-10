@@ -2,13 +2,15 @@
 
 == 结论
 
-已按 [7YG2-zz-raw-交互优化需求.ad](7YG2-zz-raw-交互优化需求.ad:25) 的追加需求-2 实施单个置顶组合：多选后 `Alt+G` 编辑组合，保存后顶部单行展示，uTools 指令可循环粘贴组合项。
+已按 [7YG2-zz-raw-交互优化需求.ad](7YG2-zz-raw-交互优化需求.ad:25) 的追加需求-2 实施单个置顶组合：多选后 `Alt+G` 编辑组合，保存后作为各 tab 顶部合成项参与列表导航，`Enter` 可一次性粘贴整个组合，uTools 指令可循环粘贴组合项。
 
 == 代码落点
 
 - [../../../src/storage/pinnedItems.js](../../../src/storage/pinnedItems.js:1)：新增 `pin.group` 读写、清理和 cursor 推进。
-- [../../../src/cpns/PinGroupEditor.vue](../../../src/cpns/PinGroupEditor.vue:1)：组合编辑浮窗。
-- [../../../src/views/Main.vue](../../../src/views/Main.vue:120)：组合顶部展示、保存、清理和循环粘贴。
+- [../../../src/cpns/PinGroupEditor.vue](../../../src/cpns/PinGroupEditor.vue:1)：组合编辑浮窗，支持空格多选和批量移动。
+- [../../../src/views/Main.vue](../../../src/views/Main.vue:789)：组合顶部合成项、结构化预览行、保存、清理、整体粘贴和循环粘贴。
+- [../../../src/cpns/ClipItemRow.vue](../../../src/cpns/ClipItemRow.vue:56)：组合合成项使用专属图标、类型标识与文件名预览。
+- [../../../src/style/cpns/clip-item-list.less](../../../src/style/cpns/clip-item-list.less:238)：组合合成项专用视觉样式。
 - [../../../src/global/hotkeyBindings.js](../../../src/global/hotkeyBindings.js:1)：新增 `Alt+G` 和 `pin-group-edit` 快捷键层。
 - [../../../scripts/utools-runtime-assets.mjs](../../../scripts/utools-runtime-assets.mjs:16)：新增 `quick-paste-pin-group`。
 - [../../../src/views/Setting.vue](../../../src/views/Setting.vue:398)：设置页提供“循环粘贴置顶组合项”的 uTools 全局快捷键绑定入口。
@@ -16,8 +18,13 @@
 == 行为规则
 
 - 多选后 `Alt+G` 打开组合编辑器。
-- 编辑器内 `Alt+U/E` 移动选中项，`Enter` 保存，`Esc` 关闭。
-- 顶部组合区域单行显示，点击组合行按当前游标粘贴并推进。
+- 编辑器内 `ArrowUp/ArrowDown` 移动高亮，`Space` 切换选中；选中时自动下移一位，选中态使用勾选框、左侧主色条和底色强调；`Alt+U/E` 批量移动选中项，非连续多选先合并为连续块再按方向移动，未选中时移动当前高亮项，`Enter` 保存；有选中项时首个 `Esc` 清空多选，无选中项时 `Esc` 关闭。
+- 编辑器底部只保留取消和保存按钮，并显示 `Esc` / `Enter` 小字幕提示。
+- 顶部组合以列表合成项显示，正常上下键和 `Alt+U/E` 可移动高亮到该项。
+- 组合合成项带专属组合图标，区别于普通文本 item。
+- 组合合成项允许混合文本、图片、压缩包、Excel 等不同文件形式；预览按条目一行显示文件名或文本摘要，非文本文件在文件名前显示 `pic`、`zip`、`excel` 等类型标识。
+- 高亮在组合项时，`Enter` 一次性粘贴整个组合。
+- 高亮在组合项时，`Shift+F2` 重新打开组合编辑浮窗。
 - uTools “循环粘贴置顶组合项”指令每次粘贴游标项并推进。
 - 删除 item 后清理组合引用。
 

@@ -10,8 +10,12 @@
 
 - `Alt+G` 只在多选后触发。
 - 触发后打开组合编辑浮窗，默认使用当前多选顺序。
-- 浮窗内支持拖拽排序，也支持 `Alt+U` / `Alt+E` 移动当前选中项；浮窗启用独立热键层，快捷键不穿透到底层列表。
-- 保存后顶部展示一个单行组合区域，位置高于普通置顶项。
+- 浮窗内支持拖拽排序；`ArrowUp/ArrowDown` 只移动高亮，`Space` 切换选中，`Alt+U` / `Alt+E` 对选中项批量上移/下移；非连续多选先合并为一个连续块，再按快捷键方向移动，未选中时移动当前高亮项；浮窗启用独立热键层，快捷键不穿透到底层列表。
+- 保存后在各 tab 的列表顶部展示一个组合合成项，位置高于普通置顶项。
+- 组合合成项支持混合文本、图片、压缩包、Excel 等不同文件形式；预览按条目一行展示文件名或文本摘要，非文本文件名前增加 `pic`、`zip`、`excel` 等类型标识，文本类不额外加标识。
+- 组合合成项参与正常列表键盘导航，方向键和 `Alt+U` / `Alt+E` 翻页移动高亮时都可以落到组合项。
+- 高亮在组合合成项时，`Enter` 一次性粘贴整个组合。
+- 高亮在组合合成项时，`Shift+F2` 重新打开组合编辑浮窗。
 - 组合不改变其中 item 在原列表中的存在和排序。
 - 组合独立存储，不写入 SQLite/JSON 主历史数据。
 - 删除 item 后清理组合中的对应 id。
@@ -38,22 +42,27 @@ pin.group = {
 == 实现落点
 
 - [../../../src/storage/pinnedItems.js](../../../src/storage/pinnedItems.js:1)：扩展组合存储读写、清理和 cursor 推进。
-- [../../../src/cpns/PinGroupEditor.vue](../../../src/cpns/PinGroupEditor.vue:1)：组合编辑浮窗，支持拖拽排序和 `Alt+U/E` 移动。
-- [../../../src/views/Main.vue](../../../src/views/Main.vue:120)：顶部组合单行展示、组合保存、删除清理和循环粘贴。
+- [../../../src/cpns/PinGroupEditor.vue](../../../src/cpns/PinGroupEditor.vue:1)：组合编辑浮窗，支持拖拽排序、空格多选和 `Alt+U/E` 批量移动。
+- [../../../src/views/Main.vue](../../../src/views/Main.vue:789)：顶部组合合成项、结构化预览行、组合保存、删除清理和循环粘贴。
+- [../../../src/cpns/ClipItemRow.vue](../../../src/cpns/ClipItemRow.vue:56)：组合合成项图标、类型标识和文件名预览。
+- [../../../src/style/cpns/clip-item-list.less](../../../src/style/cpns/clip-item-list.less:238)：组合合成项预览样式。
 - [../../../src/global/hotkeyBindings.js](../../../src/global/hotkeyBindings.js:1)：新增 `alt+g` 与 `pin-group-edit` 浮窗快捷键层。
 - [../../../scripts/utools-runtime-assets.mjs](../../../scripts/utools-runtime-assets.mjs:16)：新增 `quick-paste-pin-group` 功能指令。
 
 == 风险控制
 
 - 不改变 `.clip-item-scroll`，组合行放在列表组件外部。
-- 不把组合 item 注入普通分页，不影响 `queryCursor`。
+- 组合以合成项注入最终展示列表，不进入普通分页数据，不影响 `queryCursor`。
 - 不新增主数据迁移，只使用轻量 `dbStorage`。
 - 浮窗热键层必须拦截 `Alt+U/E`，避免底层列表翻页。
 
 == 验证建议
 
 - 多选 2-5 个 item 后 `Alt+G` 打开浮窗。
-- 拖拽排序后保存，顶部组合顺序同步。
-- 浮窗内 `Alt+U/E` 移动项，且底层列表不翻页。
+- 拖拽排序后保存，各 tab 顶部出现组合合成项。
+- 组合包含 txt、图片、zip、Excel 等多类型条目时，预览按一行一个名称展示，非 txt 类型有前置标识。
+- 正常上下键和 `Alt+U/E` 可以移动高亮到组合项；高亮在组合项时 Enter 一次性粘贴整个组合。
+- 高亮在组合项时 `Shift+F2` 可重新编辑排序。
+- 浮窗内上下键移动高亮，空格多选，`Alt+U/E` 批量移动选中项，且底层列表不翻页。
 - 删除组合内 item 后，组合自动移除该项。
 - 绑定 uTools 指令后连续触发，按组合顺序循环粘贴。
