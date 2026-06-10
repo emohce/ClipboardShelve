@@ -147,6 +147,7 @@
             @togglePin="handleTogglePin"
             @pastePinGroupAll="pastePinGroupAll"
             @editPinGroup="openExistingPinGroupEditor"
+            @clearPinGroup="handlePinGroupClear"
             @loadMore="handleListLoadMore"
         >
         </ClipItemList>
@@ -2104,6 +2105,13 @@ onMounted(() => {
             return true;
         });
         registerFeature("pin-group-open", () => {
+            const current = ClipItemListRef.value?.activeIndex !== undefined
+                ? currentShowList.value[ClipItemListRef.value.activeIndex]
+                : null;
+            if (current?.__pinGroup) {
+                handlePinGroupClear();
+                return true;
+            }
             if (!isMultiple.value) {
                 ElMessage({ type: "info", message: "请先进入多选并选择组合条目" });
                 return true;

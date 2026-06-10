@@ -218,6 +218,9 @@ export const HOTKEY_BINDINGS = [
   { layer: "pin-group-edit", shortcutId: "Space", features: ["pin-group-edit-toggle-select"] },
   { layer: "pin-group-edit", shortcutId: "alt+u", features: ["pin-group-edit-up"] },
   { layer: "pin-group-edit", shortcutId: "alt+e", features: ["pin-group-edit-down"] },
+  { layer: "pin-group-edit", shortcutId: "alt+g", features: ["pin-group-edit-clear"] },
+  { layer: "pin-group-edit", shortcutId: "ctrl+Delete", features: ["pin-group-edit-clear"] },
+  { layer: "pin-group-edit", shortcutId: "ctrl+Backspace", features: ["pin-group-edit-clear"] },
   { layer: "pin-group-edit", shortcutId: "*", features: ["pin-group-edit-block"] },
 
   // ---- main: search state (search panel expanded + filter) ----
