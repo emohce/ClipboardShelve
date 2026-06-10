@@ -31,6 +31,7 @@ function shortcutIdForLookup(shortcutId) {
 
 const features = new Map();
 let bindings = [];
+let bindingsVersion = null;
 const mainStateRef = { current: "normal" };
 let ignoreRepeat = true;
 
@@ -59,7 +60,8 @@ export function unregisterFeature(featureId) {
 /**
  * @param {Array<{ layer: string, shortcutId: string, state?: string, features: string[] }>} list
  */
-export function setBindings(list) {
+export function setBindings(list, version = null) {
+  bindingsVersion = version;
   bindings = (list || []).map((b) => ({
     layer: b.layer,
     shortcutId: normalizeShortcutId(b.shortcutId),
@@ -70,6 +72,10 @@ export function setBindings(list) {
 
 export function getBindings() {
   return bindings;
+}
+
+export function getBindingsVersion() {
+  return bindingsVersion;
 }
 
 export function setMainState(state) {
@@ -147,8 +153,18 @@ export function dispatch(e) {
 
   if (e.isComposing) return false;
 
-  // 别名编辑对话框打开时，拦截所有按键事件，阻止穿透到底层
-  if (document.querySelector(".el-overlay .el-message-box")) return false;
+  // Element Plus MessageBox 打开时，Esc 只关闭当前弹窗，避免穿透到插件宿主退出。
+  const messageBox = document.querySelector(".el-overlay .el-message-box");
+  if (messageBox) {
+    if (e.key === "Escape") {
+      e.preventDefault();
+      e.stopPropagation();
+      e.__hotkeyHandled = true;
+      messageBox.querySelector(".el-message-box__headerbtn")?.click?.();
+      return true;
+    }
+    return false;
+  }
 
   const shortcutId = eventToShortcutId(e);
   const lookupId = shortcutIdForLookup(shortcutId);

@@ -1,0 +1,159 @@
+= 快捷置顶与当前剪贴板需求分析
+
+== 结论
+
+`Alt+P` 快捷置顶/取消置顶单个 item 的前 3 项需求合理，可以在现有列表查询与热键系统上实现。
+
+第 4 项“全局监听 `Ctrl/Cmd+V`，只要外部粘贴了就替换隐藏前 tab 的置顶项”为高风险需求，不建议按“注册全局 `CommandOrControl+V`”实现。修正后的产品语义是：普通列表不悬浮展示当前剪贴板临时项；当前剪贴板只在 uTools 独立全局快捷键指令触发时作为顶部候选项参与粘贴。
+
+可替代实现：新增一个 uTools 功能指令，例如“粘贴置顶顶部项”，由用户在 uTools「全局快捷键/全局功能」中绑定为 `Ctrl/Cmd+Shift+V`。触发该指令时，不拦截系统 `Ctrl/Cmd+V`，而是按插件记录的最后 active tab 计算候选顺序：当前剪贴板临时项 > 置顶项 > 普通列表首项，并执行复制粘贴。
+
+== 原始需求拆解
+
+- R1：增加 `Alt+P`，对当前高亮 item 执行置顶/取消置顶。
+- R2：允许同时置顶多个 item，最新置顶的排在置顶区最上方。
+- R3：所有 tab 按各自筛选条件展示置顶项；例如文本 tab 只展示文本置顶项，收藏子 tab 只展示匹配该收藏筛选的置顶项。
+- R4：当前剪贴板临时项不在列表中悬浮展示，不显示在置顶项上方。
+- R5：全局监听 `Ctrl/Cmd+V`，外部发生粘贴后，把 uTools 隐藏前所在 tab 的置顶临时项替换为最新粘贴内容；再次 `Ctrl/Cmd+V` 时触发该项粘贴。
+- R6：替代方案：通过 uTools 全局快捷键绑定自定义指令 `Ctrl/Cmd+Shift+V`，触发后粘贴“隐藏前 tab 的顶部可展示项”。
+
+== 合理性核验
+
+=== 可直接实现
+
+- `Alt+P` 可走现有 hotkey 系统：在 [../../../src/global/hotkeyBindings.js](../../../src/global/hotkeyBindings.js:1) 增加 `alt+p -> list-pin-toggle`，在 [../../../src/cpns/ClipItemList.vue](../../../src/cpns/ClipItemList.vue:2066) 注册 feature。
+- 当前运行态热键刷新机制已补齐：新增快捷键后 [../../../src/cpns/HotkeyProvider.vue](../../../src/cpns/HotkeyProvider.vue:18) 会在 mounted、focus、设置更新事件和 HMR 时刷新 bindings。
+- 多 item 置顶可以存为 `utools.dbStorage` 轻量索引，不需要改剪贴板历史主表。
+- “最新置顶在上”可通过 `pinnedAt` 倒序实现。
+- tab 内筛选展示可复用查询结果匹配逻辑，至少要对 `type`、收藏状态、收藏标签、搜索关键词和锁定筛选保持一致：[../../../src/storage/searchIndex.js](../../../src/storage/searchIndex.js:85)、[../../../src/storage/clipboardRepository.js](../../../src/storage/clipboardRepository.js:106)。
+- 当前剪贴板临时项不进入常规列表展示；快捷粘贴指令可直接复用当前历史顶部项作为候选，不需要新增列表悬浮状态。
+
+=== 需要降级或拆分
+
+- 外部应用里的真实粘贴事件不是剪贴板变化事件。用户按 `Ctrl/Cmd+V` 粘贴同一份剪贴板内容时，系统剪贴板通常不会变化，现有剪贴板监听不会触发。
+- Electron 的 `globalShortcut` 可以监听应用失焦时的全局快捷键，但它是主进程 API，当前 uTools 插件运行时只在 preload 中暴露了 `clipboard`、`nativeImage`、`utools`、`listener` 等能力，并未暴露 `globalShortcut`：[../../../scripts/utools-runtime-assets.mjs](../../../scripts/utools-runtime-assets.mjs:30)。
+- 即便能注册 `CommandOrControl+V`，它也会与系统粘贴语义竞争。Electron 官方说明全局快捷键在应用失焦时也工作，注册失败会静默发生，且被系统或其他应用占用时不能抢占；这不适合作为默认拦截系统粘贴的方案。
+- uTools 官方提供“全局快捷键/全局功能”：用户可把快捷键绑定到某个功能指令；这比插件自行监听系统 `Ctrl/Cmd+V` 更符合 uTools 产品模型。
+
+== 联网资料核验
+
+- Electron `globalShortcut` 是主进程模块，可在应用无焦点时检测快捷键；必须在 app ready 后使用，注册被占用快捷键时会静默失败：[Electron globalShortcut](https://www.electronjs.org/docs/latest/api/global-shortcut/)。
+- Electron 快捷键文档建议跨平台使用 `CommandOrControl` 表示 macOS 的 Command 与 Windows/Linux 的 Control；`Alt` 可跨平台映射到 macOS Option 与其他平台 Alt：[Electron Keyboard Shortcuts](https://www.electronjs.org/docs/latest/tutorial/keyboard-shortcuts)。
+- Electron accelerator 旧文档同样说明 Windows/Linux 不使用 `Command`，应使用 `CommandOrControl`；`Alt` 比 `Option` 更适合跨平台：[Electron Accelerator](https://zeke.github.io/electron.atom.io/docs/api/accelerator/)。
+- uTools 帮助中心说明可在设置的「全局功能」里为“所有指令”中的功能名称添加全局快捷键，且 Windows 和 Mac 可为同一指令设置两个不同快捷键：[uTools 全局快捷键](https://www.u-tools.cn/docs/guide/global-shortcut.html)。
+- uTools 开发者文档说明插件功能以 `Feature.code` 区分进入场景，`cmds` 是指令集合；还提供 `utools.redirectHotKeySetting(cmdLabel[, autocopy])` 引导用户配置指令全局快捷键：[uTools 动态指令](https://www.u-tools.cn/docs/developer/api-reference/utools/features.html)。
+
+== 推荐产品语义
+
+=== 置顶区
+
+- 置顶项是“用户主动固定的历史 item”。
+- 每个 item 只有一个置顶状态。
+- 多个置顶项按 `pinnedAt desc` 排列。
+- 置顶项只在其符合当前 tab 筛选时显示。
+- 置顶项显示在普通列表上方；不新增独立区域标题，也不被当前剪贴板临时项压在上方。
+
+=== 当前剪贴板临时项
+
+- 当前剪贴板临时项不是置顶项，不写入 pinned map。
+- 它不在常规列表中悬浮展示，避免和用户主动置顶项争抢视觉优先级。
+- 它只在 uTools “粘贴置顶顶部项”指令触发时作为第一候选；若不符合最后 active view 筛选，则继续尝试置顶项和普通顶部项。
+
+=== 外部粘贴事件
+
+建议拆成两级：
+
+- Level 1：不全局拦截 `Ctrl/Cmd+V`。只实现用户主动置顶项在普通列表上方展示，当前剪贴板临时项不进入列表展示。
+- Level 2：新增 uTools 功能指令“粘贴置顶顶部项”，用户绑定 `Ctrl/Cmd+Shift+V`；触发时按“当前剪贴板临时项 > 置顶项 > 普通列表首项”选择顶部候选项并粘贴。
+- Level 3：仅作为实验开关，研究原生键盘 hook 或 Electron `globalShortcut`。即使实现，也不应默认抢占 `Ctrl/Cmd+V`，应避免破坏用户在外部应用的正常粘贴。
+
+== 建议数据结构
+
+使用 `utools.dbStorage`：
+
+```
+pin.item.map = {
+  [itemId]: {
+    pinnedAt: 1718000000000
+  }
+}
+pin.lastActiveContext = {
+  tab: "all",
+  collectTag: "*全部*",
+  keyword: "",
+  lockFilter: "all",
+  updatedAt: 1718000000000
+}
+```
+
+说明：
+
+- `pin.item.map` 只保存置顶元数据，不复制 item 内容。
+- item 内容仍从 `window.db` / repository 查询，避免和 SQLite/JSON fallback 产生双写一致性问题。
+- 删除历史 item 时应清理 `pin.item.map[itemId]`。
+- `pin.lastActiveContext` 用于 uTools 全局快捷键指令触发时，恢复“隐藏前 view”的顶部项选择语义。
+
+== 建议实现方案
+
+1. 热键与标签
+   - 在 [../../../src/global/hotkeyBindings.js](../../../src/global/hotkeyBindings.js:1) 增加 `alt+p -> list-pin-toggle`。
+   - 在 [../../../src/global/hotkeyLabels.js](../../../src/global/hotkeyLabels.js:1) 增加“置顶/取消置顶选中项”文案。
+   - 复用已实现的热键运行态刷新机制。
+
+2. 状态模块
+   - 新增 `src/storage/pinnedItems.js` 或放入现有 storage 层。
+   - 提供 `getPinnedMap()`、`togglePinnedItem(item)`、`removePinnedItem(id)`、`sortPinnedItems(items)`。
+   - 不新增依赖。
+
+3. 列表组合
+   - 在 [../../../src/views/Main.vue](../../../src/views/Main.vue:1479) 的展示层组合：
+     - 当前 tab 可见的置顶项；
+     - 原分页列表。
+   - 需要去重：置顶项 > 普通列表。
+   - 触底加载仍只作用于普通列表，不把置顶项计入 query cursor。
+
+4. 筛选规则
+   - 置顶项必须按当前 tab 筛选。
+   - 收藏 tab 要按当前收藏子 tab 筛选。
+   - 搜索态下置顶项也应按关键词过滤；否则搜索结果会出现“不匹配但置顶”的干扰。
+
+5. 当前剪贴板临时项
+   - 不进入常规列表展示，不新增悬浮行。
+   - 只在 `quick-paste-top` 指令内作为候选项参与顶部粘贴。
+   - 插件自身 `copyAndPasteAndExit` 路径继续使用现有粘贴链路：[../../../src/utils/index.js](../../../src/utils/index.js:315)。
+
+6. uTools 全局快捷键指令
+   - 在 [../../../scripts/utools-runtime-assets.mjs](../../../scripts/utools-runtime-assets.mjs:16) 的 `pluginManifest.features` 增加功能指令，例如 `code: "quick-paste-top"`，`cmds: ["粘贴置顶顶部项"]`。
+   - 在 `utools.onPluginEnter` 中区分进入的 feature code；当 code 为 `quick-paste-top` 时，不进入常规列表操作，而是计算最后 active tab 的顶部可展示项并执行 `copyAndPasteAndExit(item, { respectImageCopyGuard: true })`。
+   - 在 [../../../src/views/Main.vue](../../../src/views/Main.vue:1395) 维护 `pin.lastActiveTab`，tab 切换、搜索/收藏子 tab 变化时更新。
+   - 设置页可提供一个按钮调用 `utools.redirectHotKeySetting("粘贴置顶顶部项")`，引导用户将 Windows 的 `Ctrl+Shift+V` 与 macOS 的 `Command+Shift+V` 分别绑定到该指令。
+
+== 第 4 点的可行性判断
+
+原句“全局监听 `Ctrl/Cmd+V`，只要粘贴了，则自行替代 uTools 当前 tab 的置顶项为最新的粘贴内容”需要修正：
+
+- 如果目标是“知道用户是否粘贴了”：现有剪贴板监听不够，因为粘贴不一定改变剪贴板。
+- 如果目标是“全局抢占 `Ctrl/Cmd+V`”：不建议，可能破坏外部应用正常粘贴，且 uTools 插件当前没有可直接使用的 Electron 主进程 `globalShortcut`。
+- 如果目标是“插件里始终看到当前系统剪贴板内容”：可实现，复用剪贴板监听即可。
+- 如果目标是“再次 `Ctrl/Cmd+V` 触发该项粘贴”：可在插件内实现；外部全局实现需要原生键盘 hook/主进程全局快捷键，并应做实验开关和权限提示。
+- 如果目标是“用一个不同于系统粘贴的全局快捷键快速粘贴顶部项”：可通过 uTools 全局功能快捷键实现，推荐使用 `Ctrl/Cmd+Shift+V` 绑定插件指令。
+
+== 验证建议
+
+- 普通 tab：`Alt+P` 置顶/取消置顶文本、图片、文件 item。
+- 多个置顶项：最新置顶项排最上。
+- 类型 tab：图片 tab 不展示文本置顶项，文本 tab 不展示图片置顶项。
+- 收藏 tab：只展示符合当前收藏子 tab 的置顶项。
+- 搜索态：置顶项必须匹配搜索词。
+- 当前剪贴板临时项：从外部复制新内容后，插件重新打开或列表刷新时不在列表中悬浮展示。
+- 去重：置顶项、普通列表中同一 id 只显示一次。
+- 删除 item：删除后置顶状态被清理。
+- uTools 全局快捷键：在 uTools 设置中把“粘贴置顶顶部项”绑定到 `Ctrl+Shift+V` / `Command+Shift+V`，从外部应用触发后，应粘贴隐藏前 tab 的顶部可展示项。
+
+== 当前状态
+
+- 需求已梳理。
+- 前 3 项判定为可实施。
+- 第 4 项已修正为“当前剪贴板临时项不进入列表展示，仅作为 uTools 快捷粘贴候选项”。
+- 替代方案“uTools 全局快捷键绑定自定义指令 `Ctrl/Cmd+Shift+V` 粘贴顶部项”判定为可实施。
+- 尚未写代码实现置顶功能。

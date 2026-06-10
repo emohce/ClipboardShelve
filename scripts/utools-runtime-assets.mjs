@@ -18,6 +18,11 @@ const pluginManifest = {
       code: 'clipboard',
       explain: '剪切板历史、剪贴板快速粘贴',
       cmds: ['剪切板', '剪贴板', 'Clipboard']
+    },
+    {
+      code: 'quick-paste-top',
+      explain: '粘贴隐藏前标签页的顶部可展示项',
+      cmds: ['粘贴置顶顶部项']
     }
   ]
 }
@@ -178,7 +183,7 @@ const apis={sleep(ms){return new Promise(resolve=>setTimeout(resolve,ms))}};onme
 
 export function prepareUToolsRuntimeAssets(rootDir = process.cwd()) {
   const distDir = path.resolve(rootDir, 'dist')
-  const logoSource = path.resolve(rootDir, 'docs/todo/26-oldDone/logo/logo.png')
+  const logoSource = path.resolve(rootDir, 'src/data/logo.png')
 
   mkdirSync(distDir, { recursive: true })
 

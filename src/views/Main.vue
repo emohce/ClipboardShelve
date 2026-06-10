@@ -143,6 +143,7 @@
             @onItemsDelete="handleItemsDelete"
             @openCleanDialog="handleOpenCleanDialog"
             @openTagEdit="openTagEditModal"
+            @togglePin="handleTogglePin"
             @loadMore="handleListLoadMore"
         >
         </ClipItemList>
@@ -261,6 +262,14 @@ import {
     STORAGE_STATUS_EVENT,
     getStorageRuntimeStatus,
 } from "../storage/storageRuntimeStatus";
+import {
+    getLastActiveContext,
+    getPinnedMap,
+    removePinnedItems,
+    setLastActiveContext,
+    sortPinnedItems,
+    togglePinnedItem,
+} from "../storage/pinnedItems";
 
 const CLEAR_RANGE_OPTIONS = [
     { label: "1 小时内", value: "1h" },
@@ -479,6 +488,8 @@ const list = shallowRef([]); // 全部数据快照
 const showList = shallowRef([]); // 展示的数据
 const collectBlockList = shallowRef([]); // 非收藏 tab 且 * 前缀时，上方展示的收藏匹配结果
 const collectVersion = ref(0); // 收藏列表变更时自增，用于驱动星标等 UI 更新
+const pinnedMap = shallowRef(getPinnedMap());
+const currentClipboardItemId = ref(null);
 const queryCursor = ref(null);
 const currentQueryTotal = ref(0);
 let pendingDataRefresh = false;
@@ -521,6 +532,11 @@ const matchLockFilter = (item) => {
     return true;
 };
 
+const matchLockFilterValue = (item, value = "all") => {
+    if (value === "locked") return item?.locked === true;
+    return true;
+};
+
 const matchSearchableItemType = (item, keyword, tabType = activeTab.value) => {
     if (tabType === "text") return item.type === "text";
     if (tabType === "image") return item.type === "image";
@@ -540,6 +556,32 @@ const matchMainTabItem = (item, bodyKeyword, tabType = activeTab.value) =>
     matchSearchableItemType(item, bodyKeyword, tabType) &&
     matchLockFilter(item) &&
     bodyFilterCallBack(item, bodyKeyword);
+
+const isCollectedItem = (item) => Boolean(item?.id && window.db?.isCollected?.(item.id));
+
+const itemMatchesContext = (item, context = getCurrentFilterContext()) => {
+    if (!item) return false;
+    const parsed = parseStarFilter(context.keyword);
+    if (context.tab === "collect") {
+        if (!isCollectedItem(item)) return false;
+        if (context.collectTag && context.collectTag !== "*全部*" && !tagMatch(item, context.collectTag)) return false;
+        if (context.lockFilter === "locked" && item.locked !== true) return false;
+        if (parsed.isStar) {
+            return tagMatch(item, parsed.tagKeyword) && bodyFilterCallBack(item, parsed.bodyKeyword);
+        }
+        return matchSearchableItemType(item, context.keyword.trim(), "collect") &&
+            bodyFilterCallBack(item, context.keyword.trim());
+    }
+    if (isCollectedItem(item)) return false;
+    if (parsed.isStar) {
+        return matchSearchableItemType(item, context.keyword, context.tab) &&
+            matchLockFilterValue(item, context.lockFilter) &&
+            bodyFilterCallBack(item, parsed.bodyKeyword);
+    }
+    return matchSearchableItemType(item, context.keyword.trim(), context.tab) &&
+        matchLockFilterValue(item, context.lockFilter) &&
+        bodyFilterCallBack(item, context.keyword.trim());
+};
 
 const applyCollectFilters = (items, parsed) => {
     if (parsed.isStar) {
@@ -680,6 +722,76 @@ const setShowListFromQueryResult = (result, loadedCount = null) => {
     offset.value = showList.value.length;
 };
 
+const getAllKnownItems = () => {
+    const items = [
+        ...(window.db?.dataBase?.data || []),
+        ...(window.db?.dataBase?.collectData || []),
+    ];
+    const seen = new Set();
+    return items.filter((item) => {
+        if (!item?.id || seen.has(item.id)) return false;
+        seen.add(item.id);
+        return true;
+    });
+};
+
+const getCurrentFilterContext = () => ({
+    tab: activeTab.value,
+    collectTag: activeTab.value === "collect" ? getCollectSubTab() : "*全部*",
+    keyword: filterText.value,
+    lockFilter: lockFilter.value,
+});
+
+const persistLastActiveContext = () => {
+    setLastActiveContext(getCurrentFilterContext());
+};
+
+const refreshCurrentClipboardItem = () => {
+    currentClipboardItemId.value = window.db?.dataBase?.data?.[0]?.id || null;
+};
+
+const getPinnedItemsForContext = (context = getCurrentFilterContext()) => {
+    const map = pinnedMap.value || {};
+    const pinnedIds = new Set(Object.keys(map));
+    if (!pinnedIds.size) return [];
+    return sortPinnedItems(
+        getAllKnownItems().filter((item) => pinnedIds.has(item.id) && itemMatchesContext(item, context)),
+        map,
+    );
+};
+
+const getCurrentClipboardItemForContext = (context = getCurrentFilterContext()) => {
+    const id = currentClipboardItemId.value || window.db?.dataBase?.data?.[0]?.id;
+    if (!id) return null;
+    const item = getAllKnownItems().find((candidate) => candidate.id === id);
+    return itemMatchesContext(item, context) ? item : null;
+};
+
+const getBaseTopItemsForContext = (context = getCurrentFilterContext()) => {
+    const source =
+        context.tab === "collect"
+            ? window.db?.dataBase?.collectData || []
+            : window.db?.dataBase?.data || [];
+    return source.filter((item) => itemMatchesContext(item, context));
+};
+
+const composeTopItems = (baseItems = [], context = getCurrentFilterContext(), options = {}) => {
+    const { includeCurrentClipboard = false } = options;
+    const seen = new Set();
+    const result = [];
+    const push = (item) => {
+        if (!item?.id || seen.has(item.id)) return;
+        seen.add(item.id);
+        result.push(item);
+    };
+    if (includeCurrentClipboard) {
+        push(getCurrentClipboardItemForContext(context));
+    }
+    getPinnedItemsForContext(context).forEach(push);
+    baseItems.forEach(push);
+    return result;
+};
+
 const prefetchTabPages = (type) => {
     if (!window.db?.query || parseStarFilter(filterText.value).isStar) return;
     if (filterText.value.trim() || lockFilter.value !== "all") return;
@@ -781,6 +893,8 @@ const updateShowList = (type, toTop = true) => {
             window.toTop();
         }
     }
+    refreshCurrentClipboardItem();
+    persistLastActiveContext();
 };
 
 const getItemsByTab = (tabType) => {
@@ -1022,9 +1136,11 @@ const displayList = computed(() => {
 });
 
 const currentShowList = computed(() => {
-    if (collectBlockList.value.length > 0 && activeTab.value !== "collect")
-        return displayList.value;
-    return showList.value;
+    const base =
+        collectBlockList.value.length > 0 && activeTab.value !== "collect"
+            ? displayList.value
+            : showList.value;
+    return composeTopItems(base);
 });
 
 const getDbVersion = () =>
@@ -1033,8 +1149,26 @@ const getDbVersion = () =>
 const removeVisibleItemsByIds = (ids = []) => {
     const idSet = new Set(ids.filter(Boolean));
     if (!idSet.size) return;
+    pinnedMap.value = removePinnedItems([...idSet]);
     showList.value = showList.value.filter((item) => !idSet.has(item.id));
     collectBlockList.value = collectBlockList.value.filter((item) => !idSet.has(item.id));
+};
+
+const handleTogglePin = (item) => {
+    const result = togglePinnedItem(item);
+    pinnedMap.value = result.map;
+    ElMessage({
+        type: "success",
+        message: result.pinned ? "已置顶选中项" : "已取消置顶",
+    });
+};
+
+const pasteTopItemForLastActiveContext = () => {
+    const context = getLastActiveContext();
+    const baseItems = getBaseTopItemsForContext(context);
+    const item = composeTopItems(baseItems, context, { includeCurrentClipboard: true })[0];
+    if (!item) return false;
+    return copyAndPasteAndExit(item, { respectImageCopyGuard: true });
 };
 
 const collectedIds = computed(() => {
@@ -1203,6 +1337,21 @@ const adjustActiveIndexAfterDelete = (baseIndex) => {
     });
 };
 
+const resolveDeleteRecoveryPreferId = (list = [], anchorIndex = 0, removedIds = []) => {
+    const ids = new Set(removedIds.filter(Boolean));
+    const items = Array.isArray(list) ? list : [];
+    const start = Math.min(Math.max(Number(anchorIndex) || 0, 0), Math.max(0, items.length - 1));
+    for (let i = start; i < items.length; i++) {
+        const id = items[i]?.id;
+        if (id && !ids.has(id)) return id;
+    }
+    for (let i = start - 1; i >= 0; i--) {
+        const id = items[i]?.id;
+        if (id && !ids.has(id)) return id;
+    }
+    return null;
+};
+
 const handleItemDelete = (item, metadata = {}) => {
     const {
         anchorIndex,
@@ -1224,8 +1373,12 @@ const handleItemDelete = (item, metadata = {}) => {
         if (force) {
             window.db.removeCollect(item.id, false);
             if (isLast) {
-                const ai = getActiveIndex();
-                const preferId = currentShowList.value[ai]?.id;
+                const ai = currentActiveIndex;
+                const preferId = resolveDeleteRecoveryPreferId(
+                    currentShowList.value,
+                    ai,
+                    [item.id],
+                );
                 ClipItemListRef.value?.prepareDeleteRecovery?.({
                     anchorIndex: ai,
                     preferItemId: preferId,
@@ -1287,12 +1440,17 @@ const handleItemsDelete = (items = [], metadata = {}) => {
             : { removed: 0 };
         const removed = result.removed || 0;
         if (removed) {
-            const preferId = currentShowList.value[ai]?.id;
+            const removedIds = list.map((item) => item.id);
+            const preferId = resolveDeleteRecoveryPreferId(
+                currentShowList.value,
+                ai,
+                removedIds,
+            );
             ClipItemListRef.value?.prepareDeleteRecovery?.({
                 anchorIndex: ai,
                 preferItemId: preferId,
             });
-            removeVisibleItemsByIds(list.map((item) => item.id));
+            removeVisibleItemsByIds(removedIds);
             scheduleDataRefresh();
         }
         return;
@@ -1307,12 +1465,19 @@ const handleItemsDelete = (items = [], metadata = {}) => {
         ? window.db.removeItems(candidates.map((item) => item.id), { force })
         : { removed: 0, skippedLocked: 0, skippedCollected: 0 };
     if (result.removed > 0) {
-        const preferId = currentShowList.value[ai]?.id;
+        const removedIds = candidates
+            .filter((item) => force || !item.locked)
+            .map((item) => item.id);
+        const preferId = resolveDeleteRecoveryPreferId(
+            currentShowList.value,
+            ai,
+            removedIds,
+        );
         ClipItemListRef.value?.prepareDeleteRecovery?.({
             anchorIndex: ai,
             preferItemId: preferId,
         });
-        removeVisibleItemsByIds(candidates.map((item) => item.id));
+        removeVisibleItemsByIds(removedIds);
         scheduleDataRefresh();
     }
     const skipped = skippedCollected + (result.skippedLocked || 0) + (result.skippedCollected || 0);
@@ -1361,7 +1526,11 @@ onMounted(() => {
     window.addEventListener(STORAGE_STATUS_EVENT, refreshStorageStatus);
     refreshStorageStatus();
     window.resetPluginUiState = resetPluginUiState;
-    utools.onPluginEnter(() => {
+    utools.onPluginEnter((action) => {
+        if (action?.code === "quick-paste-top") {
+            pasteTopItemForLastActiveContext();
+            return;
+        }
         window.focus();
         document.activeElement?.blur?.();
     });
@@ -1441,6 +1610,7 @@ onMounted(() => {
 
     // 初始化数据
     list.value = window.db.dataBase.data;
+    refreshCurrentClipboardItem();
     showList.value = list.value.slice(0, GAP); // 最初展示 10条
     updateShowList(activeTab.value);
 
@@ -1449,6 +1619,7 @@ onMounted(() => {
         // 监听器开启时
         window.listener.on("change", () => {
             list.value = window.db.dataBase.data;
+            refreshCurrentClipboardItem();
             updateShowList(activeTab.value);
         });
     } else {
@@ -1460,6 +1631,7 @@ onMounted(() => {
             } else {
                 // 有更新
                 list.value = window.db.dataBase.data;
+                refreshCurrentClipboardItem();
                 updateShowList(activeTab.value);
                 prev = now;
             }
@@ -1471,6 +1643,7 @@ onMounted(() => {
     window.listener.on("view-change", () => {
         // 检查到change事件 更新展示数据
         list.value = window.db.dataBase.data;
+        refreshCurrentClipboardItem();
         updateShowList(activeTab.value, false);
     });
 

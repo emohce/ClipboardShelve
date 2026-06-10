@@ -30,7 +30,7 @@ Always load:
 | Task type | Required extra context |
 |-----------|------------------------|
 | UI / layout / interaction | [../vibe-doc/ai-error-memory/2026-06-09-ui-structure-interaction-guardrails.md](../vibe-doc/ai-error-memory/2026-06-09-ui-structure-interaction-guardrails.md), [../../.agents/skills/ezclipboard-ui/SKILL.md](../../.agents/skills/ezclipboard-ui/SKILL.md) |
-| Storage / migration / performance | [../vibe-doc/ai-error-memory/2026-06-09-storage-performance-rewrite-pitfalls.md](../vibe-doc/ai-error-memory/2026-06-09-storage-performance-rewrite-pitfalls.md), [../specs/performance-rewrite/README.md](../specs/performance-rewrite/README.md) |
+| Storage / migration / performance | [../vibe-doc/ai-error-memory/2026-06-09-storage-performance-rewrite-pitfalls.md](../vibe-doc/ai-error-memory/2026-06-09-storage-performance-rewrite-pitfalls.md), [../specs/performance-rewrite/README.md](../specs/260609-performance-rewrite/README.md) |
 | Search / navigation / deletion | [../vibe-doc/ai-error-memory/2026-04-08-clipboard-nav-scroll-search-layout.md](../vibe-doc/ai-error-memory/2026-04-08-clipboard-nav-scroll-search-layout.md) |
 | uTools runtime assets | [../vibe-doc/ai-error-memory/2026-04-10-utools-runtime-assets.md](../vibe-doc/ai-error-memory/2026-04-10-utools-runtime-assets.md) |
 | Documentation / memory | [knowledge.md](knowledge.md), [../vibe-doc/ai-error-memory/README.md](../vibe-doc/ai-error-memory/README.md) |

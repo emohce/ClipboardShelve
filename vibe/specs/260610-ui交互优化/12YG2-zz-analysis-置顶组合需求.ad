@@ -1,0 +1,59 @@
+= 置顶组合需求分析
+
+== 结论
+
+追加需求-2 可以在现有多选、热键分层、uTools 功能指令和轻量 `dbStorage` 存储上实现。
+
+本轮采用“单个置顶组合”模型：组合保存多个 item id 的顺序和循环粘贴游标。这样满足当前需求，又避免引入多组合命名、管理、搜索、删除确认等额外复杂度。
+
+== 产品语义
+
+- `Alt+G` 只在多选后触发。
+- 触发后打开组合编辑浮窗，默认使用当前多选顺序。
+- 浮窗内支持拖拽排序，也支持 `Alt+U` / `Alt+E` 移动当前选中项；浮窗启用独立热键层，快捷键不穿透到底层列表。
+- 保存后顶部展示一个单行组合区域，位置高于普通置顶项。
+- 组合不改变其中 item 在原列表中的存在和排序。
+- 组合独立存储，不写入 SQLite/JSON 主历史数据。
+- 删除 item 后清理组合中的对应 id。
+- uTools 指令“循环粘贴置顶组合项”由用户绑定 `Ctrl+Shift+P` / `Command+Shift+P`；每次触发粘贴当前游标项并推进到下一项。
+
+== 数据结构
+
+使用 `utools.dbStorage`：
+
+```
+pin.group = {
+  itemIds: ["id-a", "id-b"],
+  cursor: 0,
+  updatedAt: 1718000000000
+}
+```
+
+说明：
+
+- `itemIds` 只存 id，不复制 item 内容。
+- `cursor` 是下一次循环粘贴的位置。
+- 查询展示时从 `window.db.dataBase.data` 与 `collectData` 中按 id 恢复 item。
+
+== 实现落点
+
+- [../../../src/storage/pinnedItems.js](../../../src/storage/pinnedItems.js:1)：扩展组合存储读写、清理和 cursor 推进。
+- [../../../src/cpns/PinGroupEditor.vue](../../../src/cpns/PinGroupEditor.vue:1)：组合编辑浮窗，支持拖拽排序和 `Alt+U/E` 移动。
+- [../../../src/views/Main.vue](../../../src/views/Main.vue:120)：顶部组合单行展示、组合保存、删除清理和循环粘贴。
+- [../../../src/global/hotkeyBindings.js](../../../src/global/hotkeyBindings.js:1)：新增 `alt+g` 与 `pin-group-edit` 浮窗快捷键层。
+- [../../../scripts/utools-runtime-assets.mjs](../../../scripts/utools-runtime-assets.mjs:16)：新增 `quick-paste-pin-group` 功能指令。
+
+== 风险控制
+
+- 不改变 `.clip-item-scroll`，组合行放在列表组件外部。
+- 不把组合 item 注入普通分页，不影响 `queryCursor`。
+- 不新增主数据迁移，只使用轻量 `dbStorage`。
+- 浮窗热键层必须拦截 `Alt+U/E`，避免底层列表翻页。
+
+== 验证建议
+
+- 多选 2-5 个 item 后 `Alt+G` 打开浮窗。
+- 拖拽排序后保存，顶部组合顺序同步。
+- 浮窗内 `Alt+U/E` 移动项，且底层列表不翻页。
+- 删除组合内 item 后，组合自动移除该项。
+- 绑定 uTools 指令后连续触发，按组合顺序循环粘贴。

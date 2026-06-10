@@ -84,6 +84,17 @@ const tryRemoveAliasMaterialDir = (dir) => {
 /** 与 ClipItemList 中别名映射一致，供删除条目时一并清理 */
 const ITEM_ALIAS_STORAGE_KEY = 'item.alias.map'
 
+const normalizeAliasMapEntry = (entry) => {
+  if (typeof entry === 'string') {
+    return { value: entry.trim(), cleared: false, exists: true }
+  }
+  if (entry && typeof entry === 'object') {
+    const value = typeof entry.value === 'string' ? entry.value.trim() : ''
+    return { value, cleared: entry.cleared === true, exists: true }
+  }
+  return { value: '', cleared: false, exists: false }
+}
+
 const pruneAliasMapEntry = (itemId) => {
   if (!itemId) return
   try {
@@ -97,13 +108,15 @@ const pruneAliasMapEntry = (itemId) => {
 /** 与 ClipItemList getItemAlias 同源，供列表检索匹配别名 / 备注 / 首标签回退名 */
 function getItemAliasForSearch (item) {
   if (!item) return ''
-  if (typeof item.alias === 'string' && item.alias.trim()) return item.alias.trim()
   try {
     const map = utools?.dbStorage?.getItem?.(ITEM_ALIAS_STORAGE_KEY)
-    if (map && typeof map === 'object' && typeof map[item.id] === 'string' && map[item.id].trim()) {
-      return map[item.id].trim()
+    if (map && typeof map === 'object') {
+      const fromMap = normalizeAliasMapEntry(map[item.id])
+      if (fromMap.value) return fromMap.value
+      if (fromMap.cleared) return ''
     }
   } catch (e) {}
+  if (typeof item.alias === 'string' && item.alias.trim()) return item.alias.trim()
   if (typeof item.remark === 'string' && item.remark.trim()) return item.remark.trim()
   if (Array.isArray(item.tags) && typeof item.tags[0] === 'string' && item.tags[0].trim()) {
     return item.tags[0].trim()

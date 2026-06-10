@@ -208,6 +208,7 @@ const emit = defineEmits([
     "onItemsDelete",
     "openCleanDialog",
     "openTagEdit",
+    "togglePin",
     "loadMore",
 ]);
 const isItemCollected = (item) => {
@@ -237,29 +238,40 @@ const aliasMapRef = ref(getAliasMap());
 const refreshAliasMap = () => {
     aliasMapRef.value = getAliasMap();
 };
+const normalizeAliasMapEntry = (entry) => {
+    if (typeof entry === "string") {
+        return { value: entry.trim(), cleared: false, exists: true };
+    }
+    if (entry && typeof entry === "object") {
+        const value = typeof entry.value === "string" ? entry.value.trim() : "";
+        return { value, cleared: entry.cleared === true, exists: true };
+    }
+    return { value: "", cleared: false, exists: false };
+};
 const setItemAlias = (itemId, alias) => {
     if (!itemId) return;
     const map = { ...aliasMapRef.value };
-    const prev = typeof map[itemId] === "string" ? map[itemId].trim() : undefined;
-    const next = typeof alias === "string" && alias.trim() ? alias.trim() : undefined;
-    if (prev !== next) {
+    const prev = normalizeAliasMapEntry(map[itemId]);
+    const next = typeof alias === "string" && alias.trim() ? alias.trim() : "";
+    if (prev.value !== next) {
         removeAliasMaterialForItem(itemId);
     }
     if (next) {
         map[itemId] = next;
     } else {
-        delete map[itemId];
+        map[itemId] = { value: "", cleared: true };
     }
     aliasMapRef.value = map;
     utools.dbStorage.setItem(ITEM_ALIAS_DB_KEY, map);
 };
 const getItemAlias = (item) => {
     if (!item) return "";
-    // 优先检查 item 对象的 alias 属性（用于即时更新）
-    if (typeof item.alias === "string" && item.alias.trim()) return item.alias.trim();
     const map = aliasMapRef.value;
-    const fromStore = typeof map[item.id] === "string" ? map[item.id].trim() : "";
-    if (fromStore) return fromStore;
+    const fromStore = normalizeAliasMapEntry(map[item.id]);
+    if (fromStore.value) return fromStore.value;
+    if (fromStore.cleared) return "";
+    // 再检查 item 对象的 alias 属性（用于即时更新和历史数据）
+    if (typeof item.alias === "string" && item.alias.trim()) return item.alias.trim();
     if (typeof item.remark === "string" && item.remark.trim()) return item.remark.trim();
     if (Array.isArray(item.tags) && typeof item.tags[0] === "string" && item.tags[0].trim()) {
         return item.tags[0].trim();
@@ -292,10 +304,10 @@ const saveAliasForItem = (item) => {
             // 直接在 showList 中查找并修改对应的 item 对象
             const showListItem = props.showList.find((i) => i.id === item.id);
             if (showListItem) {
-                showListItem.alias = value;
+                showListItem.alias = typeof value === "string" ? value.trim() : "";
             }
             ElMessage({
-                message: value.trim() ? "别名已保存" : "别名已清空",
+                message: typeof value === "string" && value.trim() ? "别名已保存" : "别名已清空",
                 type: "success",
             });
         })
@@ -2329,6 +2341,16 @@ function registerListHotkeyFeatures() {
             return true;
         }
         return false;
+    });
+    registerFeature("list-pin-toggle", () => {
+        if (isAliasDialogOpen()) return false;
+        const item = props.showList[activeIndex.value];
+        if (!item) {
+            ElMessage({ type: "info", message: "当前无可置顶条目" });
+            return false;
+        }
+        emit("togglePin", item);
+        return true;
     });
     registerFeature("list-collect", () => {
         if (isAliasDialogOpen()) return false;

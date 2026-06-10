@@ -6,6 +6,9 @@
 
 import { normalizeShortcutId } from "./shortcutKey";
 
+export const HOTKEY_BINDINGS_VERSION = "2026-06-10-ui-interaction-hotkey-refresh";
+export const HOTKEY_BINDINGS_UPDATED_EVENT = "ezclipboard:hotkey-bindings-updated";
+
 /**
  * Unique key for a binding row (for overrides map).
  * @param {{ layer: string, state?: string, shortcutId: string, features: string[] }} b
@@ -183,6 +186,11 @@ export const HOTKEY_BINDINGS = [
   // ---- tag-edit ----
   {
     layer: "tag-edit",
+    shortcutId: "Escape",
+    features: ["tag-edit-close"],
+  },
+  {
+    layer: "tag-edit",
     shortcutId: "Tab",
     features: ["tag-edit-focus-tab"],
   },
@@ -250,12 +258,16 @@ export const HOTKEY_BINDINGS = [
   { layer: "main", shortcutId: "ctrl+j", features: ["list-nav-down"] },
   { layer: "main", shortcutId: "ctrl+ArrowUp", features: ["list-page-up"] },
   { layer: "main", shortcutId: "ctrl+ArrowDown", features: ["list-page-down"] },
+  { layer: "main", shortcutId: "alt+u", features: ["list-page-up"] },
+  { layer: "main", shortcutId: "alt+e", features: ["list-page-down"] },
   { layer: "main", shortcutId: "PageUp", features: ["list-page-up"] },
   { layer: "main", shortcutId: "PageDown", features: ["list-page-down"] },
   { layer: "main", shortcutId: "ArrowLeft", features: ["main-tab-prev"] },
   { layer: "main", shortcutId: "ArrowRight", features: ["main-tab-next"] },
   { layer: "main", shortcutId: "ctrl+ArrowLeft", features: ["list-view-full"] },
   { layer: "main", shortcutId: "ctrl+ArrowRight", features: ["list-drawer-open"] },
+  { layer: "main", shortcutId: "ctrl+shift+ArrowLeft", features: ["list-scroll-to-top"] },
+  { layer: "main", shortcutId: "ctrl+shift+ArrowRight", features: ["list-scroll-to-bottom"] },
   { layer: "main", shortcutId: "shift+ArrowUp", features: ["text-preview-scroll-up"] },
   { layer: "main", shortcutId: "shift+ArrowDown", features: ["text-preview-scroll-down"] },
   { layer: "main", shortcutId: "shift+ArrowLeft", features: ["image-preview-scroll-left"] },
@@ -266,6 +278,7 @@ export const HOTKEY_BINDINGS = [
   { layer: "main", shortcutId: "ctrl+Enter", features: ["list-ctrl-enter"] },
   { layer: "main", shortcutId: "shift+Enter", features: ["list-save-by-alias"] },
   { layer: "main", shortcutId: "ctrl+c", features: ["list-copy"] },
+  { layer: "main", shortcutId: "alt+p", features: ["list-pin-toggle"] },
   { layer: "main", shortcutId: "ctrl+s", features: ["list-collect"] },
   { layer: "main", shortcutId: "ctrl+u", features: ["list-lock"] },
   {

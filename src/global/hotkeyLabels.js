@@ -56,6 +56,7 @@ export const FEATURE_LABELS = {
   'tag-search-close': '关闭标签搜索',
   'tag-search-block': '拦截其他按键',
 
+  'tag-edit-close': '关闭标签编辑',
   'tag-edit-focus-tab': '在标签编辑项之间切换焦点',
   'tag-edit-block': '拦截其他按键',
 
@@ -85,6 +86,8 @@ export const FEATURE_LABELS = {
   'list-nav-down': '下移选择',
   'list-page-up': '向上翻页（按当前可见项约 90% 移动）',
   'list-page-down': '向下翻页（按当前可见项约 90% 移动）',
+  'list-scroll-to-top': '跳到当前缓存首项',
+  'list-scroll-to-bottom': '跳到当前缓存末项',
   'list-nav-left': '左移/上一页',
   'list-drawer-open': '打开操作抽屉',
   'list-view-full': '查看全部',
@@ -93,6 +96,7 @@ export const FEATURE_LABELS = {
   'list-ctrl-enter': '复制并锁定选中的内容',
   'list-save-by-alias': '别名保存触发（单文件重命名粘贴）',
   'list-copy': '复制选中项',
+  'list-pin-toggle': '置顶/取消置顶选中项',
   'list-collect': '收藏/取消收藏选中项目',
   'list-lock': '锁定/解锁选中项目',
   'open-clear-dialog': '打开清除记录对话框',

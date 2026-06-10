@@ -1,0 +1,28 @@
+= 置顶组合实现记录
+
+== 结论
+
+已按 [7YG2-zz-raw-交互优化需求.ad](7YG2-zz-raw-交互优化需求.ad:25) 的追加需求-2 实施单个置顶组合：多选后 `Alt+G` 编辑组合，保存后顶部单行展示，uTools 指令可循环粘贴组合项。
+
+== 代码落点
+
+- [../../../src/storage/pinnedItems.js](../../../src/storage/pinnedItems.js:1)：新增 `pin.group` 读写、清理和 cursor 推进。
+- [../../../src/cpns/PinGroupEditor.vue](../../../src/cpns/PinGroupEditor.vue:1)：组合编辑浮窗。
+- [../../../src/views/Main.vue](../../../src/views/Main.vue:120)：组合顶部展示、保存、清理和循环粘贴。
+- [../../../src/global/hotkeyBindings.js](../../../src/global/hotkeyBindings.js:1)：新增 `Alt+G` 和 `pin-group-edit` 快捷键层。
+- [../../../scripts/utools-runtime-assets.mjs](../../../scripts/utools-runtime-assets.mjs:16)：新增 `quick-paste-pin-group`。
+- [../../../src/views/Setting.vue](../../../src/views/Setting.vue:398)：设置页提供“循环粘贴置顶组合项”的 uTools 全局快捷键绑定入口。
+
+== 行为规则
+
+- 多选后 `Alt+G` 打开组合编辑器。
+- 编辑器内 `Alt+U/E` 移动选中项，`Enter` 保存，`Esc` 关闭。
+- 顶部组合区域单行显示，点击组合行按当前游标粘贴并推进。
+- uTools “循环粘贴置顶组合项”指令每次粘贴游标项并推进。
+- 删除 item 后清理组合引用。
+
+== 验证
+
+- 已执行 `pnpm run build`，构建通过。
+- 已执行 `pnpm run prepare:utools`，生成的 `dist/plugin.json` 包含 `quick-paste-pin-group`。
+- uTools 全局快捷键绑定后仍需手动验证循环粘贴。

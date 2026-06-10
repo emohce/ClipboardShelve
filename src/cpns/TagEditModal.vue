@@ -139,7 +139,7 @@ watch(
 // 阻断键盘事件穿透，并处理快捷键
 const stopAndHandleKey = (e) => {
     if (!props.visible) return;
-    // 冒泡阶段阻断向上层传播，保留输入框自身默认行为
+    // 冒泡阶段阻断向上层传播，保留输入框自身默认行为。
     if (e.stopImmediatePropagation) e.stopImmediatePropagation();
     e.stopPropagation();
 
@@ -175,6 +175,12 @@ onMounted(() => {
     document.addEventListener("keydown", stopAndHandleKey, false);
     document.addEventListener("keypress", stopAndHandleKey, false);
     document.addEventListener("keyup", stopAndHandleKey, false);
+    registerFeature("tag-edit-close", (e) => {
+        if (!props.visible) return false;
+        e.preventDefault();
+        close();
+        return true;
+    });
     registerFeature("tag-edit-focus-tab", (e) => {
         if (!props.visible) return false;
         const focusables = getFocusableInputs();

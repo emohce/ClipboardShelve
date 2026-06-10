@@ -1,0 +1,190 @@
+= 交互优化需求指导说明与实施方案
+
+== 结论
+
+本次交互优化聚焦三个闭环：收藏删除后的高亮恢复、别名/标签编辑层的键盘拦截与别名清空一致性、列表单页滚动与缓存边界跳转快捷键。
+
+实现原则是复用现有列表导航、删除恢复、热键分发和滚动容器能力，不新增并行状态机，不改变主界面 fixed 顶栏、搜索、多选和 `.clip-item-scroll` 局部滚动结构。
+
+== 原始需求梳理
+
+- 收藏 tab 内强制删除收藏项后，高亮不应异常回到第一项，应优先落到被删项的下一项；若删除末项，则落到新的末项。
+- 已收藏条目的标签/备注编辑弹窗打开后，`Esc` 只关闭当前弹窗，不退出插件或穿透到底层主界面。
+- 已收藏条目通过 `F2` 编辑后取消收藏，再次作为普通条目用 `F2` 编辑别名时，保存别名与清空别名都必须生效。
+- 所有 tab 在普通、搜索、多选状态下增加 `Alt+U` / `Alt+E` 单页上/下滚动；单页以当前条目展示窗口为单位，需兼容自动滚动、图片/多选等不同高度占位。
+- 增加跳转到当前已缓存列表首/尾的快捷键 `Ctrl+Shift+Left` / `Ctrl+Shift+Right`；只在已加载缓存范围内跳转，不为了跳转主动全量加载，也不能因当前未展示就丢弃缓存。
+
+== 当前代码依据
+
+- 删除入口在 [../../../src/views/Main.vue](../../../src/views/Main.vue:1206)，收藏 tab 强制删除时已调用 `removeCollect`、`prepareDeleteRecovery`、`removeVisibleItemsByIds` 和 `scheduleDataRefresh`，但 `preferItemId` 当前取自删除前当前项，容易指向待删除项：[../../../src/views/Main.vue](../../../src/views/Main.vue:1223)。
+- 批量收藏强制删除也存在同类锚点问题，`preferId` 取当前索引条目而未排除删除集：[../../../src/views/Main.vue](../../../src/views/Main.vue:1277)。
+- 列表数据变化时已经有删除恢复通路，`deleteAnchor` 存在时会走 `applyDeleteRecovery`，不需要另做刷新后回顶逻辑：[../../../src/cpns/ClipItemList.vue](../../../src/cpns/ClipItemList.vue:2048)。
+- 列表滚动容器是组件内部 `.clip-item-scroll`，触底加载由 `handleVirtualScroll` 发出 `loadMore`：[../../../src/cpns/ClipItemList.vue](../../../src/cpns/ClipItemList.vue:1332)。
+- 翻页滚动能力已经封装为 `runPageNavigation("up/down")` 对应的 `list-page-up/down` feature：[../../../src/cpns/ClipItemList.vue](../../../src/cpns/ClipItemList.vue:2137)。
+- 已存在当前缓存首尾跳转 feature：`list-scroll-to-top` / `list-scroll-to-bottom`，但默认热键配置尚未绑定到 `Ctrl+Shift+Left/Right`：[../../../src/cpns/ClipItemList.vue](../../../src/cpns/ClipItemList.vue:2155)、[../../../src/global/hotkeyBindings.js](../../../src/global/hotkeyBindings.js:225)。
+- `Ctrl+ArrowLeft/Right` 当前用于查看全部和打开抽屉，新增热键不能覆盖这两个现有主操作：[../../../src/global/hotkeyBindings.js](../../../src/global/hotkeyBindings.js:257)。
+- 标签编辑弹窗已有 DOM 级键盘阻断和 `Esc` close，但监听在冒泡阶段，遇到底层捕获阶段热键时仍可能先被主层处理：[../../../src/cpns/TagEditModal.vue](../../../src/cpns/TagEditModal.vue:139)。
+- Element Plus 的别名编辑框由 `ElMessageBox.prompt` 打开，热键分发里遇到 `.el-overlay .el-message-box` 直接返回 false，这只能避免 registry 继续分发，不能保证 `Esc` 被拦为“只关一层”：[../../../src/global/hotkeyRegistry.js](../../../src/global/hotkeyRegistry.js:150)。
+- 普通别名保存逻辑用 `setItemAlias` 写入 `item.alias.map`，空值会删除 map 项；但 `getItemAlias` 在 map 空后会回退到 `item.remark` / `tags[0]`，导致“清空别名”在曾经收藏过的条目上表现为无效：[../../../src/cpns/ClipItemList.vue](../../../src/cpns/ClipItemList.vue:240)、[../../../src/cpns/ClipItemList.vue](../../../src/cpns/ClipItemList.vue:256)。
+
+== 优化后需求定义
+
+=== R1 收藏 tab 强制删除后的高亮恢复
+
+验收标准：
+
+- 在收藏 tab 删除第 `N` 项后，高亮落到删除前第 `N+1` 项对应的新位置。
+- 删除最后一项后，高亮落到新的最后一项。
+- 批量删除时，高亮落到删除区间后的第一个保留项；若后方无保留项，则落到删除区间前最近保留项。
+- 删除后不得回到第一项，除非第一项确实是唯一可落点。
+- 删除后不改变收藏子 tab、搜索关键词、多选态之外的现有状态语义。
+
+实施方案：
+
+- 在 [../../../src/views/Main.vue](../../../src/views/Main.vue:1227) 计算 `preferItemId` 时，基于删除前 `currentShowList` 和删除 id 集合选择“删除锚点附近的保留项”，不要把待删除项传给 `prepareDeleteRecovery`。
+- 单项删除与批量删除共用一个小函数，例如 `resolveDeleteRecoveryPreferId(list, anchorIndex, removedIds)`。
+- 保留现有 `prepareDeleteRecovery -> removeVisibleItemsByIds -> scheduleDataRefresh -> applyDeleteRecovery` 通路，不新增二次 `setActiveIndex(0)` 或重复 `updateShowList()`。
+
+风险点：
+
+- 收藏子 tab 筛选下，删除项可能是当前标签最后一项；此时应允许当前筛选列表为空，不应强行跳到其他子 tab。
+- 搜索态下删除后候选落点必须来自当前过滤结果，不应从全量收藏列表选取不可见项。
+
+=== R2 标签编辑弹窗 Esc 只关闭当前层
+
+验收标准：
+
+- 收藏条目 `F2` 打开标签/备注编辑弹窗后，按 `Esc` 关闭弹窗，插件不退出。
+- 弹窗内输入框、标签输入、备注 textarea 的正常输入、删除、Tab 切换不被破坏。
+- `Enter` 不穿透触发底层复制；`Ctrl+S` 保存仍生效。
+
+实施方案：
+
+- 在 [../../../src/cpns/TagEditModal.vue](../../../src/cpns/TagEditModal.vue:175) 增加 `tag-edit-close` feature，并在 `tag-edit` layer 绑定 `Escape`，确保已收藏条目的标签编辑弹窗只关闭当前层。
+- 在 [../../../src/global/hotkeyRegistry.js](../../../src/global/hotkeyRegistry.js:143) 对 Element Plus MessageBox 的 `Escape` 做当前弹窗关闭与事件阻断，避免普通别名 prompt 穿透到插件宿主退出。
+- `Enter`、`Ctrl+S` 继续在 `stopAndHandleKey` 内处理；普通文本编辑按键只阻断冒泡，不阻断默认输入行为。
+- 保持 `tag-edit` layer 的注册，不删除现有 `tag-edit-focus-tab` / `tag-edit-save` 功能。
+
+风险点：
+
+- 不能粗暴 `preventDefault` 所有按键，否则标签输入、备注输入和删除文本会异常。
+- 不要在 document 捕获阶段阻断所有按键，否则标签输入组件自身 keydown 可能无法收到事件。
+
+=== R3 普通别名清空必须覆盖标签/备注回退
+
+验收标准：
+
+- 已收藏条目通过 `F2` 增加标签或备注后，取消收藏。
+- 再次在普通列表中按 `F2` 打开别名编辑，输入新别名并保存，列表展示与别名粘贴使用新别名。
+- 再次按 `F2` 清空别名后，列表不再展示旧标签/备注作为别名，别名粘贴不再使用旧回退名。
+
+实施方案：
+
+- 区分“没有显式别名记录”和“用户显式清空别名”。当前 [../../../src/cpns/ClipItemList.vue](../../../src/cpns/ClipItemList.vue:256) 的回退规则会把 `remark/tags[0]` 当作别名，需要增加显式清空标记。
+- 推荐把 `item.alias.map` 的值结构演进为兼容格式：
+  - 旧格式：`{ [id]: "alias" }` 继续读取。
+  - 新格式：`{ [id]: { value: "", cleared: true } }` 表示用户显式清空，不再回退到 `remark/tags[0]`。
+- `setItemAlias(itemId, alias)` 在空值保存时不再简单 `delete map[itemId]`，而是写入显式清空标记；只有条目真实删除时再清理别名缓存和物料文件。
+- `getItemAlias(item)` 读取顺序调整为：显式 alias 值 > 显式 cleared 返回空 > 旧 map 字符串 > item.alias > remark/tags 回退。
+- 为兼容当前即时 UI，保存后同步更新 `showListItem.alias`，清空时应置为 `""`，避免对象上的旧值继续遮蔽结果：[../../../src/cpns/ClipItemList.vue](../../../src/cpns/ClipItemList.vue:290)。
+
+风险点：
+
+- `storage/searchIndex.js` 与 repository 中也会读取 alias map；如引入结构化值，需同步兼容读取，否则搜索索引可能把对象转成异常文本。
+- 清空别名不应删除收藏标签/备注本身，只是禁止普通别名逻辑继续把它们当回退名。
+
+=== R4 Alt+U / Alt+E 单页滚动
+
+验收标准：
+
+- 普通、搜索、多选状态下，`Alt+U` 向上滚动一页，`Alt+E` 向下滚动一页。
+- 单页距离以当前 `.clip-item-scroll` 可视窗口为准，沿用现有 `list-page-up/down` 语义。
+- 不聚焦搜索输入时生效；搜索输入正在编辑文本时，不能破坏输入行为。
+- 图片项、多选展开项、长文本项等不同高度下，高亮项可见且不被顶栏遮挡。
+
+实施方案：
+
+- 在 [../../../src/global/hotkeyBindings.js](../../../src/global/hotkeyBindings.js:251) 为 `list-page-up/down` 追加 `alt+u` / `alt+e` 绑定。
+- 优先复用 [../../../src/cpns/ClipItemList.vue](../../../src/cpns/ClipItemList.vue:2137) 的 `runPageNavigation("up/down")`，不新增独立滚动函数。
+- 如搜索态要求在搜索框聚焦时也可翻页，需要先明确与文本输入冲突策略；默认保持当前 `isFocusInSearch()` 拦截，避免 Alt 组合输入法或浏览器菜单行为冲突。
+- 若需要长按重复，需把 `u/e` 带 Alt 的 repeat 放行策略单独评估；当前热键注册只对白名单方向键/PageUp/PageDown 允许 repeat：[../../../src/global/hotkeyRegistry.js](../../../src/global/hotkeyRegistry.js:145)。
+
+风险点：
+
+- `Alt+E` 在部分系统/输入法中可能与菜单或特殊字符输入冲突；设置页热键覆盖能力应保留。
+- 不要通过 `window.scrollBy` 实现，主列表真实滚动容器不是 document。
+
+=== R5 Ctrl+Shift+Left / Ctrl+Shift+Right 跳到已缓存首尾
+
+验收标准：
+
+- `Ctrl+Shift+Left` 跳到当前已加载/已缓存 `showList` 的第一项。
+- `Ctrl+Shift+Right` 跳到当前已加载/已缓存 `showList` 的最后一项。
+- 不主动全量查询，不循环 `loadMore` 到真实数据库末尾。
+- 跳到缓存末尾后，如用户继续向下导航或滚动触底，仍按现有逻辑继续增量加载。
+- 当前缓存不因未展示、搜索切换或滚动跳转被额外清空。
+
+实施方案：
+
+- 在 [../../../src/global/hotkeyBindings.js](../../../src/global/hotkeyBindings.js:251) 追加：
+  - `ctrl+shift+ArrowLeft` -> `list-scroll-to-top`
+  - `ctrl+shift+ArrowRight` -> `list-scroll-to-bottom`
+- 复用 [../../../src/cpns/ClipItemList.vue](../../../src/cpns/ClipItemList.vue:2155) 已存在的首尾跳转 feature。
+- 明确 `list-scroll-to-bottom` 的目标是 `props.showList.length - 1`，不是数据库总数，也不是 `queryCursor` 后续页。
+
+风险点：
+
+- 不能复用 `ctrl+ArrowLeft/Right`，已有查看全部/抽屉功能。
+- 搜索结果、收藏子 tab、普通 tab 的缓存边界各自独立，不能跨 tab 跳转。
+
+== 建议修改文件
+
+- [../../../src/views/Main.vue](../../../src/views/Main.vue:1206)：修正收藏删除恢复锚点，单项/批量共用候选落点逻辑。
+- [../../../src/cpns/ClipItemList.vue](../../../src/cpns/ClipItemList.vue:240)：别名 map 读写兼容结构化清空标记；复用现有翻页与缓存首尾 feature。
+- [../../../src/global/hotkeyBindings.js](../../../src/global/hotkeyBindings.js:251)：新增 `Alt+U`、`Alt+E`、`Ctrl+Shift+Left`、`Ctrl+Shift+Right` 绑定。
+- [../../../src/global/hotkeyLabels.js](../../../src/global/hotkeyLabels.js:86)：补充快捷键显示文案，确保设置页可识别。
+- [../../../src/global/hotkeyRegistry.js](../../../src/global/hotkeyRegistry.js:143)：拦截 Element Plus MessageBox 的 `Esc` 穿透；如需要长按 `Alt+U/E` 连续翻页，再扩展 repeat 放行策略。
+- [../../../src/cpns/TagEditModal.vue](../../../src/cpns/TagEditModal.vue:139)：补充 `tag-edit-close`，保留输入控件默认键盘行为。
+- [../../../src/storage/searchIndex.js](../../../src/storage/searchIndex.js:24)：如 alias map 改为结构化值，同步兼容读取。
+- [../../../src/storage/clipboardRepository.js](../../../src/storage/clipboardRepository.js:23)：如 alias map 签名生成依赖值字符串，同步兼容结构化值。
+- [../../../src/storage/sqliteClipboardRepository.js](../../../src/storage/sqliteClipboardRepository.js:19)：如 SQLite repository 读取 alias map，同步兼容结构化值。
+
+== 验证矩阵
+
+=== 删除恢复
+
+- 收藏 tab 全部子 tab：删除中间项，确认高亮到下一项。
+- 收藏 tab 全部子 tab：删除最后一项，确认高亮到新的最后一项。
+- 收藏标签子 tab：删除该标签下最后一项，确认列表为空时不跳到第一项或其他 tab。
+- 搜索收藏结果中强制删除：确认高亮只在当前搜索结果内恢复。
+- 多选批量强制删除：删除连续区间和非连续区间，确认落到最近保留项。
+
+=== 弹窗与别名
+
+- 收藏条目 `F2` 打开标签编辑，按 `Esc` 只关闭弹窗，不退出插件。
+- 弹窗内输入中文、删除文本、Tab 切换、Enter、Ctrl+S 均符合现有语义。
+- 收藏条目增加标签/备注，取消收藏后普通 `F2` 设置别名，确认展示与粘贴使用别名。
+- 再次普通 `F2` 清空别名，确认不回退显示旧标签/备注。
+- 清空别名后搜索旧别名/旧标签，确认搜索行为符合预期：标签/备注仍作为原字段存在，但不作为普通别名展示。
+
+=== 快捷键
+
+- 普通 tab：`Alt+U/E` 翻页，`Ctrl+Shift+Left/Right` 跳当前缓存首尾。
+- 搜索态：搜索结果列表中快捷键生效；搜索输入框聚焦时确认不会破坏输入。
+- 多选态：翻页后多选状态不丢失，高亮与选中态不混乱。
+- 图片/文件/长文本混合列表：翻页后高亮项完整可见。
+- 到缓存末尾后继续 `ArrowDown` 或滚动触底，确认仍能按现有逻辑加载更多。
+
+== 非目标
+
+- 不调整主界面布局、顶栏高度、收藏子 tab 结构和列表 DOM 层级。
+- 不重做虚拟滚动或把滚动容器迁移到 document/window。
+- 不改变收藏数据模型，只修正普通别名对收藏标签/备注回退的覆盖语义。
+- 不新增依赖，不升级 Element Plus / Vue / 构建工具。
+
+== 交付顺序建议
+
+1. 先修 R1 删除恢复锚点，风险低且用户可感知强。
+2. 再修 R2 弹窗 Esc 捕获，范围集中。
+3. 再修 R3 别名清空语义，同时同步 alias map 兼容读取点。
+4. 最后加 R4/R5 热键绑定与文案，复用现有 feature 后做全状态验证。

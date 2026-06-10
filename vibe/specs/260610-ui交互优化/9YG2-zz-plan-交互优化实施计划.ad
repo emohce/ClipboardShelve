@@ -1,0 +1,105 @@
+= 交互优化实施计划
+
+== 目标
+
+按 [8YG2-zz-optimized-交互优化需求方案.ad](8YG2-zz-optimized-交互优化需求方案.ad:1) 实施收藏删除恢复、标签编辑 Esc 拦截、普通别名清空语义、列表翻页快捷键和缓存首尾跳转快捷键。
+
+追加稳定可实施范围：按 [10YG2-zz-analysis-快捷置顶与当前剪贴板需求.ad](10YG2-zz-analysis-快捷置顶与当前剪贴板需求.ad:1) 实施 `Alt+P` 单项置顶/取消置顶、多置顶最新在上、按当前 tab/search 筛选展示；当前剪贴板临时项不在列表中悬浮展示。
+
+追加替代快捷粘贴方案：不全局抢占系统 `Ctrl/Cmd+V`；新增 uTools 功能指令“粘贴置顶顶部项”，由用户在 uTools 全局功能中绑定 `Ctrl+Shift+V` / `Command+Shift+V`，触发后按隐藏前 tab 的展示逻辑粘贴顶部可展示项。
+
+== 修改文件
+
+- [../../../src/views/Main.vue](../../../src/views/Main.vue:1206)
+- [../../../src/views/Setting.vue](../../../src/views/Setting.vue:888)
+- [../../../src/cpns/HotkeyProvider.vue](../../../src/cpns/HotkeyProvider.vue:1)
+- [../../../src/cpns/ClipItemList.vue](../../../src/cpns/ClipItemList.vue:240)
+- [../../../src/cpns/TagEditModal.vue](../../../src/cpns/TagEditModal.vue:139)
+- [../../../src/global/hotkeyBindings.js](../../../src/global/hotkeyBindings.js:251)
+- [../../../src/global/hotkeyLabels.js](../../../src/global/hotkeyLabels.js:86)
+- [../../../src/global/hotkeyRegistry.js](../../../src/global/hotkeyRegistry.js:143)
+- [../../../src/storage/searchIndex.js](../../../src/storage/searchIndex.js:24)
+- [../../../src/storage/clipboardRepository.js](../../../src/storage/clipboardRepository.js:23)
+- [../../../src/storage/pinnedItems.js](../../../src/storage/pinnedItems.js:1)
+- [../../../src/utils/index.js](../../../src/utils/index.js:85)
+- [../../../scripts/utools-runtime-assets.mjs](../../../scripts/utools-runtime-assets.mjs:16)
+
+== 步骤
+
+1. 删除恢复锚点
+   - 在 [../../../src/views/Main.vue](../../../src/views/Main.vue:1206) 增加候选落点计算函数。
+   - 单项和批量删除都从当前展示列表中跳过待删除 id，优先选删除位置后的保留项，其次选前方保留项。
+
+2. 标签编辑弹窗键盘层
+   - 在 [../../../src/cpns/TagEditModal.vue](../../../src/cpns/TagEditModal.vue:175) 增加 `tag-edit-close` feature，配合 hotkey layer 让 `Esc` 只关闭当前标签编辑弹窗。
+   - 在 [../../../src/global/hotkeyRegistry.js](../../../src/global/hotkeyRegistry.js:143) 拦截 Element Plus MessageBox 的 `Esc`，只关闭当前 MessageBox，避免穿透到插件宿主。
+   - 保持普通输入默认行为；`Enter`、`Ctrl+S` 继续按现有语义处理。
+
+3. 别名清空语义
+   - 在 [../../../src/cpns/ClipItemList.vue](../../../src/cpns/ClipItemList.vue:240) 兼容旧字符串 alias map 与新 `{ value, cleared }` 结构。
+   - 清空时写入 `{ value: "", cleared: true }`，使 `getItemAlias` 不再回退到收藏标签/备注。
+   - 同步 [../../../src/storage/searchIndex.js](../../../src/storage/searchIndex.js:24)、[../../../src/storage/clipboardRepository.js](../../../src/storage/clipboardRepository.js:23)、[../../../src/utils/index.js](../../../src/utils/index.js:98) 的读取逻辑，避免搜索索引把结构化值误处理。
+
+4. 快捷键绑定与文案
+   - 在 [../../../src/global/hotkeyBindings.js](../../../src/global/hotkeyBindings.js:251) 绑定 `alt+u`、`alt+e` 到现有翻页 feature。
+   - 绑定 `ctrl+shift+ArrowLeft`、`ctrl+shift+ArrowRight` 到现有当前缓存首尾跳转 feature。
+   - 在 [../../../src/global/hotkeyLabels.js](../../../src/global/hotkeyLabels.js:86) 补充首尾跳转文案。
+
+5. 热键运行态刷新
+   - 原因：用户反馈新快捷键与 `F2` 曾出现“过一会才好”，定位为运行态 registry 只在 [../../../src/cpns/HotkeyProvider.vue](../../../src/cpns/HotkeyProvider.vue:12) mounted 时 `setBindings()`，开发热更新、设置保存、插件重新聚焦时可能仍持有旧 bindings。
+   - 做法：在 [../../../src/global/hotkeyBindings.js](../../../src/global/hotkeyBindings.js:7) 增加 `HOTKEY_BINDINGS_VERSION` 与 `HOTKEY_BINDINGS_UPDATED_EVENT`；在 [../../../src/global/hotkeyRegistry.js](../../../src/global/hotkeyRegistry.js:31) 记录当前 bindings 版本；在 [../../../src/cpns/HotkeyProvider.vue](../../../src/cpns/HotkeyProvider.vue:12) 统一 `refreshBindings()`，覆盖 mounted、window focus、设置事件和 HMR。
+   - 设置入口：在 [../../../src/views/Setting.vue](../../../src/views/Setting.vue:894) 保存配置后触发 `HOTKEY_BINDINGS_UPDATED_EVENT`；重置配置后也触发同一事件。
+   - 当前状态：已实现并纳入构建验证；后续若再加快捷键，只需更新 `HOTKEY_BINDINGS`，运行态会在上述时机刷新。
+
+6. `Alt+P` 置顶/取消置顶
+   - 在 [../../../src/global/hotkeyBindings.js](../../../src/global/hotkeyBindings.js:251) 增加 `alt+p -> list-pin-toggle`。
+   - 在 [../../../src/global/hotkeyLabels.js](../../../src/global/hotkeyLabels.js:86) 增加“置顶/取消置顶选中项”文案。
+   - 在 [../../../src/cpns/ClipItemList.vue](../../../src/cpns/ClipItemList.vue:2066) 注册 `list-pin-toggle` feature，对当前 `activeIndex` item 切换置顶状态。
+   - 置顶操作成功后触发列表刷新事件，保持当前高亮项可见。
+
+7. 置顶状态存储
+   - 新增 [../../../src/storage/pinnedItems.js](../../../src/storage/pinnedItems.js:1)，使用 `utools.dbStorage` 保存 `pin.item.map`。
+   - 数据结构：`{ [itemId]: { pinnedAt: number } }`。
+   - 提供 `getPinnedMap()`、`isPinnedItem(id)`、`togglePinnedItem(item)`、`removePinnedItem(id)`、`sortPinnedItems(items)`。
+   - 只保存置顶元数据，不复制 item 内容，不改 SQLite/JSON 历史主数据。
+
+8. 按 tab/search 组合展示置顶项
+   - 在 [../../../src/views/Main.vue](../../../src/views/Main.vue:1479) 的列表展示路径中组合两段：置顶项、普通分页列表。
+   - 去重优先级：置顶项 > 普通列表。
+   - 置顶项必须符合当前 tab 类型、收藏子 tab、搜索关键词、锁定筛选。
+   - 触底加载只驱动普通列表分页，不把置顶项计入 `queryCursor`。
+
+9. 当前剪贴板临时项
+   - 当前剪贴板临时项不进入 [../../../src/views/Main.vue](../../../src/views/Main.vue:1479) 的常规列表展示，不悬浮压在置顶项上方。
+   - 只在 uTools “粘贴置顶顶部项”指令触发时作为候选项参与选择。
+   - 当前剪贴板临时项不写入 `pin.item.map`，不算用户置顶项。
+   - 插件自身复制/粘贴路径仍沿用现有防循环逻辑，不在本阶段新增外部 `Ctrl/Cmd+V` hook。
+
+10. uTools 全局快捷键指令
+   - 在 [../../../scripts/utools-runtime-assets.mjs](../../../scripts/utools-runtime-assets.mjs:16) 的 `pluginManifest.features` 增加功能指令：`code: "quick-paste-top"`，`cmds: ["粘贴置顶顶部项"]`。
+   - 在 [../../../src/views/Main.vue](../../../src/views/Main.vue:1517) 的 `utools.onPluginEnter` 中识别 `quick-paste-top`，避免与常规打开列表流程混在一起。
+   - 在 [../../../src/views/Main.vue](../../../src/views/Main.vue:738) 维护最后 active context：tab、收藏子 tab、搜索词、锁定筛选；筛选变更时写入 `pin.lastActiveContext`。
+   - [../../../src/views/Main.vue](../../../src/views/Main.vue:1155) 收到 `quick-paste-top` 进入事件后，按最后 active context 组合顺序取顶部候选项：当前剪贴板临时项 > 置顶项 > 普通列表首项。
+   - 调用 [../../../src/utils/index.js](../../../src/utils/index.js:315) 的现有粘贴链路执行粘贴，并保留图片粘贴保护。
+   - [../../../src/views/Setting.vue](../../../src/views/Setting.vue:888) 可增加“配置快捷粘贴”入口，调用 `utools.redirectHotKeySetting("粘贴置顶顶部项")` 引导用户到 uTools 全局功能设置页绑定快捷键。
+
+== 风险控制
+
+- 不改列表滚动容器，不改 `ClipSwitch` / `clip-break` 结构。
+- 不主动全量加载缓存末尾，只跳 `props.showList` 的当前首尾。
+- 不删除收藏标签/备注，只改变普通别名展示与粘贴回退语义。
+- 不覆盖已有 `Ctrl+ArrowLeft/Right` 查看全部和抽屉操作。
+- 热键刷新只重设 bindings，不清空 feature handlers，不改 active layer，不影响搜索/多选状态。
+- 置顶状态不复制 item 内容，避免与 SQLite/JSON fallback 产生双写一致性问题。
+- 不全局抢占 `Ctrl/Cmd+V`；当前剪贴板临时项仅作为 `Ctrl/Cmd+Shift+V` 指令候选项，不在普通列表悬浮展示。
+- uTools 快捷粘贴只注册独立功能指令，由用户显式绑定 `Ctrl+Shift+V` / `Command+Shift+V`；不替换系统默认粘贴键。
+- 置顶项必须按当前 tab/search 过滤，不能污染搜索结果；当前剪贴板临时项只在快捷粘贴候选链中按最后 active view 过滤。
+- 若最后 active view 的顶部项为空，只提示无可粘贴项，不写入置顶状态。
+
+== 验证
+
+- `pnpm run build`
+- 文档链接校验：新增 plan 与需求方案内相对链接均能解析。
+- 代码检查：确认仅目标文件改动，未触碰无关业务代码。
+- 手动验证：`Alt+P` 置顶/取消置顶文本、图片、文件 item；多个置顶项最新在上；各 tab/search 下仅显示匹配置顶项；当前剪贴板临时项不在列表中悬浮展示；删除 item 后置顶状态清理。
+- uTools 手动验证：在 uTools 全局功能里把“粘贴置顶顶部项”绑定到 `Ctrl+Shift+V` / `Command+Shift+V`；从外部应用触发后，应粘贴隐藏前 tab 的顶部可展示项。

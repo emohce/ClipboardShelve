@@ -3,6 +3,62 @@
 **排序**：永远把**最新**一轮更新写在**最上面**（新的 `## 日期 — 标题` 区块插在紧接本说明之后，旧区块整体下推）。
 **用户向发布摘要**（须同步维护）：见 [publishLog.md](publishLog.md)；写法与约束见 `vibe/rules/release.md`。
 
+## 2026-06-10 — 交互优化 / 置顶功能 / 置顶组合 / 热键刷新 / uTools 全局快捷键
+
+### 变更摘要
+
+- **收藏删除高亮恢复**：修正收藏 tab 强制删除后的高亮锚点逻辑，删除后落到删除区间后的第一个保留项，而非异常回到第一项。
+- **标签编辑弹窗 Esc 拦截**：收藏条目 `F2` 打开标签/备注编辑弹窗后，`Esc` 只关闭当前弹窗，不穿透退出插件。
+- **别名清空语义修正**：区分"没有显式别名"和"用户显式清空别名"，清空别名后不再回退显示收藏标签/备注。
+- **单页滚动快捷键**：新增 `Alt+U` / `Alt+E` 单页上/下滚动，复用现有 `list-page-up/down` feature。
+- **缓存首尾跳转**：新增 `Ctrl+Shift+Left` / `Ctrl+Shift+Right` 跳到当前已缓存列表首/尾，不主动全量加载。
+- **置顶功能**：新增 `Alt+P` 置顶/取消置顶单个 item，置顶状态使用 `utools.dbStorage` 持久化，按当前 tab/search 筛选展示。
+- **置顶组合**：新增 `Alt+G` 多选组合编辑，组合作为独立存储和列表合成项，支持拖拽排序、`Alt+U/E` 批量移动、`Enter` 整体粘贴。
+- **热键运行态刷新**：增加 `HOTKEY_BINDINGS_VERSION` 与 `HOTKEY_BINDINGS_UPDATED_EVENT`，在设置保存、窗口聚焦、HMR 时自动刷新热键绑定。
+- **uTools 全局快捷键指令**：新增"粘贴置顶顶部项"和"循环粘贴置顶组合项"功能指令，支持用户绑定 `Ctrl+Shift+V` / `Command+Shift+V` 和 `Ctrl+Shift+P` / `Command+Shift+P`。
+
+### 关键文件
+
+| 路径 | 作用 |
+|------|------|
+| [src/views/Main.vue](src/views/Main.vue) | 删除恢复锚点修正、置顶项展示、组合合成项注入、uTools 指令处理 |
+| [src/cpns/ClipItemList.vue](src/cpns/ClipItemList.vue) | 别名 map 结构化清空标记、置顶操作、组合粘贴 |
+| [src/cpns/ClipItemRow.vue](src/cpns/ClipItemRow.vue) | 置顶图标展示 |
+| [src/cpns/PinGroupEditor.vue](src/cpns/PinGroupEditor.vue) | 组合编辑浮窗、拖拽排序、批量移动 |
+| [src/cpns/TagEditModal.vue](src/cpns/TagEditModal.vue) | Esc 拦截、tag-edit-close feature |
+| [src/cpns/HotkeyProvider.vue](src/cpns/HotkeyProvider.vue) | 热键运行态刷新 |
+| [src/global/hotkeyBindings.js](src/global/hotkeyBindings.js) | 新增快捷键绑定 |
+| [src/global/hotkeyLabels.js](src/global/hotkeyLabels.js) | 新增快捷键文案 |
+| [src/global/hotkeyRegistry.js](src/global/hotkeyRegistry.js) | Element Plus MessageBox Esc 拦截、热键版本记录 |
+| [src/storage/pinnedItems.js](src/storage/pinnedItems.js) | 置顶状态存储、组合存储 |
+| [src/storage/searchIndex.js](src/storage/searchIndex.js) | alias map 结构化值兼容 |
+| [src/storage/clipboardRepository.js](src/storage/clipboardRepository.js) | alias map 结构化值兼容 |
+| [src/utils/index.js](src/utils/index.js) | 别名清空标记、置顶操作 |
+| [src/views/Setting.vue](src/views/Setting.vue) | 热键刷新触发、uTools 指令配置入口 |
+| [scripts/utools-runtime-assets.mjs](scripts/utools-runtime-assets.mjs) | uTools 功能指令注册 |
+| [src/style/cpns/clip-item-list.less](src/style/cpns/clip-item-list.less) | 置顶图标样式 |
+
+### 风险 / 兼容性影响
+
+- **删除恢复锚点**：收藏子 tab 筛选下删除最后一项时，允许当前筛选列表为空，不强行跳到其他子 tab。
+- **别名清空语义**：清空别名不删除收藏标签/备注本身，只是禁止普通别名逻辑继续把它们当回退名。
+- **置顶状态存储**：只保存置顶元数据，不复制 item 内容，不改 SQLite/JSON 历史主数据。
+- **组合存储**：只保存 id/order/cursor，不复制 item 内容；删除历史项时清理组合引用，避免悬挂 id。
+- **热键刷新**：只重设 bindings，不清空 feature handlers，不改 active layer，不影响搜索/多选状态。
+- **uTools 指令**：只注册独立功能指令，由用户显式绑定快捷键；不替换系统默认粘贴键。
+
+### 验证状态
+
+- 已完成：`pnpm run build`、文档链接校验、代码检查。
+- 待你本机：在 uTools 环境验证删除恢复、弹窗 Esc、别名清空、翻页快捷键、置顶功能、组合编辑、uTools 全局快捷键指令。
+
+### 知识沉淀状态
+
+- 命中历史记录：参考 `EM-2026-04-08-clipboard-nav-scroll-search-layout` 的 IME/搜索焦点约束，保留 composition 防护。
+- 新增 Error Memory：无。
+- ADR：无。
+- Glossary：无。
+
 ## 2026-04-14 — 搜索覆盖扩展 / Enter 过滤一致性 / 检索偏好 ADR
 
 ### 变更摘要

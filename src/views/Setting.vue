@@ -395,6 +395,30 @@
                   </div>
                 </div>
               </div>
+              <div class="feature-config-row">
+                <div class="feature-config-meta">
+                  <div class="feature-config-title-row">
+                    <strong>快捷粘贴顶部项</strong>
+                    <HelpHint
+                      aria-label="查看快捷粘贴说明"
+                      content="这是 uTools 全局功能快捷键，不占用系统粘贴键；触发后按当前剪贴板、置顶项、当前筛选普通顶部项的顺序粘贴"
+                    />
+                  </div>
+                  <p class="feature-config-desc">
+                    建议在 uTools 全局功能中绑定 Ctrl/Command+Shift+V。
+                  </p>
+                </div>
+                <div class="feature-config-control">
+                  <el-button
+                    type="primary"
+                    plain
+                    class="feature-config-action"
+                    @click="openQuickPasteHotkeySetting"
+                  >
+                    去绑定
+                  </el-button>
+                </div>
+              </div>
             </div>
           </div>
         </div>
@@ -414,7 +438,10 @@ import { ElMessage, ElMessageBox } from 'element-plus'
 import setting, { saveSetting, syncSetting, getHoverPreviewConfig } from '../global/readSetting'
 import restoreSetting from '../global/restoreSetting'
 import defaultOperation from '../data/operation.json'
-import { getEffectiveBindings } from '../global/hotkeyBindings'
+import {
+  getEffectiveBindings,
+  HOTKEY_BINDINGS_UPDATED_EVENT
+} from '../global/hotkeyBindings'
 import { activateLayer, deactivateLayer } from '../global/hotkeyLayers'
 import { getLayerLabel, getFeatureLabel } from '../global/hotkeyLabels'
 import { buildHotkeyTree } from '../global/hotkeyGraph'
@@ -840,6 +867,15 @@ function validateFeatureConfig() {
   return true
 }
 
+function openQuickPasteHotkeySetting() {
+  const label = '粘贴置顶顶部项'
+  if (typeof utools !== 'undefined' && typeof utools?.redirectHotKeySetting === 'function') {
+    utools.redirectHotKeySetting(label)
+    return
+  }
+  ElMessage.info('当前环境不支持跳转，请在 uTools 全局功能中搜索“粘贴置顶顶部项”并绑定快捷键')
+}
+
 async function handleRetryStorageMigration() {
   if (typeof window.retryStorageMigration !== 'function') {
     ElMessage.error('当前环境不支持手动迁移重试')
@@ -892,6 +928,7 @@ const handleSaveBtnClick = () => {
     }
   }
   saveSetting(payload)
+  window.dispatchEvent?.(new CustomEvent(HOTKEY_BINDINGS_UPDATED_EVENT))
   ElMessage.success('保存成功，配置已热更新')
 }
 
@@ -931,6 +968,7 @@ const handleRestoreBtnClick = () => {
       const restoredHoverPreviewConfig = getHoverPreviewConfig(restored)
       hoverPreviewEnabled.value = restoredHoverPreviewConfig.enabled
       hoverPreviewDelay.value = restoredHoverPreviewConfig.delay
+      window.dispatchEvent?.(new CustomEvent(HOTKEY_BINDINGS_UPDATED_EVENT))
       ElMessage.success('重置成功，配置已热更新')
     })
     .catch(() => {})
@@ -1451,6 +1489,13 @@ onUnmounted(() => {
     color: var(--text-color);
   }
 }
+.feature-config-desc {
+  margin: 8px 0 0;
+  max-width: 360px;
+  color: var(--text-color-lighter);
+  font-size: 12px;
+  line-height: 1.5;
+}
 .feature-config-control {
   display: flex;
   align-items: center;
@@ -1460,6 +1505,10 @@ onUnmounted(() => {
   flex: 1 1 auto;
   min-width: 0;
   margin-left: auto;
+}
+.feature-config-action {
+  flex: 0 0 auto;
+  white-space: nowrap;
 }
 .feature-config-inline-row {
   display: inline-flex;
