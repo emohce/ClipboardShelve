@@ -21,11 +21,23 @@ export const normalizeQueryCursor = (cursor) => {
   return Math.max(0, Math.floor(n))
 }
 
+export const normalizeAliasMapEntry = (entry) => {
+  if (typeof entry === 'string') {
+    return { value: entry.trim(), cleared: false, exists: true }
+  }
+  if (entry && typeof entry === 'object') {
+    const value = typeof entry.value === 'string' ? entry.value.trim() : ''
+    return { value, cleared: entry.cleared === true, exists: true }
+  }
+  return { value: '', cleared: false, exists: false }
+}
+
 export const getAliasForItem = (item, aliasMap = {}) => {
   if (!item) return ''
+  const fromMap = normalizeAliasMapEntry(aliasMap?.[item.id])
+  if (fromMap.value) return fromMap.value
+  if (fromMap.cleared) return ''
   if (typeof item.alias === 'string' && item.alias.trim()) return item.alias.trim()
-  const fromMap = aliasMap?.[item.id]
-  if (typeof fromMap === 'string' && fromMap.trim()) return fromMap.trim()
   if (typeof item.remark === 'string' && item.remark.trim()) return item.remark.trim()
   if (Array.isArray(item.tags) && typeof item.tags[0] === 'string' && item.tags[0].trim()) {
     return item.tags[0].trim()

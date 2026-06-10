@@ -27,7 +27,7 @@ Tool: codex
 | 设置页 | [../../src/views/Setting.vue](../../src/views/Setting.vue:64) | 展示存储模式、迁移状态、路径、错误和重试按钮。 |
 | uTools 运行时资产 | [../../scripts/utools-runtime-assets.mjs](../../scripts/utools-runtime-assets.mjs:33) | preload 暴露 `statSync`，供迁移指纹和文件状态判断使用。 |
 | 发布说明 | [../../publishLog.md](../../publishLog.md:5) | 对外记录 v1.2.0 的性能、搜索、兼容和设置页变化。 |
-| 性能改造过程文档 | [../specs/performance-rewrite/README.md](../specs/performance-rewrite/README.md:1) | 记录本轮落地范围、保守处理和验证方向。 |
+| 性能改造过程文档 | [../specs/performance-rewrite/README.md](../specs/260609-performance-rewrite/README.md:1) | 记录本轮落地范围、保守处理和验证方向。 |
 
 ## 经常犯的错误归档
 

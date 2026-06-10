@@ -1,4 +1,4 @@
-import { buildSearchIndex, queryClipboardItems } from './searchIndex.js'
+import { buildSearchIndex, normalizeAliasMapEntry, queryClipboardItems } from './searchIndex.js'
 
 const ITEM_ALIAS_STORAGE_KEY = 'item.alias.map'
 
@@ -23,7 +23,10 @@ const asArray = (value) => (Array.isArray(value) ? value : [])
 const createAliasSignature = (aliasMap = {}) =>
   Object.keys(aliasMap)
     .sort()
-    .map((key) => `${key}:${aliasMap[key]}`)
+    .map((key) => {
+      const entry = normalizeAliasMapEntry(aliasMap[key])
+      return `${key}:${entry.value}:${entry.cleared ? 'cleared' : 'active'}`
+    })
     .join('|')
 
 export class ClipboardRepository {

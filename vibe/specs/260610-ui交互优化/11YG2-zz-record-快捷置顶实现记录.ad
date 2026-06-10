@@ -1,0 +1,30 @@
+= 快捷置顶实现记录
+
+== 结论
+
+已按 [7YG2-zz-raw-交互优化需求.ad](7YG2-zz-raw-交互优化需求.ad:15) 的追加需求-1 修正实现：普通列表只展示置顶项和原分页列表，不再悬浮展示当前剪贴板临时项；uTools “粘贴置顶顶部项”指令单独按当前剪贴板临时项、置顶项、普通顶部项的顺序取候选。
+
+== 代码落点
+
+- [../../../src/storage/pinnedItems.js](../../../src/storage/pinnedItems.js:1)：保存 `pin.item.map` 和 `pin.lastActiveContext`。
+- [../../../src/views/Main.vue](../../../src/views/Main.vue:770)：组合置顶项与普通列表；`quick-paste-top` 才显式包含当前剪贴板候选。
+- [../../../src/cpns/ClipItemList.vue](../../../src/cpns/ClipItemList.vue:2345)：注册 `list-pin-toggle`，由 `Alt+P` 触发。
+- [../../../src/global/hotkeyBindings.js](../../../src/global/hotkeyBindings.js:281)：绑定 `alt+p`。
+- [../../../src/views/Setting.vue](../../../src/views/Setting.vue:397)：在“功能配置”中提供 uTools 全局快捷键绑定入口。
+- [../../../scripts/utools-runtime-assets.mjs](../../../scripts/utools-runtime-assets.mjs:22)：注册 uTools 功能指令 `quick-paste-top`。
+
+== 行为规则
+
+- `Alt+P` 只切换当前高亮 item 的置顶状态。
+- 多个置顶项按 `pinnedAt desc` 排在普通列表上方。
+- 置顶项必须符合当前 tab、收藏子 tab、搜索词和锁定筛选。
+- 当前剪贴板临时项不在列表中悬浮展示。
+- `Ctrl/Cmd+Shift+V` 由用户绑定到 uTools 指令“粘贴置顶顶部项”，触发后按最后 active context 选择：当前剪贴板临时项 > 置顶项 > 普通列表首项。
+- 删除 item 后清理对应置顶状态。
+- 设置页入口只负责跳转 uTools 全局功能快捷键设置，不写入本插件设置。
+
+== 验证
+
+- 已执行 `pnpm run build`，构建通过。
+- 已执行 `pnpm run prepare:utools`，生成的 `dist/plugin.json` 包含 `quick-paste-top`。
+- 手动验证仍需在 uTools 中绑定全局快捷键后完成。
