@@ -210,6 +210,16 @@ export const HOTKEY_BINDINGS = [
     features: ["tag-edit-block"],
   },
 
+  // ---- pin-group-edit ----
+  { layer: "pin-group-edit", shortcutId: "Escape", features: ["pin-group-edit-close"] },
+  { layer: "pin-group-edit", shortcutId: "Enter", features: ["pin-group-edit-save"] },
+  { layer: "pin-group-edit", shortcutId: "ArrowUp", features: ["pin-group-edit-nav-up"] },
+  { layer: "pin-group-edit", shortcutId: "ArrowDown", features: ["pin-group-edit-nav-down"] },
+  { layer: "pin-group-edit", shortcutId: "Space", features: ["pin-group-edit-toggle-select"] },
+  { layer: "pin-group-edit", shortcutId: "alt+u", features: ["pin-group-edit-up"] },
+  { layer: "pin-group-edit", shortcutId: "alt+e", features: ["pin-group-edit-down"] },
+  { layer: "pin-group-edit", shortcutId: "*", features: ["pin-group-edit-block"] },
+
   // ---- main: search state (search panel expanded + filter) ----
   {
     layer: "main",
@@ -279,6 +289,7 @@ export const HOTKEY_BINDINGS = [
   { layer: "main", shortcutId: "shift+Enter", features: ["list-save-by-alias"] },
   { layer: "main", shortcutId: "ctrl+c", features: ["list-copy"] },
   { layer: "main", shortcutId: "alt+p", features: ["list-pin-toggle"] },
+  { layer: "main", shortcutId: "alt+g", features: ["pin-group-open"] },
   { layer: "main", shortcutId: "ctrl+s", features: ["list-collect"] },
   { layer: "main", shortcutId: "ctrl+u", features: ["list-lock"] },
   {

@@ -8,7 +8,7 @@
  */
 const LAYER_CATEGORIES = {
   normal: ['main'],
-  dialog: ['clear-dialog', 'clip-drawer', 'full-data-overlay', 'tag-search', 'tag-edit']
+  dialog: ['clear-dialog', 'clip-drawer', 'full-data-overlay', 'tag-search', 'tag-edit', 'pin-group-edit']
 }
 
 /**
@@ -21,7 +21,8 @@ const LAYER_ORDER = [
   'clip-drawer',
   'full-data-overlay',
   'tag-search',
-  'tag-edit'
+  'tag-edit',
+  'pin-group-edit'
 ]
 
 /**
