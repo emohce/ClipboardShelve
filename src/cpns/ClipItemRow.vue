@@ -8,6 +8,7 @@
             select: isSelected,
             'clip-item--compact': isCompact,
             'clip-item--has-image': item.type === 'image',
+            'clip-item--pin-group': item.__pinGroup,
         }"
         :aria-selected="isActive"
         role="option"
@@ -25,9 +26,15 @@
                     >✓</span
                 >
                 <span
-                    v-if="isCollected || item.locked"
+                    v-if="isPinned || isCollected || item.locked"
                     class="clip-status-icons"
                 >
+                    <span
+                        v-if="isPinned"
+                        class="clip-pin-icon"
+                        title="已置顶"
+                        aria-label="已置顶"
+                    >📌</span>
                     <span v-if="isCollected" class="clip-collect-icon">⭐</span>
                     <span
                         v-if="item.locked"
@@ -35,6 +42,7 @@
                         >🔒</span
                     >
                 </span>
+                <span v-if="item.__pinGroup" class="clip-pin-group-icon" aria-hidden="true">⧉</span>
                 <span class="relative-date">{{ dateFormat(item.updateTime) }}</span>
                 <div v-if="itemTags.length" class="clip-tags">
                     <span
@@ -46,7 +54,28 @@
                 </div>
             </div>
             <div class="clip-data">
-                <template v-if="item.type === 'text'">
+                <template v-if="item.__pinGroup">
+                    <div class="clip-pin-group-data">
+                        <div class="clip-pin-group-copy">
+                            <div class="clip-pin-group-summary">
+                                <div
+                                    v-for="(line, index) in pinGroupPreviewLines"
+                                    :key="`${index}-${line.name}`"
+                                    class="clip-pin-group-line"
+                                >
+                                    <span
+                                        v-if="line.type"
+                                        class="clip-pin-group-type"
+                                    >
+                                        {{ line.type }}
+                                    </span>
+                                    <span class="clip-pin-group-name">{{ line.name }}</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </template>
+                <template v-else-if="item.type === 'text'">
                     <div v-if="isCompact" class="clip-data-one-line">
                         <span v-if="hasAlias" class="clip-alias-primary">{{ itemAlias }}</span>
                         <span v-if="hasAlias" class="clip-alias-secondary">{{ textSingleLine }}</span>
@@ -210,6 +239,7 @@ const props = defineProps({
     isActive: { type: Boolean, required: true },
     isSelected: { type: Boolean, required: true },
     isCollected: { type: Boolean, required: true },
+    isPinned: { type: Boolean, default: false },
     showOperate: { type: Boolean, required: true },
     currentActiveTab: { type: String, required: true },
     isOverSizedContent: { type: Function, required: true },
@@ -249,6 +279,19 @@ const textSingleLine = computed(() => {
         .trim();
     if (s.length > 100) return `${s.slice(0, 97)}…`;
     return s;
+});
+const pinGroupPreviewLines = computed(() => {
+    const lines = Array.isArray(props.item.__pinGroupPreviewLines)
+        ? props.item.__pinGroupPreviewLines
+        : [];
+    if (!lines.length) return [{ type: "", name: textSingleLine.value }];
+    return lines.slice(0, 6).map((line) => {
+        if (typeof line === "string") return { type: "", name: line };
+        return {
+            type: line?.type || "",
+            name: line?.name || "项目",
+        };
+    });
 });
 const hasAlias = computed(() => Boolean(props.itemAlias && props.itemAlias.trim()));
 const fileSummaryLine = computed(() => {

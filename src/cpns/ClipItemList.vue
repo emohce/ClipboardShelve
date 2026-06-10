@@ -29,6 +29,7 @@
                         :is-active="activeIndex === index"
                         :is-selected="selectedItemIdSet.has(item.id)"
                         :is-collected="isItemCollected(item)"
+                        :is-pinned="isItemPinned(item)"
                         :show-operate="!isMultiple && activeIndex === index"
                         :current-active-tab="currentActiveTab"
                         :is-over-sized-content="isOverSizedContent"
@@ -198,6 +199,10 @@ const props = defineProps({
         type: Set,
         default: undefined,
     },
+    pinnedMap: {
+        type: Object,
+        default: () => ({}),
+    },
 });
 const emit = defineEmits([
     "onDataChange",
@@ -209,6 +214,8 @@ const emit = defineEmits([
     "openCleanDialog",
     "openTagEdit",
     "togglePin",
+    "pastePinGroupAll",
+    "editPinGroup",
     "loadMore",
 ]);
 const isItemCollected = (item) => {
@@ -220,6 +227,7 @@ const isItemCollected = (item) => {
         ? props.collectedIds.has(item.id)
         : Boolean(window?.db?.isCollected?.(item.id));
 };
+const isItemPinned = (item) => Boolean(item?.id && props.pinnedMap?.[item.id]);
 const isOverSizedContent = (item) => {
     const { type, data } = item;
     if (type === "text") {
@@ -2206,6 +2214,10 @@ function registerListHotkeyFeatures() {
         if (isAliasDialogOpen()) return false;
         if (isFocusInSearch()) return false;
         const item = props.showList[activeIndex.value];
+        if (item?.__pinGroup) {
+            emit("editPinGroup");
+            return true;
+        }
         if (item) {
             emit("onDataChange", item);
             return true;
@@ -2239,6 +2251,10 @@ function registerListHotkeyFeatures() {
                 persist: true,
                 exit: true,
             });
+            return true;
+        }
+        if (props.showList[activeIndex.value]?.__pinGroup) {
+            emit("pastePinGroupAll");
             return true;
         }
         if (props.showList[activeIndex.value])
