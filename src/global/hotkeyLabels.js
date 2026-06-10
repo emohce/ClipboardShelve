@@ -12,7 +12,8 @@ export const LAYER_LABELS = {
   'clip-drawer': '剪贴板抽屉',
   'full-data-overlay': '全文预览',
   'tag-search': '标签搜索',
-  'tag-edit': '标签编辑'
+  'tag-edit': '标签编辑',
+  'pin-group-edit': '置顶组合编辑'
 }
 
 export const FEATURE_LABELS = {
@@ -59,6 +60,14 @@ export const FEATURE_LABELS = {
   'tag-edit-close': '关闭标签编辑',
   'tag-edit-focus-tab': '在标签编辑项之间切换焦点',
   'tag-edit-block': '拦截其他按键',
+  'pin-group-edit-close': '关闭置顶组合编辑',
+  'pin-group-edit-save': '保存置顶组合',
+  'pin-group-edit-nav-up': '置顶组合内上移高亮',
+  'pin-group-edit-nav-down': '置顶组合内下移高亮',
+  'pin-group-edit-toggle-select': '置顶组合内切换选中',
+  'pin-group-edit-up': '置顶组合内上移选中项',
+  'pin-group-edit-down': '置顶组合内下移选中项',
+  'pin-group-edit-block': '拦截置顶组合编辑外按键',
 
   'search-delete-normal': '搜索中删除选中项',
   'search-delete-force': '搜索中强制删除选中项',
@@ -97,6 +106,7 @@ export const FEATURE_LABELS = {
   'list-save-by-alias': '别名保存触发（单文件重命名粘贴）',
   'list-copy': '复制选中项',
   'list-pin-toggle': '置顶/取消置顶选中项',
+  'pin-group-open': '编辑多选置顶组合',
   'list-collect': '收藏/取消收藏选中项目',
   'list-lock': '锁定/解锁选中项目',
   'open-clear-dialog': '打开清除记录对话框',
