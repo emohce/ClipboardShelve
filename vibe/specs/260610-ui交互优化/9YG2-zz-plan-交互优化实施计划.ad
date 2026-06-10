@@ -8,6 +8,8 @@
 
 追加替代快捷粘贴方案：不全局抢占系统 `Ctrl/Cmd+V`；新增 uTools 功能指令“粘贴置顶顶部项”，由用户在 uTools 全局功能中绑定 `Ctrl+Shift+V` / `Command+Shift+V`，触发后按隐藏前 tab 的展示逻辑粘贴顶部可展示项。
 
+追加组合置顶方案：按 [12YG2-zz-analysis-置顶组合需求.ad](12YG2-zz-analysis-置顶组合需求.ad:1) 实施 `Alt+G` 多选组合编辑、顶部组合合成项、组合独立存储、`Enter` 整体粘贴和 uTools 全局快捷键循环粘贴。
+
 == 修改文件
 
 - [../../../src/views/Main.vue](../../../src/views/Main.vue:1206)
@@ -21,6 +23,7 @@
 - [../../../src/storage/searchIndex.js](../../../src/storage/searchIndex.js:24)
 - [../../../src/storage/clipboardRepository.js](../../../src/storage/clipboardRepository.js:23)
 - [../../../src/storage/pinnedItems.js](../../../src/storage/pinnedItems.js:1)
+- [../../../src/cpns/PinGroupEditor.vue](../../../src/cpns/PinGroupEditor.vue:1)
 - [../../../src/utils/index.js](../../../src/utils/index.js:85)
 - [../../../scripts/utools-runtime-assets.mjs](../../../scripts/utools-runtime-assets.mjs:16)
 
@@ -83,6 +86,25 @@
    - 调用 [../../../src/utils/index.js](../../../src/utils/index.js:315) 的现有粘贴链路执行粘贴，并保留图片粘贴保护。
    - [../../../src/views/Setting.vue](../../../src/views/Setting.vue:888) 可增加“配置快捷粘贴”入口，调用 `utools.redirectHotKeySetting("粘贴置顶顶部项")` 引导用户到 uTools 全局功能设置页绑定快捷键。
 
+11. `Alt+G` 置顶组合
+   - 在 [../../../src/global/hotkeyBindings.js](../../../src/global/hotkeyBindings.js:281) 增加 `alt+g -> pin-group-open`。
+   - 仅在多选后触发；无多选项时提示先选择组合条目。
+   - 新增 [../../../src/cpns/PinGroupEditor.vue](../../../src/cpns/PinGroupEditor.vue:1)，展示当前多选项，支持拖拽排序、`Alt+U` 上移、`Alt+E` 下移、`Enter` 保存和 `Esc` 关闭。
+   - 高亮在组合合成项时，复用 `Shift+F2` 重新打开组合编辑器；普通 item 仍保持查看全部语义。
+   - 编辑浮窗底部按钮只保留取消和保存，并显示 `Esc` / `Enter` 小字幕。
+   - 编辑浮窗启用独立 hotkey layer `pin-group-edit`，拦截其他按键，避免穿透到底层列表。
+
+12. 组合存储与展示
+   - 在 [../../../src/storage/pinnedItems.js](../../../src/storage/pinnedItems.js:1) 扩展 `pin.group`：`{ itemIds: string[], cursor: number, updatedAt: number }`。
+   - [../../../src/views/Main.vue](../../../src/views/Main.vue:1189) 在最终展示列表顶部注入组合合成项；组合项高于普通置顶项展示，但不影响组合内 item 在原列表中的展示。
+   - 组合合成项参与正常列表导航；高亮在组合项时 `Enter` 一次性粘贴整个组合。
+   - 删除 item 时同步从 `pin.group.itemIds` 中清理。
+
+13. 组合循环粘贴指令
+   - 在 [../../../scripts/utools-runtime-assets.mjs](../../../scripts/utools-runtime-assets.mjs:16) 增加 `quick-paste-pin-group`，`cmds: ["循环粘贴置顶组合项"]`。
+   - 用户可在 uTools 全局功能中绑定 `Ctrl+Shift+P` / `Command+Shift+P`。
+   - 每次触发按 `pin.group.cursor` 粘贴当前项，成功后游标推进到下一项；没有组合则忽略。
+
 == 风险控制
 
 - 不改列表滚动容器，不改 `ClipSwitch` / `clip-break` 结构。
@@ -95,6 +117,8 @@
 - uTools 快捷粘贴只注册独立功能指令，由用户显式绑定 `Ctrl+Shift+V` / `Command+Shift+V`；不替换系统默认粘贴键。
 - 置顶项必须按当前 tab/search 过滤，不能污染搜索结果；当前剪贴板临时项只在快捷粘贴候选链中按最后 active view 过滤。
 - 若最后 active view 的顶部项为空，只提示无可粘贴项，不写入置顶状态。
+- 组合只保存 id/order/cursor，不复制 item 内容；删除历史项时清理组合引用，避免悬挂 id。
+- 组合编辑浮窗必须使用独立热键层，不允许 `Alt+U/E` 穿透触发底层列表翻页。
 
 == 验证
 
@@ -103,3 +127,5 @@
 - 代码检查：确认仅目标文件改动，未触碰无关业务代码。
 - 手动验证：`Alt+P` 置顶/取消置顶文本、图片、文件 item；多个置顶项最新在上；各 tab/search 下仅显示匹配置顶项；当前剪贴板临时项不在列表中悬浮展示；删除 item 后置顶状态清理。
 - uTools 手动验证：在 uTools 全局功能里把“粘贴置顶顶部项”绑定到 `Ctrl+Shift+V` / `Command+Shift+V`；从外部应用触发后，应粘贴隐藏前 tab 的顶部可展示项。
+- 组合手动验证：多选若干 item 后 `Alt+G` 打开组合编辑；拖拽和 `Alt+U/E` 调整顺序；保存后各 tab 顶部出现组合合成项；方向键和 `Alt+U/E` 可高亮到组合项；高亮在组合项时 `Enter` 一次性粘贴整个组合，`Shift+F2` 重新编辑排序；删除 item 后组合引用清理。
+- 组合 uTools 验证：绑定“循环粘贴置顶组合项”为 `Ctrl+Shift+P` / `Command+Shift+P`，连续触发应按组合顺序循环粘贴。
