@@ -13,7 +13,7 @@
 - **单页滚动快捷键**：新增 `Alt+U` / `Alt+E` 单页上/下滚动，复用现有 `list-page-up/down` feature。
 - **缓存首尾跳转**：新增 `Ctrl+Shift+Left` / `Ctrl+Shift+Right` 跳到当前已缓存列表首/尾，不主动全量加载。
 - **置顶功能**：新增 `Alt+P` 置顶/取消置顶单个 item，置顶状态使用 `utools.dbStorage` 持久化，按当前 tab/search 筛选展示。
-- **置顶组合**：新增 `Alt+G` 多选组合编辑，组合作为独立存储和列表合成项，支持拖拽排序、`Alt+U/E` 批量移动、`Enter` 整体粘贴。
+- **置顶组合**：新增 `Alt+G` 多选组合编辑，组合作为独立存储和列表合成项，支持拖拽排序、`Alt+U/E` 批量移动、`Enter` 整体粘贴。组合编辑器内 `Alt+G` 或 `Ctrl+Delete/Backspace` 清空组合；在列表中对组合项按 `Alt+G` 直接清空。
 - **热键运行态刷新**：增加 `HOTKEY_BINDINGS_VERSION` 与 `HOTKEY_BINDINGS_UPDATED_EVENT`，在设置保存、窗口聚焦、HMR 时自动刷新热键绑定。
 - **uTools 全局快捷键指令**：新增"粘贴置顶顶部项"和"循环粘贴置顶组合项"功能指令，支持用户绑定 `Ctrl+Shift+V` / `Command+Shift+V` 和 `Ctrl+Shift+P` / `Command+Shift+P`。
 
