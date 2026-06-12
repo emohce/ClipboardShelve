@@ -1,5 +1,7 @@
 # Feature: <feature-name>
 
+Tool: codex
+
 ## 1. 目标
 - 
 
@@ -12,14 +14,28 @@
 ## 4. 非目标
 - 
 
-## 5. 验收标准
+## 5. 知识上下文
+- required:
+  - [Project status](../PROJECT_STATUS.md)
+  - [Memory index](../../knowledge/MEMORY_INDEX.md)
+- related:
+- new memory candidates:
+- memory routing: none
+
+## 6. 范围防偏
+- in scope:
+- out of scope:
+- must preserve:
+- stop and confirm when:
+
+## 7. 验收标准
 - 
 
-## 6. 边界与异常
+## 8. 边界与异常
 - 
 
-## 7. 影响范围
+## 9. 影响范围
 - 
 
-## 8. 待确认项
+## 10. 待确认项
 - 无
