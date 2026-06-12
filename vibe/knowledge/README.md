@@ -9,6 +9,8 @@ Tool: codex
 
 ## Authoritative Locations
 
+- Memory reference index: [MEMORY_INDEX.md](MEMORY_INDEX.md)
+- Technical details: [technical-details.md](technical-details.md)
 - Error memory: [error-memory/README.md](error-memory/README.md)
 - ADR: [adr/README.md](adr/README.md)
 - Active specs: [../specs/README.md](../specs/README.md)
@@ -26,3 +28,4 @@ Tool: codex
 - Keep reusable project facts here; keep cross-project rules in CodeNote.
 - Do not delete historical documents without preserving useful conclusions and replacement links.
 - Before adding memory, search existing records and update the authoritative one when possible.
+- Medium or larger tasks must cite [MEMORY_INDEX.md](MEMORY_INDEX.md) in their knowledge context and record memory routing at closeout.

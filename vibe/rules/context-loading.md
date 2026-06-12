@@ -15,6 +15,8 @@ Always load:
 - Project constraints: [project.md](project.md)
 - Workflow and verification: [workflow.md](workflow.md)
 - Knowledge routing: [knowledge.md](knowledge.md)
+- Memory reference index: [../knowledge/MEMORY_INDEX.md](../knowledge/MEMORY_INDEX.md)
+- Project process hub: [../specs/PROJECT_STATUS.md](../specs/PROJECT_STATUS.md)
 - Global CodeNote rules: [../../../CzzProj/CodeNote/AiRef/VibePractice/Vibe_Rules/VibeAi.md](../../../CzzProj/CodeNote/AiRef/VibePractice/Vibe_Rules/VibeAi.md)
 
 ## Tool Adapters
@@ -33,7 +35,8 @@ Always load:
 | Storage / migration / performance | [../vibe-doc/ai-error-memory/2026-06-09-storage-performance-rewrite-pitfalls.md](../vibe-doc/ai-error-memory/2026-06-09-storage-performance-rewrite-pitfalls.md), [../specs/performance-rewrite/README.md](../specs/260609-performance-rewrite/README.md) |
 | Search / navigation / deletion | [../vibe-doc/ai-error-memory/2026-04-08-clipboard-nav-scroll-search-layout.md](../vibe-doc/ai-error-memory/2026-04-08-clipboard-nav-scroll-search-layout.md) |
 | uTools runtime assets | [../vibe-doc/ai-error-memory/2026-04-10-utools-runtime-assets.md](../vibe-doc/ai-error-memory/2026-04-10-utools-runtime-assets.md) |
-| Documentation / memory | [knowledge.md](knowledge.md), [../vibe-doc/ai-error-memory/README.md](../vibe-doc/ai-error-memory/README.md) |
+| Documentation / memory | [knowledge.md](knowledge.md), [../knowledge/MEMORY_INDEX.md](../knowledge/MEMORY_INDEX.md), [../vibe-doc/ai-error-memory/README.md](../vibe-doc/ai-error-memory/README.md) |
+| Process / project progress | [../specs/PROJECT_STATUS.md](../specs/PROJECT_STATUS.md), [../specs/README.md](../specs/README.md) |
 
 ## Do Not
 

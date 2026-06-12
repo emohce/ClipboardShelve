@@ -6,6 +6,12 @@ Tool: codex
 
 Use this directory for new process docs: `spec.md`, `plan.md`, `tasks.md`, `verify.md`, and `handoff.md` when needed.
 
+## Project Status Hub
+
+- Global progress and current focus: [PROJECT_STATUS.md](PROJECT_STATUS.md)
+- Read the hub before creating a new task directory or continuing a large existing task.
+- Update the hub when task status, authoritative process docs, or implementation focus changes.
+
 ## Legacy / Related Spec Sources
 
 - `vibe/specs/`: 68 Markdown files
