@@ -12,7 +12,11 @@ function getUToolsRuntime() {
   return null
 }
 
-function installPluginEnterMultiplexer() {
+export function installPluginEnterMultiplexer() {
+  return installPluginEnterMultiplexerInternal()
+}
+
+function installPluginEnterMultiplexerInternal() {
   if (installed) return true
   const runtime = getUToolsRuntime()
   if (!runtime || typeof runtime.onPluginEnter !== 'function') return false
@@ -36,7 +40,7 @@ function installPluginEnterMultiplexer() {
 export function registerPluginEnterHandler(handler) {
   if (typeof handler !== 'function') return () => {}
   handlers.add(handler)
-  installPluginEnterMultiplexer()
+  installPluginEnterMultiplexerInternal()
   return () => {
     handlers.delete(handler)
   }

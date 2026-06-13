@@ -1,5 +1,7 @@
 import { ensureDevDbStub } from './global/devDbStub'
 import initPlugin from './global/initPlugin'
+import { installPluginEnterMultiplexer } from './global/pluginEnterHandlers'
+import { flushPendingQuickPasteActions } from './global/quickPasteRuntime'
 import { createApp } from 'vue'
 import App from './App.vue'
 import registerElement from './global/registerElement'
@@ -37,6 +39,7 @@ window.addEventListener(STORAGE_STATUS_EVENT, handleBootstrapStorageStatus)
 ;(async () => {
   try {
     renderStorageBootstrapStatus()
+    installPluginEnterMultiplexer()
     await initPlugin()
   } catch (err) {
     console.warn('[main] initPlugin 未完成:', err)
@@ -47,4 +50,5 @@ window.addEventListener(STORAGE_STATUS_EVENT, handleBootstrapStorageStatus)
   const app = createApp(App)
   app.use(registerElement)
   app.mount('#app')
+  flushPendingQuickPasteActions()
 })()

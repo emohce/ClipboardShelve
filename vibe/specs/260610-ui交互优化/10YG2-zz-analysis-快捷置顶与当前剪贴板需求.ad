@@ -4,9 +4,9 @@
 
 `Alt+P` 快捷置顶/取消置顶单个 item 的前 3 项需求合理，可以在现有列表查询与热键系统上实现。
 
-第 4 项“全局监听 `Ctrl/Cmd+V`，只要外部粘贴了就替换隐藏前 tab 的置顶项”为高风险需求，不建议按“注册全局 `CommandOrControl+V`”实现。修正后的产品语义是：普通列表不悬浮展示当前剪贴板临时项；当前剪贴板只在 uTools 独立全局快捷键指令触发时作为顶部候选项参与粘贴。
+第 4 项“全局监听 `Ctrl/Cmd+V`”为高风险需求，不建议实现。现行产品语义：普通列表不悬浮展示当前剪贴板临时项；`quick-paste-top` 只取单项置顶（见 [../../../vibe/knowledge/quick-paste-runtime.md](../../../vibe/knowledge/quick-paste-runtime.md)）。
 
-可替代实现：新增一个 uTools 功能指令，例如“粘贴置顶顶部项”，由用户在 uTools「全局快捷键/全局功能」中绑定为 `Ctrl/Cmd+Shift+V`。触发该指令时，不拦截系统 `Ctrl/Cmd+V`，而是按插件记录的最后 active tab 计算候选顺序：当前剪贴板临时项 > 置顶项 > 普通列表首项，并执行复制粘贴。
+可替代实现：uTools 功能指令「粘贴置顶项」，用户自行绑定全局快捷键；静默粘贴使用 `hideMainWindowPaste*` 原生 API。
 
 == 原始需求拆解
 
@@ -26,7 +26,7 @@
 - 多 item 置顶可以存为 `utools.dbStorage` 轻量索引，不需要改剪贴板历史主表。
 - “最新置顶在上”可通过 `pinnedAt` 倒序实现。
 - tab 内筛选展示可复用查询结果匹配逻辑，至少要对 `type`、收藏状态、收藏标签、搜索关键词和锁定筛选保持一致：[../../../src/storage/searchIndex.js](../../../src/storage/searchIndex.js:85)、[../../../src/storage/clipboardRepository.js](../../../src/storage/clipboardRepository.js:106)。
-- 当前剪贴板临时项不进入常规列表展示；快捷粘贴指令可直接复用当前历史顶部项作为候选，不需要新增列表悬浮状态。
+- 当前剪贴板临时项不进入常规列表展示，也不参与 `quick-paste-top`。
 
 === 需要降级或拆分
 
@@ -55,17 +55,14 @@
 
 === 当前剪贴板临时项
 
-- 当前剪贴板临时项不是置顶项，不写入 pinned map。
-- 它不在常规列表中悬浮展示，避免和用户主动置顶项争抢视觉优先级。
-- 它只在 uTools “粘贴置顶顶部项”指令触发时作为第一候选；若不符合最后 active view 筛选，则继续尝试置顶项和普通顶部项。
+- 不是置顶项，不写入 pinned map。
+- 不在常规列表中悬浮展示。
+- 不参与 `quick-paste-top`。
 
-=== 外部粘贴事件
+=== 外部粘贴 / 快捷粘贴
 
-建议拆成两级：
-
-- Level 1：不全局拦截 `Ctrl/Cmd+V`。只实现用户主动置顶项在普通列表上方展示，当前剪贴板临时项不进入列表展示。
-- Level 2：新增 uTools 功能指令“粘贴置顶顶部项”，用户绑定 `Ctrl/Cmd+Shift+V`；触发时按“当前剪贴板临时项 > 置顶项 > 普通列表首项”选择顶部候选项并粘贴。
-- Level 3：仅作为实验开关，研究原生键盘 hook 或 Electron `globalShortcut`。即使实现，也不应默认抢占 `Ctrl/Cmd+V`，应避免破坏用户在外部应用的正常粘贴。
+- 不全局拦截 `Ctrl/Cmd+V`。
+- `quick-paste-top` / `quick-paste-pin-group` 规则见 [../../../vibe/knowledge/quick-paste-runtime.md](../../../vibe/knowledge/quick-paste-runtime.md)。
 
 == 建议数据结构
 
@@ -119,14 +116,12 @@ pin.lastActiveContext = {
 
 5. 当前剪贴板临时项
    - 不进入常规列表展示，不新增悬浮行。
-   - 只在 `quick-paste-top` 指令内作为候选项参与顶部粘贴。
-   - 插件自身 `copyAndPasteAndExit` 路径继续使用现有粘贴链路：[../../../src/utils/index.js](../../../src/utils/index.js:315)。
+   - 不参与 `quick-paste-top`（该指令只取单项置顶）。
 
 6. uTools 全局快捷键指令
-   - 在 [../../../scripts/utools-runtime-assets.mjs](../../../scripts/utools-runtime-assets.mjs:16) 的 `pluginManifest.features` 增加功能指令，例如 `code: "quick-paste-top"`，`cmds: ["粘贴置顶顶部项"]`。
-   - 在 `utools.onPluginEnter` 中区分进入的 feature code；当 code 为 `quick-paste-top` 时，不进入常规列表操作，而是计算最后 active tab 的顶部可展示项并执行 `copyAndPasteAndExit(item, { respectImageCopyGuard: true })`。
+   - 注册 `quick-paste-top`；进入与粘贴规则见 [../../../vibe/knowledge/quick-paste-runtime.md](../../../vibe/knowledge/quick-paste-runtime.md)。
    - 在 [../../../src/views/Main.vue](../../../src/views/Main.vue:1395) 维护 `pin.lastActiveTab`，tab 切换、搜索/收藏子 tab 变化时更新。
-   - 设置页可提供一个按钮调用 `utools.redirectHotKeySetting("粘贴置顶顶部项")`，引导用户将 Windows 的 `Ctrl+Shift+V` 与 macOS 的 `Command+Shift+V` 分别绑定到该指令。
+   - 设置页可调用 `utools.redirectHotKeySetting("粘贴置顶项")` 引导用户绑定快捷键。
 
 == 第 4 点的可行性判断
 
@@ -148,12 +143,12 @@ pin.lastActiveContext = {
 - 当前剪贴板临时项：从外部复制新内容后，插件重新打开或列表刷新时不在列表中悬浮展示。
 - 去重：置顶项、普通列表中同一 id 只显示一次。
 - 删除 item：删除后置顶状态被清理。
-- uTools 全局快捷键：在 uTools 设置中把“粘贴置顶顶部项”绑定到 `Ctrl+Shift+V` / `Command+Shift+V`，从外部应用触发后，应粘贴隐藏前 tab 的顶部可展示项。
+- uTools 全局快捷键：绑定「粘贴置顶项」后，应粘贴符合 last context 的单项置顶最上方条目。
 
 == 当前状态
 
 - 需求已梳理。
 - 前 3 项判定为可实施。
-- 第 4 项已修正为“当前剪贴板临时项不进入列表展示，仅作为 uTools 快捷粘贴候选项”。
-- 替代方案“uTools 全局快捷键绑定自定义指令 `Ctrl/Cmd+Shift+V` 粘贴顶部项”判定为可实施。
+- 第 4 项已修正为“当前剪贴板临时项不进入列表展示，不参与快捷粘贴置顶”。
+- 替代方案“uTools 全局快捷键绑定自定义指令粘贴置顶项”判定为可实施；现行规则见 [../../../vibe/knowledge/quick-paste-runtime.md](../../../vibe/knowledge/quick-paste-runtime.md)。
 - 尚未写代码实现置顶功能。

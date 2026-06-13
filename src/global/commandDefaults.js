@@ -9,7 +9,7 @@ const LAYER_WHEN_MAP = {
   'pin-group-edit': 'pinGroupEditOpen'
 }
 
-const PASTE_COMMAND_SETTLE_AFTER_MS = 180
+export const PASTE_COMMAND_SETTLE_AFTER_MS = 180
 
 const COMMAND_DEFINITIONS = [
   ['setting.scroll.up', 'setting-scroll-up', 'setting', 'Setting scroll up'],

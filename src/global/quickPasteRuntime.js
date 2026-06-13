@@ -18,6 +18,12 @@ const QUICK_PASTE_TOP_CODE = 'quick-paste-top'
 const QUICK_PASTE_GROUP_CODE = 'quick-paste-pin-group'
 const PIN_GROUP_CACHE_ENTRY_TYPE = 'clipboard-item'
 const PASTEABLE_CLIPBOARD_ITEM_TYPES = new Set(['text', 'image', 'file'])
+const QUICK_PASTE_OPTIONS = {
+  respectImageCopyGuard: true,
+  useHideMainWindowPaste: true,
+  skipResetPluginUiState: true,
+  markExitingPlugin: true
+}
 
 let quickPasteInFlight = false
 let disposeQuickPasteEnterHandler = null
@@ -25,6 +31,12 @@ let pinGroupRuntimeCache = null
 
 export const isQuickPasteEnterAction = (action) =>
   action?.code === QUICK_PASTE_TOP_CODE || action?.code === QUICK_PASTE_GROUP_CODE
+
+const hideQuickPasteWindow = () => {
+  if (typeof utools !== 'undefined' && typeof utools.hideMainWindow === 'function') {
+    utools.hideMainWindow()
+  }
+}
 
 const parseStarFilter = (raw) => {
   const value = raw ?? ''
@@ -162,20 +174,46 @@ export function runQuickPasteAction(action, options = {}) {
   try {
     if (code === QUICK_PASTE_TOP_CODE) {
       const item = resolveQuickPastePinnedItem(getPinnedItemsForContext(getLastActiveContext(), db))
-      return item ? copyAndPasteAndExit(item, { respectImageCopyGuard: true }) : false
+      if (!item) {
+        hideQuickPasteWindow()
+        return false
+      }
+      return copyAndPasteAndExit(item, QUICK_PASTE_OPTIONS)
     }
 
     const cache = getQuickPastePinGroupCache(db)
     const { item, nextIndex } = resolvePinGroupCacheCursorEntry(cache, { cursor: cache.cursor })
-    const ok = item ? copyAndPasteAndExit(item, { respectImageCopyGuard: true }) : false
+    if (!item) {
+      hideQuickPasteWindow()
+      return false
+    }
+    const ok = copyAndPasteAndExit(item, QUICK_PASTE_OPTIONS)
     if (ok) {
       const saved = savePinGroup(cache.itemIds, { cursor: nextIndex })
       cache.cursor = saved.cursor
       cache.updatedAt = saved.updatedAt
+    } else {
+      hideQuickPasteWindow()
     }
     return ok
+  } catch (err) {
+    console.warn('[quickPasteRuntime] runQuickPasteAction failed:', err)
+    hideQuickPasteWindow()
+    return false
   } finally {
     quickPasteInFlight = false
+  }
+}
+
+export function flushPendingQuickPasteActions(options = {}) {
+  let pending = consumePendingPluginEnterAction(isQuickPasteEnterAction, {
+    maxAgeMs: options.pendingMaxAgeMs || 5000
+  })
+  while (pending) {
+    runQuickPasteAction(pending, options)
+    pending = consumePendingPluginEnterAction(isQuickPasteEnterAction, {
+      maxAgeMs: options.pendingMaxAgeMs || 5000
+    })
   }
 }
 
@@ -186,12 +224,6 @@ export function registerQuickPasteRuntime(options = {}) {
     return runQuickPasteAction(action, options)
   }
   disposeQuickPasteEnterHandler = registerPluginEnterHandler(run)
-
-  let pending = consumePendingPluginEnterAction(isQuickPasteEnterAction, { maxAgeMs: options.pendingMaxAgeMs || 5000 })
-  while (pending) {
-    run(pending)
-    pending = consumePendingPluginEnterAction(isQuickPasteEnterAction, { maxAgeMs: options.pendingMaxAgeMs || 5000 })
-  }
 
   return disposeQuickPasteEnterHandler
 }

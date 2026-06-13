@@ -27,6 +27,9 @@ export function ensureDevRuntimeStub() {
       onPluginEnter: () => {},
       onPluginOut: () => {},
       hideMainWindow: () => {},
+      hideMainWindowPasteText: () => true,
+      hideMainWindowPasteImage: () => true,
+      hideMainWindowPasteFile: () => true,
       getCurrentWindow: () => ({ setSize: () => {}, getSize: () => [0, 0] }),
       shellExec: () => ({ stdout: '', stderr: '' })
     }
