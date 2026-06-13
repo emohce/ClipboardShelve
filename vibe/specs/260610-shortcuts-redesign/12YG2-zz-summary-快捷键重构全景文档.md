@@ -9,7 +9,8 @@ Tool: codex
 - 需求闭环：覆盖 command 主体、when 条件、冲突判断、用户改键、恢复默认、禁用、SQLite 分层、设置页工作台和组合命令扩展。
 - 技术闭环：运行时 dispatch 已由 resolver 命中 command-aware binding；业务组件已通过 command/feature pair 注册；SQLite 快捷键表和 setting fallback 并行；组合命令已接入运行时快捷键执行。
 - UI 闭环：设置页已有 command 表格、搜索、筛选、风险标记、存储来源状态、录制改键、When 图形/文本双模式、组合命令列表、草稿编辑和右键菜单审计入口。
-- 剩余非终局项：macro 暂只允许非写入 command，且缺少冲突前置合并视图；复杂 AST 可视化和 uTools 生产壳首次迁移验证仍是后续增强项。审计文档已同步 macro dispatch 与右键统一第一阶段状态。
+- **已完成（2026-06-13）**：command 级多键绑定、action 级 enable/disable、场景化保留规则表、改键弹窗重构 — 见 [260613-SettingUiModify/260613-shortcut-multi-key-plan.md](../260613-SettingUiModify/260613-shortcut-multi-key-plan.md)。
+- 剩余非终局项：macro 暂只允许非写入 command；uTools 生产壳首次迁移验证；图形化 When AST 可视化。
 
 == 文档来源
 
@@ -18,6 +19,7 @@ Tool: codex
 - 实施计划与进度：[9YG2-zz-plan-快捷键命令系统重构实施计划.ad](9YG2-zz-plan-快捷键命令系统重构实施计划.ad:1)
 - 一致性清单：[10YG2-zz-audit-快捷键命令系统一致性清单.ad](10YG2-zz-audit-快捷键命令系统一致性清单.ad:1)
 - SQLite 迁移设计：[11YG2-zz-plan-快捷键SQLite迁移设计.ad](11YG2-zz-plan-快捷键SQLite迁移设计.ad:1)
+- **多键绑定与改键弹窗（已完成）**：[260613-SettingUiModify/260613-shortcut-multi-key-plan.md](../260613-SettingUiModify/260613-shortcut-multi-key-plan.md)
 
 == 原始需求抽象
 
@@ -230,7 +232,13 @@ when 决定“是否尝试触发”，handler 决定“业务上是否允许执�
 
 === 6. 冲突判断要承认不确定性
 
-复杂 when 表达式不一定能完全静态证明互斥。保守提示“可能冲突”比静默覆盖更符合用户信任，后续可通过图形化构建器降低误报。
+复杂 when 表达式不一定能完全静态证明互斥。**改键录入**采用硬阻断（不允许添加冲突键）；**When 编辑**等场景仍可保留保守提示。场景化保留规则（commandId + when）替代全局键黑名单。
+
+=== 6b. command 级多键与 action 禁用（2026-06-13 已实现）
+
+- Override 形态：`cmd:${commandId}` + `{ shortcutIds[], when?, enabled }`；`enabled: false` 仅阻断触发，键位保留。
+- 改键弹窗：底部单行录制 → ✅ → 待绑定区；确定合并当前+待绑定；仅顶栏保存落盘。
+- 详见 [260613-shortcut-multi-key-plan.md](../260613-SettingUiModify/260613-shortcut-multi-key-plan.md)。
 
 === 7. 高级能力先限制副作用，再开放表达力
 
@@ -242,6 +250,7 @@ when 决定“是否尝试触发”，handler 决定“业务上是否允许执�
 
 == 后续建议
 
+0. ~~**当前主任务**~~：已实现 [260613-shortcut-multi-key-plan.md](../260613-SettingUiModify/260613-shortcut-multi-key-plan.md)。
 1. 更新 [10YG2-zz-audit-快捷键命令系统一致性清单.ad](10YG2-zz-audit-快捷键命令系统一致性清单.ad:28)，把 macro dispatch 状态改为“已接入第一阶段运行时执行”。
 2. 为 `registerCommandFeaturePair()` 增加可选 feature 清理或引用计数，避免 fallback handler 残留。
 3. 做一次 uTools 真实壳验证：首次启动迁移、改键保存、重启后 SQLite override 生效、fallback 分支提示。
