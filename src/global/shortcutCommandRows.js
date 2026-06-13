@@ -1,4 +1,10 @@
 import { getCommandById } from './commandDefaults.js'
+import {
+  buildCommandShortcutOverrideValue,
+  dedupeShortcutIds,
+  getCommandOverrideKey,
+  normalizeOverrideValueShape
+} from './commandKeybindings.js'
 
 export const SHORTCUT_SOURCE_LABELS = {
   system: '系统',
@@ -33,6 +39,47 @@ export function getShortcutScopeLabel(layer, state) {
   return LAYER_SCOPE_LABELS[layer] || layer || '未分组'
 }
 
+export function buildShortcutCommandRowsFromProfiles(profiles, getFeatureLabel = (featureId) => featureId, getCommand = getCommandById) {
+  return (profiles || []).map((profile) => {
+    const commandId = profile.commandId
+    const featureId = profile.features?.[0] || ''
+    const command = getCommand(commandId) || getCommandById(commandId)
+    const title = getFeatureLabel(featureId) || command?.title || commandId
+    const shortcutIds = dedupeShortcutIds(profile.shortcutIds?.length ? profile.shortcutIds : profile.defaultShortcutIds)
+    const defaultShortcutIds = dedupeShortcutIds(profile.defaultShortcutIds || [])
+    const primaryShortcutId = shortcutIds[0] || defaultShortcutIds[0] || ''
+    const enabled = profile.enabled !== false
+    return {
+      id: `${profile.layer || 'unknown'}:${profile.state || ''}:${commandId}`,
+      commandId,
+      commandTitle: title,
+      commandDescription: command?.description || title,
+      category: command?.category || 'other',
+      risk: command?.risk || 'normal',
+      shortcutId: primaryShortcutId,
+      shortcutIds,
+      key: primaryShortcutId,
+      when: profile.when || '',
+      defaultWhen: profile.defaultWhen || '',
+      source: profile.source || 'system',
+      sourceLabel: enabled
+        ? SHORTCUT_SOURCE_LABELS[profile.source || 'system'] || profile.source || '系统'
+        : SHORTCUT_SOURCE_LABELS.removed,
+      disabled: !enabled,
+      enabled,
+      defaultShortcutId: defaultShortcutIds[0] || '',
+      defaultShortcutIds,
+      overrideKey: profile.overrideKey || getCommandOverrideKey(commandId),
+      layer: profile.layer || '',
+      state: profile.state || '',
+      scopeLabel: getShortcutScopeLabel(profile.layer, profile.state),
+      featureId,
+      binding: profile
+    }
+  })
+}
+
+/** @deprecated use buildShortcutCommandRowsFromProfiles */
 export function buildShortcutCommandRows(bindings, getFeatureLabel = (featureId) => featureId, getCommand = getCommandById) {
   return (bindings || []).flatMap((binding, bindingIndex) => {
     const featureIds = Array.isArray(binding.features) ? binding.features : [binding.features].filter(Boolean)
@@ -42,6 +89,7 @@ export function buildShortcutCommandRows(bindings, getFeatureLabel = (featureId)
       const featureId = featureIds[commandIndex] || featureIds[0] || ''
       const command = getCommand(commandId) || getCommandById(commandId)
       const title = getFeatureLabel(featureId) || command?.title || commandId
+      const shortcutIds = dedupeShortcutIds([binding.shortcutId || ''])
       return {
         id: `${binding.layer || 'unknown'}:${binding.state || ''}:${binding.shortcutId || ''}:${commandId}:${bindingIndex}:${commandIndex}`,
         commandId,
@@ -50,13 +98,16 @@ export function buildShortcutCommandRows(bindings, getFeatureLabel = (featureId)
         category: command?.category || 'other',
         risk: command?.risk || 'normal',
         shortcutId: binding.shortcutId || '',
+        shortcutIds,
         key: binding.shortcutId || '',
         when: binding.when || '',
         defaultWhen: binding.defaultWhen || binding.when || '',
         source: binding.source || 'system',
         sourceLabel: SHORTCUT_SOURCE_LABELS[binding.source || 'system'] || binding.source || '系统',
-        disabled: binding.disabled === true || binding.source === 'removed',
+        disabled: binding.disabled === true || binding.source === 'removed' || binding.commandEnabled === false,
+        enabled: binding.commandEnabled !== false && binding.disabled !== true,
         defaultShortcutId: binding.defaultShortcutId || binding.shortcutId || '',
+        defaultShortcutIds: shortcutIds,
         overrideKey: binding.overrideKey || '',
         layer: binding.layer || '',
         state: binding.state || '',
@@ -90,7 +141,9 @@ export function filterShortcutCommandRows(rows, options = {}) {
       row.commandTitle,
       row.commandId,
       row.shortcutId,
+      ...(Array.isArray(row.shortcutIds) ? row.shortcutIds : []),
       formatShortcut(row.shortcutId),
+      ...(Array.isArray(row.shortcutIds) ? row.shortcutIds.map(formatShortcut) : []),
       row.when,
       row.sourceLabel,
       row.scopeLabel,
@@ -121,14 +174,15 @@ export function getOperationShortcutSummary(operationId, shortcutRows, formatSho
   }
   const visibleRows = rows.filter((row) => row.disabled !== true)
   const labelRows = visibleRows.length ? visibleRows : rows
+  const labels = []
+  for (const row of labelRows) {
+    const ids = row.shortcutIds?.length ? row.shortcutIds : [row.shortcutId]
+    ids.filter(Boolean).forEach((id) => labels.push(formatShortcut(id)))
+  }
   return {
     count: rows.length,
     activeCount: visibleRows.length,
-    label: labelRows
-      .slice(0, 2)
-      .map((row) => formatShortcut(row.shortcutId))
-      .filter(Boolean)
-      .join(' / ') || '已禁用',
+    label: labels.slice(0, 3).join(' / ') || '已禁用',
     query: rows[0].commandId,
     hint: '点击查看或修改对应 command 快捷键'
   }
@@ -136,6 +190,14 @@ export function getOperationShortcutSummary(operationId, shortcutRows, formatSho
 
 export function buildShortcutOverrideValue(row, patch = {}) {
   if (!row) return undefined
+  if (
+    Array.isArray(row.defaultShortcutIds) ||
+    Array.isArray(row.shortcutIds) ||
+    patch.shortcutIds !== undefined ||
+    patch.enabled !== undefined
+  ) {
+    return buildCommandShortcutOverrideValue(row, patch)
+  }
   const nextShortcutId = patch.shortcutId === undefined ? row.shortcutId : patch.shortcutId
   const nextWhen = patch.when === undefined ? row.when : patch.when
   const value = {}
@@ -147,11 +209,48 @@ export function buildShortcutOverrideValue(row, patch = {}) {
 export function applyShortcutOverrideValue(overrides, row, overrideValue) {
   if (!row?.overrideKey) return { ...(overrides || {}) }
   const next = { ...(overrides || {}) }
-  if (overrideValue === undefined) delete next[row.overrideKey]
-  else next[row.overrideKey] = overrideValue
+  if (overrideValue === undefined) {
+    delete next[row.overrideKey]
+    return next
+  }
+  next[row.overrideKey] = overrideValue
   return next
 }
 
+export function disableCommandShortcutOverride(overrides, row) {
+  if (!row?.overrideKey) return { ...(overrides || {}) }
+  const existing = normalizeOverrideValueShape(overrides?.[row.overrideKey])
+  const shortcutIds = dedupeShortcutIds(
+    existing.shortcutIds.length ? existing.shortcutIds : row.shortcutIds || row.defaultShortcutIds || [row.shortcutId]
+  )
+  return applyShortcutOverrideValue(overrides, row, {
+    shortcutIds,
+    when: existing.when || row.when,
+    enabled: false
+  })
+}
+
+export function enableCommandShortcutOverride(overrides, row) {
+  if (!row?.overrideKey) return { ...(overrides || {}) }
+  const existing = normalizeOverrideValueShape(overrides?.[row.overrideKey])
+  const shortcutIds = dedupeShortcutIds(
+    existing.shortcutIds.length ? existing.shortcutIds : row.shortcutIds || row.defaultShortcutIds || [row.shortcutId]
+  )
+  return applyShortcutOverrideValue(overrides, row, {
+    shortcutIds,
+    when: existing.when || row.when,
+    enabled: true
+  })
+}
+
+/** @deprecated use disableCommandShortcutOverride */
 export function disableShortcutOverride(overrides, row) {
-  return applyShortcutOverrideValue(overrides, row, null)
+  return disableCommandShortcutOverride(overrides, row)
+}
+
+export function shortcutIdsEqual(left, right) {
+  const a = dedupeShortcutIds(left)
+  const b = dedupeShortcutIds(right)
+  if (a.length !== b.length) return false
+  return a.every((id, index) => id === b[index])
 }

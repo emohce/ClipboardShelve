@@ -384,6 +384,7 @@ export function dispatch(e) {
   });
   const binding = resolveKeybinding(getCommandAwareBindings(bindings), lookupId, context);
   if (!binding) return false;
+  if (binding.commandEnabled === false || binding.enabled === false) return false;
 
   const ctx = { layer: binding.layer, state, commandBinding: binding, context };
   let handled = false;
