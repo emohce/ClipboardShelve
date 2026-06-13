@@ -63,7 +63,7 @@
 import { computed, nextTick, ref, watch, onMounted, onUnmounted } from "vue";
 import draggable from "vuedraggable";
 import { activateLayer, deactivateLayer } from "../global/hotkeyLayers";
-import { registerFeature } from "../global/hotkeyRegistry";
+import { registerCommandFeaturePairs } from "../global/hotkeyRegistry";
 
 const props = defineProps({
     visible: Boolean,
@@ -79,6 +79,7 @@ const draftItems = ref([]);
 const activeIndex = ref(0);
 const selectedIndices = ref([]);
 const selectedIndexSet = computed(() => new Set(selectedIndices.value));
+let disposePinGroupCommandHandlers = null;
 
 const resetDraft = () => {
     draftItems.value = Array.isArray(props.items) ? props.items.filter(Boolean) : [];
@@ -203,33 +204,60 @@ const moveSelection = (delta) => {
     return true;
 };
 
+function handlePinGroupNavigateUpCommand() {
+    return moveActive(-1);
+}
+
+function handlePinGroupNavigateDownCommand() {
+    return moveActive(1);
+}
+
+function handlePinGroupMoveUpCommand() {
+    return moveSelection(-1);
+}
+
+function handlePinGroupMoveDownCommand() {
+    return moveSelection(1);
+}
+
 function registerHotkeys() {
-    registerFeature("pin-group-edit-close", () => {
+    const handleCloseCommand = () => {
         if (selectedIndices.value.length) {
             selectedIndices.value = [];
             return true;
         }
         close();
         return true;
-    });
-    registerFeature("pin-group-edit-save", () => {
+    };
+    const handleToggleSelectCommand = () => toggleActiveSelection(activeIndex.value);
+    const handleSaveCommand = () => {
         save();
         return true;
-    });
-    registerFeature("pin-group-edit-nav-up", () => moveActive(-1));
-    registerFeature("pin-group-edit-nav-down", () => moveActive(1));
-    registerFeature("pin-group-edit-toggle-select", () => toggleActiveSelection(activeIndex.value));
-    registerFeature("pin-group-edit-up", () => moveSelection(-1));
-    registerFeature("pin-group-edit-down", () => moveSelection(1));
-    registerFeature("pin-group-edit-clear", () => {
+    };
+    const handleClearCommand = () => {
         clear();
         return true;
-    });
-    registerFeature("pin-group-edit-block", () => true);
+    };
+    const handleBlockCommand = () => true;
+    disposePinGroupCommandHandlers = registerCommandFeaturePairs([
+        { featureId: "pin-group-edit-close", commandId: "pin.group.edit.close", handler: handleCloseCommand },
+        { featureId: "pin-group-edit-save", commandId: "pin.group.edit.save", handler: handleSaveCommand },
+        { featureId: "pin-group-edit-nav-up", commandId: "pin.group.edit.navigate.up", handler: handlePinGroupNavigateUpCommand },
+        { featureId: "pin-group-edit-nav-down", commandId: "pin.group.edit.navigate.down", handler: handlePinGroupNavigateDownCommand },
+        { featureId: "pin-group-edit-toggle-select", commandId: "pin.group.edit.toggleSelect", handler: handleToggleSelectCommand },
+        { featureId: "pin-group-edit-up", commandId: "pin.group.edit.moveUp", handler: handlePinGroupMoveUpCommand },
+        { featureId: "pin-group-edit-down", commandId: "pin.group.edit.moveDown", handler: handlePinGroupMoveDownCommand },
+        { featureId: "pin-group-edit-clear", commandId: "pin.group.edit.clear", handler: handleClearCommand },
+        { featureId: "pin-group-edit-block", commandId: "pin.group.edit.blockUnhandled", handler: handleBlockCommand },
+    ]);
 }
 
 onMounted(registerHotkeys);
-onUnmounted(() => deactivateLayer("pin-group-edit"));
+onUnmounted(() => {
+    disposePinGroupCommandHandlers?.();
+    disposePinGroupCommandHandlers = null;
+    deactivateLayer("pin-group-edit");
+});
 </script>
 
 <style scoped>

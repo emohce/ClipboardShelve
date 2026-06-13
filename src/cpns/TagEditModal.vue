@@ -93,7 +93,7 @@
 <script setup>
 import { ref, computed, watch, onMounted, onUnmounted } from "vue";
 import { activateLayer, deactivateLayer } from "../global/hotkeyLayers";
-import { registerFeature } from "../global/hotkeyRegistry";
+import { registerCommandFeaturePairs } from "../global/hotkeyRegistry";
 import { ElMessage } from "element-plus";
 import TagInput from "./TagInput.vue";
 
@@ -110,6 +110,7 @@ const remark = ref("");
 const originalData = ref("");
 const saving = ref(false);
 const tagSuggestions = ref([]);
+let disposeTagEditCommandHandlers = null;
 
 // 监听item变化，初始化表单数据
 watch(
@@ -171,51 +172,65 @@ function getFocusableInputs() {
     );
 }
 
+function handleTagEditCloseCommand(e) {
+    if (!props.visible) return false;
+    e.preventDefault();
+    close();
+    return true;
+}
+
+function handleTagEditFocusNextCommand(e) {
+    if (!props.visible) return false;
+    const focusables = getFocusableInputs();
+    if (focusables.length === 0) return false;
+    const current = document.activeElement;
+    const idx = focusables.indexOf(current);
+    const nextIdx =
+        e.shiftKey
+            ? idx <= 0
+                ? focusables.length - 1
+                : idx - 1
+            : idx >= focusables.length - 1
+              ? 0
+              : idx + 1;
+    focusables[nextIdx].focus();
+    e.preventDefault();
+    return true;
+}
+
+function handleTagEditSaveCommand(e) {
+    if (!props.visible) return false;
+    e.preventDefault();
+    save();
+    return true;
+}
+
+function handleTagEditBlockCommand() {
+    return {
+        handled: true,
+        preventDefault: false,
+        stopPropagation: false,
+    };
+}
+
 onMounted(() => {
     document.addEventListener("keydown", stopAndHandleKey, false);
     document.addEventListener("keypress", stopAndHandleKey, false);
     document.addEventListener("keyup", stopAndHandleKey, false);
-    registerFeature("tag-edit-close", (e) => {
-        if (!props.visible) return false;
-        e.preventDefault();
-        close();
-        return true;
-    });
-    registerFeature("tag-edit-focus-tab", (e) => {
-        if (!props.visible) return false;
-        const focusables = getFocusableInputs();
-        if (focusables.length === 0) return false;
-        const current = document.activeElement;
-        const idx = focusables.indexOf(current);
-        const nextIdx =
-            e.shiftKey
-                ? idx <= 0
-                    ? focusables.length - 1
-                    : idx - 1
-                : idx >= focusables.length - 1
-                  ? 0
-                  : idx + 1;
-        focusables[nextIdx].focus();
-        e.preventDefault();
-        return true;
-    });
-    registerFeature("tag-edit-save", (e) => {
-        if (!props.visible) return false;
-        e.preventDefault();
-        save();
-        return true;
-    });
-    registerFeature("tag-edit-block", () => ({
-        handled: true,
-        preventDefault: false,
-        stopPropagation: false,
-    }));
+    disposeTagEditCommandHandlers = registerCommandFeaturePairs([
+        { featureId: "tag-edit-close", commandId: "tag.edit.close", handler: handleTagEditCloseCommand },
+        { featureId: "tag-edit-focus-tab", commandId: "tag.edit.focus.next", handler: handleTagEditFocusNextCommand },
+        { featureId: "tag-edit-save", commandId: "tag.edit.save", handler: handleTagEditSaveCommand },
+        { featureId: "tag-edit-block", commandId: "tag.edit.blockUnhandled", handler: handleTagEditBlockCommand },
+    ]);
 });
 
 onUnmounted(() => {
     document.removeEventListener("keydown", stopAndHandleKey, false);
     document.removeEventListener("keypress", stopAndHandleKey, false);
     document.removeEventListener("keyup", stopAndHandleKey, false);
+    disposeTagEditCommandHandlers?.();
+    disposeTagEditCommandHandlers = null;
     deactivateLayer("tag-edit");
 });
 

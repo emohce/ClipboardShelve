@@ -30,7 +30,7 @@
 <script setup>
 import { ref, watch, computed, onMounted, onUnmounted } from 'vue'
 import { activateLayer, deactivateLayer } from '../global/hotkeyLayers'
-import { registerFeature } from '../global/hotkeyRegistry'
+import { registerCommandFeaturePairs } from '../global/hotkeyRegistry'
 
 const props = defineProps({
   show: { type: Boolean, required: true },
@@ -109,41 +109,68 @@ const onDrop = (idx) => {
 }
 
 const layerName = 'clip-drawer'
+let disposeDrawerCommandHandlers = null
 
-function registerDrawerFeatures() {
-  registerFeature('drawer-close', () => {
-    emit('close')
-    return true
-  })
-  registerFeature('drawer-nav-down', () => {
-    activeIndex.value = (activeIndex.value + 1) % localItems.value.length
-    return true
-  })
-  registerFeature('drawer-nav-up', () => {
-    activeIndex.value = (activeIndex.value - 1 + localItems.value.length) % localItems.value.length
-    return true
-  })
-  registerFeature('drawer-select', () => {
-    const target = localItems.value[activeIndex.value]
-    if (target) { handleSelect(target, { sub: false }); return true }
+function handleDrawerCloseCommand() {
+  emit('close')
+  return true
+}
+
+function handleDrawerNavDownCommand() {
+  if (!localItems.value.length) return false
+  activeIndex.value = (activeIndex.value + 1) % localItems.value.length
+  return true
+}
+
+function handleDrawerNavUpCommand() {
+  if (!localItems.value.length) return false
+  activeIndex.value = (activeIndex.value - 1 + localItems.value.length) % localItems.value.length
+  return true
+}
+
+function handleDrawerSelectCommand() {
+  const target = localItems.value[activeIndex.value]
+  if (!target) return false
+  handleSelect(target, { sub: false })
+  return true
+}
+
+function createDrawerSelectNumberHandler(num) {
+  return (e) => {
+    if (num >= 1 && num <= localItems.value.length) {
+      const target = localItems.value[num - 1]
+      handleSelect(target, { sub: e.shiftKey })
+      return true
+    }
     return false
-  })
+  }
+}
+
+function handleDrawerBlockCommand() {
+  return true
+}
+
+function registerDrawerHotkeys() {
+  const pairs = [
+    { featureId: 'drawer-close', commandId: 'drawer.close', handler: handleDrawerCloseCommand },
+    { featureId: 'drawer-nav-down', commandId: 'drawer.navigate.down', handler: handleDrawerNavDownCommand },
+    { featureId: 'drawer-nav-up', commandId: 'drawer.navigate.up', handler: handleDrawerNavUpCommand },
+    { featureId: 'drawer-select', commandId: 'drawer.select', handler: handleDrawerSelectCommand }
+  ]
   for (let n = 1; n <= 9; n++) {
     const num = n
-    registerFeature(`drawer-select-${num}`, (e) => {
-      if (num >= 1 && num <= localItems.value.length) {
-        const target = localItems.value[num - 1]
-        handleSelect(target, { sub: e.shiftKey })
-        return true
-      }
-      return false
+    pairs.push({
+      featureId: `drawer-select-${num}`,
+      commandId: `drawer.select.${num}`,
+      handler: createDrawerSelectNumberHandler(num)
     })
   }
-  registerFeature('drawer-block', () => true)
+  pairs.push({ featureId: 'drawer-block', commandId: 'drawer.blockUnhandled', handler: handleDrawerBlockCommand })
+  disposeDrawerCommandHandlers = registerCommandFeaturePairs(pairs)
 }
 
 onMounted(() => {
-  registerDrawerFeatures()
+  registerDrawerHotkeys()
 })
 
 watch(
@@ -163,6 +190,8 @@ watch(
 onUnmounted(() => {
   deactivateLayer(layerName)
   removeOutsideListeners()
+  disposeDrawerCommandHandlers?.()
+  disposeDrawerCommandHandlers = null
 })
 </script>
 

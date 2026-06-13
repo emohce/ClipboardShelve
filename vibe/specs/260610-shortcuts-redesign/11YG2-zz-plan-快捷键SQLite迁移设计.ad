@@ -1,0 +1,148 @@
+= 快捷键 SQLite 迁移设计
+
+== 结论
+
+快捷键配置应从 `setting.hotkeyOverrides` 平滑迁到 SQLite 专用表，但不能让快捷键存储成为插件启动硬依赖。推荐新增独立 shortcut store/repository：SQLite 就绪时读写专用表；SQLite 初始化、迁移或写入失败时，继续回退到现有 `setting.hotkeyOverrides`。
+
+本文件是迁移设计，不直接修改启动/存储代码。
+
+当前进展：已先落地 [../../../src/global/shortcutStore.js](../../../src/global/shortcutStore.js:1) 兼容外壳，并让 [../../../src/views/Setting.vue](../../../src/views/Setting.vue:1213) 保存流程通过该外壳保存快捷键配置。已新增 [../../../src/storage/shortcutKeybindingRepository.js](../../../src/storage/shortcutKeybindingRepository.js:1) 承载 SQLite schema、默认 snapshot、旧 override 行转换、迁移 hash、snapshot/override upsert、override 读取和 meta hash 防重复导入。[../../../src/storage/sqliteClipboardRepository.js](../../../src/storage/sqliteClipboardRepository.js:228) 已在 SQLite schema 就绪后安全初始化快捷键表、seed 默认 snapshot 并导入旧 override，失败只 warning 并继续 setting fallback。[../../../src/global/shortcutStore.js](../../../src/global/shortcutStore.js:38) 已在 backend 可用时优先读取/写入 SQLite overrides，失败回退 `setting.hotkeyOverrides`。[../../../src/global/shortcutStore.js](../../../src/global/shortcutStore.js:86) 已把 SQLite command/keybinding snapshot rows 转成设置页 command rows，[../../../src/views/Setting.vue](../../../src/views/Setting.vue:792) 的快捷键表查询/过滤现在通过该 store 统一入口。[../../../src/cpns/HotkeyProvider.vue](../../../src/cpns/HotkeyProvider.vue:19) 已改用 shortcut store 生成运行时 bindings，因此实际 dispatch 也会优先使用 SQLite override；保存仍同步 setting 字段作为兼容副本。
+
+== 当前事实
+
+- 主存储初始化在 [../../../src/global/initPlugin.js](../../../src/global/initPlugin.js:1190)：先创建 legacy JSON DB，再尝试 SQLite，失败后回退 `json-fallback`。
+- SQLite 仓库在 [../../../src/storage/sqliteClipboardRepository.js](../../../src/storage/sqliteClipboardRepository.js:100) 初始化；当前 schema 只有剪贴项、FTS 和 `meta`，并用 JSON 指纹避免重复迁移。
+- 运行时状态在 [../../../src/storage/storageRuntimeStatus.js](../../../src/storage/storageRuntimeStatus.js:1) 通过 `storageRuntimeStatus` 暴露给 UI。
+- 设置对象在 [../../../src/global/readSetting.js](../../../src/global/readSetting.js:7) 读取并补默认值；当前快捷键覆盖仍存在 `setting.hotkeyOverrides`。
+- 设置页快捷键 tab 在 [../../../src/views/Setting.vue](../../../src/views/Setting.vue:660) 持有 `hotkeyOverrides`，保存时在 [../../../src/views/Setting.vue](../../../src/views/Setting.vue:1199) 写回 setting。
+- 默认绑定和用户覆盖合成在 [../../../src/global/hotkeyBindings.js](../../../src/global/hotkeyBindings.js:44)，设置页表格数据来自 [../../../src/global/shortcutCommandRows.js](../../../src/global/shortcutCommandRows.js:1)。
+
+== 非目标
+
+- 不把 command 组合编排、图形化 when 构建器和 SQLite 迁移放在同一个 PR。
+- 不删除 `setting.hotkeyOverrides`，直到至少一个版本周期确认 SQLite 快捷键表稳定。
+- 不让设置页直接拼 SQL；设置页只依赖 shortcut store 的读写接口。
+
+== 推荐表结构
+
+使用三张表，避免把默认数据和用户覆盖混在一起：
+
+```sql
+CREATE TABLE IF NOT EXISTS shortcut_command_snapshot (
+  command_id TEXT PRIMARY KEY,
+  title TEXT NOT NULL,
+  category TEXT NOT NULL,
+  description TEXT NOT NULL DEFAULT '',
+  risk TEXT NOT NULL DEFAULT 'safe',
+  source TEXT NOT NULL DEFAULT 'system',
+  default_when TEXT NOT NULL DEFAULT '',
+  version_hash TEXT NOT NULL DEFAULT '',
+  updated_at INTEGER NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS shortcut_keybinding_snapshot (
+  override_key TEXT PRIMARY KEY,
+  command_id TEXT NOT NULL,
+  feature_id TEXT NOT NULL DEFAULT '',
+  layer TEXT NOT NULL DEFAULT '',
+  state TEXT NOT NULL DEFAULT '',
+  default_shortcut_id TEXT NOT NULL,
+  default_when TEXT NOT NULL DEFAULT '',
+  weight INTEGER NOT NULL DEFAULT 0,
+  declaration_order INTEGER NOT NULL DEFAULT 0,
+  version_hash TEXT NOT NULL DEFAULT '',
+  updated_at INTEGER NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS shortcut_keybinding_overrides (
+  override_key TEXT PRIMARY KEY,
+  command_id TEXT NOT NULL,
+  shortcut_id TEXT,
+  when_expr TEXT,
+  disabled INTEGER NOT NULL DEFAULT 0,
+  source TEXT NOT NULL DEFAULT 'user',
+  updated_at INTEGER NOT NULL
+);
+```
+
+说明：
+
+- `override_key` 继续沿用 `layer::shortcut:feature` 语义，保证可从旧 `hotkeyOverrides` 无损迁移。
+- 默认 snapshot 只记录系统默认与展示信息；用户恢复默认时删除 override 行，不改 snapshot。
+- `shortcut_id IS NULL AND disabled = 1` 表示禁用；非禁用但字段为空表示沿用默认值。
+- `version_hash` 用于判断默认 command/binding 是否变化，防止重复 seed 或旧默认覆盖用户修改。
+
+== 迁移路径
+
+1. 新增 `shortcutKeybindingRepository`，只负责快捷键表、默认 seed、旧 override 导入和有效配置读取。
+2. 在 SQLite 仓库 `ensureSchema()` 后调用 shortcut repository 的 `ensureShortcutSchema()`；失败只记录状态，不中断剪贴主存储。
+3. 首次 SQLite 就绪时，从 `COMMANDS`、`HOTKEY_BINDINGS` 和 `getCommandAwareBindings()` seed 默认 snapshot。
+4. 从 `setting.hotkeyOverrides` 导入用户覆盖：对象值为 `null` 写 disabled 行；字符串或对象写 `shortcut_id` / `when_expr`。
+5. 使用 `meta` 记录 `shortcut_override_migration_complete` 和源数据 hash；重复启动不重复导入。
+6. 读路径先尝试 `shortcutStore.loadOverrides()`；成功后交给 `getConfiguredBindings(overrides)`；失败时直接用 `setting.hotkeyOverrides`。
+7. 写路径由设置页调用 `shortcutStore.saveOverride()` / `resetOverride()` / `disableOverride()`；SQLite 写失败时降级调用 `saveSetting()` 写旧字段。
+8. 新版本新增默认 command/binding 时，只插入缺失 snapshot 或更新 version hash；已有用户 override 永远优先。
+
+== 设置页适配
+
+设置页应从“直接编辑 setting 字段”改成“编辑 shortcut store 的工作副本”：
+
+- `Setting.vue` 进入快捷键 tab 时调用 `shortcutStore.getEffectiveOverrides()`，初始化本地工作副本。
+- 录制、禁用、恢复默认和 when 编辑继续复用 [../../../src/global/shortcutCommandRows.js](../../../src/global/shortcutCommandRows.js:94) 的纯函数。
+- 保存按钮调用 `shortcutStore.saveOverridesDraft(draft)`；成功后同步 `hotkeyOverrides` 工作副本并触发热键刷新。
+- store 内部负责 SQLite/JSON fallback 分支，组件不感知当前存储模式。
+- UI 增加轻量状态：`SQLite 快捷键表已启用`、`已降级到设置存储`、`迁移失败可重试`；状态来源复用 [../../../src/storage/storageRuntimeStatus.js](../../../src/storage/storageRuntimeStatus.js:1) 或新增 `shortcutStorageStatus` 字段。
+
+当前落地状态：
+
+- [../../../src/views/Setting.vue](../../../src/views/Setting.vue:668) 初始化快捷键工作副本时已通过 `getEffectiveShortcutOverrides()` 读取 SQLite 优先结果，并保留当前 storage mode。
+- [../../../src/views/Setting.vue](../../../src/views/Setting.vue:1224) 保存设置时已通过 `saveShortcutSettingsPayload()` 写入 SQLite 优先 store，并同步 `setting.hotkeyOverrides` 兼容副本。
+- [../../../src/views/Setting.vue](../../../src/views/Setting.vue:1258) 重置设置时同样通过 store 写入空 override，确保 SQLite override rows 被清理。
+- [../../../src/views/Setting.vue](../../../src/views/Setting.vue:140) 快捷键 tab 已展示 SQLite/fallback 存储来源。
+- [../../../src/views/Setting.vue](../../../src/views/Setting.vue:792) 快捷键 tab 的 command rows 已优先来自 SQLite command/keybinding snapshot rows；snapshot 读取失败时回退默认声明。
+- [../../../src/views/Setting.vue](../../../src/views/Setting.vue:425) 功能配置页已显示默认功能对应 command 快捷键摘要，并可跳转到快捷键 tab 继续改键；映射逻辑由 [../../../src/global/shortcutCommandRows.js](../../../src/global/shortcutCommandRows.js:21) 显式维护。
+- [../../../src/views/Setting.vue](../../../src/views/Setting.vue:587) 功能配置页已新增“命令快捷键”配置行，显示 binding 总数、已修改/禁用数量和 SQLite/fallback 状态，并提供跳转到快捷键 tab 的统一入口。
+- [../../../src/global/shortcutCommandRows.js](../../../src/global/shortcutCommandRows.js:21) 的默认功能映射已有测试护栏，要求每个映射 command 都能被 `commandDefaults` 识别，避免设置页显示不可跳转的伪 command。
+
+== Fallback 与错误处理
+
+- SQLite 快捷键表初始化失败时，不影响 [../../../src/global/initPlugin.js](../../../src/global/initPlugin.js:1249) 的主存储绑定。
+- 设置页读取 SQLite snapshot 时，command snapshot 失败只回退 command metadata；keybinding snapshot 和 override 仍继续使用 SQLite 结果，避免小范围默认信息异常导致整张快捷键表退回旧声明。
+- 快捷键配置写入失败时，保底写回 `setting.hotkeyOverrides`，并保留用户操作结果。
+- 保存快捷键设置时先写 `setting.hotkeyOverrides` 兼容副本，再尝试写 SQLite override 表；若 setting 保存失败，不继续写 SQLite、不触发持久化队列和热更新事件，避免 SQLite 已变更但设置副本未保存的半成功状态。
+- `shortcutStore.saveShortcutSettingsPayload()` 返回 `settingSaved` / `sqliteSaved` 诊断字段；调用方可区分“setting fallback 已保存”和“SQLite override 表也已保存”，不必只依赖 `storageMode` 推断。
+- 旧 override 导入成功后不删除旧字段；只写迁移完成标记，便于回滚。
+- `getConfiguredBindings()` 保持接受普通 override map，避免 resolver 和 dispatch 依赖 SQLite。
+- 设置页展示迁移错误，但不能阻止用户修改快捷键。
+
+== 验证矩阵
+
+| 场景 | 期望 |
+|---|---|
+| 新安装无 override | snapshot seed 成功，设置页显示全部默认 binding，override 表为空 |
+| 旧用户已有 `hotkeyOverrides` | 首次导入 override 表，重复启动无重复行，旧字段仍保留 |
+| SQLite 初始化失败 | 插件启动成功，设置页仍可读写 `setting.hotkeyOverrides` |
+| 单个快捷键恢复默认 | 删除 override 行，snapshot 不变 |
+| 新版本新增 command | 插入缺失 snapshot，既有用户 override 不被覆盖 |
+| 修改 data-write command 快捷键 | 设置页显示风险标记，dispatch 命中新键且旧键失效 |
+| 迁移中断后重启 | 通过 meta hash 继续或安全重试，不产生重复 override |
+
+== 实施分步
+
+1. 新增 `src/storage/shortcutKeybindingRepository.js` 和 node 级 repository 测试。
+2. 给 SQLite 仓库暴露受控扩展点，或在 init 成功后注入 shortcut repository；不把快捷键方法混入剪贴项仓库主类。
+3. 新增 `src/global/shortcutStore.js`，封装 SQLite 优先、JSON fallback、status 更新和事件通知。
+4. 改造 [../../../src/views/Setting.vue](../../../src/views/Setting.vue:660)，让快捷键 tab 读写 `shortcutStore` 工作副本。
+5. 保持 [../../../src/global/hotkeyBindings.js](../../../src/global/hotkeyBindings.js:44) 的 override map 输入接口不变，只替换 override 来源。
+6. 增加迁移测试、fallback 测试和设置页保存回归；再做浏览器验证。
+
+== 回滚方案
+
+- 关闭 shortcut store 的 SQLite 分支即可回退到 `setting.hotkeyOverrides`。
+- 因旧字段不删除，用户修改不会因为 SQLite 表异常而丢失。
+- 若 snapshot seed 出错，删除快捷键三张表和相关 `meta` key 后可重新 seed。
+
+== 后续边界
+
+- command 组合编排需要独立 schema，例如 `command_compositions`，不应塞进 keybinding override 表。
+- 完整图形化 when 构建器应复用 `whenExpression` AST，不应直接拼接 UI 字符串。

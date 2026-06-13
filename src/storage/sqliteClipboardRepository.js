@@ -2,6 +2,8 @@ import initSqlJs from 'sql.js'
 import sqlWasmUrl from 'sql.js/dist/sql-wasm.wasm?url'
 import { buildSearchIndex } from './searchIndex.js'
 import { BlobStore } from './blobStore.js'
+import { ShortcutKeybindingRepository } from './shortcutKeybindingRepository.js'
+import { CommandMacroRepository } from './commandMacroRepository.js'
 
 const SCHEMA_VERSION = 1
 const ITEM_ALIAS_STORAGE_KEY = 'item.alias.map'
@@ -94,6 +96,8 @@ export class SQLiteClipboardRepository {
       rootDir: `${this.dbPath}.assets`,
       deps
     })
+    this.shortcutKeybindings = null
+    this.commandMacros = null
     this.mutationVersion = Date.now()
     this.persistTimer = null
     this.ftsEnabled = false
@@ -138,6 +142,8 @@ export class SQLiteClipboardRepository {
       this.db = new SQL.Database(bytes)
       onProgress({ progress: 36, stepText: '检查 SQLite 表结构' })
       this.ensureSchema()
+      this.initShortcutKeybindings()
+      this.initCommandMacros()
       if (!this.isJsonMigrationComplete()) {
         if (this.hasMigratedCurrentJsonSource()) {
           onProgress({ progress: 82, stepText: '确认 JSON 已迁移' })
@@ -159,6 +165,8 @@ export class SQLiteClipboardRepository {
       this.db = new SQL.Database()
       onProgress({ progress: 36, stepText: '创建 SQLite 表结构' })
       this.ensureSchema()
+      this.initShortcutKeybindings()
+      this.initCommandMacros()
       onProgress({ progress: 48, stepText: '导入旧 JSON 数据' })
       this.migrateFromLegacyJson()
       onProgress({ progress: 82, stepText: '写入迁移标记' })
@@ -218,6 +226,35 @@ export class SQLiteClipboardRepository {
     } catch (err) {
       console.warn('[SQLiteClipboardRepository] FTS5 不可用，回退 LIKE 搜索:', err)
       this.ftsEnabled = false
+    }
+  }
+
+  initShortcutKeybindings() {
+    try {
+      this.shortcutKeybindings = new ShortcutKeybindingRepository(this.db)
+      this.shortcutKeybindings.ensureSchema()
+      this.shortcutKeybindings.seedDefaultSnapshots({ write: true })
+      const setting = typeof utools !== 'undefined' ? utools?.dbStorage?.getItem?.('setting') : null
+      this.shortcutKeybindings.migrateOverridesFromSetting(setting?.hotkeyOverrides || {}, { write: true })
+      this.persistNow()
+      return true
+    } catch (err) {
+      console.warn('[SQLiteClipboardRepository] 快捷键 SQLite 初始化失败，继续使用 setting fallback:', err)
+      this.shortcutKeybindings = null
+      return false
+    }
+  }
+
+  initCommandMacros() {
+    try {
+      this.commandMacros = new CommandMacroRepository(this.db)
+      this.commandMacros.ensureSchema()
+      this.persistNow()
+      return true
+    } catch (err) {
+      console.warn('[SQLiteClipboardRepository] 组合命令 SQLite 初始化失败，继续禁用 macro 持久化:', err)
+      this.commandMacros = null
+      return false
     }
   }
 

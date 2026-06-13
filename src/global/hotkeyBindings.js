@@ -4,7 +4,8 @@
  * Use state 'search' for main layer when search panel is active; 'multi-select' when multi-select is on.
  */
 
-import { normalizeShortcutId } from "./shortcutKey";
+import { normalizeShortcutId } from "./shortcutKey.js";
+import { toCommandAwareBindings } from "./commandDefaults.js";
 
 export const HOTKEY_BINDINGS_VERSION = "2026-06-10-ui-interaction-hotkey-refresh";
 export const HOTKEY_BINDINGS_UPDATED_EVENT = "ezclipboard:hotkey-bindings-updated";
@@ -25,6 +26,10 @@ export function bindingKey(b) {
  * Override null = remove binding; override string = replace shortcutId.
  */
 export function getEffectiveBindings() {
+  return getConfiguredBindings().filter((b) => b.disabled !== true);
+}
+
+export function getConfiguredBindings(overrideSource = null) {
   let raw;
   try {
     raw =
@@ -33,23 +38,66 @@ export function getEffectiveBindings() {
     raw = null;
   }
   const setting = raw && typeof raw === "object" ? raw : {};
-  const overrides =
-    setting.hotkeyOverrides && typeof setting.hotkeyOverrides === "object"
-      ? setting.hotkeyOverrides
-      : {};
-  return HOTKEY_BINDINGS.filter((b) => {
+  let overrides = {};
+  if (overrideSource && typeof overrideSource === "object") {
+    overrides = overrideSource;
+  } else if (setting.hotkeyOverrides && typeof setting.hotkeyOverrides === "object") {
+    overrides = setting.hotkeyOverrides;
+  }
+  return HOTKEY_BINDINGS.map((b) => {
     const key = bindingKey(b);
     const ov = overrides[key];
-    if (ov === null) return false;
-    return true;
-  }).map((b) => {
-    const key = bindingKey(b);
-    const ov = overrides[key];
-    if (ov != null && typeof ov === "string") {
-      return { ...b, shortcutId: normalizeShortcutId(ov) };
-    }
-    return { ...b, shortcutId: normalizeShortcutId(b.shortcutId) };
+    return applyHotkeyOverride(b, ov, key);
   });
+}
+
+export function getCommandAwareBindings(list = getEffectiveBindings()) {
+  return toCommandAwareBindings(list);
+}
+
+export function applyHotkeyOverride(binding, overrideValue, overrideKey) {
+  const defaultShortcutId = normalizeShortcutId(binding.shortcutId);
+  const defaultWhen = binding.when;
+  if (overrideValue === null) {
+    return {
+      ...binding,
+      shortcutId: defaultShortcutId,
+      defaultShortcutId,
+      defaultWhen,
+      overrideKey,
+      source: "removed",
+      disabled: true,
+    };
+  }
+  if (overrideValue != null && typeof overrideValue === "string") {
+    return {
+      ...binding,
+      shortcutId: normalizeShortcutId(overrideValue),
+      defaultShortcutId,
+      defaultWhen,
+      overrideKey,
+      source: "user",
+    };
+  }
+  if (overrideValue && typeof overrideValue === "object") {
+    return {
+      ...binding,
+      shortcutId: normalizeShortcutId(overrideValue.shortcutId || defaultShortcutId),
+      when: typeof overrideValue.when === "string" ? overrideValue.when : binding.when,
+      defaultShortcutId,
+      defaultWhen,
+      overrideKey,
+      source: "user",
+    };
+  }
+  return {
+    ...binding,
+    shortcutId: defaultShortcutId,
+    defaultShortcutId,
+    defaultWhen,
+    overrideKey,
+    source: "system",
+  };
 }
 
 export const HOTKEY_BINDINGS = [

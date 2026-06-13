@@ -33,7 +33,7 @@ import FileList from './FileList.vue'
 import ClipOperate from './ClipOperate.vue'
 import { ref, watch, onMounted, onUnmounted } from 'vue'
 import { activateLayer, deactivateLayer } from '../global/hotkeyLayers'
-import { registerFeature } from '../global/hotkeyRegistry'
+import { registerCommandFeaturePairs } from '../global/hotkeyRegistry'
 
 const wrapperRef = ref(null)
 
@@ -55,34 +55,47 @@ const onOverlayClick = () => {
 }
 
 const FULL_DATA_LAYER = 'full-data-overlay'
+let disposeFullDataCommandHandlers = null
 
-function registerFullDataFeatures() {
-  registerFeature('full-data-close', () => {
-    if (props.fullData.data) {
-      emit('onOverlayClick')
-      return true
-    }
-    return false
-  })
-  registerFeature('full-data-scroll-up', () => {
-    const el = wrapperRef.value
-    if (!el) return false
-    const half = el.clientHeight / 2
-    el.scrollTop = Math.max(0, el.scrollTop - half)
+function handleFullDataCloseCommand() {
+  if (props.fullData.data) {
+    emit('onOverlayClick')
     return true
-  })
-  registerFeature('full-data-scroll-down', () => {
-    const el = wrapperRef.value
-    if (!el) return false
-    const half = el.clientHeight / 2
-    el.scrollTop = Math.min(el.scrollHeight - el.clientHeight, el.scrollTop + half)
-    return true
-  })
-  registerFeature('full-data-block', () => true)
+  }
+  return false
+}
+
+function handleFullDataScrollUpCommand() {
+  const el = wrapperRef.value
+  if (!el) return false
+  const half = el.clientHeight / 2
+  el.scrollTop = Math.max(0, el.scrollTop - half)
+  return true
+}
+
+function handleFullDataScrollDownCommand() {
+  const el = wrapperRef.value
+  if (!el) return false
+  const half = el.clientHeight / 2
+  el.scrollTop = Math.min(el.scrollHeight - el.clientHeight, el.scrollTop + half)
+  return true
+}
+
+function handleFullDataBlockCommand() {
+  return true
+}
+
+function registerFullDataHotkeys() {
+  disposeFullDataCommandHandlers = registerCommandFeaturePairs([
+    { featureId: 'full-data-close', commandId: 'preview.full.close', handler: handleFullDataCloseCommand },
+    { featureId: 'full-data-scroll-up', commandId: 'preview.full.scroll.up', handler: handleFullDataScrollUpCommand },
+    { featureId: 'full-data-scroll-down', commandId: 'preview.full.scroll.down', handler: handleFullDataScrollDownCommand },
+    { featureId: 'full-data-block', commandId: 'preview.full.blockUnhandled', handler: handleFullDataBlockCommand }
+  ])
 }
 
 onMounted(() => {
-  registerFullDataFeatures()
+  registerFullDataHotkeys()
 })
 
 watch(
@@ -98,6 +111,8 @@ watch(
 )
 
 onUnmounted(() => {
+  disposeFullDataCommandHandlers?.()
+  disposeFullDataCommandHandlers = null
   deactivateLayer(FULL_DATA_LAYER)
 })
 </script>

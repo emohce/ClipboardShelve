@@ -3,9 +3,12 @@
  * Single dispatch: normalize -> find binding by layer priority -> run features in order.
  */
 
-import { eventToShortcutId } from "./shortcutKey";
-import { normalizeShortcutId } from "./shortcutKey";
-import { getCurrentLayer } from "./hotkeyLayers";
+import { eventToShortcutId } from "./shortcutKey.js";
+import { normalizeShortcutId } from "./shortcutKey.js";
+import { getActiveLayers, getCurrentLayer } from "./hotkeyLayers.js";
+import { getCommandAwareBindings } from "./hotkeyBindings.js";
+import { buildHotkeyContextSnapshot, isEditableHotkeyTarget } from "./hotkeyContext.js";
+import { resolveKeybinding } from "./keybindingResolver.js";
 
 const MAIN_LAYER = "main";
 
@@ -30,6 +33,7 @@ function shortcutIdForLookup(shortcutId) {
 }
 
 const features = new Map();
+const commands = new Map();
 let bindings = [];
 let bindingsVersion = null;
 const mainStateRef = { current: "normal" };
@@ -57,16 +61,68 @@ export function unregisterFeature(featureId) {
   features.delete(featureId);
 }
 
+export function registerCommand(commandId, handler) {
+  if (!commandId || typeof handler !== "function") return;
+  commands.set(commandId, { handler });
+}
+
+export function unregisterCommand(commandId) {
+  commands.delete(commandId);
+}
+
+export function hasCommandHandler(commandId) {
+  return Boolean(commandId && commands.get(commandId)?.handler);
+}
+
+export async function runRegisteredCommand(commandId, args = {}, ctx = {}) {
+  const commandEntry = commandId ? commands.get(commandId) : null;
+  if (!commandEntry?.handler) {
+    return { handled: false, status: "failed", error: "missing-handler" };
+  }
+  const result = await commandEntry.handler(ctx.event || null, {
+    ...ctx,
+    args,
+    commandId,
+  });
+  const options = normalizeHandlerResult(result);
+  return {
+    handled: Boolean(options),
+    status: options ? "completed" : "failed",
+    error: options ? "" : "unhandled",
+  };
+}
+
+export function registerCommandFeaturePair(featureId, commandId, handler) {
+  if (!featureId || !commandId || typeof handler !== "function") return () => {};
+  registerFeature(featureId, handler);
+  registerCommand(commandId, handler);
+  return () => {
+    unregisterCommand(commandId);
+    unregisterFeature(featureId);
+  };
+}
+
+export function registerCommandFeaturePairs(pairs) {
+  const disposers = (pairs || [])
+    .filter((pair) => pair?.featureId && pair?.commandId && typeof pair.handler === "function")
+    .map((pair) => registerCommandFeaturePair(pair.featureId, pair.commandId, pair.handler))
+    .filter(Boolean);
+  return () => {
+    for (const dispose of disposers) dispose();
+  };
+}
+
 /**
  * @param {Array<{ layer: string, shortcutId: string, state?: string, features: string[] }>} list
  */
 export function setBindings(list, version = null) {
   bindingsVersion = version;
   bindings = (list || []).map((b) => ({
+    ...b,
     layer: b.layer,
     shortcutId: normalizeShortcutId(b.shortcutId),
     state: b.state,
-    features: Array.isArray(b.features) ? b.features : [b.features],
+    features: Array.isArray(b.features) ? b.features : [b.features].filter(Boolean),
   }));
 }
 
@@ -130,21 +186,136 @@ function findBinding(layer, state, shortcutId) {
   return null;
 }
 
+export function resolveLegacyBinding(shortcutId, options = {}) {
+  const {
+    currentLayer = getCurrentLayer(),
+    mainState = mainStateRef.current,
+    bindingList = bindings,
+  } = options;
+  const order =
+    currentLayer && currentLayer !== MAIN_LAYER
+      ? [currentLayer, MAIN_LAYER]
+      : [MAIN_LAYER];
+
+  for (const L of order) {
+    for (const b of bindingList || []) {
+      if (b.layer !== L) continue;
+      if (b.shortcutId !== shortcutId) continue;
+      if (b.state != null && b.state !== mainState) continue;
+      return { binding: b, layer: L };
+    }
+    if (L !== MAIN_LAYER) {
+      for (const b of bindingList || []) {
+        if (b.layer !== L || b.shortcutId !== "*") continue;
+        if (b.state != null && b.state !== mainState) continue;
+        return { binding: b, layer: L };
+      }
+    }
+  }
+
+  return { binding: null, layer: null };
+}
+
+function featureList(binding) {
+  return Array.isArray(binding?.features) ? binding.features : [binding?.features].filter(Boolean);
+}
+
+function commandList(binding) {
+  return Array.isArray(binding?.commands) ? binding.commands : [binding?.commands].filter(Boolean);
+}
+
+function normalizeHandlerResult(result) {
+  if (result === false || result == null) return null;
+  if (result === true) {
+    return {
+      preventDefault: true,
+      stopPropagation: true,
+      stopImmediatePropagation: false,
+      markHandled: true,
+    };
+  }
+  if (result && typeof result === "object") {
+    if (result.handled === false) return null;
+    return {
+      preventDefault: result.preventDefault !== false,
+      stopPropagation: result.stopPropagation !== false,
+      stopImmediatePropagation: result.stopImmediatePropagation === true,
+      markHandled: result.markHandled !== false,
+    };
+  }
+  return {
+    preventDefault: true,
+    stopPropagation: true,
+    stopImmediatePropagation: false,
+    markHandled: true,
+  };
+}
+
+function getExecutableEntries(binding) {
+  const commandIds = commandList(binding);
+  const featureIds = featureList(binding);
+  const count = Math.max(commandIds.length, featureIds.length);
+  const entries = [];
+  for (let index = 0; index < count; index += 1) {
+    const commandId = commandIds[index];
+    const featureId = featureIds[index];
+    const commandEntry = commandId ? commands.get(commandId) : null;
+    if (commandEntry?.handler) {
+      entries.push({ type: "command", id: commandId, featureId, handler: commandEntry.handler });
+    } else if (featureId) {
+      const featureEntry = features.get(featureId);
+      if (featureEntry?.handler) {
+        entries.push({ type: "feature", id: featureId, commandId, handler: featureEntry.handler });
+      }
+    }
+  }
+  return entries;
+}
+
+export function previewKeybindingResolution(shortcutId, options = {}) {
+  const {
+    currentLayer = getCurrentLayer(),
+    activeLayers = getActiveLayers(),
+    mainState = mainStateRef.current,
+    target = null,
+    bindingList = bindings,
+    contextExtra = {},
+  } = options;
+  const context = buildHotkeyContextSnapshot({
+    currentLayer,
+    activeLayers,
+    mainState,
+    target,
+    extra: contextExtra,
+  });
+  const legacy = resolveLegacyBinding(shortcutId, {
+    currentLayer,
+    mainState,
+    bindingList,
+  });
+  const commandBinding = resolveKeybinding(
+    getCommandAwareBindings(bindingList),
+    shortcutId,
+    context
+  );
+  const legacyFeatures = featureList(legacy.binding);
+  const commandFeatures = featureList(commandBinding);
+
+  return {
+    context,
+    legacy,
+    commandBinding,
+    matches:
+      legacyFeatures.length === commandFeatures.length &&
+      legacyFeatures.every((featureId, index) => featureId === commandFeatures[index]),
+  };
+}
+
 /**
  * @param {KeyboardEvent} e
  * @returns {boolean} true if a binding matched and at least one feature handled the event
  */
 const SETTING_LAYER = "setting";
-
-function isEditableTarget(target) {
-  if (!target || typeof target.closest !== "function") return false;
-  if (target.isContentEditable) return true;
-  return Boolean(
-    target.closest(
-      'input, textarea, [contenteditable="true"], .el-input, .el-textarea, .el-select'
-    )
-  );
-}
 
 export function dispatch(e) {
   if (e.__hotkeyHandled) return true;
@@ -154,7 +325,10 @@ export function dispatch(e) {
   if (e.isComposing) return false;
 
   // Element Plus MessageBox 打开时，Esc 只关闭当前弹窗，避免穿透到插件宿主退出。
-  const messageBox = document.querySelector(".el-overlay .el-message-box");
+  const messageBox =
+    typeof document !== "undefined"
+      ? document.querySelector(".el-overlay .el-message-box")
+      : null;
   if (messageBox) {
     if (e.key === "Escape") {
       e.preventDefault();
@@ -169,7 +343,6 @@ export function dispatch(e) {
   const shortcutId = eventToShortcutId(e);
   const lookupId = shortcutIdForLookup(shortcutId);
   const currentLayer = getCurrentLayer();
-  const layer = getEffectiveLayer();
   const state = mainStateRef.current;
 
   // 设置页：Del/Backspace 不进入其他层，保留正常文本编辑行为
@@ -181,66 +354,46 @@ export function dispatch(e) {
   }
 
   // 设置页输入控件聚焦时，不把按键继续分发给主界面热键，避免 Enter/Ctrl+数字等误触发。
-  if (currentLayer === SETTING_LAYER && isEditableTarget(e.target)) {
+  if (currentLayer === SETTING_LAYER && isEditableHotkeyTarget(e.target)) {
     return false;
   }
 
-  const order = getLayerPriorityOrder();
-  let binding = null;
-  let bindingLayer = null;
-  for (const L of order) {
-    binding = findBinding(L, state, lookupId);
-    if (binding) {
-      bindingLayer = L;
-      break;
+  if (typeof window !== "undefined" && window.__EZCLIPBOARD_HOTKEY_SHADOW__ === true) {
+    const preview = previewKeybindingResolution(lookupId, {
+      currentLayer,
+      activeLayers: getActiveLayers(),
+      mainState: state,
+      target: e.target,
+      bindingList: bindings,
+    });
+    if (!preview.matches) {
+      console.warn("[EzClipboard] hotkey shadow mismatch", {
+        shortcutId: lookupId,
+        legacy: preview.legacy.binding,
+        commandBinding: preview.commandBinding,
+        context: preview.context,
+      });
     }
   }
+
+  const context = buildHotkeyContextSnapshot({
+    currentLayer,
+    activeLayers: getActiveLayers(),
+    mainState: state,
+    target: e.target,
+  });
+  const binding = resolveKeybinding(getCommandAwareBindings(bindings), lookupId, context);
   if (!binding) return false;
 
-  const ctx = { layer: bindingLayer, state };
+  const ctx = { layer: binding.layer, state, commandBinding: binding, context };
   let handled = false;
   let handleOptions = null;
-  for (const featureId of binding.features) {
-    const entry = features.get(featureId);
-    if (!entry || typeof entry.handler !== "function") continue;
-    const result = entry.handler(e, ctx);
-    if (result === true) {
+  for (const entry of getExecutableEntries(binding)) {
+    const result = entry.handler(e, { ...ctx, commandId: entry.commandId || entry.id, featureId: entry.featureId || entry.id });
+    const options = normalizeHandlerResult(result);
+    if (options) {
       handled = true;
-      handleOptions = {
-        preventDefault: true,
-        stopPropagation: true,
-        stopImmediatePropagation: false,
-        markHandled: true,
-      };
-      break;
-    }
-    if (result && typeof result === "object") {
-      const isHandled = result.handled !== false;
-      if (isHandled) {
-        handled = true;
-        handleOptions = {
-          preventDefault: result.preventDefault !== false,
-          stopPropagation: result.stopPropagation !== false,
-          stopImmediatePropagation: result.stopImmediatePropagation === true,
-          markHandled: result.markHandled !== false,
-        };
-        break;
-      }
-    }
-    if (result === false) {
-      continue;
-    }
-    if (result == null) {
-      continue;
-    }
-    if (result) {
-      handled = true;
-      handleOptions = {
-        preventDefault: true,
-        stopPropagation: true,
-        stopImmediatePropagation: false,
-        markHandled: true,
-      };
+      handleOptions = options;
       break;
     }
   }
@@ -261,10 +414,17 @@ export function dispatch(e) {
 
 export function getRegistry() {
   return {
+    commands,
     features,
     bindings,
     setBindings,
+    registerCommand,
+    hasCommandHandler,
+    runRegisteredCommand,
+    registerCommandFeaturePair,
+    registerCommandFeaturePairs,
     registerFeature,
+    unregisterCommand,
     unregisterFeature,
     dispatch,
     setMainState,
