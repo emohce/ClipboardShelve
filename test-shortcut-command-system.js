@@ -2178,6 +2178,12 @@ async function main() {
   assert.strictEqual(isRecordableShortcutId('shift'), false)
   assert.strictEqual(isRecordableShortcutId('ctrl+shift+f'), true)
   assert.strictEqual(isRecordableShortcutId('Delete'), true)
+  assert.strictEqual(isRecordableShortcutId('Escape'), false)
+  assert.strictEqual(isRecordableShortcutId('Enter'), false)
+  assert.strictEqual(isRecordableShortcutId('ctrl+c'), false)
+  assert.strictEqual(isRecordableShortcutId('ctrl+r'), false)
+  assert.strictEqual(isRecordableShortcutId('ArrowLeft'), false)
+  assert.strictEqual(isRecordableShortcutId('ArrowRight'), false)
 
   const overriddenBinding = applyHotkeyOverride(
     { layer: 'main', shortcutId: 'Delete', features: ['list-delete'] },

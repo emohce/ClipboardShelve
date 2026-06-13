@@ -1,7 +1,7 @@
 .DS_Store
 /node_modules
 /dist
-
+      - 默认分组
 # local env files
 .env.local
 .env.*.local
@@ -21,3 +21,4 @@ yarn-error.log*
 *.sw?
 /output/
 /.playwright-cli
+/.fastRequest

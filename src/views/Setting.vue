@@ -1,283 +1,326 @@
 <template>
-  <div class="setting">
+  <div
+    class="setting"
+    ref="settingRootRef"
+    tabindex="-1"
+    @mousedown="focusSettingSurface"
+  >
     <el-card class="setting-card">
       <div class="setting-card-content">
-        <div class="sub-tab-nav">
-          <el-button
-            class="sub-tab-btn"
-            :class="{ 'is-current': activeTab === 'basic' }"
-            @click="activeTab = 'basic'"
-          >
-            存储
-          </el-button>
-          <el-button
-            class="sub-tab-btn"
-            :class="{ 'is-current': activeTab === 'shortcut' }"
-            @click="activeTab = 'shortcut'"
-          >
-            命令
-          </el-button>
-          <el-button
-            class="sub-tab-btn"
-            :class="{ 'is-current': activeTab === 'feature' }"
-            @click="activeTab = 'feature'"
-          >
-            功能
-          </el-button>
-          <el-button
-            class="sub-tab-btn"
-            :class="{ 'is-current': activeTab === 'feature-config' }"
-            @click="activeTab = 'feature-config'"
-          >
-            功能配置
-          </el-button>
+        <div class="setting-header-bar">
+          <div class="sub-tab-nav">
+            <el-button
+              class="sub-tab-btn"
+              :class="{ 'is-current': activeTab === 'basic' }"
+              @click="activeTab = 'basic'"
+            >
+              存储
+            </el-button>
+            <el-button
+              class="sub-tab-btn"
+              :class="{ 'is-current': activeTab === 'shortcut' }"
+              @click="activeTab = 'shortcut'"
+            >
+              命令
+            </el-button>
+            <el-button
+              class="sub-tab-btn"
+              :class="{ 'is-current': activeTab === 'feature' }"
+              @click="activeTab = 'feature'"
+            >
+              功能
+            </el-button>
+            <el-button
+              class="sub-tab-btn"
+              :class="{ 'is-current': activeTab === 'feature-config' }"
+              @click="activeTab = 'feature-config'"
+            >
+              功能配置
+            </el-button>
+          </div>
+          <div class="setting-header-actions">
+            <el-button class="setting-header-btn" @click="emit('back')">返回</el-button>
+            <el-button class="setting-header-btn setting-header-btn--primary" type="primary" @click="handleSaveBtnClick">保存</el-button>
+          </div>
         </div>
 
         <div class="sub-tab-content" v-show="activeTab === 'basic'">
-          <div class="setting-card-content-item">
-            <div class="setting-section-title">存储</div>
-            <el-divider></el-divider>
-            <div class="setting-row">
-              <span class="setting-label">数据根路径</span>
-              <el-input class="path" v-model="path" :title="path" disabled></el-input>
-              <el-button type="primary" @click="handlePathBtnClick('modify')">修改</el-button>
-              <el-button @click="handlePathBtnClick('open')" v-show="path">打开</el-button>
-              <input type="file" id="database-path" :style="{ display: 'none' }" />
-            </div>
-            <div class="setting-row">
-              <span class="setting-label">最大历史条数</span>
-              <el-select class="number-select" v-model="maxsize" fit-input-width placeholder="">
-                <el-option label="无限" :value="unlimitedVal" />
-                <el-option v-for="n in [500, 1000, 5000, 50000]" :key="n" :value="n" />
-              </el-select>
-              <span class="setting-unit">条</span>
-            </div>
-            <div class="setting-row">
-              <span class="setting-label">保存时间</span>
-              <el-select class="number-select" v-model="maxage" fit-input-width placeholder="">
-                <el-option label="无限" :value="unlimitedVal" />
-                <el-option v-for="n in [1, 5, 7, 15, 30, 60, 90, 360]" :key="n" :value="n" />
-              </el-select>
-              <span class="setting-unit">天</span>
-            </div>
-            <el-divider></el-divider>
-            <div class="setting-section-title">存储模式</div>
-            <div class="setting-row">
-              <span class="setting-label">存储引擎</span>
-              <span class="setting-static-value" :class="storageModeClass">{{ storageModeLabel }}</span>
-            </div>
-            <div class="setting-row">
-              <span class="setting-label">迁移状态</span>
-              <span class="setting-static-value">{{ storageMigrationLabel }}</span>
-              <el-button
-                v-if="storageStatus.migrationStatus === 'failed'"
-                type="primary"
-                size="small"
-                :loading="isRetryingMigration"
-                @click="handleRetryStorageMigration"
-              >
-                再次尝试迁移
-              </el-button>
-            </div>
-            <div class="setting-row">
-              <span class="setting-label">SQLite 文件</span>
-              <span class="setting-static-value" :title="storageSqlitePath">{{ storageSqlitePath }}</span>
-            </div>
-            <div class="setting-row">
-              <span class="setting-label">JSON 备份</span>
-              <span class="setting-static-value" :title="storageJsonPath">{{ storageJsonPath }}</span>
-            </div>
-            <div class="setting-row">
-              <span class="setting-label">素材目录</span>
-              <span class="setting-static-value" :title="storageAssetDir">{{ storageAssetDir }}</span>
-            </div>
-            <div class="setting-row" v-if="isStorageMigrationActive || storageStatus.migrationStatus === 'failed'">
-              <span class="setting-label">当前步骤</span>
-              <div class="storage-progress">
-                <el-progress
-                  :percentage="storageStatus.progress"
-                  :status="storageStatus.migrationStatus === 'failed' ? 'exception' : undefined"
-                />
-                <span class="setting-inline-hint">{{ storageStatus.stepText || '等待存储状态' }}</span>
+          <div class="setting-card-content-item setting-storage-compact">
+            <div class="setting-panel setting-panel--config">
+              <div class="setting-row setting-row--compact">
+                <span class="setting-label">数据根路径</span>
+                <el-input class="path" v-model="path" :title="path" disabled></el-input>
+                <el-button type="primary" plain class="setting-section-action" @click="handlePathBtnClick('modify')">修改</el-button>
+                <el-button plain class="setting-section-action" @click="handlePathBtnClick('open')" v-show="path">打开</el-button>
+                <input type="file" id="database-path" :style="{ display: 'none' }" />
+              </div>
+              <div class="setting-row setting-row--compact setting-row--split">
+                <div class="setting-field-group">
+                  <span class="setting-label">最大历史</span>
+                  <el-select class="number-select" v-model="maxsize" fit-input-width placeholder="">
+                    <el-option label="无限" :value="unlimitedVal" />
+                    <el-option v-for="n in [500, 1000, 5000, 50000]" :key="n" :value="n" />
+                  </el-select>
+                  <span class="setting-unit">条</span>
+                </div>
+                <div class="setting-field-group">
+                  <span class="setting-label">保存时间</span>
+                  <el-select class="number-select" v-model="maxage" fit-input-width placeholder="">
+                    <el-option label="无限" :value="unlimitedVal" />
+                    <el-option v-for="n in [1, 5, 7, 15, 30, 60, 90, 360]" :key="n" :value="n" />
+                  </el-select>
+                  <span class="setting-unit">天</span>
+                </div>
               </div>
             </div>
-            <div class="setting-row" v-if="storageStatus.errorMessage">
-              <span class="setting-label">错误信息</span>
-              <span class="setting-static-value setting-static-value--danger" :title="storageStatus.errorMessage">
-                {{ storageStatus.errorMessage }}
-              </span>
-            </div>
-            <div class="setting-row" v-if="storageStatus.migrationStatus === 'failed'">
-              <span class="setting-label">排查方式</span>
-              <span class="setting-inline-hint">
-                失败详情已记录在 uTools dbStorage 的 storageRuntimeStatus.errorMessage；dev 模式也会输出到控制台。
-              </span>
-            </div>
-            <div class="setting-row">
-              <span class="setting-label">更新时间</span>
-              <span class="setting-static-value">{{ storageUpdatedAtLabel }}</span>
-            </div>
-            <div class="setting-row setting-row--hint">
-              <span class="setting-inline-hint">
-                旧 JSON 会保留为备份；正常运行优先使用 SQLite，迁移失败时临时使用 JSON 降级模式。
-              </span>
+            <div class="setting-panel setting-panel--status">
+              <div class="setting-panel-head">
+                <span class="setting-status-chip" :class="storageModeClass">{{ storageModeLabel }}</span>
+                <span class="setting-status-chip" :class="{ 'is-danger': storageStatus.migrationStatus === 'failed' }">{{ storageMigrationLabel }}</span>
+                <span class="setting-status-time">{{ storageUpdatedAtLabel }}</span>
+                <HelpHint
+                  marker="!"
+                  button-class="setting-help-btn"
+                  aria-label="查看存储模式说明"
+                  content="旧 JSON 会保留为备份；正常运行优先使用 SQLite，迁移失败时临时使用 JSON 降级模式。"
+                />
+                <el-button
+                  v-if="storageStatus.migrationStatus === 'failed'"
+                  type="primary"
+                  plain
+                  class="setting-section-action"
+                  :loading="isRetryingMigration"
+                  @click="handleRetryStorageMigration"
+                >
+                  再次尝试迁移
+                </el-button>
+              </div>
+              <div class="setting-path-strip">
+                <div class="setting-path-item">
+                  <span class="setting-path-tag">SQLite</span>
+                  <span class="setting-path-value" :title="storageSqlitePath">{{ storageSqlitePath }}</span>
+                </div>
+                <div class="setting-path-item">
+                  <span class="setting-path-tag">素材</span>
+                  <span class="setting-path-value" :title="storageAssetDir">{{ storageAssetDir }}</span>
+                </div>
+              </div>
+              <div class="setting-row setting-row--compact" v-if="isStorageMigrationActive || storageStatus.migrationStatus === 'failed'">
+                <span class="setting-label">当前步骤</span>
+                <div class="storage-progress">
+                  <el-progress
+                    :percentage="storageStatus.progress"
+                    :status="storageStatus.migrationStatus === 'failed' ? 'exception' : undefined"
+                  />
+                  <span class="setting-inline-hint">{{ storageStatus.stepText || '等待存储状态' }}</span>
+                </div>
+              </div>
+              <div class="setting-row setting-row--compact" v-if="storageStatus.errorMessage">
+                <span class="setting-label">错误信息</span>
+                <span class="setting-static-value setting-static-value--danger setting-static-value--compact" :title="storageStatus.errorMessage">
+                  {{ storageStatus.errorMessage }}
+                </span>
+              </div>
+              <div class="setting-row setting-row--compact" v-if="storageStatus.migrationStatus === 'failed'">
+                <span class="setting-label">排查方式</span>
+                <span class="setting-inline-hint">
+                  失败详情已记录在 uTools dbStorage 的 storageRuntimeStatus.errorMessage；dev 模式也会输出到控制台。
+                </span>
+              </div>
             </div>
           </div>
         </div>
 
-        <div class="sub-tab-content" v-show="activeTab === 'shortcut'">
-          <div class="setting-card-content-item">
-            <div class="setting-section-head">
-              <div class="setting-section-title">命令与快捷键</div>
-              <HelpHint
-                marker="!"
-                button-class="setting-help-btn"
-                aria-label="查看命令列表说明"
-                :content="shortcutHelpContent"
-              />
+        <div class="sub-tab-content sub-tab-content--fill" v-show="activeTab === 'shortcut'">
+          <div class="setting-card-content-item setting-shortcut-shell">
+            <div class="shortcut-strip shortcut-strip--single">
+              <el-tooltip :content="currentShortcutScopeLabel" placement="top" :show-after="400">
+                <el-select
+                  ref="shortcutScopeSelectRef"
+                  v-model="shortcutScope"
+                  class="shortcut-scope-select"
+                  popper-class="shortcut-scope-popper"
+                  @visible-change="handleShortcutScopeVisible"
+                >
+                  <el-option
+                    v-for="opt in shortcutScopeOptions"
+                    :key="opt.value"
+                    :label="opt.label"
+                    :value="opt.value"
+                  />
+                </el-select>
+              </el-tooltip>
+              <div class="shortcut-search-wrap">
+                <el-input
+                  ref="shortcutSearchInputRef"
+                  v-model="shortcutQueryInput"
+                  clearable
+                  placeholder="搜索 command / 键位 / when"
+                  @clear="applyShortcutSearch"
+                  @keydown.enter.prevent="applyShortcutSearch"
+                />
+              </div>
+              <div class="shortcut-strip-actions">
+                <span
+                  class="shortcut-strip-meta"
+                  :class="{ 'is-fallback': shortcutCommandStorageMode !== SHORTCUT_STORAGE_MODE_SQLITE }"
+                  :title="shortcutStorageHint"
+                >
+                  <span class="shortcut-strip-meta-label">
+                    {{ shortcutCommandStorageMode === SHORTCUT_STORAGE_MODE_SQLITE ? 'SQLite' : 'Fallback' }}
+                  </span>
+                  <span class="shortcut-strip-meta-count">{{ filteredShortcutCommandRows.length }}/{{ shortcutCommandRows.length }}</span>
+                </span>
+                <HelpHint
+                  marker="⌨"
+                  button-class="setting-help-btn setting-help-btn--compact"
+                  aria-label="查看固定快捷键"
+                  :content="shortcutFixedKeyHintContent"
+                />
+                <HelpHint
+                  marker="?"
+                  button-class="setting-help-btn setting-help-btn--compact"
+                  aria-label="查看命令列表说明"
+                  :content="shortcutHelpContent"
+                />
+              </div>
             </div>
-            <p class="shortcut-count">{{ commandSystemSummary }}</p>
-            <div
-              class="shortcut-storage-status"
-              :class="{ fallback: shortcutCommandStorageMode !== SHORTCUT_STORAGE_MODE_SQLITE }"
-              :title="shortcutStorageHint"
-              role="status"
-              :aria-label="`${shortcutStorageLabel}。${shortcutStorageHint}`"
-            >
-              <span class="shortcut-storage-dot"></span>
-              <span>{{ shortcutStorageLabel }}</span>
-            </div>
-            <div class="setting-search-row">
-              <el-input
-                ref="shortcutSearchInputRef"
-                v-model="shortcutQueryInput"
-                clearable
-                placeholder="搜索 command、动作、键位、when、来源或作用域"
-                @clear="applyShortcutSearch"
-                @keydown.enter.prevent="applyShortcutSearch"
-              />
-            </div>
-            <div class="filter-chip-row">
-              <button
-                type="button"
-                class="filter-chip"
-                :class="{ active: shortcutScope === 'all' }"
-                @click="shortcutScope = 'all'"
-              >
-                全部
-              </button>
-              <button
-                type="button"
-                class="filter-chip"
-                :class="{ active: shortcutScope === 'main' }"
-                @click="shortcutScope = 'main'"
-              >
-                主界面
-              </button>
-              <button
-                type="button"
-                class="filter-chip"
-                :class="{ active: shortcutScope === 'dialog' }"
-                @click="shortcutScope = 'dialog'"
-              >
-                弹窗层
-              </button>
-              <button
-                type="button"
-                class="filter-chip"
-                :class="{ active: shortcutScope === 'user' }"
-                @click="shortcutScope = 'user'"
-              >
-                已修改
-              </button>
-              <button
-                type="button"
-                class="filter-chip"
-                :class="{ active: shortcutScope === 'risk' }"
-                @click="shortcutScope = 'risk'"
-              >
-                高风险
-              </button>
-            </div>
-            <el-divider></el-divider>
-            <SettingPagedTable
-              :rows="filteredShortcutCommandRows"
-              :columns="shortcutColumns"
-              :total="filteredShortcutCommandRows.length"
-              row-key="id"
-              empty-text="暂无命令绑定数据"
-              :show-pagination="false"
-              action-label="配置"
-              :action-width="150"
-              body-max-height="420px"
-            >
-              <template #cell-commandTitle="{ row }">
-                <div class="shortcut-command-cell">
-                  <div class="shortcut-command-title-row">
-                    <span class="shortcut-command-title">{{ row.commandTitle }}</span>
-                    <span v-if="row.risk === 'data-write'" class="shortcut-risk-tag">写入</span>
+            <div class="shortcut-list-scroll">
+              <div v-if="filteredShortcutCommandRows.length" class="shortcut-list shortcut-list--grid">
+                <div class="shortcut-list-head">
+                  <span class="shortcut-col shortcut-col--id">ID</span>
+                  <span class="shortcut-col shortcut-col--scope">作用域</span>
+                  <span class="shortcut-col shortcut-col--kbd">快捷键</span>
+                  <span class="shortcut-col shortcut-col--when">When</span>
+                  <span class="shortcut-col shortcut-col--source">来源</span>
+                  <span class="shortcut-col shortcut-col--ops">操作</span>
+                </div>
+                <div
+                  v-for="row in filteredShortcutCommandRows"
+                  :key="row.id"
+                  class="shortcut-list-item"
+                  :class="{ 'is-disabled': row.disabled, 'is-risk': row.risk === 'data-write' }"
+                >
+                  <div
+                    class="shortcut-col shortcut-col--id shortcut-id-cell"
+                    @mouseenter="syncShortcutDrawerPosition"
+                    @mouseleave="resetShortcutDrawerPosition"
+                  >
+                    <span class="shortcut-id-anchor">
+                      <span class="shortcut-id-value">{{ row.commandId }}</span>
+                    </span>
                   </div>
-                  <div class="shortcut-command-meta">
-                    <span>{{ row.commandId }}</span>
-                    <span>{{ row.scopeLabel }}</span>
+                  <div class="shortcut-col shortcut-col--scope">
+                    <span v-if="row.risk === 'data-write'" class="shortcut-list-badge shortcut-list-badge--risk">写入</span>
+                    <span class="shortcut-list-badge" :title="row.scopeLabel">{{ row.scopeLabel }}</span>
+                  </div>
+                  <span class="shortcut-col shortcut-col--kbd">
+                    <span class="feature-kbd" :class="{ 'feature-kbd--muted': row.disabled }">
+                      {{ formatShortcutDisplay(row.shortcutId) }}
+                    </span>
+                  </span>
+                  <span class="shortcut-col shortcut-col--when" :title="row.when">{{ row.when || '始终' }}</span>
+                  <span class="shortcut-col shortcut-col--source" :class="{ user: row.source === 'user' }">{{ row.sourceLabel }}</span>
+                  <div class="shortcut-col shortcut-col--ops shortcut-list-ops">
+                    <el-tooltip content="录制或修改快捷键" placement="top" :show-after="280">
+                      <button type="button" class="shortcut-list-op" @click="openShortcutEdit(row)">键</button>
+                    </el-tooltip>
+                    <el-tooltip content="编辑 When 条件" placement="top" :show-after="280">
+                      <button type="button" class="shortcut-list-op" @click="openWhenEdit(row)">W</button>
+                    </el-tooltip>
+                    <el-tooltip
+                      v-if="row.source === 'user' || row.source === 'removed'"
+                      content="恢复为默认快捷键"
+                      placement="top"
+                      :show-after="280"
+                    >
+                      <button type="button" class="shortcut-list-op" @click="restoreShortcutDefault(row)">复</button>
+                    </el-tooltip>
+                    <el-tooltip
+                      v-if="!row.disabled"
+                      content="禁用此快捷键"
+                      placement="top"
+                      :show-after="280"
+                    >
+                      <button type="button" class="shortcut-list-op shortcut-list-op--danger" @click="disableShortcut(row)">禁</button>
+                    </el-tooltip>
+                  </div>
+                  <div
+                    class="shortcut-id-drawer"
+                    role="tooltip"
+                    :aria-label="row.commandTitle || row.commandId"
+                  >
+                    <span class="shortcut-id-drawer-label">命令</span>
+                    <span class="shortcut-id-drawer-title">{{ row.commandTitle || row.commandId }}</span>
                   </div>
                 </div>
-              </template>
-              <template #cell-shortcutId="{ row }">
-                <span class="shortcut-key-cell">{{ formatShortcutDisplay(row.shortcutId) }}</span>
-              </template>
-              <template #cell-when="{ row }">
-                <span class="shortcut-when-cell" :title="row.when">{{ row.when || '始终' }}</span>
-              </template>
-              <template #cell-sourceLabel="{ row }">
-                <span class="shortcut-source-tag" :class="{ user: row.source === 'user' }">{{ row.sourceLabel }}</span>
-              </template>
-              <template #actions="{ row }">
-                <el-button link type="primary" size="small" @click="openShortcutEdit(row)">改键</el-button>
-                <el-button link type="primary" size="small" @click="openWhenEdit(row)">When</el-button>
-                <el-button
-                  v-if="row.source === 'user' || row.source === 'removed'"
-                  link
-                  type="primary"
-                  size="small"
-                  @click="restoreShortcutDefault(row)"
-                >
-                  默认
-                </el-button>
-                <el-button
-                  v-if="!row.disabled"
-                  link
-                  type="danger"
-                  size="small"
-                  @click="disableShortcut(row)"
-                >
-                  禁用
-                </el-button>
-              </template>
-            </SettingPagedTable>
+              </div>
+              <div v-else class="shortcut-list-empty">暂无匹配命令</div>
+            </div>
           </div>
         </div>
         <el-dialog
           v-model="shortcutRecordVisible"
           title="录制快捷键"
-          width="420px"
-          class="shortcut-record-dialog"
+          width="560px"
+          align-center
+          destroy-on-close
+          class="setting-modal-dialog shortcut-record-dialog"
+          modal-class="setting-modal-overlay"
+          :modal="true"
           :close-on-click-modal="false"
+          :before-close="handleShortcutRecordBeforeClose"
           @opened="focusShortcutRecorder"
           @closed="resetShortcutRecorder"
         >
-          <div
-            ref="shortcutRecorderRef"
-            class="shortcut-recorder"
-            tabindex="0"
-            @keydown.stop.prevent="handleShortcutRecordKeydown"
+          <el-popover
+            placement="top-start"
+            trigger="hover"
+            :width="360"
+            :show-after="200"
+            :offset="8"
+            popper-class="shortcut-record-reserved-popper"
           >
-            <div class="shortcut-recorder-label">按下新的快捷键</div>
-            <div class="shortcut-recorder-key">
-              {{ recordedShortcutId ? formatShortcutDisplay(recordedShortcutId) : '等待输入' }}
+            <template #reference>
+              <div class="shortcut-recorder-reserved">固定按键不可绑定，悬浮查看</div>
+            </template>
+            <div class="shortcut-record-reserved-popover-body">{{ shortcutRecordReservedHint }}</div>
+          </el-popover>
+          <div class="shortcut-record-head">
+            <div class="shortcut-record-command">{{ shortcutRecordRow?.commandTitle || '' }}</div>
+            <div class="shortcut-record-command-id">{{ shortcutRecordRow?.commandId || '' }}</div>
+          </div>
+          <div class="shortcut-record-panels">
+            <div class="shortcut-record-panel shortcut-record-panel--current">
+              <div class="shortcut-record-panel-label">当前绑定</div>
+              <div class="shortcut-recorder-key shortcut-recorder-key--current">
+                {{ formatShortcutDisplay(shortcutRecordBaseline) || '—' }}
+              </div>
+              <div
+                v-if="showShortcutRecordDefaultRestore"
+                class="shortcut-record-panel-default"
+              >
+                <span class="shortcut-record-default-label">默认值</span>
+                <button
+                  type="button"
+                  class="shortcut-record-default-value"
+                  @click="restoreShortcutRecordToDefault"
+                >
+                  {{ formatShortcutDisplay(shortcutRecordDefaultId) }}
+                </button>
+                <span class="shortcut-record-default-hint">点击恢复</span>
+              </div>
             </div>
-            <div class="shortcut-recorder-meta">
-              {{ shortcutRecordRow?.commandTitle || '' }}
+            <div
+              ref="shortcutRecorderRef"
+              class="shortcut-record-panel shortcut-record-panel--capture shortcut-recorder"
+              tabindex="0"
+              @keydown.stop.prevent="handleShortcutRecordKeydown"
+            >
+              <div class="shortcut-record-panel-label">按下新快捷键</div>
+              <div class="shortcut-recorder-key" :class="{ 'is-waiting': !recordedShortcutId }">
+                {{ recordedShortcutId ? formatShortcutDisplay(recordedShortcutId) : '等待输入' }}
+              </div>
             </div>
           </div>
           <el-input
@@ -287,18 +330,24 @@
             @keydown.stop
           />
           <template #footer>
-            <el-button @click="shortcutRecordVisible = false">取消</el-button>
+            <el-button @click="requestCloseShortcutRecord">取消</el-button>
             <el-button type="primary" :disabled="!normalizedRecordedShortcutId" @click="submitShortcutRecord">确定</el-button>
           </template>
         </el-dialog>
         <el-dialog
           v-model="whenEditVisible"
           title="编辑 When 条件"
-          width="640px"
-          class="when-edit-dialog"
+          width="720px"
+          align-center
+          destroy-on-close
+          class="setting-modal-dialog when-edit-dialog"
+          modal-class="setting-modal-overlay"
+          :modal="true"
           :close-on-click-modal="false"
+          :before-close="handleWhenEditBeforeClose"
           @closed="resetWhenEditor"
         >
+          <div class="when-editor-shell">
           <div class="when-editor-head">
             <div class="when-editor-title">{{ whenEditRow?.commandTitle || '' }}</div>
             <div class="when-editor-meta">{{ whenEditRow?.commandId || '' }}</div>
@@ -306,7 +355,7 @@
           <div class="when-editor-mode-row">
             <button
               type="button"
-              class="filter-chip"
+              class="filter-chip filter-chip--when"
               :class="{ active: whenEditMode === 'builder' }"
               @click="switchWhenEditMode('builder')"
             >
@@ -314,45 +363,64 @@
             </button>
             <button
               type="button"
-              class="filter-chip"
+              class="filter-chip filter-chip--when"
               :class="{ active: whenEditMode === 'text' }"
               @click="switchWhenEditMode('text')"
             >
               文本
             </button>
-            <span class="when-editor-summary">{{ getWhenBuilderSummary(whenEditInput) }}</span>
+            <span class="when-editor-summary" :title="getWhenBuilderSummary(whenEditInput)">
+              当前：{{ getWhenBuilderSummary(whenEditInput) }}
+            </span>
           </div>
           <div v-if="whenEditMode === 'builder'" class="when-builder">
             <div class="when-builder-toolbar">
-              <span>条件关系</span>
-              <button
-                type="button"
-                class="filter-chip"
-                :class="{ active: whenBuilderOperator === '&&' }"
-                @click="setWhenBuilderOperator('&&')"
-              >
-                全部满足
-              </button>
-              <button
-                type="button"
-                class="filter-chip"
-                :class="{ active: whenBuilderOperator === '||' }"
-                @click="setWhenBuilderOperator('||')"
-              >
-                任一满足
-              </button>
+              <span class="when-builder-toolbar-label">条件关系</span>
+              <div class="when-operator-segment">
+                <button
+                  type="button"
+                  class="filter-chip filter-chip--when"
+                  :class="{ active: whenBuilderOperator === '&&' }"
+                  @click="setWhenBuilderOperator('&&')"
+                >
+                  全部满足
+                </button>
+                <button
+                  type="button"
+                  class="filter-chip filter-chip--when"
+                  :class="{ active: whenBuilderOperator === '||' }"
+                  @click="setWhenBuilderOperator('||')"
+                >
+                  任一满足
+                </button>
+              </div>
             </div>
             <div class="when-builder-groups">
-              <div v-for="group in WHEN_CONTEXT_GROUPS" :key="group.id" class="when-builder-group">
+              <div
+                v-for="group in WHEN_CONTEXT_GROUPS"
+                :key="group.id"
+                class="when-builder-group"
+                :class="`when-builder-group--${group.id}`"
+              >
                 <div class="when-builder-group-title">{{ group.title }}</div>
                 <div class="when-builder-options">
-                  <div v-for="item in group.keys" :key="item.key" class="when-builder-option">
-                    <span class="when-builder-option-label">{{ item.label }}</span>
+                  <div
+                    v-for="item in group.keys"
+                    :key="item.key"
+                    class="when-builder-option"
+                    :class="{
+                      'is-set-include': whenBuilderStates[item.key] === 'include',
+                      'is-set-exclude': whenBuilderStates[item.key] === 'exclude',
+                      'is-disabled': whenBuilderDisabledKeys.has(item.key)
+                    }"
+                  >
+                    <span class="when-builder-option-label" :title="item.label">{{ item.label }}</span>
                     <div class="when-builder-option-actions">
                       <button
                         type="button"
                         class="when-state-btn"
-                        :class="{ active: whenBuilderStates[item.key] === 'include' }"
+                        :class="{ 'active-include': whenBuilderStates[item.key] === 'include' }"
+                        :disabled="whenBuilderDisabledKeys.has(item.key)"
                         @click="setWhenBuilderState(item.key, 'include')"
                       >
                         是
@@ -360,7 +428,8 @@
                       <button
                         type="button"
                         class="when-state-btn"
-                        :class="{ active: whenBuilderStates[item.key] === 'exclude' }"
+                        :class="{ 'active-exclude': whenBuilderStates[item.key] === 'exclude' }"
+                        :disabled="whenBuilderDisabledKeys.has(item.key)"
                         @click="setWhenBuilderState(item.key, 'exclude')"
                       >
                         否
@@ -382,157 +451,170 @@
           <div class="when-editor-status" :class="{ error: whenEditError }">
             {{ whenEditError || whenEditConflictLabel || 'When 表达式有效' }}
           </div>
-          <div class="when-editor-examples">
+          <div class="when-editor-presets">
+            <span class="when-editor-presets-label">快捷预设</span>
+            <div class="when-editor-presets-row">
+              <button
+                v-for="preset in WHEN_PRESETS"
+                :key="preset.label"
+                type="button"
+                class="filter-chip filter-chip--when"
+                @click="applyWhenEditPreset(preset.when)"
+              >
+                {{ preset.label }}
+              </button>
+            </div>
+          </div>
+          <div v-if="showWhenEditDefaultRestore" class="when-editor-default">
+            <span class="when-editor-default-label">默认值</span>
             <button
-              v-for="preset in WHEN_PRESETS"
-              :key="preset.label"
               type="button"
-              class="filter-chip"
-              @click="applyWhenEditPreset(preset.when)"
+              class="when-editor-default-value"
+              :title="getWhenBuilderSummary(whenEditDefaultWhen)"
+              @click="restoreWhenEditToDefault"
             >
-              {{ preset.label }}
+              {{ getWhenBuilderSummary(whenEditDefaultWhen) }}
             </button>
+            <span class="when-editor-default-hint">点击恢复</span>
+          </div>
           </div>
           <template #footer>
-            <el-button @click="whenEditVisible = false">取消</el-button>
+            <el-button @click="requestCloseWhenEdit">取消</el-button>
             <el-button type="primary" :disabled="Boolean(whenEditError)" @click="submitWhenEdit">确定</el-button>
           </template>
         </el-dialog>
-        <div class="sub-tab-content" v-show="activeTab === 'feature'">
-          <div class="setting-card-content-item">
-            <div class="setting-section-head">
-              <div class="setting-section-head-main">
-                <div class="setting-section-title">展示主页功能</div>
-                <p class="setting-section-subtitle">用更少的配置管理常用动作，默认与自定义功能统一排序。</p>
+        <div class="sub-tab-content sub-tab-content--fill" v-show="activeTab === 'feature'">
+          <div class="setting-card-content-item setting-feature-shell">
+            <div class="feature-strip feature-strip--single">
+              <el-popover
+                placement="bottom-start"
+                :width="300"
+                trigger="click"
+                popper-class="feature-select-popover"
+              >
+                <template #reference>
+                  <button type="button" class="feature-strip-chip feature-strip-chip--home">
+                    主页 {{ shown.length }}/9
+                  </button>
+                </template>
+                <div class="feature-select-popover-body">
+                  <el-select
+                    class="operation-select operation-select--popover"
+                    v-model="shown"
+                    multiple
+                    :multiple-limit="9"
+                    collapse-tags
+                    collapse-tags-tooltip
+                    placeholder="选择主页展示功能"
+                  >
+                    <el-option
+                      v-for="o in allOperations"
+                      :key="o.id"
+                      :label="`${o.index}. ${o.icon} ${o.title}`"
+                      :value="o.id"
+                    />
+                  </el-select>
+                </div>
+              </el-popover>
+              <div class="feature-search-wrap">
+                <el-input
+                  v-model="featureQuery"
+                  clearable
+                  placeholder="搜索"
+                />
               </div>
+              <span class="feature-strip-chip feature-strip-chip--count">{{ filteredFeatureRows.length }}/{{ featureRows.length }}</span>
+              <span v-if="isFeatureFilterActive" class="feature-strip-chip feature-strip-chip--filter">过滤</span>
+              <button
+                type="button"
+                class="feature-strip-chip feature-strip-chip--add"
+                title="新增自定义功能"
+                @click="openCustomAdd"
+              >
+                +
+              </button>
               <HelpHint
-                marker="!"
-                button-class="setting-help-btn"
+                marker="?"
+                button-class="setting-help-btn setting-help-btn--compact"
                 aria-label="查看功能列表说明"
-                content="默认功能标题与图标来自 src/data/operation.json，自定义功能来自当前设置数据。后续调整功能、标题、命令或匹配范围时，应同步更新 Settings 展示与说明。"
+                content="拖拽左侧手柄排序；过滤时禁用拖拽。自定义功能可编辑删除。"
               />
             </div>
-            <div class="feature-toolbar">
-              <div class="feature-toolbar-main">
-                <div class="feature-quick-card">
-                  <div class="feature-quick-card-head">
-                    <span class="feature-field-label">主页展示</span>
-                    <el-popover
-                      placement="bottom-start"
-                      :width="320"
-                      trigger="click"
-                      popper-class="feature-select-popover"
+            <div class="feature-list-scroll">
+              <draggable
+                v-if="!isFeatureFilterActive"
+                v-model="featureListRows"
+                item-key="id"
+                class="feature-list"
+                handle=".feature-list-grip"
+                :move="allowFeatureDrag"
+                @end="handleFeatureListDragEnd"
+              >
+                <template #item="{ element: row }">
+                  <div class="feature-list-item" :class="{ custom: row.isCustom }">
+                    <span class="feature-list-grip" title="拖拽排序">⋮⋮</span>
+                    <span class="feature-list-icon">{{ row.icon }}</span>
+                    <div class="feature-list-main">
+                      <span class="feature-list-title">{{ row.title }}</span>
+                      <span class="feature-list-badge" :class="{ custom: row.isCustom }">{{ row.typeLabel }}</span>
+                    </div>
+                    <button
+                      v-if="row.shortcutSummary.count"
+                      type="button"
+                      class="feature-kbd"
+                      :title="row.shortcutSummary.hint"
+                      :aria-label="`查看 ${row.title} 快捷键：${row.shortcutSummary.label}`"
+                      @click="openFeatureShortcut(row)"
                     >
-                      <template #reference>
-                        <button type="button" class="feature-inline-trigger">
-                          已选 {{ shown.length }}/9
-                        </button>
-                      </template>
-                      <div class="feature-select-popover-body">
-                        <div class="feature-select-popover-title">选择显示在主页的功能</div>
-                        <el-select
-                          class="operation-select operation-select--popover"
-                          v-model="shown"
-                          multiple
-                          :multiple-limit="9"
-                          collapse-tags
-                          collapse-tags-tooltip
-                          placeholder="选择显示在主页的功能"
-                        >
-                          <el-option
-                            v-for="o in allOperations"
-                            :key="o.id"
-                            :label="`${o.index}. ${o.icon} ${o.title}`"
-                            :value="o.id"
-                          />
-                        </el-select>
-                      </div>
-                    </el-popover>
+                      {{ row.shortcutSummary.label }}
+                    </button>
+                    <span v-else class="feature-kbd feature-kbd--muted" :title="row.shortcutSummary.hint">—</span>
+                    <div v-if="row.isCustom" class="feature-list-ops">
+                      <button type="button" class="feature-list-op" title="编辑" @click="openCustomEdit(row.raw)">✎</button>
+                      <button type="button" class="feature-list-op feature-list-op--danger" title="删除" @click="deleteCustom(row.raw)">×</button>
+                    </div>
                   </div>
-                  <p class="feature-quick-card-desc">点击查看并调整主页展示功能，最多保留 9 个。</p>
-                </div>
-                <div class="feature-field feature-field-search">
-                  <span class="feature-field-label">快速筛选</span>
-                  <el-input
-                    v-model="featureQuery"
-                    clearable
-                    placeholder="搜索功能标题、类型或命令"
-                  />
-                </div>
-              </div>
-              <el-button class="feature-add-btn" type="primary" plain @click="openCustomAdd">新增自定义功能</el-button>
-            </div>
-            <p v-if="isFeatureFilterActive" class="filter-hint">
-              当前处于过滤状态，已禁用拖拽排序，清空搜索后恢复全量排序。
-            </p>
-            <div class="feature-table-head">
-              <div>
-                <div class="setting-section-title feature-table-title">功能列表</div>
-                <p class="shortcut-count">共 {{ filteredFeatureRows.length }} / {{ featureRows.length }} 条</p>
-              </div>
-              <span class="feature-table-tip">拖拽手柄可直接调整顺序</span>
-            </div>
-            <SettingPagedTable
-              :rows="filteredFeatureRows"
-              :columns="featureColumns"
-              :total="filteredFeatureRows.length"
-              action-label="操作"
-              :action-width="140"
-              empty-text="暂无功能数据"
-              :show-pagination="false"
-              :draggable="!isFeatureFilterActive"
-              :move-guard="allowFeatureDrag"
-              body-max-height="420px"
-              @drag-end="handleFeatureDragEnd"
-            >
-              <template #cell-drag="{ row }">
-                <span class="drag-handle" title="拖拽排序">⋮⋮</span>
-              </template>
-              <template #cell-title="{ row }">
-                <div class="feature-cell-main">
-                  <div class="feature-cell-title-row">
-                    <span class="feature-icon">{{ row.icon }}</span>
-                    <span class="feature-title">{{ row.title }}</span>
+                </template>
+              </draggable>
+              <div v-else-if="filteredFeatureRows.length" class="feature-list">
+                <div
+                  v-for="row in filteredFeatureRows"
+                  :key="row.id"
+                  class="feature-list-item"
+                  :class="{ custom: row.isCustom }"
+                >
+                  <span class="feature-list-grip feature-list-grip--disabled">⋮⋮</span>
+                  <span class="feature-list-icon">{{ row.icon }}</span>
+                  <div class="feature-list-main">
+                    <span class="feature-list-title">{{ row.title }}</span>
+                    <span class="feature-list-badge" :class="{ custom: row.isCustom }">{{ row.typeLabel }}</span>
                   </div>
-                  <div class="feature-meta-row">
-                    <span class="feature-meta-chip" :class="{ custom: row.isCustom }">{{ row.typeLabel }}</span>
-                    <span v-if="row.matchDisplay" class="feature-meta-text">匹配 {{ row.matchDisplay }}</span>
-                    <span v-else class="feature-meta-text">内置功能</span>
-                  </div>
-                </div>
-              </template>
-              <template #cell-commandDisplay="{ row }">
-                <div class="feature-command-cell">
-                  <span class="feature-command-text">{{ row.commandDisplay || '内置动作' }}</span>
                   <button
                     v-if="row.shortcutSummary.count"
                     type="button"
-                    class="feature-shortcut-link"
+                    class="feature-kbd"
                     :title="row.shortcutSummary.hint"
-                    :aria-label="`查看 ${row.title} 的 command 快捷键：${row.shortcutSummary.label}`"
                     @click="openFeatureShortcut(row)"
                   >
                     {{ row.shortcutSummary.label }}
                   </button>
-                  <span v-else class="feature-shortcut-muted" :title="row.shortcutSummary.hint">
-                    {{ row.shortcutSummary.label }}
-                  </span>
+                  <span v-else class="feature-kbd feature-kbd--muted">—</span>
+                  <div v-if="row.isCustom" class="feature-list-ops">
+                    <button type="button" class="feature-list-op" title="编辑" @click="openCustomEdit(row.raw)">✎</button>
+                    <button type="button" class="feature-list-op feature-list-op--danger" title="删除" @click="deleteCustom(row.raw)">×</button>
+                  </div>
                 </div>
-              </template>
-              <template #actions="{ row }">
-                <template v-if="row.isCustom">
-                  <el-button link type="primary" size="small" @click="openCustomEdit(row.raw)">编辑</el-button>
-                  <el-button link type="danger" size="small" @click="deleteCustom(row.raw)">删除</el-button>
-                </template>
-                <span v-else class="table-action-empty">-</span>
-              </template>
-            </SettingPagedTable>
+              </div>
+              <div v-else class="feature-list-empty">暂无匹配功能</div>
+            </div>
             <el-dialog
               v-model="customDialogVisible"
               :title="customDialogMode === 'add' ? '新增功能' : '编辑功能'"
               :fullscreen="true"
               :close-on-click-modal="false"
-              class="feature-dialog"
+              class="setting-modal-dialog feature-dialog"
+              modal-class="setting-modal-overlay"
+              :modal="true"
               @closed="customFormRef?.resetFields?.()"
             >
               <el-form
@@ -562,161 +644,115 @@
             </el-dialog>
           </div>
         </div>
-        <div class="sub-tab-content" v-show="activeTab === 'feature-config'">
-          <div class="setting-card-content-item">
-            <div class="setting-section-head">
-              <div class="setting-section-title">预览配置</div>
-              <HelpHint
-                marker="!"
-                button-class="setting-help-btn"
-                aria-label="查看预览配置说明"
-                content="保存后当前窗口会立即同步，无需重启插件；配置存储路径：userConfig.preview.hover"
-              />
-            </div>
-            <el-divider></el-divider>
-            <div class="feature-config-panel">
-              <div class="feature-config-row">
-                <div class="feature-config-meta">
-                  <div class="feature-config-title-row">
-                    <strong>启用鼠标悬浮预览</strong>
-                    <HelpHint
-                      aria-label="查看悬浮预览说明"
-                      content="关闭后，列表项悬浮不再触发图片或长文本预览；Shift 长按预览不受影响"
-                    />
-                  </div>
+        <div class="sub-tab-content sub-tab-content--fill" v-show="activeTab === 'feature-config'">
+          <div class="setting-card-content-item setting-feature-config-shell">
+            <div class="feature-config-panel feature-config-panel--compact">
+              <div class="feature-config-row feature-config-row--compact">
+                <div class="feature-config-title-row">
+                  <strong>悬浮预览</strong>
+                  <HelpHint
+                    marker="?"
+                    button-class="setting-help-btn setting-help-btn--compact"
+                    aria-label="查看悬浮预览说明"
+                    content="关闭后列表悬浮不再触发预览；Shift 长按不受影响。保存后立即同步，路径 userConfig.preview.hover"
+                  />
                 </div>
-                <div class="feature-config-control">
-                  <div class="feature-config-inline-row">
-                    <div
-                      class="feature-config-input inline"
-                      :class="{ 'is-hidden': !hoverPreviewEnabled }"
+                <div class="feature-config-control feature-config-control--compact">
+                  <div
+                    class="feature-config-input inline"
+                    :class="{ 'is-hidden': !hoverPreviewEnabled }"
+                  >
+                    <span class="feature-config-inline-label">延迟</span>
+                    <input
+                      v-model.number="hoverPreviewDelay"
+                      class="feature-config-native-input"
+                      type="number"
+                      :min="0"
+                      :max="5000"
+                      :step="50"
+                      :disabled="!hoverPreviewEnabled"
+                      :tabindex="hoverPreviewEnabled ? 0 : -1"
                     >
-                      <span class="feature-config-inline-label">触发时间</span>
-                      <input
-                        v-model.number="hoverPreviewDelay"
-                        class="feature-config-native-input"
-                        type="number"
-                        :min="0"
-                        :max="5000"
-                        :step="50"
-                        :disabled="!hoverPreviewEnabled"
-                        :tabindex="hoverPreviewEnabled ? 0 : -1"
-                      >
-                      <span class="feature-config-unit">ms</span>
-                    </div>
+                    <span class="feature-config-unit">ms</span>
                   </div>
-                  <div class="feature-toggle-group is-fixed-right">
-                    <button
-                      type="button"
-                      class="toggle-pill"
-                      :class="{ 'is-on': hoverPreviewEnabled, 'is-off': !hoverPreviewEnabled }"
-                      :aria-pressed="hoverPreviewEnabled"
-                      @click="toggleHoverPreview"
-                    >
-                      <span class="toggle-pill-track">
-                        <span class="toggle-pill-knob"></span>
-                      </span>
-                      <span class="toggle-pill-text">{{ hoverPreviewEnabled ? '开' : '关' }}</span>
-                    </button>
-                    <HelpHint
-                      aria-label="查看开关说明"
-                      content="绿色表示已启用悬浮预览，红色表示已禁用；点击按钮可直接切换状态"
-                    />
-                  </div>
+                  <button
+                    type="button"
+                    class="toggle-pill toggle-pill--compact"
+                    :class="{ 'is-on': hoverPreviewEnabled, 'is-off': !hoverPreviewEnabled }"
+                    :aria-pressed="hoverPreviewEnabled"
+                    @click="toggleHoverPreview"
+                  >
+                    <span class="toggle-pill-track">
+                      <span class="toggle-pill-knob"></span>
+                    </span>
+                    <span class="toggle-pill-text">{{ hoverPreviewEnabled ? '开' : '关' }}</span>
+                  </button>
                 </div>
               </div>
-              <div class="feature-config-row">
-                <div class="feature-config-meta">
-                  <div class="feature-config-title-row">
-                    <strong>全局快捷粘贴</strong>
-                    <HelpHint
-                      aria-label="查看快捷粘贴说明"
-                      content="这是 uTools 全局功能快捷键，不占用系统粘贴键；置顶项只粘贴当前筛选下最上方的单项置顶，组合项按已保存组合独立循环粘贴"
-                    />
-                  </div>
+              <div class="feature-config-row feature-config-row--compact">
+                <div class="feature-config-title-row">
+                  <strong>全局粘贴</strong>
+                  <HelpHint
+                    marker="?"
+                    button-class="setting-help-btn setting-help-btn--compact"
+                    aria-label="查看快捷粘贴说明"
+                    content="uTools 全局快捷键；置顶项粘贴筛选下最上方单项，组合项按已保存组合循环粘贴"
+                  />
                 </div>
-                <div class="feature-config-control feature-config-actions">
-                  <el-button
-                    type="primary"
-                    plain
-                    class="feature-config-action"
+                <div class="feature-config-control feature-config-control--compact">
+                  <button
+                    type="button"
+                    class="feature-config-chip feature-config-chip--primary"
                     @click="openUtoolsHotkeySetting('粘贴置顶项')"
                   >
-                    绑定置顶项
-                  </el-button>
-                  <el-button
-                    type="primary"
-                    plain
-                    class="feature-config-action"
+                    置顶
+                  </button>
+                  <button
+                    type="button"
+                    class="feature-config-chip feature-config-chip--primary"
                     @click="openUtoolsHotkeySetting('循环粘贴组合项')"
                   >
-                    绑定组合项
-                  </el-button>
+                    组合
+                  </button>
                 </div>
               </div>
-              <div class="feature-config-row">
-                <div class="feature-config-meta">
-                  <div class="feature-config-title-row">
-                    <strong>命令与动作</strong>
-                    <HelpHint
-                      aria-label="查看命令快捷键说明"
-                      content="本地 command/keybinding 优先读取 SQLite 快照与 override 表；SQLite 不可用时回退 setting.hotkeyOverrides。组合命令支持配置快捷键、When、串行 delay，并在运行时动态注册执行。"
-                    />
-                  </div>
-                  <p class="feature-config-desc">
-                    {{ commandSystemConfigSummary }}
-                  </p>
-                  <p class="feature-config-desc">
-                    {{ commandMacroSummary }}
-                  </p>
-                  <p class="feature-config-desc">
-                    {{ contextMenuActionSummary }}
-                  </p>
-                </div>
-                <div class="feature-config-control feature-config-actions">
+              <div class="feature-config-row feature-config-row--compact">
+                <div class="feature-config-meta-inline">
+                  <strong>命令动作</strong>
+                  <HelpHint
+                    marker="?"
+                    button-class="setting-help-btn setting-help-btn--compact"
+                    aria-label="查看命令动作说明"
+                    :content="featureConfigCommandHelp"
+                  />
                   <span
-                    class="feature-config-status"
+                    class="feature-config-status-mini"
                     :class="{ fallback: shortcutCommandStorageMode !== SHORTCUT_STORAGE_MODE_SQLITE }"
                     :title="shortcutStorageHint"
                   >
                     {{ shortcutCommandStorageMode === SHORTCUT_STORAGE_MODE_SQLITE ? 'SQLite' : 'Fallback' }}
                   </span>
                   <span
-                    class="feature-config-status"
+                    class="feature-config-status-mini"
                     :class="{ fallback: commandMacroStorageMode !== COMMAND_MACRO_STORAGE_MODE_SQLITE }"
                     :title="commandMacroStorageHint"
                   >
-                    {{ commandMacroStorageMode === COMMAND_MACRO_STORAGE_MODE_SQLITE ? 'Macro SQLite' : 'Macro Draft' }}
+                    {{ commandMacroStorageMode === COMMAND_MACRO_STORAGE_MODE_SQLITE ? 'Macro' : 'Draft' }}
                   </span>
-                  <el-button
-                    type="primary"
-                    plain
-                    class="feature-config-action"
-                    @click="openShortcutSystemConfig"
-                  >
-                    配置命令
-                  </el-button>
-                  <el-button
-                    plain
-                    class="feature-config-action"
-                    @click="commandMacroDialogVisible = true"
-                  >
-                    查看组合
-                  </el-button>
-                  <el-button
-                    plain
-                    class="feature-config-action"
-                    @click="contextMenuDialogVisible = true"
-                  >
-                    右键菜单
-                  </el-button>
-                  <el-button
-                    plain
-                    class="feature-config-action"
-                    @click="openCommandMacroDraftAdd"
-                  >
-                    新增组合
-                  </el-button>
+                </div>
+                <div class="feature-config-control feature-config-control--compact">
+                  <button type="button" class="feature-config-chip feature-config-chip--primary" @click="openShortcutSystemConfig">
+                    命令
+                  </button>
+                  <button type="button" class="feature-config-chip" @click="commandMacroDialogVisible = true">
+                    组合
+                  </button>
+                  <button type="button" class="feature-config-chip" @click="contextMenuDialogVisible = true">
+                    菜单
+                  </button>
+                  <button type="button" class="feature-config-chip" @click="openCommandMacroDraftAdd">
+                    新增
+                  </button>
                 </div>
               </div>
             </div>
@@ -726,7 +762,10 @@
           v-model="commandMacroDialogVisible"
           title="组合命令"
           width="720px"
-          class="command-macro-dialog"
+          align-center
+          class="setting-modal-dialog command-macro-dialog"
+          modal-class="setting-modal-overlay"
+          :modal="true"
         >
           <SettingPagedTable
             :rows="commandMacroRows"
@@ -768,7 +807,10 @@
           v-model="contextMenuDialogVisible"
           title="右键菜单"
           width="720px"
-          class="command-macro-dialog"
+          align-center
+          class="setting-modal-dialog command-macro-dialog"
+          modal-class="setting-modal-overlay"
+          :modal="true"
         >
           <SettingPagedTable
             :rows="contextMenuActionRows"
@@ -842,7 +884,10 @@
           v-model="commandMacroDraftDialogVisible"
           :title="commandMacroDraftMode === 'add' ? '新增组合命令' : '编辑组合命令'"
           width="560px"
-          class="command-macro-dialog"
+          align-center
+          class="setting-modal-dialog command-macro-dialog"
+          modal-class="setting-modal-overlay"
+          :modal="true"
           :close-on-click-modal="false"
         >
           <el-form class="feature-form" :model="commandMacroDraftForm" label-width="92px">
@@ -910,20 +955,15 @@
           </template>
         </el-dialog>
       </div>
-      <div class="setting-card-footer">
-        <el-button @click="handleRestoreBtnClick">重置</el-button>
-        <el-button @click="emit('back')">返回</el-button>
-        <el-button @click="handleSaveBtnClick" type="primary">保存</el-button>
-      </div>
     </el-card>
   </div>
 </template>
 
 <script setup>
 import { ref, computed, onMounted, onUnmounted, watch, nextTick } from 'vue'
+import draggable from 'vuedraggable'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import setting, { saveSetting, getHoverPreviewConfig } from '../global/readSetting'
-import restoreSetting from '../global/restoreSetting'
 import defaultOperation from '../data/operation.json'
 import { activateLayer, deactivateLayer } from '../global/hotkeyLayers'
 import { getFeatureLabel } from '../global/hotkeyLabels'
@@ -948,9 +988,10 @@ import {
   WHEN_PRESETS,
   buildWhenExpression,
   getWhenBuilderSummary,
+  getWhenBuilderDisabledKeys,
   parseWhenToSelection
 } from '../global/whenBuilder'
-import { eventLikeToShortcutId, isRecordableShortcutId } from '../global/shortcutRecorder'
+import { eventLikeToShortcutId, isRecordableShortcutId, isNonConfigurableShortcutId, NON_CONFIGURABLE_SHORTCUT_IDS, SETTING_PAGE_FIXED_SHORTCUTS } from '../global/shortcutRecorder'
 import { registerCommandFeaturePairs } from '../global/hotkeyRegistry'
 import { COMMAND_MACRO_MAX_DELAY_MS, COMMAND_MACRO_MAX_STEPS } from '../global/commandMacro.js'
 import {
@@ -1003,7 +1044,7 @@ const storageModeLabel = computed(() => {
   return '检测中'
 })
 const storageModeClass = computed(() => ({
-  'setting-static-value--danger': storageStatus.value.mode === 'json-fallback'
+  'is-fallback': storageStatus.value.mode === 'json-fallback'
 }))
 const storageMigrationLabel = computed(() => {
   const map = {
@@ -1057,13 +1098,28 @@ const persistSettingTab = (tab) => {
   } catch (_) {}
 }
 const activeTab = ref(getPersistedSettingTab())
+const settingRootRef = ref(null)
 const shortcutQuery = ref('')
 const shortcutQueryInput = ref('')
 const featureQuery = ref('')
+const featureListRows = ref([])
 const shortcutScope = ref('all')
+const shortcutScopeOptions = [
+  { label: '全部', value: 'all' },
+  { label: '主界面', value: 'main' },
+  { label: '弹窗', value: 'dialog' },
+  { label: '已改', value: 'user' },
+  { label: '风险', value: 'risk' }
+]
 const shortcutSearchInputRef = ref(null)
+const shortcutScopeSelectRef = ref(null)
+let shortcutScopePopperKeyHandler = null
+const currentShortcutScopeLabel = computed(
+  () => shortcutScopeOptions.find((opt) => opt.value === shortcutScope.value)?.label || '全部'
+)
 const shortcutRecordVisible = ref(false)
 const shortcutRecordRow = ref(null)
+const shortcutRecordBaseline = ref('')
 const shortcutRecorderRef = ref(null)
 const commandMacroDialogVisible = ref(false)
 const commandMacroDraftDialogVisible = ref(false)
@@ -1081,16 +1137,39 @@ const recordedShortcutId = ref('')
 const recordedShortcutInput = ref('')
 const whenEditVisible = ref(false)
 const whenEditRow = ref(null)
+const whenEditBaseline = ref('')
 const whenEditInput = ref('')
 const whenEditError = ref('')
 const whenEditConflictLabel = ref('')
 const whenEditMode = ref('builder')
 const whenBuilderOperator = ref('&&')
 const whenBuilderStates = ref({})
+const whenBuilderDisabledKeys = computed(() =>
+  getWhenBuilderDisabledKeys(whenBuilderStates.value, whenBuilderOperator.value)
+)
 const normalizedRecordedShortcutId = computed(() => {
   const value = recordedShortcutInput.value.trim() || recordedShortcutId.value
   const normalized = normalizeShortcutId(value)
   return isRecordableShortcutId(normalized) ? normalized : ''
+})
+const SETTING_SHORTCUT_RECORD_LAYER = 'setting-shortcut-record'
+const shortcutRecordDefaultId = computed(() => shortcutRecordRow.value?.defaultShortcutId || '')
+const shortcutRecordEditingId = computed(() => {
+  const value = recordedShortcutInput.value.trim() || recordedShortcutId.value || shortcutRecordBaseline.value
+  return normalizeShortcutId(value)
+})
+const showShortcutRecordDefaultRestore = computed(() => {
+  const def = normalizeShortcutId(shortcutRecordDefaultId.value)
+  if (!def) return false
+  const baseline = normalizeShortcutId(shortcutRecordBaseline.value)
+  const editing = shortcutRecordEditingId.value
+  return baseline !== def || editing !== def
+})
+const SETTING_WHEN_EDIT_LAYER = 'setting-when-edit'
+const whenEditDefaultWhen = computed(() => whenEditRow.value?.defaultWhen || '')
+const showWhenEditDefaultRestore = computed(() => {
+  if (!whenEditRow.value) return false
+  return whenEditInput.value.trim() !== String(whenEditDefaultWhen.value || '').trim()
 })
 
 function isEditableTarget(target) {
@@ -1101,6 +1180,37 @@ function isEditableTarget(target) {
       'input, textarea, [contenteditable="true"], .el-input, .el-textarea, .el-select, .el-input-number'
     )
   )
+}
+
+function focusSettingSurface(event) {
+  if (event?.target && isEditableTarget(event.target)) return
+  settingRootRef.value?.focus?.({ preventScroll: true })
+}
+
+function isSettingOverlayOpen() {
+  return Boolean(
+    shortcutRecordVisible.value ||
+    whenEditVisible.value ||
+    customDialogVisible.value ||
+    commandMacroDraftDialogVisible.value ||
+    commandMacroDialogVisible.value ||
+    contextMenuDialogVisible.value ||
+    isSettingMessageBoxOpen()
+  )
+}
+
+function shouldAllowSettingArrowTabSwitch(e) {
+  if (isSettingOverlayOpen()) return false
+  if (!isEditableTarget(e.target)) return true
+  const input = e.target?.closest?.('input:not([type=checkbox]):not([type=radio]):not([type=button])')
+  if (!input || document.activeElement !== input) return false
+  const start = input.selectionStart
+  const end = input.selectionEnd
+  if (start == null || end == null) return false
+  if (start !== end) return false
+  if (e.key === 'ArrowLeft') return start === 0
+  if (e.key === 'ArrowRight') return start >= (input.value?.length || 0)
+  return false
 }
 
 function switchSettingTabByOffset(delta) {
@@ -1134,12 +1244,6 @@ function buildFeatureOrder(savedOrder, customIds) {
 
 const featureOrder = ref(buildFeatureOrder(setting.operation?.order, custom.value.map((c) => c.id)))
 const shown = ref(sortShownByOrder(operation.shown, featureOrder.value))
-const shortcutColumns = [
-  { key: 'commandTitle', label: 'Command', minWidth: 220 },
-  { key: 'shortcutId', label: '快捷键', width: 112 },
-  { key: 'when', label: 'When', minWidth: 170 },
-  { key: 'sourceLabel', label: '来源', width: 74, align: 'center' }
-]
 const commandMacroColumns = [
   { key: 'title', label: '组合命令', minWidth: 220 },
   { key: 'shortcutDisplay', label: '快捷键', width: 112 },
@@ -1193,6 +1297,23 @@ const shortcutHelpContent = computed(() =>
   ].join(' ')
 )
 
+const shortcutFixedKeyHintContent = computed(() => {
+  const fixed = SETTING_PAGE_FIXED_SHORTCUTS.map(
+    (item) => `${formatShortcutDisplay(item.shortcutId)}：${item.description}`
+  ).join('；')
+  const reserved = NON_CONFIGURABLE_SHORTCUT_IDS.map(
+    (shortcutId) => formatShortcutDisplay(shortcutId)
+  ).join('、')
+  return `设置页固定：${fixed}。不可绑定：${reserved}。`
+})
+
+const shortcutRecordReservedHint = computed(() => {
+  const reserved = NON_CONFIGURABLE_SHORTCUT_IDS.map(
+    (shortcutId) => `${formatShortcutDisplay(shortcutId)} 不可绑定`
+  ).join('；')
+  return `${reserved}。Esc 仅关闭弹窗，不会退出设置页。`
+})
+
 const shortcutStorageLabel = computed(() =>
   shortcutCommandStorageMode.value === SHORTCUT_STORAGE_MODE_SQLITE
     ? '快捷键配置存储：SQLite'
@@ -1229,9 +1350,6 @@ const filteredShortcutCommandRows = computed(() => {
 const shortcutModifiedCount = computed(
   () => shortcutCommandRows.value.filter((row) => row.source === 'user' || row.source === 'removed').length
 )
-const commandSystemSummary = computed(
-  () => `共 ${filteredShortcutCommandRows.value.length} / ${shortcutCommandRows.value.length} 条 command keybinding`
-)
 const commandMacroStorageHint = computed(() =>
   commandMacroStorageMode.value === COMMAND_MACRO_STORAGE_MODE_SQLITE
     ? '组合命令已可从 SQLite commandMacros repository 读写；配置快捷键后会在运行时注册执行。'
@@ -1260,6 +1378,14 @@ const contextMenuActionRows = computed(() =>
 const contextMenuActionSummary = computed(() => getContextMenuActionSummary(contextMenuActionRows.value))
 const commandSystemConfigSummary = computed(
   () => `当前 ${shortcutCommandRows.value.length} 条 command keybinding，${shortcutModifiedCount.value} 条已修改或禁用。`
+)
+const featureConfigCommandHelp = computed(() =>
+  [
+    commandSystemConfigSummary.value,
+    commandMacroSummary.value,
+    contextMenuActionSummary.value,
+    '本地 keybinding 优先 SQLite；不可用时回退 setting.hotkeyOverrides。'
+  ].join(' ')
 )
 const commandMacroRows = computed(() => {
   const storageLabel = commandMacroStorageMode.value === COMMAND_MACRO_STORAGE_MODE_SQLITE ? 'SQLite' : '草稿'
@@ -1509,11 +1635,114 @@ function setShortcutOverride(row, overrideValue) {
   hotkeyOverrides.value = applyShortcutOverrideValue(hotkeyOverrides.value, row, overrideValue)
 }
 
+function measureShortcutScopeLabelWidth(label) {
+  if (typeof document === 'undefined' || !label) return 56
+  const el = document.createElement('span')
+  el.style.cssText =
+    'position:fixed;left:-9999px;top:-9999px;font-size:12px;font-weight:600;white-space:nowrap;'
+  el.textContent = label
+  document.body.appendChild(el)
+  const width = el.offsetWidth + 28
+  document.body.removeChild(el)
+  return Math.max(width, 56)
+}
+
+function syncShortcutScopePopperWidth(focusLabel) {
+  const popperEl = document.querySelector('.shortcut-scope-popper')
+  if (!popperEl) return
+  const labels = focusLabel ? [focusLabel] : shortcutScopeOptions.map((opt) => opt.label)
+  const maxWidth = Math.max(...labels.map((label) => measureShortcutScopeLabelWidth(label)))
+  popperEl.style.minWidth = `${maxWidth}px`
+  popperEl.style.width = 'max-content'
+}
+
+function detachShortcutScopePopperKeyHandler() {
+  if (!shortcutScopePopperKeyHandler) return
+  document.removeEventListener('keydown', shortcutScopePopperKeyHandler, true)
+  shortcutScopePopperKeyHandler = null
+}
+
+function handleShortcutScopeVisible(visible) {
+  if (!visible) {
+    detachShortcutScopePopperKeyHandler()
+    return
+  }
+  nextTick(() => {
+    syncShortcutScopePopperWidth()
+    detachShortcutScopePopperKeyHandler()
+    shortcutScopePopperKeyHandler = (e) => {
+      if (e.key !== 'ArrowUp' && e.key !== 'ArrowDown') return
+      requestAnimationFrame(() => {
+        const activeItem = document.querySelector(
+          '.shortcut-scope-popper .el-select-dropdown__item.is-hovering, .shortcut-scope-popper .el-select-dropdown__item.hover'
+        )
+        const label = activeItem?.textContent?.trim()
+        if (label) syncShortcutScopePopperWidth(label)
+      })
+    }
+    document.addEventListener('keydown', shortcutScopePopperKeyHandler, true)
+  })
+}
+
+function isSettingMessageBoxOpen() {
+  return Boolean(document.querySelector('.el-overlay .el-message-box'))
+}
+
+function closeTopSettingOverlay() {
+  if (shortcutRecordVisible.value) {
+    requestCloseShortcutRecord()
+    return true
+  }
+  if (whenEditVisible.value) {
+    requestCloseWhenEdit()
+    return true
+  }
+  if (customDialogVisible.value) {
+    customDialogVisible.value = false
+    return true
+  }
+  if (commandMacroDraftDialogVisible.value) {
+    commandMacroDraftDialogVisible.value = false
+    return true
+  }
+  if (commandMacroDialogVisible.value) {
+    commandMacroDialogVisible.value = false
+    return true
+  }
+  if (contextMenuDialogVisible.value) {
+    contextMenuDialogVisible.value = false
+    return true
+  }
+  return false
+}
+
 function openShortcutEdit(row) {
+  whenEditVisible.value = false
   shortcutRecordRow.value = row
+  shortcutRecordBaseline.value = row.disabled ? row.defaultShortcutId : row.shortcutId
   recordedShortcutId.value = ''
-  recordedShortcutInput.value = row.disabled ? row.defaultShortcutId : row.shortcutId
+  recordedShortcutInput.value = shortcutRecordBaseline.value
   shortcutRecordVisible.value = true
+}
+
+function syncShortcutDrawerPosition(event) {
+  const cell = event.currentTarget
+  const item = cell?.closest?.('.shortcut-list-item')
+  const anchor = cell?.querySelector?.('.shortcut-id-anchor')
+  if (!cell || !item || !anchor) return
+  const anchorRect = anchor.getBoundingClientRect()
+  const itemRect = item.getBoundingClientRect()
+  const left = Math.max(0, anchorRect.right - itemRect.left + 4)
+  const maxWidth = Math.max(48, itemRect.width - left - 108)
+  item.style.setProperty('--shortcut-drawer-left', `${left}px`)
+  item.style.setProperty('--shortcut-drawer-max', `${maxWidth}px`)
+}
+
+function resetShortcutDrawerPosition(event) {
+  const item = event.currentTarget?.closest?.('.shortcut-list-item')
+  if (!item) return
+  item.style.removeProperty('--shortcut-drawer-left')
+  item.style.removeProperty('--shortcut-drawer-max')
 }
 
 function focusShortcutRecorder() {
@@ -1524,19 +1753,151 @@ function focusShortcutRecorder() {
 
 function resetShortcutRecorder() {
   shortcutRecordRow.value = null
+  shortcutRecordBaseline.value = ''
   recordedShortcutId.value = ''
   recordedShortcutInput.value = ''
 }
 
-function handleShortcutRecordKeydown(e) {
-  if (e.key === 'Escape') {
+function restoreShortcutRecordToDefault() {
+  const def = shortcutRecordDefaultId.value
+  if (!def) return
+  recordedShortcutId.value = def
+  recordedShortcutInput.value = def
+  focusShortcutRecorder()
+}
+
+function isShortcutRecordDirty() {
+  if (!shortcutRecordRow.value) return false
+  const current = recordedShortcutInput.value.trim() || recordedShortcutId.value
+  const normalizedCurrent = normalizeShortcutId(current)
+  const normalizedBaseline = normalizeShortcutId(shortcutRecordBaseline.value)
+  if (normalizedCurrent && isRecordableShortcutId(normalizedCurrent)) {
+    return normalizedCurrent !== normalizedBaseline
+  }
+  return current.trim() !== String(shortcutRecordBaseline.value || '').trim()
+}
+
+function isWhenEditDirty() {
+  return whenEditInput.value.trim() !== whenEditBaseline.value.trim()
+}
+
+async function promptSaveUnsavedChanges(title) {
+  try {
+    await ElMessageBox.confirm('内容已修改，是否保存后再关闭？', title, {
+      confirmButtonText: '保存',
+      cancelButtonText: '不保存',
+      type: 'warning',
+      distinguishCancelAndClose: true
+    })
+    return 'save'
+  } catch (action) {
+    if (action === 'cancel') return 'discard'
+    return 'abort'
+  }
+}
+
+async function applyShortcutRecord() {
+  const row = shortcutRecordRow.value
+  const nextShortcutId = normalizedRecordedShortcutId.value
+  if (!row || !nextShortcutId) {
+    ElMessage.error('请先录制有效快捷键')
+    return false
+  }
+  const ok = await confirmShortcutConflict(row, nextShortcutId)
+  if (!ok) return false
+  setShortcutOverride(row, buildShortcutOverrideValue(row, { shortcutId: nextShortcutId }))
+  ElMessage.success('快捷键已更新，点击保存后生效')
+  return true
+}
+
+async function requestCloseShortcutRecord() {
+  if (!shortcutRecordVisible.value) return
+  if (!isShortcutRecordDirty()) {
     shortcutRecordVisible.value = false
     return
   }
+  const action = await promptSaveUnsavedChanges('录制快捷键')
+  if (action === 'abort') return
+  if (action === 'discard') {
+    shortcutRecordVisible.value = false
+    return
+  }
+  if (await applyShortcutRecord()) shortcutRecordVisible.value = false
+}
+
+function handleShortcutRecordBeforeClose(done) {
+  if (!isShortcutRecordDirty()) {
+    done()
+    return
+  }
+  promptSaveUnsavedChanges('录制快捷键').then(async (action) => {
+    if (action === 'discard') {
+      done()
+      return
+    }
+    if (action === 'abort') return
+    if (await applyShortcutRecord()) done()
+  })
+}
+
+async function applyWhenEdit() {
+  const row = whenEditRow.value
+  const nextWhen = whenEditInput.value.trim()
+  if (!row) return false
+  validateWhenEdit()
+  if (whenEditError.value) return false
+  const conflicts = getShortcutConflictRowsWithWhen(row, row.shortcutId, nextWhen)
+  if (conflicts.length) {
+    const ok = await confirmShortcutConflictRows(conflicts, row.shortcutId)
+    if (!ok) return false
+  }
+  setShortcutOverride(row, buildShortcutOverrideValue(row, { when: nextWhen }))
+  ElMessage.success('When 已更新，点击保存后生效')
+  return true
+}
+
+async function requestCloseWhenEdit() {
+  if (!whenEditVisible.value) return
+  if (!isWhenEditDirty()) {
+    whenEditVisible.value = false
+    return
+  }
+  const action = await promptSaveUnsavedChanges('编辑 When 条件')
+  if (action === 'abort') return
+  if (action === 'discard') {
+    whenEditVisible.value = false
+    return
+  }
+  if (await applyWhenEdit()) whenEditVisible.value = false
+}
+
+function handleWhenEditBeforeClose(done) {
+  if (!isWhenEditDirty()) {
+    done()
+    return
+  }
+  promptSaveUnsavedChanges('编辑 When 条件').then(async (action) => {
+    if (action === 'discard') {
+      done()
+      return
+    }
+    if (action === 'abort') return
+    if (await applyWhenEdit()) done()
+  })
+}
+
+function handleShortcutRecordKeydown(e) {
+  if (e.key === 'Escape') {
+    requestCloseShortcutRecord()
+    return
+  }
   const nextShortcutId = eventLikeToShortcutId(e)
-  if (!isRecordableShortcutId(nextShortcutId)) {
-    recordedShortcutId.value = nextShortcutId
-    recordedShortcutInput.value = ''
+  if (!nextShortcutId || !isRecordableShortcutId(nextShortcutId)) {
+    if (nextShortcutId && isNonConfigurableShortcutId(nextShortcutId)) {
+      ElMessage.warning(`「${formatShortcutDisplay(nextShortcutId)}」为固定按键，不可绑定`)
+    } else if (nextShortcutId) {
+      ElMessage.warning('仅支持有效快捷键组合，单独的修饰键不可绑定')
+    }
     return
   }
   recordedShortcutId.value = nextShortcutId
@@ -1544,22 +1905,14 @@ function handleShortcutRecordKeydown(e) {
 }
 
 async function submitShortcutRecord() {
-  const row = shortcutRecordRow.value
-  const nextShortcutId = normalizedRecordedShortcutId.value
-  if (!row || !nextShortcutId) {
-    ElMessage.error('请先录制有效快捷键')
-    return
-  }
-  const ok = await confirmShortcutConflict(row, nextShortcutId)
-  if (!ok) return
-  setShortcutOverride(row, buildShortcutOverrideValue(row, { shortcutId: nextShortcutId }))
-  shortcutRecordVisible.value = false
-  ElMessage.success('快捷键已更新，点击保存后生效')
+  if (await applyShortcutRecord()) shortcutRecordVisible.value = false
 }
 
 function openWhenEdit(row) {
+  shortcutRecordVisible.value = false
   whenEditRow.value = row
-  whenEditInput.value = row.when || ''
+  whenEditBaseline.value = row.when || ''
+  whenEditInput.value = whenEditBaseline.value
   syncWhenBuilderFromInput()
   whenEditVisible.value = true
   validateWhenEdit()
@@ -1567,6 +1920,7 @@ function openWhenEdit(row) {
 
 function resetWhenEditor() {
   whenEditRow.value = null
+  whenEditBaseline.value = ''
   whenEditInput.value = ''
   whenEditError.value = ''
   whenEditConflictLabel.value = ''
@@ -1591,6 +1945,7 @@ function syncWhenInputFromBuilder() {
 }
 
 function setWhenBuilderState(key, state) {
+  if (whenBuilderDisabledKeys.value.has(key)) return
   const next = { ...whenBuilderStates.value }
   if (!state || next[key] === state) delete next[key]
   else next[key] = state
@@ -1637,20 +1992,12 @@ function applyWhenEditPreset(nextWhen) {
   validateWhenEdit()
 }
 
+function restoreWhenEditToDefault() {
+  applyWhenEditPreset(String(whenEditDefaultWhen.value || '').trim())
+}
+
 async function submitWhenEdit() {
-  const row = whenEditRow.value
-  const nextWhen = whenEditInput.value.trim()
-  if (!row) return
-  validateWhenEdit()
-  if (whenEditError.value) return
-  const conflicts = getShortcutConflictRowsWithWhen(row, row.shortcutId, nextWhen)
-  if (conflicts.length) {
-    const ok = await confirmShortcutConflictRows(conflicts, row.shortcutId)
-    if (!ok) return
-  }
-  setShortcutOverride(row, buildShortcutOverrideValue(row, { when: nextWhen }))
-  whenEditVisible.value = false
-  ElMessage.success('When 已更新，点击保存后生效')
+  if (await applyWhenEdit()) whenEditVisible.value = false
 }
 
 async function disableShortcut(row) {
@@ -1686,13 +2033,6 @@ const customFormRules = {
   command: [{ required: true, message: '请输入命令', trigger: 'blur' }]
 }
 const customEditId = ref('')
-
-const featureColumns = [
-  { key: 'index', label: '序号', width: 70, align: 'center' },
-  { key: 'drag', label: '', width: 40, align: 'center' },
-  { key: 'title', label: '功能', minWidth: 260 },
-  { key: 'commandDisplay', label: '动作 / 命令', minWidth: 240 }
-]
 
 const featureRows = computed(() => {
   const defaults = defaultOperation.map((o) => ({
@@ -1752,6 +2092,14 @@ const filteredFeatureRows = computed(() => {
 })
 const isFeatureFilterActive = computed(() => Boolean(featureQuery.value.trim()))
 
+watch(
+  () => (isFeatureFilterActive.value ? null : featureRows.value),
+  (rows) => {
+    if (rows) featureListRows.value = rows.map((row) => ({ ...row }))
+  },
+  { immediate: true, deep: true }
+)
+
 function normalizeHoverPreviewDelay(value = hoverPreviewDelay.value) {
   const numeric = Number(value)
   if (!Number.isFinite(numeric) || numeric < 0) return 500
@@ -1791,6 +2139,11 @@ function handleFeatureDragEnd({ rows }) {
   featureOrder.value = rows.map((row) => row.id)
   custom.value = rows.filter((row) => row.isCustom).map((row) => row.raw)
   syncShownOrder()
+}
+
+function handleFeatureListDragEnd() {
+  if (isFeatureFilterActive.value) return
+  handleFeatureDragEnd({ rows: featureListRows.value })
 }
 
 function openCustomAdd() {
@@ -2034,42 +2387,40 @@ const handlePathBtnClick = (param) => {
   }
 }
 
-const handleRestoreBtnClick = () => {
-  ElMessageBox.confirm('确定要重置设置吗', '警告', {
-    confirmButtonText: '确定',
-    cancelButtonText: '取消',
-    type: 'warning'
-  })
-    .then(() => {
-      const restored = restoreSetting()
-      const shortcutRestoreResult = saveShortcutSettingsPayload(restored, {
-        overrides: restored.hotkeyOverrides || {},
-        saveSetting
-      })
-      const restoredSetting = shortcutRestoreResult.setting
-      path.value = restoredSetting.database.path[nativeId]
-      maxsize.value = restoredSetting.database.maxsize ?? unlimitedVal
-      maxage.value = restoredSetting.database.maxage ?? unlimitedVal
-      shown.value = sortShownByOrder(restoredSetting.operation?.shown || [], featureOrder.value)
-      custom.value = (restoredSetting.operation?.custom || []).map((c) => ({ ...c }))
-      featureOrder.value = buildFeatureOrder(restoredSetting.operation?.order, custom.value.map((c) => c.id))
-      contextMenuDrawerOrder.value = Array.isArray(restoredSetting.operation?.drawerOrder)
-        ? restoredSetting.operation.drawerOrder
-        : []
-      utools.dbStorage.setItem('drawer.order', contextMenuDrawerOrder.value)
-      syncShownOrder()
-      hotkeyOverrides.value = shortcutRestoreResult.hotkeyOverrides
-      shortcutStorageMode.value = shortcutRestoreResult.storageMode
-      const restoredHoverPreviewConfig = getHoverPreviewConfig(restoredSetting)
-      hoverPreviewEnabled.value = restoredHoverPreviewConfig.enabled
-      hoverPreviewDelay.value = restoredHoverPreviewConfig.delay
-      showShortcutSaveMessage(shortcutRestoreResult, '重置')
-    })
-    .catch(() => {})
-}
-
 const keyDownHandler = (e) => {
   if (e.__hotkeyHandled) return
+  if (e.key === 'Escape') {
+    if (isSettingMessageBoxOpen()) return
+    if (closeTopSettingOverlay()) {
+      e.preventDefault()
+      e.stopPropagation()
+      return
+    }
+    if (!isEditableTarget(e.target)) {
+      emit('back')
+      e.preventDefault()
+      e.stopPropagation()
+    }
+    return
+  }
+  if (
+    shortcutRecordVisible.value ||
+    whenEditVisible.value ||
+    customDialogVisible.value ||
+    commandMacroDraftDialogVisible.value
+  ) {
+    return
+  }
+  if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') {
+    if (!shouldAllowSettingArrowTabSwitch(e)) return
+    const delta = e.key === 'ArrowLeft' ? -1 : 1
+    if (switchSettingTabByOffset(delta)) {
+      settingRootRef.value?.focus?.({ preventScroll: true })
+      e.preventDefault()
+      e.stopPropagation()
+    }
+    return
+  }
   if (isEditableTarget(e.target)) return
   const isSearchShortcut = (e.ctrlKey || e.metaKey) && String(e.key).toLowerCase() === 'f'
   if (isSearchShortcut && activeTab.value === 'shortcut') {
@@ -2077,24 +2428,6 @@ const keyDownHandler = (e) => {
     e.stopPropagation()
     focusShortcutSearch()
     return
-  }
-  if (e.key === 'ArrowLeft') {
-    if (switchSettingTabByOffset(-1)) {
-      e.preventDefault()
-      e.stopPropagation()
-    }
-    return
-  }
-  if (e.key === 'ArrowRight') {
-    if (switchSettingTabByOffset(1)) {
-      e.preventDefault()
-      e.stopPropagation()
-    }
-    return
-  }
-  if (e.key === 'Escape' && !customDialogVisible.value) {
-    emit('back')
-    e.stopPropagation()
   }
 }
 
@@ -2109,15 +2442,36 @@ onMounted(() => {
   disposeSettingCommandHandlers = registerCommandFeaturePairs([
     { featureId: 'setting-scroll-up', commandId: 'setting.scroll.up', handler: () => scrollSettingBy(-120) },
     { featureId: 'setting-scroll-down', commandId: 'setting.scroll.down', handler: () => scrollSettingBy(120) },
-    { featureId: 'setting-tab-prev', commandId: 'setting.tab.prev', handler: () => switchSettingTabByOffset(-1) },
-    { featureId: 'setting-tab-next', commandId: 'setting.tab.next', handler: () => switchSettingTabByOffset(1) }
+    {
+      featureId: 'setting-tab-prev',
+      commandId: 'setting.tab.prev',
+      handler: (e) => shouldAllowSettingArrowTabSwitch(e) && switchSettingTabByOffset(-1)
+    },
+    {
+      featureId: 'setting-tab-next',
+      commandId: 'setting.tab.next',
+      handler: (e) => shouldAllowSettingArrowTabSwitch(e) && switchSettingTabByOffset(1)
+    }
   ])
   activateLayer('setting')
-  document.addEventListener('keydown', keyDownHandler)
+  document.addEventListener('keydown', keyDownHandler, true)
+  nextTick(() => {
+    settingRootRef.value?.focus?.({ preventScroll: true })
+  })
 })
 
 watch(activeTab, (tab) => {
   persistSettingTab(tab)
+})
+
+watch(shortcutRecordVisible, (visible) => {
+  if (visible) activateLayer(SETTING_SHORTCUT_RECORD_LAYER)
+  else deactivateLayer(SETTING_SHORTCUT_RECORD_LAYER)
+})
+
+watch(whenEditVisible, (visible) => {
+  if (visible) activateLayer(SETTING_WHEN_EDIT_LAYER)
+  else deactivateLayer(SETTING_WHEN_EDIT_LAYER)
 })
 
 watch(hoverPreviewEnabled, (enabled) => {
@@ -2129,7 +2483,8 @@ watch(hoverPreviewEnabled, (enabled) => {
 onUnmounted(() => {
   window.removeEventListener(STORAGE_STATUS_EVENT, refreshStorageStatus)
   window.removeEventListener(COMMAND_MACRO_RUNTIME_EVENT, refreshCommandMacroRuntime)
-  document.removeEventListener('keydown', keyDownHandler)
+  document.removeEventListener('keydown', keyDownHandler, true)
+  detachShortcutScopePopperKeyHandler()
   disposeSettingCommandHandlers?.()
   disposeSettingCommandHandlers = null
   deactivateLayer('setting')
@@ -2139,28 +2494,58 @@ onUnmounted(() => {
 <style lang="less" scoped>
 .setting {
   min-height: 100%;
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
   color: var(--text-color);
+  outline: none;
   background:
     radial-gradient(circle at top left, rgba(53, 95, 157, 0.08), transparent 280px),
     linear-gradient(180deg, #f7fafe 0%, var(--bg-color) 100%);
 }
 
 .setting-card-content {
-  padding: 18px 18px 8px;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  padding: 8px 6px 4px;
+}
+.setting-header-bar {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 10px;
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  margin: -2px -2px 4px;
+  padding: 2px 2px 5px;
+  background:
+    linear-gradient(180deg, rgba(247, 250, 254, 0.98) 0%, rgba(247, 250, 254, 0.94) 70%, rgba(247, 250, 254, 0) 100%);
+}
+.setting-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+  margin-left: auto;
 }
 .sub-tab-nav {
   display: inline-flex;
   flex-wrap: nowrap;
-  gap: 8px;
-  padding: 6px;
-  border: 1px solid var(--border-color-strong);
-  border-radius: 18px;
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0.92), rgba(232, 238, 245, 0.88));
+  gap: 2px;
+  padding: 2px;
+  border: 1px solid rgba(53, 95, 157, 0.14);
+  border-radius: 11px;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.96), rgba(236, 242, 249, 0.9));
   box-shadow:
-    0 12px 28px rgba(15, 23, 42, 0.06),
-    inset 0 1px 0 rgba(255, 255, 255, 0.95);
+    0 4px 14px rgba(15, 23, 42, 0.05),
+    inset 0 1px 0 rgba(255, 255, 255, 0.98);
   overflow-x: auto;
   overflow-y: hidden;
+  flex: 1 1 auto;
+  min-width: 0;
   scrollbar-width: none;
   &::-webkit-scrollbar {
     display: none;
@@ -2168,35 +2553,44 @@ onUnmounted(() => {
 }
 .sub-tab-btn {
   position: relative;
-  font-size: 14px;
+  font-size: 12px;
   font-weight: 600;
-  min-height: 42px;
-  min-width: 84px;
+  min-height: 26px;
+  min-width: 52px;
+  padding: 0 10px;
   border-color: transparent;
   background: transparent;
   color: var(--text-color);
+  border-radius: 8px;
+  box-shadow: none;
   &.is-current {
-    border-color: rgba(53, 95, 157, 0.30);
+    border-color: rgba(53, 95, 157, 0.22);
     background: linear-gradient(180deg, #ffffff 0%, #eef4fb 100%);
     color: var(--primary-color);
     box-shadow:
-      0 10px 22px rgba(53, 95, 157, 0.14),
-      0 0 0 1px rgba(53, 95, 157, 0.10) inset;
+      0 4px 10px rgba(53, 95, 157, 0.10),
+      0 0 0 1px rgba(53, 95, 157, 0.08) inset;
   }
   &.is-current::after {
     content: '';
     position: absolute;
-    left: 14px;
-    right: 14px;
-    bottom: 4px;
-    height: 2px;
+    left: 9px;
+    right: 9px;
+    bottom: 2px;
+    height: 1.5px;
     border-radius: 999px;
     background: currentColor;
-    opacity: 0.9;
+    opacity: 0.85;
   }
 }
 .sub-tab-content {
-  padding: 22px 4px 12px;
+  padding: 10px 2px 8px;
+  min-height: 0;
+}
+.sub-tab-content--fill {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
   min-height: 0;
 }
 .setting-card-content-item {
@@ -2382,6 +2776,130 @@ onUnmounted(() => {
 .setting-row--hint {
   margin-top: -4px;
 }
+.setting-storage-compact {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 0 4px;
+}
+.setting-panel {
+  padding: 10px 12px;
+  border-radius: 14px;
+  border: 1px solid var(--border-color);
+}
+.setting-panel--config {
+  background: rgba(255, 255, 255, 0.82);
+}
+.setting-panel--status {
+  background: rgba(239, 246, 252, 0.92);
+  border-color: rgba(53, 95, 157, 0.14);
+}
+.setting-row--compact {
+  margin: 0;
+  & + & {
+    margin-top: 8px;
+  }
+}
+.setting-row--split {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px 18px;
+}
+.setting-field-group {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+.setting-panel-head {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px 8px;
+  margin-bottom: 8px;
+}
+.setting-status-chip {
+  display: inline-flex;
+  align-items: center;
+  min-height: 24px;
+  padding: 0 10px;
+  border-radius: 999px;
+  border: 1px solid rgba(28, 113, 82, 0.18);
+  background: rgba(28, 113, 82, 0.08);
+  color: #16684a;
+  font-size: 11px;
+  font-weight: 600;
+  white-space: nowrap;
+  &.is-fallback {
+    color: #b42318;
+    border-color: rgba(180, 35, 24, 0.28);
+    background: rgba(255, 241, 240, 0.88);
+  }
+  &.is-danger {
+    color: #b42318;
+    border-color: rgba(180, 35, 24, 0.28);
+    background: rgba(255, 241, 240, 0.88);
+  }
+}
+.setting-status-time {
+  font-size: 11px;
+  color: var(--text-color-lighter);
+  white-space: nowrap;
+}
+.setting-path-strip {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.setting-path-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+.setting-path-tag {
+  flex: 0 0 auto;
+  min-width: 44px;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--primary-color);
+  letter-spacing: 0.02em;
+}
+.setting-path-value {
+  flex: 1 1 auto;
+  min-width: 0;
+  min-height: 24px;
+  padding: 2px 8px;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.72);
+  border: 1px solid rgba(53, 95, 157, 0.10);
+  font-size: 11px;
+  line-height: 20px;
+  color: var(--text-color-lighter);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.setting-static-value--compact {
+  min-height: 24px;
+  padding: 2px 8px;
+  font-size: 11px;
+  max-width: min(560px, 72vw);
+}
+.setting-storage-compact .setting-label {
+  min-width: 72px;
+  font-size: 12px;
+}
+.setting-storage-compact .setting-section-action {
+  min-height: 30px;
+  padding: 0 12px;
+}
+.setting-storage-compact :deep(.el-input__wrapper) {
+  min-height: 30px;
+}
+.setting-storage-compact .number-select {
+  width: 96px;
+}
 .setting-inline-hint {
   font-size: 12px;
   line-height: 1.6;
@@ -2496,34 +3014,75 @@ onUnmounted(() => {
   color: var(--text-color-lighter);
 }
 .shortcut-record-dialog :deep(.el-dialog__body) {
-  padding: 18px 24px 10px;
+  padding: 14px 18px 12px;
+  background: var(--bg-elevated-color);
 }
-.shortcut-recorder {
+.shortcut-record-head {
+  margin-bottom: 12px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid var(--border-color);
+}
+.shortcut-record-command {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--text-color);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.shortcut-record-command-id {
+  margin-top: 2px;
+  font-size: 11px;
+  font-family: 'SFMono-Regular', 'Consolas', 'Courier New', monospace;
+  color: var(--text-color-lighter);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.shortcut-record-panels {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  min-height: 132px;
+}
+.shortcut-record-panel {
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
   gap: 8px;
   min-height: 132px;
-  padding: 18px;
-  border: 1px dashed rgba(53, 95, 157, 0.38);
+  padding: 14px 12px;
+  border: 1px solid var(--border-color-strong);
   border-radius: 12px;
   background: var(--bg-soft-color);
-  outline: none;
-  &:focus {
-    border-color: var(--primary-color);
-    box-shadow: 0 0 0 3px rgba(53, 95, 157, 0.12);
-  }
 }
-.shortcut-recorder-label {
+.shortcut-record-panel-label {
   font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
   color: var(--text-color-lighter);
 }
+.shortcut-record-panel--current {
+  background: var(--bg-elevated-color);
+}
+.shortcut-recorder {
+  outline: none;
+  cursor: default;
+  &:focus {
+    border-color: var(--primary-color);
+    box-shadow: 0 0 0 3px rgba(53, 95, 157, 0.14);
+  }
+}
 .shortcut-recorder-key {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
   max-width: 100%;
-  min-height: 34px;
-  padding: 6px 12px;
-  border-radius: 9px;
+  min-height: 40px;
+  padding: 8px 12px;
+  border-radius: 10px;
   border: 1px solid var(--border-color);
   background: var(--bg-elevated-color);
   color: var(--primary-color);
@@ -2533,72 +3092,215 @@ onUnmounted(() => {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  &.shortcut-recorder-key--current {
+    color: var(--text-color);
+    font-size: 16px;
+    font-weight: 600;
+  }
+  &.is-waiting {
+    color: var(--text-color-lighter);
+    font-size: 15px;
+    font-weight: 500;
+    font-family: inherit;
+  }
 }
-.shortcut-recorder-meta {
-  max-width: 100%;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+.shortcut-record-panel-default {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  width: 100%;
+  margin-top: 4px;
+  padding-top: 8px;
+  border-top: 1px dashed var(--border-color);
+}
+.shortcut-record-default-label {
   font-size: 12px;
+  color: var(--text-color-lighter);
+}
+.shortcut-record-default-value {
+  padding: 4px 10px;
+  border-radius: 8px;
+  border: 1px solid var(--border-color);
+  background: var(--bg-elevated-color);
+  color: var(--text-color-lighter);
+  font-size: 13px;
+  font-family: 'SFMono-Regular', 'Consolas', 'Courier New', monospace;
+  cursor: pointer;
+  transition: color 0.15s, border-color 0.15s, background 0.15s;
+  &:hover {
+    color: var(--text-color);
+    border-color: var(--primary-color);
+    background: var(--bg-elevated-color);
+  }
+}
+.shortcut-record-default-hint {
+  font-size: 11px;
   color: var(--text-color-lighter);
 }
 .shortcut-recorder-manual {
   margin-top: 12px;
 }
+.shortcut-recorder-reserved {
+  margin-bottom: 12px;
+  padding: 6px 10px;
+  border-radius: 8px;
+  border: 1px dashed var(--border-color);
+  background: var(--bg-soft-color);
+  color: var(--text-color-lighter);
+  font-size: 11px;
+  text-align: center;
+  cursor: help;
+}
 .when-edit-dialog :deep(.el-dialog__body) {
-  padding: 18px 24px 10px;
+  padding: 14px 16px 12px;
+  max-height: min(72vh, 580px);
+  overflow-y: auto;
+  background: var(--bg-elevated-color);
+}
+.when-editor-shell {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 14px;
+  border-radius: 12px;
+  border: 1px solid var(--border-color-strong);
+  background: var(--bg-elevated-color);
 }
 .when-editor-head {
-  margin-bottom: 12px;
+  padding: 8px 10px;
+  border-radius: 8px;
+  border: 1px solid var(--border-color);
+  background: var(--bg-soft-color);
 }
 .when-editor-mode-row {
   display: flex;
   align-items: center;
-  gap: 8px;
-  margin-bottom: 12px;
+  gap: 6px;
+  padding: 4px 6px;
+  border-radius: 8px;
+  background: var(--bg-soft-color);
+  border: 1px solid var(--border-color);
 }
 .when-editor-summary {
   min-width: 0;
   margin-left: auto;
-  color: var(--text-color-lighter);
-  font-size: 12px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  color: var(--primary-color);
+  font-size: 10px;
+  font-weight: 600;
+  background: rgba(53, 95, 157, 0.1);
+  border: 1px solid rgba(53, 95, 157, 0.14);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 .when-editor-title {
-  font-size: 14px;
-  font-weight: 650;
+  font-size: 13px;
+  font-weight: 700;
   color: var(--text-color);
 }
 .when-editor-meta {
-  margin-top: 4px;
-  font-size: 12px;
+  margin-top: 3px;
+  font-size: 10px;
   color: var(--text-color-lighter);
   font-family: 'SFMono-Regular', 'Consolas', 'Courier New', monospace;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  opacity: 0.88;
 }
 .when-editor-status {
-  margin-top: 10px;
-  min-height: 22px;
-  font-size: 12px;
+  min-height: 20px;
+  padding: 4px 8px;
+  border-radius: 6px;
+  font-size: 11px;
   color: var(--text-color-lighter);
+  background: rgba(28, 113, 82, 0.08);
+  border: 1px solid rgba(28, 113, 82, 0.14);
   &.error {
     color: #b42318;
+    background: rgba(255, 241, 240, 0.82);
+    border-color: rgba(180, 35, 24, 0.2);
   }
 }
-.when-editor-examples {
+.when-editor-presets {
+  padding-top: 8px;
+  border-top: 1px dashed var(--border-color);
+}
+.when-editor-default {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  border-radius: 10px;
+  border: 1px dashed var(--border-color);
+  background: var(--bg-soft-color);
+}
+.when-editor-default-label {
+  font-size: 11px;
+  color: var(--text-color-lighter);
+}
+.when-editor-default-value {
+  min-width: 0;
+  max-width: 60%;
+  padding: 4px 10px;
+  border-radius: 8px;
+  border: 1px solid var(--border-color);
+  background: var(--bg-elevated-color);
+  color: var(--text-color-lighter);
+  font-size: 12px;
+  cursor: pointer;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  transition: color 0.15s, border-color 0.15s;
+  &:hover {
+    color: var(--text-color);
+    border-color: var(--primary-color);
+  }
+}
+.when-editor-default-hint {
+  font-size: 11px;
+  color: var(--text-color-lighter);
+}
+.when-editor-presets-label {
+  display: block;
+  margin-bottom: 5px;
+  font-size: 10px;
+  font-weight: 700;
+  color: var(--text-color-lighter);
+  letter-spacing: 0.04em;
+}
+.when-editor-presets-row {
   display: flex;
   flex-wrap: wrap;
-  gap: 8px;
-  margin-top: 12px;
+  gap: 5px;
+}
+.filter-chip--when {
+  min-height: 24px;
+  padding: 0 10px;
+  font-size: 11px;
+  font-weight: 600;
+  border-color: var(--border-color);
+  background: var(--bg-elevated-color);
+  &:hover {
+    border-color: var(--border-color-strong);
+    background: var(--nav-hover-bg-color);
+  }
+  &.active {
+    color: #fff;
+    border-color: transparent;
+    background: linear-gradient(135deg, var(--primary-color), var(--primary-color-lighter));
+    box-shadow: 0 2px 10px rgba(53, 95, 157, 0.28);
+  }
 }
 .when-builder {
   display: grid;
-  gap: 12px;
-  padding: 12px;
+  gap: 10px;
+  padding: 10px;
   border: 1px solid var(--border-color);
   border-radius: 10px;
   background: var(--bg-soft-color);
@@ -2606,64 +3308,171 @@ onUnmounted(() => {
 .when-builder-toolbar {
   display: flex;
   align-items: center;
-  gap: 8px;
-  color: var(--text-color-lighter);
-  font-size: 12px;
+  justify-content: space-between;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+.when-builder-toolbar-label {
+  color: var(--text-color);
+  font-size: 11px;
+  font-weight: 700;
+}
+.when-operator-segment {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px;
+  border-radius: 999px;
+  background: var(--bg-elevated-color);
+  border: 1px solid var(--border-color);
 }
 .when-builder-groups {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 10px;
+  max-height: min(52vh, 420px);
+  overflow-y: auto;
+  padding-right: 2px;
+  scrollbar-width: thin;
 }
 .when-builder-group {
   min-width: 0;
   padding: 10px;
   border: 1px solid var(--border-color);
-  border-radius: 8px;
+  border-radius: 10px;
   background: var(--bg-elevated-color);
+}
+.when-builder-group--surface {
+  border-color: rgba(53, 95, 157, 0.3);
+  background: linear-gradient(160deg, rgba(53, 95, 157, 0.12), var(--bg-elevated-color));
+}
+.when-builder-group--state {
+  border-color: rgba(31, 154, 114, 0.3);
+  background: linear-gradient(160deg, rgba(31, 154, 114, 0.12), var(--bg-elevated-color));
+}
+.when-builder-group--overlay {
+  border-color: rgba(217, 119, 6, 0.3);
+  background: linear-gradient(160deg, rgba(217, 119, 6, 0.12), var(--bg-elevated-color));
 }
 .when-builder-group-title {
   margin-bottom: 8px;
-  color: var(--text-color);
   font-size: 12px;
   font-weight: 700;
 }
+.when-builder-group--surface .when-builder-group-title {
+  color: var(--primary-color);
+}
+.when-builder-group--state .when-builder-group-title {
+  color: #1f9a72;
+}
+.when-builder-group--overlay .when-builder-group-title {
+  color: #d97706;
+}
 .when-builder-options {
   display: grid;
-  gap: 7px;
+  gap: 6px;
 }
 .when-builder-option {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
   align-items: center;
-  gap: 8px;
+  gap: 6px;
+  padding: 4px 6px;
+  border-radius: 8px;
+  border: 1px solid var(--border-color);
+  background: var(--bg-soft-color);
+  transition: border-color 0.14s ease, background-color 0.14s ease;
+  &:hover:not(.is-disabled) {
+    border-color: var(--border-color-strong);
+    background: var(--nav-hover-bg-color);
+  }
+  &.is-set-include {
+    border-color: rgba(31, 154, 114, 0.35);
+    background: rgba(31, 154, 114, 0.14);
+  }
+  &.is-set-exclude {
+    border-color: rgba(217, 119, 6, 0.35);
+    background: rgba(217, 119, 6, 0.14);
+  }
+  &.is-disabled {
+    opacity: 0.42;
+    cursor: not-allowed;
+    background: var(--bg-soft-color);
+    border-style: dashed;
+    border-color: var(--border-color);
+  }
 }
 .when-builder-option-label {
   min-width: 0;
-  color: var(--text-color-lighter);
-  font-size: 12px;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  color: var(--text-color);
+  font-size: 11px;
+  font-weight: 600;
 }
 .when-builder-option-actions {
   display: inline-flex;
-  gap: 4px;
+  flex: 0 0 auto;
+  padding: 1px;
+  border-radius: 6px;
+  background: rgba(15, 23, 42, 0.05);
+  border: 1px solid rgba(53, 95, 157, 0.1);
+  gap: 1px;
 }
 .when-state-btn {
-  width: 28px;
+  min-width: 30px;
+  width: 30px;
   height: 24px;
-  border: 1px solid var(--border-color);
-  border-radius: 6px;
-  background: var(--bg-color);
+  border: none;
+  border-radius: 5px;
+  background: transparent;
   color: var(--text-color-lighter);
-  font-size: 12px;
+  font-size: 11px;
+  font-weight: 700;
   cursor: pointer;
-  &.active {
-    border-color: color-mix(in srgb, var(--primary-color) 40%, transparent);
-    background: color-mix(in srgb, var(--primary-color) 12%, transparent);
-    color: var(--primary-color);
-    font-weight: 700;
+  transition: all 0.14s ease;
+  &:hover:not(.active-include):not(.active-exclude):not(:disabled) {
+    background: rgba(53, 95, 157, 0.1);
+    color: var(--text-color);
+  }
+  &:disabled {
+    cursor: not-allowed;
+    opacity: 0.45;
+  }
+  &.active-include {
+    color: #fff;
+    background: linear-gradient(180deg, #34c38f, #1f9a72);
+    box-shadow: 0 1px 6px rgba(31, 154, 114, 0.32);
+  }
+  &.active-exclude {
+    color: #fff;
+    background: linear-gradient(180deg, #f5a623, #e07a1e);
+    box-shadow: 0 1px 6px rgba(224, 122, 30, 0.32);
+  }
+}
+@media (max-width: 680px) {
+  .when-builder-groups {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+@media (max-width: 480px) {
+  .when-builder-groups {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+@media (prefers-color-scheme: dark) {
+  .when-builder-option {
+    background: var(--bg-soft-color);
+  }
+  .when-builder-group--surface {
+    background: linear-gradient(160deg, rgba(107, 143, 214, 0.16), var(--bg-elevated-color));
+  }
+  .when-builder-group--state {
+    background: linear-gradient(160deg, rgba(31, 154, 114, 0.14), var(--bg-elevated-color));
+  }
+  .when-builder-group--overlay {
+    background: linear-gradient(160deg, rgba(217, 119, 6, 0.14), var(--bg-elevated-color));
   }
 }
 .drag-handle {
@@ -2680,148 +3489,252 @@ onUnmounted(() => {
   font-weight: 600;
   color: var(--text-color);
 }
-.feature-add-btn {
-  flex-shrink: 0;
-}
-.feature-toolbar {
-  display: flex;
-  align-items: flex-end;
-  justify-content: space-between;
-  gap: 14px;
-  margin-top: 16px;
-  padding: 14px 16px;
-  border-radius: 18px;
-  border: 1px solid var(--border-color);
-  background: rgba(255, 255, 255, 0.72);
-}
-.feature-toolbar-main {
-  display: grid;
-  grid-template-columns: minmax(240px, 1fr) minmax(220px, 0.9fr);
-  gap: 14px;
+.setting-feature-shell {
   flex: 1;
-  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-height: 0;
+  padding: 0 2px;
 }
-.feature-quick-card {
-  padding: 12px 14px;
-  border-radius: 14px;
-  border: 1px solid var(--border-color);
-  background: var(--bg-elevated-color);
-}
-.feature-quick-card-head {
+.feature-strip {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  gap: 10px;
+  gap: 5px;
+  padding: 3px 6px;
+  border-radius: 10px;
+  background: linear-gradient(90deg, rgba(239, 246, 252, 0.95), rgba(255, 255, 255, 0.88));
+  border: 1px solid rgba(53, 95, 157, 0.12);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.85);
 }
-.feature-inline-trigger {
+.feature-strip--single {
+  flex-wrap: nowrap;
+}
+.feature-strip-chip {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  min-height: 30px;
-  padding: 0 12px;
-  border: 1px solid rgba(53, 95, 157, 0.2);
+  min-height: 24px;
+  padding: 0 8px;
+  border: 1px solid transparent;
   border-radius: 999px;
-  background: var(--bg-soft-color);
-  color: var(--primary-color);
-  font-size: 12px;
+  background: rgba(255, 255, 255, 0.78);
+  font-size: 11px;
   font-weight: 600;
+  color: var(--text-color-lighter);
+  white-space: nowrap;
+  cursor: default;
+}
+.feature-strip-chip--home {
+  border-color: rgba(53, 95, 157, 0.22);
+  color: var(--primary-color);
+  background: rgba(53, 95, 157, 0.08);
   cursor: pointer;
 }
-.feature-quick-card-desc {
-  margin: 8px 0 0;
-  font-size: 12px;
-  line-height: 1.6;
-  color: var(--text-color-lighter);
+.feature-strip-chip--filter {
+  border-color: rgba(153, 99, 20, 0.24);
+  background: rgba(153, 99, 20, 0.10);
+  color: #8a5a12;
 }
-.feature-field {
+.feature-strip-chip--add {
+  width: 24px;
+  min-width: 24px;
+  padding: 0;
+  border-color: rgba(53, 95, 157, 0.28);
+  background: linear-gradient(180deg, #ffffff 0%, #eef4fb 100%);
+  color: var(--primary-color);
+  font-size: 16px;
+  line-height: 1;
+  cursor: pointer;
+}
+.feature-search-wrap {
+  flex: 1 1 auto;
+  min-width: 72px;
+  max-width: 168px;
+}
+.setting-feature-shell .feature-search-wrap :deep(.el-input__wrapper) {
+  min-height: 24px;
+  padding: 0 8px;
+  border-radius: 999px;
+  box-shadow: none;
+}
+.setting-feature-shell .feature-search-wrap :deep(.el-input__inner) {
+  font-size: 11px;
+}
+.setting-help-btn--compact {
+  width: 22px;
+  min-width: 22px;
+  height: 22px;
+  padding: 0;
+  font-size: 11px;
+}
+.feature-list-scroll {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 3px 2px 4px;
+  border-radius: 12px;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.55), rgba(247, 250, 254, 0.35)),
+    rgba(255, 255, 255, 0.72);
+  border: 1px solid rgba(53, 95, 157, 0.10);
+  scrollbar-width: thin;
+}
+.feature-list {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-height: 100%;
+}
+.feature-list-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 30px;
+  padding: 3px 8px 3px 4px;
+  border-radius: 9px;
+  border: 1px solid transparent;
+  background: rgba(255, 255, 255, 0.62);
+  transition: border-color 0.16s ease, background-color 0.16s ease, box-shadow 0.16s ease;
+  &:hover {
+    border-color: rgba(53, 95, 157, 0.16);
+    background: rgba(255, 255, 255, 0.94);
+    box-shadow: 0 6px 16px rgba(53, 95, 157, 0.08);
+  }
+  &.custom {
+    border-left: 2px solid rgba(53, 95, 157, 0.35);
+  }
+}
+.feature-list-grip {
+  flex: 0 0 auto;
+  width: 16px;
+  text-align: center;
+  color: var(--text-color-lighter);
+  font-size: 11px;
+  opacity: 0.35;
+  cursor: grab;
+  user-select: none;
+  transition: opacity 0.16s ease, color 0.16s ease;
+}
+.feature-list-item:hover .feature-list-grip {
+  opacity: 1;
+  color: var(--primary-color);
+}
+.feature-list-grip--disabled {
+  opacity: 0.15;
+  cursor: not-allowed;
+}
+.feature-list-icon {
+  flex: 0 0 auto;
+  font-size: 15px;
+  line-height: 1;
+}
+.feature-list-main {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  flex: 1 1 auto;
   min-width: 0;
 }
-.feature-field-label {
-  display: block;
-  margin-bottom: 8px;
-  font-size: 12px;
-  font-weight: 600;
-  color: var(--text-color-lighter);
-}
-.feature-field-search {
-  max-width: 360px;
-}
-.feature-select-popover-body {
-  display: grid;
-  gap: 10px;
-}
-.feature-select-popover-title {
+.feature-list-title {
   font-size: 12px;
   font-weight: 600;
   color: var(--text-color);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
-.feature-table-head {
-  display: flex;
-  align-items: flex-end;
-  justify-content: space-between;
-  gap: 12px;
-  margin-top: 16px;
-}
-.feature-table-title {
-  font-size: 16px;
-}
-.feature-table-tip {
-  font-size: 12px;
-  color: var(--text-color-lighter);
-}
-.feature-cell-main {
-  display: grid;
-  gap: 6px;
-}
-.feature-cell-title-row {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  min-width: 0;
-}
-.feature-meta-row {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  flex-wrap: wrap;
-}
-.feature-meta-chip {
-  display: inline-flex;
-  align-items: center;
-  min-height: 22px;
-  padding: 0 8px;
+.feature-list-badge {
+  flex: 0 0 auto;
+  min-height: 18px;
+  padding: 0 5px;
   border-radius: 999px;
-  font-size: 11px;
-  color: var(--text-color-lighter);
-  background: var(--bg-soft-color);
   border: 1px solid var(--border-color);
+  background: var(--bg-soft-color);
+  font-size: 9px;
+  font-weight: 700;
+  color: var(--text-color-lighter);
   &.custom {
     color: var(--primary-color);
     border-color: rgba(53, 95, 157, 0.2);
+    background: rgba(53, 95, 157, 0.08);
   }
 }
-.feature-meta-text {
+.feature-kbd {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  max-width: 132px;
+  min-height: 20px;
+  padding: 0 7px;
+  border: 1px solid rgba(15, 23, 42, 0.14);
+  border-radius: 6px;
+  background: linear-gradient(180deg, #f8fafc 0%, #e8eef5 100%);
+  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.9) inset;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 10px;
+  font-weight: 600;
+  color: #334155;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  cursor: pointer;
+}
+.feature-kbd:hover {
+  border-color: rgba(53, 95, 157, 0.28);
+  color: var(--primary-color);
+}
+.feature-kbd--muted {
+  cursor: default;
+  color: var(--text-color-lighter);
+  background: transparent;
+  border-color: transparent;
+  box-shadow: none;
+}
+.feature-list-ops {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  flex: 0 0 auto;
+  opacity: 0;
+  transition: opacity 0.16s ease;
+}
+.feature-list-item:hover .feature-list-ops {
+  opacity: 1;
+}
+.feature-list-op {
+  width: 22px;
+  height: 22px;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--primary-color);
+  font-size: 13px;
+  line-height: 1;
+  cursor: pointer;
+}
+.feature-list-op:hover {
+  background: rgba(53, 95, 157, 0.10);
+}
+.feature-list-op--danger {
+  color: #b42318;
+}
+.feature-list-op--danger:hover {
+  background: rgba(180, 35, 24, 0.10);
+}
+.feature-list-empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 100%;
+  padding: 20px 12px;
+  text-align: center;
   font-size: 12px;
   color: var(--text-color-lighter);
-}
-.feature-command-cell {
-  display: grid;
-  gap: 6px;
-  align-content: center;
-  min-height: 42px;
-}
-.feature-command-text {
-  display: inline-block;
-  max-width: 100%;
-  font-size: 12px;
-  line-height: 1.6;
-  color: var(--text-color-lighter);
-  word-break: break-all;
 }
 .feature-shortcut-link {
   display: inline-flex;
   align-items: center;
-  justify-self: start;
   min-height: 24px;
   padding: 0 8px;
   border-radius: 6px;
@@ -2836,28 +3749,372 @@ onUnmounted(() => {
   border-color: rgba(53, 95, 157, 0.35);
   background: rgba(53, 95, 157, 0.12);
 }
-.feature-shortcut-link:focus-visible {
-  outline: 2px solid var(--primary-color);
-  outline-offset: 2px;
+.feature-select-popover-body {
+  display: grid;
+  gap: 8px;
 }
-.feature-shortcut-muted {
+@media (max-width: 900px) {
+  .feature-search-wrap {
+    max-width: none;
+    flex-basis: 88px;
+  }
+}
+.setting-shortcut-shell {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-height: 0;
+  padding: 0 2px;
+}
+.shortcut-strip {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 6px;
+  border-radius: 10px;
+  background: linear-gradient(90deg, rgba(239, 246, 252, 0.95), rgba(255, 255, 255, 0.88));
+  border: 1px solid rgba(53, 95, 157, 0.12);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.85);
+}
+.shortcut-strip--single {
+  flex-wrap: nowrap;
+}
+.shortcut-strip-meta {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  flex: 0 0 auto;
+  min-height: 22px;
+  padding: 0 8px;
+  border-radius: 999px;
+  border: 1px solid rgba(28, 113, 82, 0.18);
+  background: rgba(28, 113, 82, 0.08);
+  white-space: nowrap;
+  &.is-fallback {
+    border-color: rgba(153, 99, 20, 0.24);
+    background: rgba(153, 99, 20, 0.10);
+    .shortcut-strip-meta-label {
+      color: #8a5a12;
+    }
+  }
+}
+.shortcut-strip-meta-label {
+  font-size: 10px;
+  font-weight: 700;
+  color: #16684a;
+  letter-spacing: 0.02em;
+}
+.shortcut-strip-meta-count {
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--text-color-lighter);
+  &::before {
+    content: '·';
+    margin-right: 4px;
+    color: rgba(53, 95, 157, 0.35);
+  }
+}
+.shortcut-search-wrap {
+  flex: 1 1 auto;
+  min-width: 108px;
+  max-width: 42%;
+}
+.shortcut-strip-actions {
+  margin-left: auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  flex: 0 0 auto;
+}
+.setting-shortcut-shell .shortcut-search-wrap :deep(.el-input__wrapper) {
+  min-height: 22px;
+  padding: 0 8px;
+  border-radius: 999px;
+  box-shadow: 0 0 0 1px rgba(53, 95, 157, 0.12) inset;
+}
+.setting-shortcut-shell .shortcut-search-wrap :deep(.el-input__inner) {
+  font-size: 11px;
+}
+.shortcut-scope-select {
+  width: auto;
+  min-width: 4em;
+  max-width: 5.5em;
+  flex: 0 0 auto;
+}
+.setting-shortcut-shell .shortcut-scope-select :deep(.el-select__wrapper) {
+  min-height: 22px;
+  padding: 0 8px;
+  border-radius: 999px;
+  box-shadow: 0 0 0 1px rgba(53, 95, 157, 0.12) inset;
+}
+.setting-shortcut-shell .shortcut-scope-select :deep(.el-select__selected-item) {
+  font-size: 10px;
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.shortcut-list-scroll {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 3px 2px 4px;
+  border-radius: 12px;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.55), rgba(247, 250, 254, 0.35)),
+    rgba(255, 255, 255, 0.72);
+  border: 1px solid rgba(53, 95, 157, 0.10);
+  scrollbar-width: thin;
+}
+.shortcut-list {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-height: 100%;
+}
+.shortcut-list--grid {
+  --shortcut-cols: minmax(0, 0.78fr) minmax(60px, 0.52fr) minmax(50px, 0.40fr) minmax(36px, 0.28fr) minmax(36px, 0.28fr) 100px;
+}
+.shortcut-list-head,
+.shortcut-list-item {
+  display: grid;
+  grid-template-columns: var(--shortcut-cols);
+  column-gap: 5px;
+  align-items: center;
+}
+.shortcut-list-head {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  padding: 5px 8px 6px;
+  margin-bottom: 1px;
+  border-bottom: 1px solid rgba(53, 95, 157, 0.10);
+  background: rgba(247, 250, 254, 0.96);
+  font-size: 10px;
+  font-weight: 700;
+  color: var(--text-color-lighter);
+  letter-spacing: 0.02em;
+}
+.shortcut-list-item {
+  position: relative;
+  overflow: hidden;
+  min-height: 34px;
+  padding: 3px 8px;
+  border-radius: 9px;
+  border: 1px solid transparent;
+  background: rgba(255, 255, 255, 0.62);
+  transition: border-color 0.16s ease, background-color 0.16s ease, box-shadow 0.16s ease;
+  &:hover {
+    border-color: rgba(53, 95, 157, 0.16);
+    background: rgba(255, 255, 255, 0.94);
+    box-shadow: 0 6px 16px rgba(53, 95, 157, 0.08);
+  }
+  &.is-disabled {
+    opacity: 0.55;
+  }
+  &.is-risk {
+    border-left: 2px solid rgba(180, 35, 24, 0.35);
+  }
+  &:has(.shortcut-id-cell:hover) {
+    z-index: 2;
+  }
+}
+.shortcut-col {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.shortcut-col--id {
+  font-size: 10px;
+  color: var(--text-color-lighter);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+}
+.shortcut-id-cell {
+  align-self: stretch;
+  display: flex;
+  align-items: center;
+  min-height: 100%;
+  overflow: visible;
+}
+.shortcut-id-anchor {
+  position: relative;
+  display: inline-block;
+  max-width: 100%;
+  cursor: default;
+  vertical-align: middle;
+  &:hover .shortcut-id-value {
+    color: var(--primary-color);
+  }
+}
+.shortcut-id-value {
+  display: block;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  transition: color 0.18s ease;
+}
+.shortcut-id-drawer {
+  grid-column: 1 / -1;
+  grid-row: 1;
+  position: absolute;
+  left: var(--shortcut-drawer-left, 0);
+  top: 50%;
+  z-index: 3;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: max-content;
+  max-width: var(--shortcut-drawer-max, 100%);
+  height: 28px;
+  margin-top: -14px;
+  padding: 0 12px 0 16px;
+  border-radius: 0 8px 8px 0;
+  border: 1px solid rgba(53, 95, 157, 0.14);
+  background:
+    linear-gradient(90deg, rgba(247, 250, 254, 0.35) 0%, rgba(255, 255, 255, 0.98) 18%),
+    rgba(255, 255, 255, 0.97);
+  box-shadow: 4px 0 18px rgba(53, 95, 157, 0.10);
+  overflow: hidden;
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+  transition: opacity 0.18s ease, visibility 0.18s ease;
+  &::before {
+    content: '';
+    position: absolute;
+    left: 0;
+    top: 6px;
+    bottom: 6px;
+    width: 2px;
+    border-radius: 2px;
+    background: linear-gradient(180deg, rgba(53, 95, 157, 0.45), rgba(53, 95, 157, 0.18));
+  }
+}
+.shortcut-list-item:has(.shortcut-id-cell:hover) .shortcut-id-drawer {
+  opacity: 1;
+  visibility: visible;
+}
+.shortcut-id-drawer-label {
+  flex: 0 0 auto;
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  color: var(--text-color-lighter);
+  text-transform: uppercase;
+}
+.shortcut-id-drawer-title {
+  min-width: 0;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-color);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.shortcut-col--scope {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  overflow: hidden;
+}
+.shortcut-col--kbd {
+  display: flex;
+  justify-content: center;
+  overflow: visible;
+  .feature-kbd {
+    max-width: 100%;
+  }
+}
+.shortcut-col--when {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 10px;
+  color: var(--text-color-lighter);
+  text-align: center;
+}
+.shortcut-col--source {
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--text-color-lighter);
+  text-align: center;
+  &.user {
+    color: var(--primary-color);
+  }
+}
+.shortcut-col--ops {
+  display: flex;
+  justify-content: flex-end;
+  overflow: visible;
+  min-width: 100px;
+}
+.shortcut-list-badge {
+  flex: 0 0 auto;
+  min-height: 18px;
+  padding: 0 5px;
+  border-radius: 999px;
+  border: 1px solid var(--border-color);
+  background: var(--bg-soft-color);
+  font-size: 9px;
+  font-weight: 700;
+  color: var(--text-color-lighter);
+  white-space: nowrap;
+}
+.shortcut-list-badge--risk {
+  color: #b42318;
+  border-color: rgba(180, 35, 24, 0.22);
+  background: rgba(255, 241, 240, 0.88);
+}
+.shortcut-list-ops {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+}
+.shortcut-list-op {
+  width: 20px;
+  height: 20px;
+  border: none;
+  border-radius: 5px;
+  background: transparent;
+  color: var(--primary-color);
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1;
+  cursor: pointer;
+}
+.shortcut-list-op:hover {
+  background: rgba(53, 95, 157, 0.10);
+}
+.shortcut-list-op--danger {
+  color: #b42318;
+}
+.shortcut-list-op--danger:hover {
+  background: rgba(180, 35, 24, 0.10);
+}
+.shortcut-list-empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 100%;
+  padding: 20px 12px;
   font-size: 12px;
   color: var(--text-color-lighter);
 }
 @media (max-width: 900px) {
-  .feature-toolbar {
-    flex-direction: column;
-    align-items: stretch;
-  }
-  .feature-toolbar-main {
-    grid-template-columns: 1fr;
-  }
-  .feature-field-search {
+  .shortcut-search-wrap {
+    flex-basis: 120px;
+    width: auto;
     max-width: none;
   }
-  .feature-table-head {
-    align-items: flex-start;
-    flex-direction: column;
+  .shortcut-list--grid {
+    --shortcut-cols: minmax(0, 0.7fr) minmax(52px, 0.48fr) minmax(48px, 0.38fr) 100px;
+  }
+  .shortcut-list-head .shortcut-col--when,
+  .shortcut-list-head .shortcut-col--source,
+  .shortcut-col--when,
+  .shortcut-col--source {
+    display: none;
   }
 }
 .feature-config-panel {
@@ -2865,6 +4122,16 @@ onUnmounted(() => {
   display: flex;
   flex-direction: column;
   gap: 14px;
+}
+.setting-feature-config-shell {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  padding: 0 2px;
+}
+.feature-config-panel--compact {
+  gap: 6px;
 }
 .feature-config-row {
   display: flex;
@@ -2884,6 +4151,84 @@ onUnmounted(() => {
   &:hover {
     border-color: var(--border-color-strong);
     box-shadow: 0 22px 42px var(--shadow-color);
+  }
+}
+.feature-config-row--compact {
+  padding: 6px 10px;
+  gap: 8px;
+  border-radius: 10px;
+  border-color: rgba(53, 95, 157, 0.12);
+  background: linear-gradient(90deg, rgba(255, 255, 255, 0.94), rgba(247, 250, 254, 0.88));
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.9),
+    0 4px 12px rgba(15, 23, 42, 0.04);
+  &:hover {
+    box-shadow: 0 6px 16px rgba(53, 95, 157, 0.08);
+  }
+}
+.feature-config-meta-inline {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  flex: 1 1 auto;
+  min-width: 0;
+  flex-wrap: wrap;
+  strong {
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--text-color);
+  }
+}
+.feature-config-control--compact {
+  gap: 5px;
+  flex-wrap: nowrap;
+}
+.feature-config-row--compact .feature-config-title-row strong {
+  font-size: 12px;
+  font-weight: 600;
+}
+.feature-config-chip {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 22px;
+  padding: 0 9px;
+  border: 1px solid rgba(53, 95, 157, 0.16);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.78);
+  color: var(--text-color-lighter);
+  font-size: 10px;
+  font-weight: 600;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: all 0.14s ease;
+  &:hover {
+    border-color: rgba(53, 95, 157, 0.28);
+    color: var(--primary-color);
+    background: rgba(53, 95, 157, 0.08);
+  }
+}
+.feature-config-chip--primary {
+  border-color: rgba(53, 95, 157, 0.24);
+  color: var(--primary-color);
+  background: rgba(53, 95, 157, 0.08);
+}
+.feature-config-status-mini {
+  display: inline-flex;
+  align-items: center;
+  min-height: 18px;
+  padding: 0 6px;
+  border-radius: 999px;
+  border: 1px solid rgba(28, 113, 82, 0.18);
+  background: rgba(28, 113, 82, 0.08);
+  color: #16684a;
+  font-size: 9px;
+  font-weight: 700;
+  white-space: nowrap;
+  &.fallback {
+    border-color: rgba(153, 99, 20, 0.24);
+    background: rgba(153, 99, 20, 0.10);
+    color: #8a5a12;
   }
 }
 .feature-config-meta {
@@ -2908,6 +4253,17 @@ onUnmounted(() => {
   font-size: 12px;
   line-height: 1.5;
 }
+.feature-config-status-row {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 10px;
+}
+.setting-section-action {
+  flex: 0 0 auto;
+  white-space: nowrap;
+}
 .feature-config-control {
   display: flex;
   align-items: center;
@@ -2917,10 +4273,6 @@ onUnmounted(() => {
   flex: 1 1 auto;
   min-width: 0;
   margin-left: auto;
-}
-.feature-config-action {
-  flex: 0 0 auto;
-  white-space: nowrap;
 }
 .feature-config-actions {
   flex-wrap: wrap;
@@ -3041,6 +4393,44 @@ onUnmounted(() => {
   min-width: 96px;
   justify-content: flex-end;
 }
+.feature-config-row--compact .feature-config-input.inline {
+  padding: 3px 8px 3px 9px;
+  border-radius: 999px;
+  box-shadow: 0 0 0 1px rgba(53, 95, 157, 0.12) inset;
+}
+.feature-config-row--compact .feature-config-inline-label {
+  font-size: 10px;
+  margin-right: 5px;
+}
+.feature-config-row--compact .feature-config-native-input {
+  width: 44px;
+  font-size: 11px;
+}
+.feature-config-row--compact .feature-config-unit {
+  font-size: 10px;
+}
+.toggle-pill--compact {
+  min-width: 56px;
+  height: 26px;
+  gap: 5px;
+  padding: 0 7px 0 6px;
+  font-size: 11px;
+  box-shadow: 0 4px 10px rgba(15, 23, 42, 0.12), inset 0 1px 0 rgba(255, 255, 255, 0.18);
+  &:hover {
+    transform: none;
+  }
+}
+.toggle-pill--compact .toggle-pill-track {
+  width: 28px;
+  height: 16px;
+}
+.toggle-pill--compact .toggle-pill-knob {
+  width: 12px;
+  height: 12px;
+}
+.toggle-pill--compact.is-off .toggle-pill-knob {
+  transform: translateX(12px);
+}
 .toggle-pill {
   display: inline-flex;
   align-items: center;
@@ -3150,6 +4540,10 @@ onUnmounted(() => {
   color: var(--text-color-lighter);
 }
 .setting :deep(.el-card__body) {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
   padding: 0;
 }
 .setting :deep(.el-divider) {
@@ -3201,6 +4595,10 @@ onUnmounted(() => {
   color: var(--text-color-lighter);
 }
 .setting :deep(.el-card) {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
   overflow: hidden;
   background: rgba(255, 255, 255, 0.94);
   border-color: var(--border-color-strong);
@@ -3209,14 +4607,27 @@ onUnmounted(() => {
     0 26px 56px var(--shadow-color),
     inset 0 1px 0 rgba(255, 255, 255, 0.96);
 }
-.setting-card-footer {
-  display: flex;
-  align-items: center;
-  justify-content: flex-start;
-  gap: 12px;
-  padding: 18px 20px 20px;
-  border-top: 1px solid var(--border-color);
-  background: linear-gradient(180deg, rgba(247, 250, 254, 0.92), rgba(239, 244, 249, 0.96));
+.setting-card {
+  flex: 1;
+  min-height: 0;
+}
+.setting-header-actions :deep(.el-button.setting-header-btn) {
+  min-height: 26px;
+  padding: 0 11px;
+  border-radius: 9px;
+  font-size: 12px;
+  font-weight: 600;
+  box-shadow: 0 2px 8px rgba(15, 23, 42, 0.06);
+}
+.setting-header-actions :deep(.el-button.setting-header-btn--primary) {
+  box-shadow: 0 4px 12px rgba(53, 95, 157, 0.18);
+}
+.sub-tab-nav :deep(.el-button.sub-tab-btn) {
+  min-height: 26px;
+  padding: 0 10px;
+  border-radius: 8px;
+  font-size: 12px;
+  box-shadow: none;
 }
 .setting :deep(.el-button:not(.is-link)) {
   min-height: 40px;

@@ -1,5 +1,29 @@
 import { normalizeShortcutId } from './shortcutKey.js'
 
+/** 不可绑定为命令快捷键的固定按键（归一化 shortcutId，后续可扩充） */
+export const NON_CONFIGURABLE_SHORTCUT_IDS = [
+  'Escape',
+  'Enter',
+  'ctrl+c',
+  'ctrl+r',
+  'ArrowLeft',
+  'ArrowRight'
+]
+
+const NON_CONFIGURABLE_SHORTCUT_SET = new Set(
+  NON_CONFIGURABLE_SHORTCUT_IDS.map((shortcutId) => normalizeShortcutId(shortcutId))
+)
+
+/** 设置页内固定快捷键说明（悬浮提示用） */
+export const SETTING_PAGE_FIXED_SHORTCUTS = [
+  { shortcutId: 'Escape', description: '关闭当前弹窗（不退出设置页）' },
+  { shortcutId: 'ArrowLeft', description: '切换到上一个 Tab' },
+  { shortcutId: 'ArrowRight', description: '切换到下一个 Tab' },
+  { shortcutId: 'ArrowUp', description: '设置页向上滚动' },
+  { shortcutId: 'ArrowDown', description: '设置页向下滚动' },
+  { shortcutId: 'ctrl+f', description: '聚焦命令搜索框' }
+]
+
 const CODE_ALIAS = {
   Digit0: '0',
   Digit1: '1',
@@ -49,8 +73,15 @@ export function eventLikeToShortcutId(eventLike) {
   return normalizeShortcutId(parts.join('+'))
 }
 
+export function isNonConfigurableShortcutId(shortcutId) {
+  const normalized = normalizeShortcutId(shortcutId)
+  return Boolean(normalized && NON_CONFIGURABLE_SHORTCUT_SET.has(normalized))
+}
+
 export function isRecordableShortcutId(shortcutId) {
   const normalized = normalizeShortcutId(shortcutId)
   if (!normalized) return false
-  return !MODIFIER_SHORTCUTS.has(normalized)
+  if (MODIFIER_SHORTCUTS.has(normalized)) return false
+  if (isNonConfigurableShortcutId(normalized)) return false
+  return true
 }
