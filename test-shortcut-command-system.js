@@ -19,13 +19,17 @@ async function main() {
   const {
     applyShortcutOverrideValue,
     buildShortcutCommandRows,
+    buildShortcutCommandRowsFromProfiles,
     buildShortcutOverrideValue,
+    disableCommandShortcutOverride,
     disableShortcutOverride,
     filterShortcutCommandRows,
     findOperationShortcutRows,
     getOperationShortcutSummary,
     OPERATION_SHORTCUT_COMMANDS
   } = await import('./src/global/shortcutCommandRows.js')
+  const { buildCommandShortcutProfiles, getCommandOverrideKey } = await import('./src/global/commandKeybindings.js')
+  const { isShortcutAssignable } = await import('./src/global/shortcutReservations.js')
   const {
     buildContextMenuDrawerOrderFromRows,
     buildContextMenuActionRows,
@@ -1187,7 +1191,7 @@ async function main() {
   assert.strictEqual(disabledRows[0].defaultShortcutId, 'Delete')
   assert.strictEqual(disabledRows[0].overrideKey, 'main::Delete:list-delete')
 
-  const allShortcutRows = buildShortcutCommandRows(getCommandAwareBindings(HOTKEY_BINDINGS))
+  const allShortcutRows = buildShortcutCommandRowsFromProfiles(buildCommandShortcutProfiles())
   assert.ok(
     allShortcutRows.some((row) => row.commandId === 'setting.scroll.up'),
     'settings shortcut table should include setting-page command bindings'
@@ -1211,12 +1215,12 @@ async function main() {
   )
   assert.deepStrictEqual(
     findOperationShortcutRows('remove', allShortcutRows).map((row) => row.commandId),
-    ['list.item.delete', 'list.item.delete'],
-    'feature settings should map remove operation to all delete shortcut command rows'
+    ['list.item.delete'],
+    'feature settings should map remove operation to aggregated delete command row'
   )
   const removeShortcutSummary = getOperationShortcutSummary('remove', allShortcutRows, (shortcutId) => shortcutId)
   assert.strictEqual(removeShortcutSummary.query, 'list.item.delete')
-  assert.strictEqual(removeShortcutSummary.count, 2)
+  assert.strictEqual(removeShortcutSummary.count, 1)
   assert.strictEqual(removeShortcutSummary.label, 'Delete / Backspace')
   assert.strictEqual(removeShortcutSummary.hint, '点击查看或修改对应 command 快捷键')
   for (const [operationId, commandIds] of Object.entries(OPERATION_SHORTCUT_COMMANDS)) {
@@ -1350,52 +1354,66 @@ async function main() {
   )
   assert.deepStrictEqual(
     commandRowConflicts.map((row) => row.commandId),
-    ['list.item.forceDelete'],
-    'command row conflict helper should ignore disabled and mutually exclusive when rows'
+    ['list.item.forceDelete', 'list.item.copyOnly'],
+    'command row conflict helper should include disabled occupying rows and ignore mutually exclusive when rows'
   )
 
-  const overrideRow = {
-    shortcutId: 'Delete',
+  const multiKeyRow = {
+    commandId: 'list.item.delete',
+    shortcutIds: ['Delete', 'Backspace'],
+    defaultShortcutIds: ['Delete', 'Backspace'],
+    defaultWhen: 'mainFocus',
     when: 'mainFocus',
-    defaultShortcutId: 'Delete',
-    defaultWhen: 'mainFocus'
+    enabled: true,
+    overrideKey: getCommandOverrideKey('list.item.delete')
   }
   assert.deepStrictEqual(
-    buildShortcutOverrideValue(overrideRow, { shortcutId: 'ctrl+d' }),
-    { shortcutId: 'ctrl+d' },
-    'shortcut override should store only non-default key'
+    buildShortcutOverrideValue(multiKeyRow, { shortcutIds: ['Delete', 'Backspace', 'ctrl+d'] }),
+    { shortcutIds: ['Delete', 'Backspace', 'ctrl+d'], enabled: true },
+    'shortcut override should store non-default multi-key bindings'
   )
   assert.deepStrictEqual(
-    buildShortcutOverrideValue(overrideRow, { when: ' mainFocus && !inputFocus ' }),
-    { when: 'mainFocus && !inputFocus' },
+    buildShortcutOverrideValue(multiKeyRow, { when: ' mainFocus && !inputFocus ' }),
+    { shortcutIds: ['Delete', 'Backspace'], enabled: true, when: 'mainFocus && !inputFocus' },
     'when override should trim and store only non-default when'
   )
   assert.deepStrictEqual(
     buildShortcutOverrideValue(
-      { ...overrideRow, shortcutId: 'ctrl+d', when: 'mainFocus && !inputFocus' },
-      { shortcutId: 'Delete', when: 'mainFocus' }
+      { ...multiKeyRow, shortcutIds: ['ctrl+d'], when: 'mainFocus && !inputFocus' },
+      { shortcutIds: ['Delete', 'Backspace'], when: 'mainFocus' }
     ),
     undefined,
     'restoring key and when to defaults should remove override'
   )
-  const overrideKeyRow = { ...overrideRow, overrideKey: 'main::Delete:list-delete' }
+  const overrideKeyRow = { ...multiKeyRow }
   assert.deepStrictEqual(
-    applyShortcutOverrideValue({ other: 'keep' }, overrideKeyRow, { shortcutId: 'ctrl+d' }),
-    { other: 'keep', 'main::Delete:list-delete': { shortcutId: 'ctrl+d' } },
+    applyShortcutOverrideValue({ other: 'keep' }, overrideKeyRow, { shortcutIds: ['ctrl+d'], enabled: true }),
+    { other: 'keep', [getCommandOverrideKey('list.item.delete')]: { shortcutIds: ['ctrl+d'], enabled: true } },
     'override map helper should set row override by overrideKey'
   )
   assert.deepStrictEqual(
-    applyShortcutOverrideValue({ other: 'keep', 'main::Delete:list-delete': { shortcutId: 'ctrl+d' } }, overrideKeyRow, undefined),
+    applyShortcutOverrideValue(
+      { other: 'keep', [getCommandOverrideKey('list.item.delete')]: { shortcutIds: ['ctrl+d'], enabled: true } },
+      overrideKeyRow,
+      undefined
+    ),
     { other: 'keep' },
     'override map helper should delete row override when value is undefined'
   )
   assert.deepStrictEqual(
-    disableShortcutOverride({ other: 'keep' }, overrideKeyRow),
-    { other: 'keep', 'main::Delete:list-delete': null },
-    'disable helper should store null override for row'
+    disableCommandShortcutOverride({ other: 'keep' }, overrideKeyRow),
+    {
+      other: 'keep',
+      [getCommandOverrideKey('list.item.delete')]: {
+        shortcutIds: ['Delete', 'Backspace'],
+        enabled: false,
+        when: 'mainFocus'
+      }
+    },
+    'disable helper should keep shortcut ids and set enabled false'
   )
   assert.deepStrictEqual(
-    applyShortcutOverrideValue({ other: 'keep' }, { ...overrideRow, overrideKey: '' }, { shortcutId: 'ctrl+d' }),
+    applyShortcutOverrideValue({ other: 'keep' }, { ...multiKeyRow, overrideKey: '' }, { shortcutIds: ['ctrl+d'], enabled: true }),
     { other: 'keep' },
     'override map helper should ignore rows without overrideKey'
   )
@@ -1408,21 +1426,21 @@ async function main() {
       ignoredArray: ['ctrl+x']
     }),
     {
-      'main::Delete:list-delete': null,
-      'setting::ArrowUp:setting-scroll-up': 'ctrl+u',
-      'main::Enter:list-enter': { shortcutId: 'ctrl+Enter', when: 'mainFocus && !inputFocus' }
+      'cmd:list.item.delete': { shortcutIds: ['Delete', 'Backspace'], enabled: false },
+      'cmd:setting.scroll.up': { shortcutIds: ['ctrl+u'], enabled: true },
+      'cmd:list.item.copyPaste': { shortcutIds: ['ctrl+Enter'], enabled: true, when: 'mainFocus && !inputFocus' }
     },
-    'shortcut store should preserve supported override shapes and drop invalid values'
+    'shortcut store should migrate legacy overrides into cmd-level multi-key shape'
   )
   assert.deepStrictEqual(
     getShortcutOverridesFromSetting({ hotkeyOverrides: { 'main::Delete:list-delete': null } }),
-    { 'main::Delete:list-delete': null },
-    'shortcut store should read overrides from current setting shape'
+    { 'cmd:list.item.delete': { shortcutIds: ['Delete', 'Backspace'], enabled: false } },
+    'shortcut store should migrate legacy disable overrides into cmd-level enabled false'
   )
   assert.strictEqual(getShortcutStorageBackend({}), null)
   const inMemoryShortcutBackend = {
     map: {
-      'main::Delete:list-delete': null
+      'cmd:list.item.delete': { shortcutIds: ['Delete', 'Backspace'], enabled: false }
     },
     upserts: [],
     replaces: [],
@@ -1456,14 +1474,14 @@ async function main() {
       warn: () => {}
     }),
     {
-      hotkeyOverrides: { 'main::Delete:list-delete': null },
+      hotkeyOverrides: { 'cmd:list.item.delete': { shortcutIds: ['Delete', 'Backspace'], enabled: false } },
       storageMode: SHORTCUT_STORAGE_MODE_SQLITE
     },
     'shortcut store should prefer SQLite backend overrides when available'
   )
   assert.deepStrictEqual(
     getEffectiveShortcutOverrides({
-      setting: { hotkeyOverrides: { settingFallback: 'ctrl+f' } },
+      setting: { hotkeyOverrides: { 'cmd:list.item.delete': { shortcutIds: ['ctrl+f'], enabled: true } } },
       backend: {
         getOverridesMap() {
           throw new Error('read failed')
@@ -1472,7 +1490,7 @@ async function main() {
       warn: () => {}
     }),
     {
-      hotkeyOverrides: { settingFallback: 'ctrl+f' },
+      hotkeyOverrides: { 'cmd:list.item.delete': { shortcutIds: ['ctrl+f'], enabled: true } },
       storageMode: SHORTCUT_STORAGE_MODE_SETTING
     },
     'shortcut store should fallback to setting overrides when SQLite read fails'
@@ -1482,19 +1500,19 @@ async function main() {
       setting: { hotkeyOverrides: {} },
       backend: {
         getOverridesMap() {
-          return { 'main::Delete:list-delete': { shortcutId: 'ctrl+d' } }
+          return { 'cmd:list.item.delete': { shortcutIds: ['ctrl+d'], enabled: true } }
         },
         upsertOverrideRows() {},
         deleteOverride() {}
       },
       warn: () => {}
-    }).find((binding) => binding.overrideKey === 'main::Delete:list-delete')?.shortcutId,
+    }).find((binding) => binding.commands?.includes('list.item.delete'))?.shortcutId,
     'ctrl+d',
     'runtime bindings should use SQLite override map when backend is available'
   )
   assert.strictEqual(
     getEffectiveShortcutBindings({
-      setting: { hotkeyOverrides: { 'main::Delete:list-delete': { shortcutId: 'ctrl+s' } } },
+      setting: { hotkeyOverrides: { 'cmd:list.item.delete': { shortcutIds: ['ctrl+s'], enabled: true } } },
       backend: {
         getOverridesMap() {
           throw new Error('read failed')
@@ -1503,7 +1521,7 @@ async function main() {
         deleteOverride() {}
       },
       warn: () => {}
-    }).find((binding) => binding.overrideKey === 'main::Delete:list-delete')?.shortcutId,
+    }).find((binding) => binding.commands?.includes('list.item.delete'))?.shortcutId,
     'ctrl+s',
     'runtime bindings should fallback to setting overrides when SQLite read fails'
   )
@@ -1529,39 +1547,42 @@ async function main() {
       weight: 1
     }
   ]
-  assert.deepStrictEqual(
-    keybindingSnapshotRowsToBindings(snapshotBindingRows, {
-      'main::Delete:list-delete': { shortcutId: 'ctrl+d', when: 'mainFocus && multiSelect' },
-      'setting::ArrowUp:setting-scroll-up': null
+  const snapshotBindings = keybindingSnapshotRowsToBindings(snapshotBindingRows, {
+      'cmd:list.item.delete': { shortcutIds: ['ctrl+d'], enabled: true, when: 'mainFocus && multiSelect' },
+      'cmd:setting.scroll.up': { shortcutIds: ['ArrowUp'], enabled: false }
     }).map((binding) => ({
       shortcutId: binding.shortcutId,
       when: binding.when,
       source: binding.source,
-      disabled: binding.disabled,
+      commandEnabled: binding.commandEnabled,
       commands: binding.commands
-    })),
+    }))
+  assert.deepStrictEqual(
+    snapshotBindings.filter((binding) =>
+      binding.commands?.some((commandId) => ['list.item.delete', 'setting.scroll.up'].includes(commandId))
+    ),
     [
       {
         shortcutId: 'ctrl+d',
         when: 'mainFocus && multiSelect',
         source: 'user',
-        disabled: false,
+        commandEnabled: true,
         commands: ['list.item.delete']
       },
       {
         shortcutId: 'ArrowUp',
         when: 'settingFocus',
         source: 'removed',
-        disabled: true,
+        commandEnabled: false,
         commands: ['setting.scroll.up']
       }
     ],
-    'snapshot rows should be converted to command-aware bindings with overrides applied'
+    'snapshot rows should be converted to expanded command bindings with cmd overrides applied'
   )
   const sqliteCommandRowsResult = getEffectiveShortcutCommandRows({
     backend: {
       getOverridesMap() {
-        return { 'main::Delete:list-delete': { shortcutId: 'ctrl+d' } }
+        return { 'cmd:list.item.delete': { shortcutIds: ['ctrl+d'], enabled: true } }
       },
       getCommandSnapshotRows() {
         return [
@@ -1626,7 +1647,7 @@ async function main() {
   const commandSnapshotFailureResult = getEffectiveShortcutCommandRows({
     backend: {
       getOverridesMap() {
-        return { 'main::Delete:list-delete': { shortcutId: 'ctrl+alt+d' } }
+        return { 'cmd:list.item.delete': { shortcutIds: ['ctrl+alt+d'], enabled: true } }
       },
       getCommandSnapshotRows() {
         throw new Error('command snapshot read failed')
@@ -1671,16 +1692,22 @@ async function main() {
     'snapshot fallback should use backend overrides when override read still succeeds'
   )
   assert.deepStrictEqual(
-    buildShortcutSettingsPayload({ database: { maxage: null }, hotkeyOverrides: { old: 'ctrl+o' } }, { next: null }),
-    { database: { maxage: null }, hotkeyOverrides: { next: null } },
+    buildShortcutSettingsPayload(
+      { database: { maxage: null }, hotkeyOverrides: { 'cmd:list.item.delete': { shortcutIds: ['Delete'], enabled: true } } },
+      { 'cmd:list.item.delete': { shortcutIds: ['ctrl+d'], enabled: true } }
+    ),
+    {
+      database: { maxage: null },
+      hotkeyOverrides: { 'cmd:list.item.delete': { shortcutIds: ['ctrl+d'], enabled: true } }
+    },
     'shortcut store should merge a normalized override draft into the settings payload'
   )
   const shortcutEvents = []
   const savedShortcutPayloads = []
   const shortcutSaveResult = saveShortcutSettingsPayload(
-    { database: { maxage: 30 }, hotkeyOverrides: { old: 'ctrl+o' } },
+    { database: { maxage: 30 }, hotkeyOverrides: {} },
     {
-      overrides: { 'main::Delete:list-delete': { shortcutId: 'ctrl+d' } },
+      overrides: { 'cmd:list.item.delete': { shortcutIds: ['ctrl+d'], enabled: true } },
       saveSetting(payload) {
         savedShortcutPayloads.push(payload)
         return payload
@@ -1698,7 +1725,7 @@ async function main() {
   assert.deepStrictEqual(savedShortcutPayloads, [
     {
       database: { maxage: 30 },
-      hotkeyOverrides: { 'main::Delete:list-delete': { shortcutId: 'ctrl+d' } }
+      hotkeyOverrides: { 'cmd:list.item.delete': { shortcutIds: ['ctrl+d'], enabled: true } }
     }
   ])
   assert.deepStrictEqual(shortcutEvents, ['ezclipboard:hotkey-bindings-updated'])
@@ -1706,8 +1733,8 @@ async function main() {
   const sqliteSavePayloads = []
   const sqlitePersistCalls = []
   inMemoryShortcutBackend.map = {
-    'main::Delete:list-delete': null,
-    'setting::ArrowUp:setting-scroll-up': { shortcutId: 'ctrl+shift+u' }
+    'cmd:list.item.delete': { shortcutIds: ['Delete', 'Backspace'], enabled: false },
+    'cmd:setting.scroll.up': { shortcutIds: ['ctrl+shift+u'], enabled: true }
   }
   inMemoryShortcutBackend.upserts = []
   inMemoryShortcutBackend.replaces = []
@@ -1715,7 +1742,7 @@ async function main() {
   const sqliteSaveResult = saveShortcutSettingsPayload(
     { hotkeyOverrides: inMemoryShortcutBackend.map },
     {
-      overrides: { 'main::Delete:list-delete': { shortcutId: 'ctrl+d' } },
+      overrides: { 'cmd:list.item.delete': { shortcutIds: ['ctrl+d'], enabled: true } },
       backend: inMemoryShortcutBackend,
       saveSetting(payload) {
         sqliteSavePayloads.push(payload)
@@ -1741,12 +1768,12 @@ async function main() {
   assert.deepStrictEqual(inMemoryShortcutBackend.upserts, [])
   assert.strictEqual(inMemoryShortcutBackend.replaces.length, 1)
   assert.deepStrictEqual(shortcutOverrideRowsToMap(inMemoryShortcutBackend.replaces[0]), {
-    'main::Delete:list-delete': { shortcutId: 'ctrl+d' }
+    'cmd:list.item.delete': { shortcutIds: ['ctrl+d'], enabled: true }
   })
   assert.deepStrictEqual(sqliteSavePayloads, [
     {
       hotkeyOverrides: {
-        'main::Delete:list-delete': { shortcutId: 'ctrl+d' }
+        'cmd:list.item.delete': { shortcutIds: ['ctrl+d'], enabled: true }
       }
     }
   ])
@@ -1761,7 +1788,7 @@ async function main() {
       saveShortcutSettingsPayload(
         { hotkeyOverrides: {} },
         {
-          overrides: { 'main::Delete:list-delete': { shortcutId: 'ctrl+x' } },
+          overrides: { 'cmd:list.item.delete': { shortcutIds: ['ctrl+x'], enabled: true } },
           backend: inMemoryShortcutBackend,
           saveSetting() {
             throw new Error('setting write failed')
@@ -1787,8 +1814,8 @@ async function main() {
   assert.deepStrictEqual(saveSettingThrowPersistCalls, [])
   assert.deepStrictEqual(saveSettingThrowEvents, [])
   inMemoryShortcutBackend.map = {
-    'main::Delete:list-delete': { shortcutId: 'ctrl+d' },
-    'setting::ArrowUp:setting-scroll-up': { shortcutId: 'ctrl+shift+u' }
+    'cmd:list.item.delete': { shortcutIds: ['ctrl+d'], enabled: true },
+    'cmd:setting.scroll.up': { shortcutIds: ['ctrl+shift+u'], enabled: true }
   }
   inMemoryShortcutBackend.upserts = []
   inMemoryShortcutBackend.replaces = []
@@ -1820,7 +1847,7 @@ async function main() {
   const failedSqliteSaveResult = saveShortcutSettingsPayload(
     { hotkeyOverrides: {} },
     {
-      overrides: { 'main::Delete:list-delete': null },
+      overrides: { 'cmd:list.item.delete': { shortcutIds: ['Delete', 'Backspace'], enabled: false } },
       backend: {
         getOverridesMap() {
           throw new Error('write read failed')
@@ -1845,7 +1872,9 @@ async function main() {
   assert.strictEqual(failedSqliteSaveResult.storageMode, SHORTCUT_STORAGE_MODE_SETTING)
   assert.strictEqual(failedSqliteSaveResult.settingSaved, true)
   assert.strictEqual(failedSqliteSaveResult.sqliteSaved, false)
-  assert.deepStrictEqual(failedSqliteSaveResult.hotkeyOverrides, { 'main::Delete:list-delete': null })
+  assert.deepStrictEqual(failedSqliteSaveResult.hotkeyOverrides, {
+    'cmd:list.item.delete': { shortcutIds: ['Delete', 'Backspace'], enabled: false }
+  })
   assert.deepStrictEqual(sqlitePersistCalls, [])
 
   assert.ok(
@@ -1873,7 +1902,10 @@ async function main() {
     'command snapshot should preserve command metadata for SQLite seeding'
   )
   const keybindingSnapshots = buildShortcutKeybindingSnapshotRows(HOTKEY_BINDINGS, snapshotTimestamp)
-  assert.strictEqual(keybindingSnapshots.length, allShortcutRows.length)
+  assert.ok(
+    keybindingSnapshots.length >= allShortcutRows.length,
+    'keybinding snapshots should include at least one row per aggregated command profile'
+  )
   const deleteSnapshot = keybindingSnapshots.find((row) => row.overrideKey === 'main::Delete:list-delete')
   assert.strictEqual(deleteSnapshot.commandId, 'list.item.delete')
   assert.strictEqual(deleteSnapshot.defaultShortcutId, 'Delete')
@@ -1890,19 +1922,20 @@ async function main() {
   )
   assert.deepStrictEqual(
     overrideRows.map((row) => row.overrideKey).sort(),
-    ['main::Delete:list-delete', 'setting::ArrowUp:setting-scroll-up'],
-    'override migration should skip rows that no longer map to default keybindings'
+    ['cmd:list.item.delete', 'cmd:setting.scroll.up'],
+    'override migration should normalize legacy keys to cmd-level rows'
   )
   assert.deepStrictEqual(
     shortcutOverrideRowsToMap(overrideRows),
     {
-      'main::Delete:list-delete': null,
-      'setting::ArrowUp:setting-scroll-up': {
-        shortcutId: 'ctrl+shift+u',
+      'cmd:list.item.delete': { shortcutIds: ['Delete', 'Backspace'], enabled: false },
+      'cmd:setting.scroll.up': {
+        shortcutIds: ['ctrl+shift+u'],
+        enabled: true,
         when: 'settingFocus && !inputFocus'
       }
     },
-    'SQLite override rows should round-trip to the existing hotkeyOverrides map shape'
+    'SQLite override rows should round-trip to cmd-level hotkeyOverrides map shape'
   )
   assert.strictEqual(
     createShortcutOverrideMigrationHash({ a: { when: 'x', shortcutId: 'y' }, b: null }),
@@ -1916,7 +1949,15 @@ async function main() {
     }
   })
   shortcutRepository.ensureSchema()
-  assert.deepStrictEqual(schemaRuns, [SHORTCUT_KEYBINDING_SCHEMA_SQL])
+  assert.ok(schemaRuns[0] === SHORTCUT_KEYBINDING_SCHEMA_SQL, 'ensureSchema should run base schema SQL first')
+  assert.ok(
+    schemaRuns.every((sql) =>
+      sql === SHORTCUT_KEYBINDING_SCHEMA_SQL ||
+      sql.includes('ALTER TABLE shortcut_keybinding_overrides ADD COLUMN shortcut_ids') ||
+      sql.includes('ALTER TABLE shortcut_keybinding_overrides ADD COLUMN enabled')
+    ),
+    'ensureSchema should only run schema or override column migrations'
+  )
   assert.strictEqual(
     shortcutRepository.seedDefaultSnapshots({ timestamp: snapshotTimestamp }).keybindings.length,
     keybindingSnapshots.length
@@ -1926,7 +1967,7 @@ async function main() {
       bindingRows: keybindingSnapshots,
       timestamp: snapshotTimestamp
     }).rows.map((row) => row.overrideKey),
-    ['main::Delete:list-delete']
+    ['cmd:list.item.delete']
   )
   function createFakeShortcutDb() {
     const store = {
@@ -1946,8 +1987,10 @@ async function main() {
             override_key: params.$override_key,
             command_id: params.$command_id,
             shortcut_id: params.$shortcut_id,
+            shortcut_ids: params.$shortcut_ids,
             when_expr: params.$when_expr,
             disabled: params.$disabled,
+            enabled: params.$enabled,
             source: params.$source,
             updated_at: params.$updated_at
           }
@@ -2008,10 +2051,10 @@ async function main() {
   assert.deepStrictEqual(
     writeRepository.getOverridesMap(),
     {
-      'main::Delete:list-delete': null,
-      'setting::ArrowUp:setting-scroll-up': { shortcutId: 'ctrl+shift+u' }
+      'cmd:list.item.delete': { shortcutIds: ['Delete', 'Backspace'], enabled: false },
+      'cmd:setting.scroll.up': { shortcutIds: ['ctrl+shift+u'], enabled: true }
     },
-    'repository should read SQLite override rows as the existing override map shape'
+    'repository should read SQLite override rows as cmd-level override map shape'
   )
   fakeDb.store.runs = []
   writeRepository.migrateOverridesFromSetting(settingOverridesForMigration, {
@@ -2030,12 +2073,12 @@ async function main() {
     write: true
   })
   assert.deepStrictEqual(writeRepository.getOverridesMap(), {
-    'main::Delete:list-delete': { shortcutId: 'ctrl+d' },
-    'setting::ArrowUp:setting-scroll-up': { shortcutId: 'ctrl+shift+u' }
+    'cmd:list.item.delete': { shortcutIds: ['ctrl+d'], enabled: true },
+    'cmd:setting.scroll.up': { shortcutIds: ['ctrl+shift+u'], enabled: true }
   })
-  assert.strictEqual(writeRepository.deleteOverride('setting::ArrowUp:setting-scroll-up'), true)
+  assert.strictEqual(writeRepository.deleteOverride('cmd:setting.scroll.up'), true)
   assert.deepStrictEqual(writeRepository.getOverridesMap(), {
-    'main::Delete:list-delete': { shortcutId: 'ctrl+d' }
+    'cmd:list.item.delete': { shortcutIds: ['ctrl+d'], enabled: true }
   })
   const SQL = await initSqlJs({ locateFile: () => require.resolve('sql.js/dist/sql-wasm.wasm') })
   const realSqlDb = new SQL.Database()
@@ -2068,19 +2111,19 @@ async function main() {
     write: true
   })
   assert.deepStrictEqual(realSqlRepository.getOverridesMap(), {
-    'main::Delete:list-delete': { shortcutId: 'ctrl+d', when: 'mainFocus && !inputFocus' },
-    'setting::ArrowUp:setting-scroll-up': null
+    'cmd:list.item.delete': { shortcutIds: ['ctrl+d'], enabled: true, when: 'mainFocus && !inputFocus' },
+    'cmd:setting.scroll.up': { shortcutIds: ['ArrowUp'], enabled: false }
   })
-  assert.strictEqual(realSqlRepository.deleteOverride('setting::ArrowUp:setting-scroll-up'), true)
+  assert.strictEqual(realSqlRepository.deleteOverride('cmd:setting.scroll.up'), true)
   assert.deepStrictEqual(realSqlRepository.getOverridesMap(), {
-    'main::Delete:list-delete': { shortcutId: 'ctrl+d', when: 'mainFocus && !inputFocus' }
+    'cmd:list.item.delete': { shortcutIds: ['ctrl+d'], enabled: true, when: 'mainFocus && !inputFocus' }
   })
   const persistedSqlBytes = realSqlDb.export()
   realSqlDb.close()
   const reloadedSqlDb = new SQL.Database(persistedSqlBytes)
   const reloadedSqlRepository = new ShortcutKeybindingRepository(reloadedSqlDb)
   assert.deepStrictEqual(reloadedSqlRepository.getOverridesMap(), {
-    'main::Delete:list-delete': { shortcutId: 'ctrl+d', when: 'mainFocus && !inputFocus' }
+    'cmd:list.item.delete': { shortcutIds: ['ctrl+d'], enabled: true, when: 'mainFocus && !inputFocus' }
   }, 'shortcut overrides should survive sql.js export and reload')
   assert.throws(() => reloadedSqlRepository.replaceOverrideRows([
     {
@@ -2094,7 +2137,7 @@ async function main() {
     }
   ]), /NOT NULL|constraint/i)
   assert.deepStrictEqual(reloadedSqlRepository.getOverridesMap(), {
-    'main::Delete:list-delete': { shortcutId: 'ctrl+d', when: 'mainFocus && !inputFocus' }
+    'cmd:list.item.delete': { shortcutIds: ['ctrl+d'], enabled: true, when: 'mainFocus && !inputFocus' }
   }, 'failed replaceOverrideRows should rollback and preserve previous overrides')
   assert.strictEqual(reloadedSqlRepository.replaceOverrideRows([]), true)
   assert.deepStrictEqual(reloadedSqlRepository.getOverridesMap(), {}, 'replaceOverrideRows should atomically clear overrides')
@@ -2178,12 +2221,30 @@ async function main() {
   assert.strictEqual(isRecordableShortcutId('shift'), false)
   assert.strictEqual(isRecordableShortcutId('ctrl+shift+f'), true)
   assert.strictEqual(isRecordableShortcutId('Delete'), true)
-  assert.strictEqual(isRecordableShortcutId('Escape'), false)
-  assert.strictEqual(isRecordableShortcutId('Enter'), false)
-  assert.strictEqual(isRecordableShortcutId('ctrl+c'), false)
-  assert.strictEqual(isRecordableShortcutId('ctrl+r'), false)
-  assert.strictEqual(isRecordableShortcutId('ArrowLeft'), false)
-  assert.strictEqual(isRecordableShortcutId('ArrowRight'), false)
+  assert.strictEqual(isRecordableShortcutId('Escape'), true)
+  assert.strictEqual(isRecordableShortcutId('Escape', { commandId: 'main.escape', when: 'mainFocus' }), true)
+  assert.strictEqual(
+    isShortcutAssignable('Escape', { commandId: 'list.item.delete', when: 'mainFocus' }).allowed,
+    false
+  )
+  assert.strictEqual(isRecordableShortcutId('Enter'), true)
+  assert.strictEqual(
+    isRecordableShortcutId('Enter', { commandId: 'list.item.delete', when: 'mainFocus && !inputFocus' }),
+    false
+  )
+  assert.strictEqual(
+    isRecordableShortcutId('ctrl+c', { commandId: 'list.item.delete', when: 'mainFocus' }),
+    false
+  )
+  assert.strictEqual(isRecordableShortcutId('ctrl+r', { commandId: 'main.tab.next', when: 'mainFocus' }), true)
+  assert.strictEqual(
+    isRecordableShortcutId('ArrowLeft', { commandId: 'list.item.delete', when: 'settingFocus && !inputFocus' }),
+    false
+  )
+  assert.strictEqual(
+    isRecordableShortcutId('ArrowRight', { commandId: 'setting.tab.next', when: 'settingFocus && !inputFocus' }),
+    true
+  )
 
   const overriddenBinding = applyHotkeyOverride(
     { layer: 'main', shortcutId: 'Delete', features: ['list-delete'] },
@@ -2553,11 +2614,15 @@ async function main() {
   setMainState('normal')
   setBindings(
     getCommandAwareBindings([
-      applyHotkeyOverride(
-        { layer: 'main', shortcutId: 'Delete', features: ['list-delete'] },
-        null,
-        'main::Delete:list-delete'
-      )
+      {
+        layer: 'main',
+        shortcutId: 'Delete',
+        features: ['list-delete'],
+        commands: ['list.item.delete'],
+        when: 'mainFocus',
+        commandEnabled: false,
+        enabled: false
+      }
     ])
   )
   registerCommand('list.item.delete', () => {
