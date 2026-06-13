@@ -1,6 +1,12 @@
 import { COMMANDS } from '../global/commandDefaults.js'
 import { HOTKEY_BINDINGS, bindingKey, getCommandAwareBindings } from '../global/hotkeyBindings.js'
 import { normalizeShortcutOverrides } from '../global/shortcutOverrides.js'
+import {
+  getCommandOverrideKey,
+  isCommandOverrideKey,
+  normalizeOverrideValueShape,
+  parseCommandOverrideKey
+} from '../global/commandKeybindings.js'
 
 export const SHORTCUT_OVERRIDE_MIGRATION_META_KEY = 'shortcut_override_migration_hash'
 
@@ -33,8 +39,10 @@ CREATE TABLE IF NOT EXISTS shortcut_keybinding_overrides (
   override_key TEXT PRIMARY KEY,
   command_id TEXT NOT NULL,
   shortcut_id TEXT,
+  shortcut_ids TEXT,
   when_expr TEXT,
   disabled INTEGER NOT NULL DEFAULT 0,
+  enabled INTEGER NOT NULL DEFAULT 1,
   source TEXT NOT NULL DEFAULT 'user',
   updated_at INTEGER NOT NULL
 );
@@ -109,6 +117,21 @@ export function buildShortcutOverrideRows(overrides, bindingRows = buildShortcut
   const normalized = normalizeShortcutOverrides(overrides)
   const bindingByOverrideKey = new Map((Array.isArray(bindingRows) ? bindingRows : []).map((row) => [row.overrideKey, row]))
   return Object.entries(normalized).flatMap(([overrideKey, overrideValue]) => {
+    if (isCommandOverrideKey(overrideKey)) {
+      const commandId = parseCommandOverrideKey(overrideKey)
+      const shape = normalizeOverrideValueShape(overrideValue)
+      return [{
+        overrideKey,
+        commandId,
+        shortcutId: shape.shortcutIds[0] || null,
+        shortcutIds: JSON.stringify(shape.shortcutIds || []),
+        whenExpr: shape.when || null,
+        disabled: shape.enabled === false ? 1 : 0,
+        enabled: shape.enabled === false ? 0 : 1,
+        source: 'user',
+        updatedAt: timestamp
+      }]
+    }
     const bindingRow = bindingByOverrideKey.get(overrideKey)
     if (!bindingRow) return []
     if (overrideValue === null) {
@@ -116,19 +139,24 @@ export function buildShortcutOverrideRows(overrides, bindingRows = buildShortcut
         overrideKey,
         commandId: bindingRow.commandId,
         shortcutId: null,
+        shortcutIds: JSON.stringify([]),
         whenExpr: null,
         disabled: 1,
+        enabled: 0,
         source: 'user',
         updatedAt: timestamp
       }]
     }
     const value = typeof overrideValue === 'string' ? { shortcutId: overrideValue } : overrideValue
+    const shape = normalizeOverrideValueShape(value)
     return [{
       overrideKey,
       commandId: bindingRow.commandId,
-      shortcutId: typeof value?.shortcutId === 'string' ? value.shortcutId : null,
-      whenExpr: typeof value?.when === 'string' ? value.when : null,
-      disabled: 0,
+      shortcutId: shape.shortcutIds[0] || null,
+      shortcutIds: JSON.stringify(shape.shortcutIds || []),
+      whenExpr: shape.when || null,
+      disabled: shape.enabled === false ? 1 : 0,
+      enabled: shape.enabled === false ? 0 : 1,
       source: 'user',
       updatedAt: timestamp
     }]
@@ -138,14 +166,22 @@ export function buildShortcutOverrideRows(overrides, bindingRows = buildShortcut
 export function shortcutOverrideRowsToMap(rows = []) {
   return (Array.isArray(rows) ? rows : []).reduce((acc, row) => {
     if (!row?.overrideKey) return acc
-    if (Number(row.disabled) === 1) {
-      acc[row.overrideKey] = null
-      return acc
+    const enabled = row.enabled === undefined ? Number(row.disabled) !== 1 : Number(row.enabled) === 1
+    let shortcutIds = []
+    if (row.shortcutIds) {
+      try {
+        const parsed = JSON.parse(row.shortcutIds)
+        if (Array.isArray(parsed)) shortcutIds = parsed
+      } catch (_) {}
     }
-    const value = {}
-    if (typeof row.shortcutId === 'string' && row.shortcutId) value.shortcutId = row.shortcutId
-    if (typeof row.whenExpr === 'string') value.when = row.whenExpr
-    if (Object.keys(value).length > 0) acc[row.overrideKey] = value
+    if (!shortcutIds.length && typeof row.shortcutId === 'string' && row.shortcutId) {
+      shortcutIds = [row.shortcutId]
+    }
+    const value = { shortcutIds, enabled }
+    if (typeof row.whenExpr === 'string' && row.whenExpr) value.when = row.whenExpr
+    if (!enabled || shortcutIds.length || value.when) {
+      acc[row.overrideKey] = value
+    }
     return acc
   }, {})
 }
@@ -161,6 +197,36 @@ export class ShortcutKeybindingRepository {
 
   ensureSchema() {
     this.db?.run?.(SHORTCUT_KEYBINDING_SCHEMA_SQL)
+    this.ensureOverrideColumns()
+  }
+
+  ensureOverrideColumns() {
+    const columns = this.getOverrideTableColumns()
+    if (!columns.has('shortcut_ids')) {
+      try {
+        this.db.run('ALTER TABLE shortcut_keybinding_overrides ADD COLUMN shortcut_ids TEXT')
+      } catch (_) {}
+    }
+    if (!columns.has('enabled')) {
+      try {
+        this.db.run('ALTER TABLE shortcut_keybinding_overrides ADD COLUMN enabled INTEGER NOT NULL DEFAULT 1')
+      } catch (_) {}
+    }
+  }
+
+  getOverrideTableColumns() {
+    const columns = new Set()
+    if (!this.db || typeof this.db.prepare !== 'function') return columns
+    const stmt = this.db.prepare('PRAGMA table_info(shortcut_keybinding_overrides)')
+    try {
+      while (stmt.step()) {
+        const row = stmt.getAsObject()
+        if (row?.name) columns.add(row.name)
+      }
+    } finally {
+      stmt.free()
+    }
+    return columns
   }
 
   seedDefaultSnapshots(options = {}) {
@@ -244,16 +310,18 @@ export class ShortcutKeybindingRepository {
     rows.forEach((row) => {
       this.db.run(
         `INSERT OR REPLACE INTO shortcut_keybinding_overrides (
-          override_key, command_id, shortcut_id, when_expr, disabled, source, updated_at
+          override_key, command_id, shortcut_id, shortcut_ids, when_expr, disabled, enabled, source, updated_at
         ) VALUES (
-          $override_key, $command_id, $shortcut_id, $when_expr, $disabled, $source, $updated_at
+          $override_key, $command_id, $shortcut_id, $shortcut_ids, $when_expr, $disabled, $enabled, $source, $updated_at
         )`,
         {
           $override_key: row.overrideKey,
           $command_id: row.commandId,
           $shortcut_id: row.shortcutId,
+          $shortcut_ids: row.shortcutIds || null,
           $when_expr: row.whenExpr,
           $disabled: row.disabled,
+          $enabled: row.enabled === undefined ? (row.disabled ? 0 : 1) : row.enabled,
           $source: row.source,
           $updated_at: row.updatedAt
         }
@@ -345,7 +413,7 @@ export class ShortcutKeybindingRepository {
 
   getOverrideRows() {
     const stmt = this.db.prepare(
-      `SELECT override_key, command_id, shortcut_id, when_expr, disabled, source, updated_at
+      `SELECT override_key, command_id, shortcut_id, shortcut_ids, when_expr, disabled, enabled, source, updated_at
        FROM shortcut_keybinding_overrides
        ORDER BY override_key`
     )
@@ -357,8 +425,10 @@ export class ShortcutKeybindingRepository {
           overrideKey: row.override_key,
           commandId: row.command_id,
           shortcutId: row.shortcut_id,
+          shortcutIds: row.shortcut_ids,
           whenExpr: row.when_expr,
           disabled: Number(row.disabled) || 0,
+          enabled: row.enabled === undefined ? (Number(row.disabled) ? 0 : 1) : Number(row.enabled),
           source: row.source || 'user',
           updatedAt: Number(row.updated_at) || 0
         })
