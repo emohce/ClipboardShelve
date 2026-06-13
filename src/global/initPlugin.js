@@ -18,6 +18,8 @@ import { createClipboardRepository } from '../storage/clipboardRepository'
 import { JSON_DB_SCHEMA_VERSION, shouldMigrateJsonDb } from '../storage/jsonMigration'
 import { createSQLiteClipboardRepository } from '../storage/sqliteClipboardRepository'
 import { updateStorageRuntimeStatus } from '../storage/storageRuntimeStatus'
+import { registerPluginEnterHandler } from './pluginEnterHandlers'
+import { isQuickPasteEnterAction, registerQuickPasteRuntime } from './quickPasteRuntime'
 
 // 忽略 ResizeObserver 噪声错误，避免 dev overlay 反复弹出
 const RESIZE_OBSERVER_ERROR_PATTERNS = [
@@ -1326,7 +1328,6 @@ export default async function initPlugin() {
   }
   const toTop = () => (document.scrollingElement.scrollTop = 0)
   const toBottom = () => (document.scrollingElement.scrollTop = document.scrollingElement.scrollHeight)
-  const resetNav = () => document.querySelectorAll('.clip-switch-item')[0]?.click()
 
   // 防止剪贴板写回循环的标志
   let isRestoringClipboard = false
@@ -1530,8 +1531,12 @@ export default async function initPlugin() {
     }
   }, 100)
 
-  utools.onPluginEnter(() => {
+  registerPluginEnterHandler((action) => {
     console.log('[onPluginEnter] 插件进入事件触发')
+    if (isQuickPasteEnterAction(action)) {
+      console.log('[onPluginEnter] 快捷粘贴静默入口，跳过常规窗口处理')
+      return
+    }
     
     // 重新设置窗口大小（确保每次打开插件时都恢复到合适的大小）
     setPluginWindowSize()
@@ -1561,7 +1566,6 @@ export default async function initPlugin() {
       console.log('[onPluginEnter] 监听器正在运行')
     }
     toTop()
-    resetNav()
     // 将焦点移到主内容区，使上下键能被热键层识别；并让当前选中项滚动到视图中
     setTimeout(() => {
       const mainEl = document.querySelector('.main')
@@ -1575,6 +1579,7 @@ export default async function initPlugin() {
   console.log('[initPlugin] 插件初始化完成')
 
   window.db = db
+  registerQuickPasteRuntime()
   const onWindowMayHide = () => {
     if (document.visibilityState === 'hidden') {
       flushPendingDbToDisk()

@@ -2,12 +2,12 @@
 
 == 结论
 
-已按 [7YG2-zz-raw-交互优化需求.ad](7YG2-zz-raw-交互优化需求.ad:15) 的追加需求-1 修正实现：普通列表只展示置顶项和原分页列表，不再悬浮展示当前剪贴板临时项；uTools “粘贴置顶顶部项”指令单独按当前剪贴板临时项、置顶项、普通顶部项的顺序取候选。
+已按 [7YG2-zz-raw-交互优化需求.ad](7YG2-zz-raw-交互优化需求.ad:15) 的追加需求-1 修正实现：普通列表只展示置顶项和原分页列表，不再悬浮展示当前剪贴板临时项；uTools “粘贴置顶项”指令只粘贴当前筛选下单项置顶列表最上方的条目。
 
 == 代码落点
 
 - [../../../src/storage/pinnedItems.js](../../../src/storage/pinnedItems.js:1)：保存 `pin.item.map` 和 `pin.lastActiveContext`。
-- [../../../src/views/Main.vue](../../../src/views/Main.vue:770)：组合置顶项与普通列表；`quick-paste-top` 才显式包含当前剪贴板候选。
+- [../../../src/views/Main.vue](../../../src/views/Main.vue:770)：组合置顶项与普通列表；`quick-paste-top` 只从单项置顶列表取最上方条目。
 - [../../../src/cpns/ClipItemRow.vue](../../../src/cpns/ClipItemRow.vue:29)：置顶 item 在状态区显示图钉图标 `📌`，与收藏 `⭐`、锁定 `🔒` 并列。
 - [../../../src/cpns/ClipItemList.vue](../../../src/cpns/ClipItemList.vue:2345)：注册 `list-pin-toggle`，由 `Alt+P` 触发。
 - [../../../src/global/hotkeyBindings.js](../../../src/global/hotkeyBindings.js:281)：绑定 `alt+p`。
@@ -21,7 +21,7 @@
 - 置顶项显示图钉状态图标；该图标只是视觉状态，不改变 item 数据结构或 SQLite 表结构。
 - 置顶项必须符合当前 tab、收藏子 tab、搜索词和锁定筛选。
 - 当前剪贴板临时项不在列表中悬浮展示。
-- `Ctrl/Cmd+Shift+V` 由用户绑定到 uTools 指令“粘贴置顶顶部项”，触发后按最后 active context 选择：当前剪贴板临时项 > 置顶项 > 普通列表首项。
+- uTools 指令“粘贴置顶项”触发后按最后 active context 选择单项置顶列表最上方条目；没有单项置顶时不 fallback 当前剪贴板或普通列表首项。
 - 删除 item 后清理对应置顶状态。
 - 设置页入口只负责跳转 uTools 全局功能快捷键设置，不写入本插件设置。
 
@@ -30,3 +30,15 @@
 - 已执行 `pnpm run build`，构建通过。
 - 已执行 `pnpm run prepare:utools`，生成的 `dist/plugin.json` 包含 `quick-paste-top`。
 - 手动验证仍需在 uTools 中绑定全局快捷键后完成。
+
+== 2026-06-13 稳定性修复
+
+- 修正快捷粘贴顶部项的选择规则：只取单项置顶列表最上方条目，组合虚拟项、当前剪贴板临时项和普通顶部项都不参与该指令：[../../../src/global/quickPasteSelection.js](../../../src/global/quickPasteSelection.js:16)、[../../../src/views/Main.vue](../../../src/views/Main.vue:1252)。
+- `quick-paste-top` 由全局运行时常驻注册，触发时读取最新 `window.db`、`pin.item.map` 和最后 active context；若快捷键早于运行时注册进入，会进入短期待消费队列，随后静默执行：[../../../src/global/quickPasteRuntime.js](../../../src/global/quickPasteRuntime.js:112)、[../../../src/global/pluginEnterHandlers.js](../../../src/global/pluginEnterHandlers.js:20)。
+- 新增脚本断言覆盖单项置顶选择、去重和无置顶不 fallback 的边界：[../../../test-shortcut-command-system.js](../../../test-shortcut-command-system.js:206)。
+- uTools 指令名统一为 `粘贴置顶项`，设置页使用同名跳转；`onPluginEnter` 改为多路复用，初始化入口和搜索框入口都会跳过快捷粘贴的常规 UI 处理：[../../../scripts/utools-runtime-assets.mjs](../../../scripts/utools-runtime-assets.mjs:23)、[../../../src/views/Setting.vue](../../../src/views/Setting.vue:630)、[../../../src/global/pluginEnterHandlers.js](../../../src/global/pluginEnterHandlers.js:1)、[../../../src/global/initPlugin.js](../../../src/global/initPlugin.js:1534)、[../../../src/cpns/ClipSearch.vue](../../../src/cpns/ClipSearch.vue:181)。
+
+== 2026-06-13 验证
+
+- 已执行 `node test-shortcut-command-system.js`，通过。
+- 已执行 `pnpm run build`，通过；仅保留 Vite chunk 体积提示。

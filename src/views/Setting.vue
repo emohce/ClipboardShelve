@@ -631,27 +631,24 @@
                     <strong>全局快捷粘贴</strong>
                     <HelpHint
                       aria-label="查看快捷粘贴说明"
-                      content="这是 uTools 全局功能快捷键，不占用系统粘贴键；顶部项按当前剪贴板、置顶项、当前筛选普通顶部项的顺序粘贴，组合项按已保存组合循环粘贴"
+                      content="这是 uTools 全局功能快捷键，不占用系统粘贴键；置顶项只粘贴当前筛选下最上方的单项置顶，组合项按已保存组合独立循环粘贴"
                     />
                   </div>
-                  <p class="feature-config-desc">
-                    建议分别绑定 Ctrl/Command+Shift+V 与 Ctrl/Command+Shift+P。
-                  </p>
                 </div>
                 <div class="feature-config-control feature-config-actions">
                   <el-button
                     type="primary"
                     plain
                     class="feature-config-action"
-                    @click="openUtoolsHotkeySetting('粘贴置顶顶部项')"
+                    @click="openUtoolsHotkeySetting('粘贴置顶项')"
                   >
-                    绑定顶部项
+                    绑定置顶项
                   </el-button>
                   <el-button
                     type="primary"
                     plain
                     class="feature-config-action"
-                    @click="openUtoolsHotkeySetting('循环粘贴置顶组合项')"
+                    @click="openUtoolsHotkeySetting('循环粘贴组合项')"
                   >
                     绑定组合项
                   </el-button>
@@ -1039,8 +1036,27 @@ const initialHoverPreviewConfig = getHoverPreviewConfig(setting)
 const hoverPreviewEnabled = ref(initialHoverPreviewConfig.enabled)
 const hoverPreviewDelay = ref(initialHoverPreviewConfig.delay)
 
-const activeTab = ref('basic')
 const settingTabs = ['basic', 'shortcut', 'feature', 'feature-config']
+const SETTING_TAB_STATE_KEY = 'ui.setting.activeTab'
+const getUToolsRuntime = () => {
+  if (typeof utools !== 'undefined') return utools
+  return window?.utools || window?.exports?.utools || null
+}
+const getPersistedSettingTab = () => {
+  try {
+    const saved = getUToolsRuntime()?.dbStorage?.getItem?.(SETTING_TAB_STATE_KEY)
+    return settingTabs.includes(saved) ? saved : 'basic'
+  } catch (_) {
+    return 'basic'
+  }
+}
+const persistSettingTab = (tab) => {
+  if (!settingTabs.includes(tab)) return
+  try {
+    getUToolsRuntime()?.dbStorage?.setItem?.(SETTING_TAB_STATE_KEY, tab)
+  } catch (_) {}
+}
+const activeTab = ref(getPersistedSettingTab())
 const shortcutQuery = ref('')
 const shortcutQueryInput = ref('')
 const featureQuery = ref('')
@@ -2098,6 +2114,10 @@ onMounted(() => {
   ])
   activateLayer('setting')
   document.addEventListener('keydown', keyDownHandler)
+})
+
+watch(activeTab, (tab) => {
+  persistSettingTab(tab)
 })
 
 watch(hoverPreviewEnabled, (enabled) => {

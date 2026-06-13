@@ -32,6 +32,7 @@
 
 <script setup>
 import { ref, watch, nextTick } from 'vue'
+import { registerPluginEnterHandler } from '../global/pluginEnterHandlers'
 const props = defineProps({
   modelValue: {
     type: String,
@@ -176,7 +177,8 @@ const handleKeyDown = (e) => {
   // Backspace 保持默认行为，用于删除搜索框中的文本
 }
 
-utools.onPluginEnter(() => {
+registerPluginEnterHandler((action) => {
+  if (action?.code === 'quick-paste-top' || action?.code === 'quick-paste-pin-group') return
   // 如果输入框有内容 则清空 并且移除焦点
   if (filterText.value) {
     clear()
