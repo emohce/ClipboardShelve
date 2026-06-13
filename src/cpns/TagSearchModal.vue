@@ -89,7 +89,7 @@
 <script setup>
 import { ref, computed, watch, onMounted, onUnmounted, nextTick } from "vue";
 import { activateLayer, deactivateLayer } from "../global/hotkeyLayers";
-import { registerFeature } from "../global/hotkeyRegistry";
+import { registerCommandFeaturePairs } from "../global/hotkeyRegistry";
 
 const props = defineProps({
     visible: Boolean,
@@ -106,6 +106,7 @@ const selectedTag = ref("");
 // 标签数据
 const allTags = ref([]);
 const tagUsage = ref({});
+let disposeTagSearchCommandHandlers = null;
 
 // 过滤后的标签
 const filteredTags = computed(() => {
@@ -278,23 +279,34 @@ const handleGlobalKeydown = (e) => {
 const onViewChange = () => {
     if (props.visible) loadTags();
 };
-onMounted(() => {
-    document.addEventListener("keydown", handleGlobalKeydown, true);
-    if (window.listener) window.listener.on("view-change", onViewChange);
-    registerFeature("tag-search-block", () => ({
+
+function handleTagSearchBlockCommand() {
+    return {
         handled: true,
         preventDefault: false,
         stopPropagation: false,
-    }));
-    registerFeature("tag-search-close", () => {
-        close();
-        return true;
-    });
+    };
+}
+
+function handleTagSearchCloseCommand() {
+    close();
+    return true;
+}
+
+onMounted(() => {
+    document.addEventListener("keydown", handleGlobalKeydown, true);
+    if (window.listener) window.listener.on("view-change", onViewChange);
+    disposeTagSearchCommandHandlers = registerCommandFeaturePairs([
+        { featureId: "tag-search-block", commandId: "tag.search.blockUnhandled", handler: handleTagSearchBlockCommand },
+        { featureId: "tag-search-close", commandId: "tag.search.close", handler: handleTagSearchCloseCommand },
+    ]);
 });
 
 onUnmounted(() => {
     document.removeEventListener("keydown", handleGlobalKeydown, true);
     if (window.listener && window.listener.off) window.listener.off("view-change", onViewChange);
+    disposeTagSearchCommandHandlers?.();
+    disposeTagSearchCommandHandlers = null;
     deactivateLayer("tag-search");
 });
 </script>

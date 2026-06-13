@@ -1,0 +1,555 @@
+= 快捷键命令系统重构实施计划
+
+== 目标
+
+按 [8YG2-zz-analysis-快捷键命令系统重构理解.ad](8YG2-zz-analysis-快捷键命令系统重构理解.ad:1) 设计，把现有快捷键系统从 `layer + state + feature` 平滑升级为 `command + keybinding + when context`。
+
+本文件最初用于实施方案设计；当前已演进为“实施计划 + 当前落地状态 + 验证记录”。后续继续以本文件作为快捷键/command 系统重构的过程事实源。
+
+== 总体原则
+
+- 兼容优先：旧 feature handler 先原样保留，command handler 先包装旧 feature。
+- 分阶段验证：每阶段都能构建、能回退、能对比现有快捷键矩阵。
+- 存储后置：先完成内核和 UI，再迁 SQLite，避免一次性引入运行时和数据迁移双风险。
+- when 不替代业务 guard：删除、强制删除、锁定、IME、多选、空数据等仍由 handler 二次确认。
+- 设置页录制和 when 编辑必须保护输入控件，不破坏现有设置页键盘行为。
+
+== 计划复核后的本轮实现范围
+
+本计划原始版本覆盖终局能力，但如果一次性做到设置页和 SQLite，会同时触碰热键分发、UI 输入保护和存储迁移三个高风险面。复核后，当前已完成内核、设置页最小闭环和业务 command handler 收口；SQLite 化和组合 command 仍后置：
+
+- 建立 command 元数据与旧 feature 映射；dispatch 已切到 command-aware resolver，优先执行 command handler，缺失时 fallback 到 feature。
+- 建立 when 表达式能力，并已接入运行时 resolver 与设置页冲突判断；handler 内业务 guard 仍保留。
+- 建立 keybinding 冲突判断纯函数，用于后续设置页编辑前置校验。
+- 为旧 `HOTKEY_BINDINGS` 生成 command-aware bindings，供设置页和后续 resolver 使用。
+- 增加 node 级测试脚本，不新增测试依赖。
+- 已将设置页快捷键 tab 适配为 command-aware 表格，并开放录制式改键、禁用、恢复默认、when 文本编辑的最小配置闭环；配置表已展示全部默认 command binding，不再沿用旧基础引导快捷键过滤；本阶段不改 SQLite，运行时触发优先级已由 resolver 接管并通过 shadow 矩阵验证保持兼容。
+- 设置页改键/禁用/恢复默认继续写入现有 `setting.hotkeyOverrides`，保存按钮统一落盘并触发热更新；禁用项保留在表格中，便于恢复默认。
+- 录制式改键通过 `src/global/shortcutRecorder.js` 归一化 KeyboardEvent，避免用户必须手写快捷键字符串；手动输入仍作为 fallback。
+- When 编辑弹窗使用 `src/global/whenExpression.js` 做语法校验，清空 when 表示始终生效；冲突预览沿用保守 overlap 判断。
+- 新增 `src/global/keybindingResolver.js` 纯函数，并已接入 `src/global/hotkeyRegistry.js` 的 dispatch 主路径；当前仍执行旧 feature handler，不引入 command handler 注册链。
+- 新增 `src/global/hotkeyContext.js` 纯函数，把当前 layer、active layers、main state、target 抽成 when context；该 context 已接入 dispatch resolver。
+- `src/global/hotkeyRegistry.js` 新增只读 shadow 对照：`previewKeybindingResolution()` 可比较旧 layer/state 解析和新 command/when resolver；生产默认关闭，仅在 `window.__EZCLIPBOARD_HOTKEY_SHADOW__ === true` 时输出 mismatch 日志，不改变执行结果。
+- `test-shortcut-command-system.js` 已增加默认绑定矩阵全量 shadow 对照：逐条默认 binding 构造 layer/state/context，确认旧解析和新 resolver 命中的 feature 序列一致。
+- `setBindings()` 已保留 `when/source/defaultShortcutId/overrideKey` 等元数据，避免设置页用户覆盖在运行时刷新后丢失。
+- dispatch 主路径已由 `resolveKeybinding(getCommandAwareBindings(bindings), key, context)` 决定命中 binding；handler 执行仍遍历 `binding.features`，所以业务 feature 注册和返回值协议保持不变。
+- `src/global/hotkeyRegistry.js` 已提供 `registerCommand()` / `unregisterCommand()`；dispatch 优先执行 command handler，未注册 command 时按同序 fallback 到旧 feature handler。
+- `src/global/hotkeyRegistry.js` 已提供 `registerCommandFeaturePair()` / `registerCommandFeaturePairs()`；组件可用单处声明同时注册 feature fallback 和 command handler，并通过返回的 disposer 清理 command handler。
+- [../../../src/global/hotkeyRegistry.js](../../../src/global/hotkeyRegistry.js:73) `registerCommandFeaturePair()` / `registerCommandFeaturePairs()` 已补无效输入防护，缺失 `featureId`、`commandId` 或 handler 时不注册无效命令；测试覆盖 invalid pair 不会被 dispatch 命中。
+- `src/global/commandDefaults.js` 的 `toCommandAwareBinding()` 已支持保留显式 `commands`，为后续纯 command binding 做准备。
+- [../../../src/views/Setting.vue](../../../src/views/Setting.vue:1332) 已把设置页滚动/页签切换这组低风险快捷键双注册到 command handler，同时保留旧 feature 注册作为兼容 fallback。
+- [../../../src/views/Setting.vue](../../../src/views/Setting.vue:729) 快捷键配置表已取消旧基础引导过滤，设置页滚动/页签切换、列表导航等基础 command 也可被搜索、录制、禁用和恢复默认；“已修改”筛选同时包含用户改键和已禁用项。
+- [../../../src/global/shortcutCommandRows.js](../../../src/global/shortcutCommandRows.js:61) 已抽出 `filterShortcutCommandRows()`，设置页配置表过滤不再内联在 Vue 组件中，便于 node 测试固定“全部展示/已修改/关键词搜索”的行为。
+- [../../../src/global/keybindingConflicts.js](../../../src/global/keybindingConflicts.js:43) 已抽出 `getShortcutCommandRowConflicts()`，设置页录制改键和 When 编辑共用纯函数冲突筛选，测试覆盖 disabled 行不参与、互斥 when 不冲突。
+- [../../../src/global/shortcutCommandRows.js](../../../src/global/shortcutCommandRows.js:94) 已抽出 `buildShortcutOverrideValue()`，设置页改键和 When 编辑共用纯函数生成 `hotkeyOverrides` 条目，测试覆盖非默认键、非默认 when、恢复默认删除 override。
+- [../../../src/global/shortcutCommandRows.js](../../../src/global/shortcutCommandRows.js:104) 已抽出 `applyShortcutOverrideValue()` / `disableShortcutOverride()`，设置页设置、恢复默认、禁用三类 override map 更新共用纯函数，测试覆盖设置、删除、禁用和缺失 `overrideKey`。
+- [../../../src/global/devDbStub.js](../../../src/global/devDbStub.js:5) 已补浏览器 dev runtime stub，并在 [../../../src/main.js](../../../src/main.js:1) 先于 `initPlugin` 加载，避免 Vite 页面验证时 `window.exports`、`listener`、`clipboard`、`time.sleep` 缺失导致设置页无法挂载或后台轮询抛错。
+- [../../../src/global/registerElement.js](../../../src/global/registerElement.js:15) 已补注册设置页实际使用的 Element Plus 组件：Divider、Progress、Dialog、Form、FormItem、Pagination，修复浏览器验证中的组件未解析 warning 和弹窗不可用问题。
+- [../../../src/views/Setting.vue](../../../src/views/Setting.vue:307) 已将 When 编辑示例按钮从模板内联赋值改为 `applyWhenEditPreset()`，并新增 `settingFocus && !inputFocus` 的“设置页”预设；配合 [../../../src/global/keybindingConflicts.js](../../../src/global/keybindingConflicts.js:3) 的互斥模型修正，设置页 When 编辑不再误报与弹层方向键冲突。
+- [../../../src/cpns/TagEditModal.vue](../../../src/cpns/TagEditModal.vue:175) 已把标签编辑弹窗的关闭、焦点切换、保存和 block 双注册到 command handler；`tag.edit.save` 是 `data-write` 保存类 command，仍复用原 `save()` 路径。
+- [../../../src/cpns/ClipFullData.vue](../../../src/cpns/ClipFullData.vue:57) 已把完整预览弹层的关闭、滚动和 block 双注册到 command handler；这些命令不涉及数据写入。
+- [../../../src/cpns/TagSearchModal.vue](../../../src/cpns/TagSearchModal.vue:284) 已把标签搜索弹窗的关闭和 block 双注册到 command handler；搜索输入、选择标签逻辑保持原状。
+- [../../../src/cpns/ClipDrawerMenu.vue](../../../src/cpns/ClipDrawerMenu.vue:106) 已把抽屉菜单关闭、上下导航、当前选择、数字选择和 block 双注册到 command handler；选择仍只触发原有 `select` emit，由上层保持既有处理。
+- [../../../src/cpns/PinGroupEditor.vue](../../../src/cpns/PinGroupEditor.vue:207) 已把置顶组合编辑器的关闭、保存、清空、导航、选择切换、上下移动和 block 双注册到 command handler；`pin.group.edit.save` / `pin.group.edit.clear` 均为 `data-write`，仍复用原 `save()` / `clear()` 路径。
+- [../../../src/views/Main.vue](../../../src/views/Main.vue:1944) 已把清空确认弹窗的关闭、范围选择、范围导航、焦点切换、确认清空和 block 双注册到 command handler；`dialog.clear.confirm` 是 `data-write`，仍复用原 `handleClearConfirm()` 路径。
+- [../../../src/views/Main.vue](../../../src/views/Main.vue:2015) 已把主界面的 tab 切换、收藏子 tab 切换、聚焦搜索、打开设置、锁定筛选、Escape、搜索结果删除/强删、打开清空弹窗、打开标签搜索、打开置顶组合编辑器双注册到 command handler；`pin.group.open` 含清空当前组合分支，搜索删除命令仍复用原 DB 删除和列表恢复路径。
+- [../../../src/cpns/ClipItemList.vue](../../../src/cpns/ClipItemList.vue:2097) 已把列表导航、分页导航、跳顶/跳底、预览滚动、Shift 临时预览、多选当前项、仅复制、复制粘贴、别名粘贴、标签/别名编辑、锁定粘贴、置顶、收藏、锁定、删除、强制删除、数字快速复制、抽屉数字子动作、打开完整预览、打开抽屉双注册到 command handler；数据写入命令仍复用原 DB/emit 路径。
+- 设置页、标签编辑、完整预览、标签搜索、抽屉菜单、置顶组合编辑器、主界面、列表主路径的 command handler 已迁移到 `registerCommandFeaturePairs()`，业务组件不再直接调用 `registerFeature()`，减少重复注册/清理样板。
+- 全仓 `registerFeature(` 搜索结果仅剩 [../../../src/global/hotkeyRegistry.js](../../../src/global/hotkeyRegistry.js:55) 内部定义和 helper 调用，业务组件已不再直接注册 legacy feature。
+- 已新增 SQLite 迁移设计：[11YG2-zz-plan-快捷键SQLite迁移设计.ad](11YG2-zz-plan-快捷键SQLite迁移设计.ad:1)。该设计明确设置页后续应改为读写 shortcut store 的工作副本，store 内部负责 SQLite 优先和 `setting.hotkeyOverrides` fallback。
+- 已新增 [../../../src/global/shortcutStore.js](../../../src/global/shortcutStore.js:1) 作为设置页与快捷键存储之间的兼容外壳；当前实现仍写 `setting.hotkeyOverrides`，但 [../../../src/views/Setting.vue](../../../src/views/Setting.vue:1213) 保存流程已改为通过 store 合成 payload、保存并触发热键刷新。
+- 已新增 [../../../src/storage/shortcutKeybindingRepository.js](../../../src/storage/shortcutKeybindingRepository.js:1) 的 SQLite schema、迁移转换和 DB backend 方法：默认 command/keybinding snapshot、旧 override 行转换、override rows 往返 map、迁移 hash、snapshot/override upsert、override map 读取、meta hash 防重复导入。
+- [../../../src/storage/shortcutKeybindingRepository.js](../../../src/storage/shortcutKeybindingRepository.js:287) 已补 `getCommandSnapshotRows()` / `getKeybindingSnapshotRows()`，可从 SQLite 查询默认 command 和 keybinding snapshot，为后续设置页过滤切换 SQLite 查询来源提供 backend 能力。
+- [../../../src/global/shortcutStore.js](../../../src/global/shortcutStore.js:51) 已新增 `keybindingSnapshotRowsToBindings()`，可把 SQLite keybinding snapshot rows 和 override map 合成为设置页可展示的 command-aware bindings。
+- [../../../src/global/shortcutStore.js](../../../src/global/shortcutStore.js:78) 已新增 `commandSnapshotRowsToMap()`，可把 SQLite command snapshot rows 转为 command metadata lookup。
+- [../../../src/global/shortcutStore.js](../../../src/global/shortcutStore.js:86) 已新增 `getEffectiveShortcutCommandRows()`，设置页命令表优先读取 SQLite command/keybinding snapshot rows，读取失败时回退默认声明和 `setting.hotkeyOverrides`。
+- [../../../src/global/shortcutStore.js](../../../src/global/shortcutStore.js:97) 已把 command snapshot 读取失败降级为 metadata fallback：keybinding snapshot 与 override 仍可继续来自 SQLite，只用代码默认 command metadata 补位。
+- [../../../src/global/shortcutCommandRows.js](../../../src/global/shortcutCommandRows.js:36) 的 `buildShortcutCommandRows()` 已支持注入 command metadata lookup；SQLite 模式下 command description/category/risk 可来自 command snapshot，缺失时再回退代码默认值。
+- [../../../src/storage/sqliteClipboardRepository.js](../../../src/storage/sqliteClipboardRepository.js:83) 已挂载 `shortcutKeybindings` repository，并在 [../../../src/storage/sqliteClipboardRepository.js](../../../src/storage/sqliteClipboardRepository.js:140) / [../../../src/storage/sqliteClipboardRepository.js](../../../src/storage/sqliteClipboardRepository.js:162) schema 就绪后尝试初始化快捷键表、seed 默认 snapshot、导入旧 `setting.hotkeyOverrides`；该步骤失败只 warning 并继续使用 setting fallback，不阻断主 SQLite 存储初始化。
+- [../../../src/global/shortcutStore.js](../../../src/global/shortcutStore.js:38) 已支持 SQLite 优先读写：设置页初始化优先读取 `window.db.shortcutKeybindings.getOverridesMap()`，保存时优先写 `shortcut_keybinding_overrides`，失败回退 `setting.hotkeyOverrides`；保存时仍同步 setting 字段，作为旧版本和异常回退的兼容副本。
+- [../../../src/global/shortcutStore.js](../../../src/global/shortcutStore.js:84) SQLite 写入成功后会调用 `window.db.queuePersist()`，确保 sql.js 内存库中的快捷键 override 变更进入持久化队列；写入失败 fallback 时不会误触发 SQLite persist。
+- [../../../src/global/shortcutStore.js](../../../src/global/shortcutStore.js:69) 保存快捷键配置时已调整为先写 `setting.hotkeyOverrides` 兼容副本，再尝试写 SQLite；如果 `saveSetting()` 失败，不继续写 SQLite、不触发 `queuePersist()` 和热更新事件，避免半成功状态。
+- [../../../src/global/shortcutStore.js](../../../src/global/shortcutStore.js:98) 保存结果已返回 `settingSaved` / `sqliteSaved` 诊断字段，设置页或后续状态提示可直接区分 setting fallback 与 SQLite 成功。
+- [../../../src/views/Setting.vue](../../../src/views/Setting.vue:775) 已消费 `sqliteSaved` 诊断字段，保存/重置 toast 会明确显示快捷键写入 `SQLite` 或 `设置 fallback`；SQLite 成功用 success，fallback 用 warning。
+- [../../../src/storage/shortcutKeybindingRepository.js](../../../src/storage/shortcutKeybindingRepository.js:264) 已提供 `replaceOverrideRows()` 事务式替换，`shortcutStore` 保存时优先使用它，避免先删旧 rows 再 upsert 新 rows 造成半写状态。
+- [../../../src/cpns/HotkeyProvider.vue](../../../src/cpns/HotkeyProvider.vue:19) 已将运行时热键刷新切到 [../../../src/global/shortcutStore.js](../../../src/global/shortcutStore.js:57) 的 `getEffectiveShortcutBindings()`，实际 dispatch 也会优先使用 SQLite override map，SQLite 读取失败时回退 setting。
+- [../../../src/views/Setting.vue](../../../src/views/Setting.vue:140) 已在快捷键 tab 顶部展示当前快捷键配置存储来源；SQLite 可用时显示“快捷键配置存储：SQLite”，fallback 时显示“快捷键配置存储：设置 fallback”。
+- [../../../src/views/Setting.vue](../../../src/views/Setting.vue:792) 快捷键 tab 的命令表已改为消费 `getEffectiveShortcutCommandRows()`，UI 查询/过滤的数据源和存储来源 pill 使用同一 store 结果，不再由 Vue 组件直接拼接默认 binding。
+- [../../../src/views/Setting.vue](../../../src/views/Setting.vue:140) 快捷键存储来源 pill 已补 `title` 说明：SQLite 模式说明优先写入 SQLite override 表并同步 setting，fallback 模式说明写入 `setting.hotkeyOverrides`。
+- [../../../src/views/Setting.vue](../../../src/views/Setting.vue:140) 快捷键存储来源 pill 已补 `role="status"` 与 `aria-label`，辅助技术可直接读到当前存储来源和写入语义。
+- [../../../src/global/shortcutOverrides.js](../../../src/global/shortcutOverrides.js:1) 已抽出 override map 规范化纯函数，`shortcutStore` 和 `shortcutKeybindingRepository` 共用它，避免 storage 层反向依赖 store 层形成循环 import。
+- [../../../src/views/Setting.vue](../../../src/views/Setting.vue:1258) 重置设置已改为通过 `saveShortcutSettingsPayload()` 写回空快捷键 override，确保 SQLite backend 中旧改键 rows 会被删除，避免重置后又从 SQLite 读回旧快捷键。
+- [../../../src/global/shortcutCommandRows.js](../../../src/global/shortcutCommandRows.js:21) 已增加默认功能到 command 快捷键的显式适配表和摘要 helper；功能配置页不再靠旧 operation id 猜测 command id。
+- [../../../src/views/Setting.vue](../../../src/views/Setting.vue:425) 功能配置页的“动作 / 命令”列已展示默认功能对应快捷键摘要，并可一键跳转到快捷键 tab 的对应 command 过滤结果；搜索功能列表时也会匹配快捷键摘要和 command id。
+- [../../../src/global/shortcutCommandRows.js](../../../src/global/shortcutCommandRows.js:27) 已修正“编辑标签”默认功能的 command 映射为 `list.item.editTagOrAlias`，功能配置页可正确显示并跳转 `F2` 快捷键配置。
+- [../../../src/global/shortcutCommandRows.js](../../../src/global/shortcutCommandRows.js:21) 已移除“保存文件”到 `list.item.copyOnly` 的错误映射；`save-file`、`open-folder`、`word-break` 等仅通过功能按钮/动态抽屉序号触发的动作，在功能配置页明确显示“无直接快捷键”，避免把 `Ctrl+C` 误标成保存文件快捷键。
+- [../../../src/global/shortcutCommandRows.js](../../../src/global/shortcutCommandRows.js:112) 已为功能快捷键摘要补 `hint`：直绑 command 显示“点击查看或修改对应 command 快捷键”，默认无直绑动作显示“可通过功能按钮或动态抽屉序号执行”；[../../../src/views/Setting.vue](../../../src/views/Setting.vue:428) 将 hint 落到功能页快捷键摘要的 `title`。
+- [../../../src/views/Setting.vue](../../../src/views/Setting.vue:428) 已为功能页可点击快捷键摘要补 `aria-label`，屏幕阅读器可读到“查看某功能的 command 快捷键：具体键位”，不只依赖按钮文本和 hover title。
+- [../../../src/views/Setting.vue](../../../src/views/Setting.vue:1986) 已为功能页可点击快捷键摘要补 `:focus-visible` 焦点态，键盘 Tab 聚焦时有明确 outline。
+- [../../../src/views/Setting.vue](../../../src/views/Setting.vue:587) 功能配置页已把原“命令快捷键”入口升级为“命令与动作”配置行，展示当前 command keybinding 总数、已修改/禁用数量、SQLite/fallback 状态，并通过 [../../../src/global/commandMacroStore.js](../../../src/global/commandMacroStore.js:23) 读取组合命令状态：macro 数量、SQLite/内存草稿模式和“草稿编辑已开放、运行时触发后置”边界。
+- [../../../src/views/Setting.vue](../../../src/views/Setting.vue:627) 已新增“查看组合”弹窗，展示当前组合命令的 id/title、步骤数、步骤摘要和来源；该入口已提供草稿编辑/删除，但不提供绑定快捷键或执行能力。
+- [../../../src/views/Setting.vue](../../../src/views/Setting.vue:633) 已新增“新增组合”草稿表单，仅允许从非 `data-write` command 中选择步骤；步骤列表已支持动态增删和每步执行前延迟编辑，最多遵循 [../../../src/global/commandMacro.js](../../../src/global/commandMacro.js:4) 的 `COMMAND_MACRO_MAX_STEPS`，延迟上限遵循 [../../../src/global/commandMacro.js](../../../src/global/commandMacro.js:3) 的 `COMMAND_MACRO_MAX_DELAY_MS`，提交后通过 [../../../src/global/commandMacroStore.js](../../../src/global/commandMacroStore.js:45) 保存到 SQLite 或内存草稿；仍不提供快捷键绑定和运行时执行。
+- [../../../src/views/Setting.vue](../../../src/views/Setting.vue:672) 组合命令列表已提供草稿编辑/删除入口；编辑复用新增表单并保留原 macro id，删除需要确认后通过 `saveCommandMacros()` 覆盖保存剩余列表。
+- [../../../src/views/Setting.vue](../../../src/views/Setting.vue:17) 设置页主导航已将“快捷键”tab 调整为“命令”，内部仍保留录制、When、默认、禁用等 keybinding 配置能力，避免用户把 command/action 配置理解成只改按键。
+- [../../../src/storage/commandMacroRepository.js](../../../src/storage/commandMacroRepository.js:1) 已新增组合命令 SQLite repository：`command_macro_definitions` / `command_macro_steps` schema、macro definition/step rows 生成、rows 还原 macro 定义、稳定版本 hash、非法 macro 错误隔离、事务式整体替换、按 macro upsert/delete/query。
+- [../../../src/storage/sqliteClipboardRepository.js](../../../src/storage/sqliteClipboardRepository.js:146) 已安全挂载 `commandMacros` repository；初始化失败只 warning 并置空 `commandMacros`，不阻断主 SQLite 存储、shortcut keybinding 或 JSON fallback。
+- [../../../src/global/commandMacroStore.js](../../../src/global/commandMacroStore.js:1) 已新增组合命令 store 外壳：SQLite 优先读取 `window.db.commandMacros`，读取失败回退内存草稿；保存前先校验 macro，合法时优先 `replaceMacroRows()` 并触发 `queuePersist()`，非法或 SQLite 写失败时不污染 SQLite。
+- [../../../src/views/Setting.vue](../../../src/views/Setting.vue:1174) 已新增 `openShortcutSystemConfig()`，功能配置页入口会清空筛选并聚焦快捷键搜索框，避免配置页和快捷键页成为两套割裂入口。
+
+== 当前状态边界
+
+已完成：
+
+- command 元数据、feature 映射、风险标记、默认 when、source/override 元数据。
+- when 表达式解析、运行时 resolver、冲突检测纯函数、设置页录制/禁用/恢复默认/when 编辑闭环。
+- 默认绑定矩阵 shadow 对照、业务组件 command handler 迁移、data-write command 配置和运行时 dispatch 回归。
+
+明确后置：
+
+- 真实 uTools/sql.js 启动迁移验证；迁移边界与设置页适配见 [11YG2-zz-plan-快捷键SQLite迁移设计.ad](11YG2-zz-plan-快捷键SQLite迁移设计.ad:1)，设置页兼容 store 外壳、repository backend 方法、SQLite 仓库安全初始化、store SQLite 优先读写、运行时 provider 读取和设置页存储状态展示已先落地。
+- 组合 command 热键分发接入和高级编排能力，例如并行、条件分支、状态穿透；当前已完成纯 schema/校验、执行计划、dry-run、注入式 executor、SQLite repository、主 SQLite 安全挂载、store 外壳和设置页草稿编辑，但未开放快捷键绑定或运行时触发。
+- 更完整的 when UI 构建器，例如右键上下文管理、条件“与/或/非”图形化编辑、跨命令统一管理弹窗。
+
+本轮修改文件：
+
+- 新增 `src/global/shortcutCommandRows.js`
+- 修改 [../../../src/views/Setting.vue](../../../src/views/Setting.vue:128)
+- 新增 `src/global/commandDefaults.js`
+- 新增 `src/global/whenExpression.js`
+- 新增 `src/global/keybindingConflicts.js`
+- 新增 `src/global/keybindingResolver.js`
+- 新增 `src/global/hotkeyContext.js`
+- 修改 [../../../src/global/hotkeyRegistry.js](../../../src/global/hotkeyRegistry.js:89)
+- 修改 [../../../src/global/hotkeyBindings.js](../../../src/global/hotkeyBindings.js:55)
+- 新增 `test-shortcut-command-system.js`
+- 更新本文档
+
+本轮验证：
+
+- `node test-shortcut-command-system.js`
+- `pnpm run build`
+- 浏览器验证：`pnpm run serve` 后访问 `http://localhost:8082/`，进入设置页快捷键 tab，确认显示 `共 138 / 138 条命令绑定`，搜索 `setting.scroll` 得到 2 条，录制弹窗和 When 弹窗可打开，未捕获异常为 0；截图保存在 [../../../output/playwright/shortcut-settings-cdp.png](../../../output/playwright/shortcut-settings-cdp.png)。
+- 浏览器保存/恢复验证：在 Vite dev stub 环境中搜索 `setting.scroll.up`，改键为 `ctrl+shift+y` 后保存，确认 `setting.hotkeyOverrides["setting::ArrowUp:setting-scroll-up"]` 写入 `{ shortcutId: "ctrl+shift+y" }`；点击默认并再次保存后确认该 override 被删除，未捕获异常为 0；截图保存在 [../../../output/playwright/shortcut-settings-save-restore.png](../../../output/playwright/shortcut-settings-save-restore.png)。
+- 浏览器禁用/恢复验证：在 Vite dev stub 环境中搜索 `setting.scroll.down`，点击禁用并确认后保存，确认 `setting.hotkeyOverrides["setting::ArrowDown:setting-scroll-down"]` 写入 `null`；点击默认并再次保存后确认该 override 被删除，未捕获异常为 0；截图保存在 [../../../output/playwright/shortcut-settings-disable-restore.png](../../../output/playwright/shortcut-settings-disable-restore.png)。
+- 浏览器 When 保存/恢复验证：在 Vite dev stub 环境中搜索 `setting.tab.next`，通过“设置页”预设写入 `settingFocus && !inputFocus` 后保存，确认 `setting.hotkeyOverrides["setting::ArrowRight:setting-tab-next"]` 写入 `{ when: "settingFocus && !inputFocus" }`；点击默认并再次保存后确认该 override 被删除，未捕获异常为 0；截图保存在 [../../../output/playwright/shortcut-settings-when-save.png](../../../output/playwright/shortcut-settings-when-save.png)。
+- 浏览器 data-write command 配置验证：在 Vite dev stub 环境中搜索 `list.item.delete`，确认显示 `共 2 / 138 条命令绑定` 且两行均带“写入”风险标记；禁用 `Delete` 行后保存，确认 `utools.dbStorage.getItem("setting").hotkeyOverrides["main::Delete:list-delete"] === null`，点击默认并保存后该 override 删除；再次把同一行录制为 `ctrl+shift+d` 后保存，确认 override 写入 `{ shortcutId: "ctrl+shift+d" }`，点击默认并保存后最终 overrides 清空。截图保存在 [../../../output/playwright/shortcut-settings-datawrite-search.png](../../../output/playwright/shortcut-settings-datawrite-search.png)、[../../../output/playwright/shortcut-settings-datawrite-disable.png](../../../output/playwright/shortcut-settings-datawrite-disable.png)、[../../../output/playwright/shortcut-settings-datawrite-change.png](../../../output/playwright/shortcut-settings-datawrite-change.png)、[../../../output/playwright/shortcut-settings-datawrite-restore.png](../../../output/playwright/shortcut-settings-datawrite-restore.png)。
+- data-write command 运行时 dispatch 验证：`test-shortcut-command-system.js` 构造 `main::Delete:list-delete -> { shortcutId: "ctrl+shift+d" }` override，注册 `list.item.delete` command handler，断言旧 `Delete` 不再触发，新 `ctrl+shift+d` 命中 command handler，且 dispatch ctx 保留 `featureId: "list-delete"`、`source: "user"`、`defaultShortcutId: "Delete"`；同时构造 `main::Delete:list-delete -> null` 禁用 override，断言默认 `Delete` 不再 dispatch 到该 data-write command。
+- `pnpm run serve` 后访问本地页面，确认设置页快捷键 tab 可渲染
+- 迁移设计复核：读取 [../../../src/global/initPlugin.js](../../../src/global/initPlugin.js:1190)、[../../../src/storage/sqliteClipboardRepository.js](../../../src/storage/sqliteClipboardRepository.js:100)、[../../../src/global/readSetting.js](../../../src/global/readSetting.js:7)、[../../../src/views/Setting.vue](../../../src/views/Setting.vue:660) 后，生成 [11YG2-zz-plan-快捷键SQLite迁移设计.ad](11YG2-zz-plan-快捷键SQLite迁移设计.ad:1)，明确不把快捷键 SQLite 故障升级为启动故障。
+- shortcut store 兼容外壳验证：`test-shortcut-command-system.js` 覆盖 [../../../src/global/shortcutStore.js](../../../src/global/shortcutStore.js:5) 的 override 规范化、setting payload 合成、保存回调和 `ezclipboard:hotkey-bindings-updated` 事件；`pnpm run build` 通过。
+- shortcut SQLite repository 验证：`test-shortcut-command-system.js` 覆盖 [../../../src/storage/shortcutKeybindingRepository.js](../../../src/storage/shortcutKeybindingRepository.js:7) 的三张表 schema、默认 command/keybinding snapshot、旧 override 导入跳过未知 binding、禁用/改键/when 往返、稳定迁移 hash、`ensureSchema()` 调用、snapshot upsert、override upsert/read/delete、meta hash 防重复导入。
+- 真实 sql.js 验证：`test-shortcut-command-system.js` 使用 `sql.js` 内存数据库执行 [../../../src/storage/shortcutKeybindingRepository.js](../../../src/storage/shortcutKeybindingRepository.js:7) 的 schema、snapshot seed、旧 override 迁移、override 读取与删除，确认 SQL 语法和参数绑定可在真实 sql.js 上运行；同时覆盖 `db.export()` 后重新加载 Database，确认 override map 和迁移 hash 可跨 SQLite 字节重载保留。
+- SQLite snapshot 查询验证：`test-shortcut-command-system.js` 覆盖 [../../../src/storage/shortcutKeybindingRepository.js](../../../src/storage/shortcutKeybindingRepository.js:287) 的 command/keybinding snapshot 查询，在真实 `sql.js` 内存库 seed 后确认可读回 `list.item.delete` command 和 `main::Delete:list-delete` 默认绑定。
+- 设置页 SQLite snapshot 数据源验证：`test-shortcut-command-system.js` 覆盖 [../../../src/global/shortcutStore.js](../../../src/global/shortcutStore.js:51) 的 snapshot rows 到 command-aware bindings 转换、[../../../src/global/shortcutStore.js](../../../src/global/shortcutStore.js:78) 的 command snapshot map、SQLite command/keybinding snapshot rows 优先生成设置页 command rows、command snapshot 失败但 keybinding snapshot 继续生效、keybinding snapshot 读取失败时回退默认声明路径。
+- SQLite 仓库集成验证：`pnpm run build` 覆盖 [../../../src/storage/sqliteClipboardRepository.js](../../../src/storage/sqliteClipboardRepository.js:5) 对 shortcut repository 的打包导入；`node test-shortcut-command-system.js` 覆盖被接入 repository 的核心转换和 fake DB backend 行为。真实 uTools/sql.js 启动导入仍需后续浏览器或 uTools runtime 验证。
+- shortcut store SQLite 优先验证：`test-shortcut-command-system.js` 覆盖 [../../../src/global/shortcutStore.js](../../../src/global/shortcutStore.js:31) 的 backend 探测、SQLite 优先读取、读取失败 fallback、保存时删除恢复默认项、upsert 新 override rows、SQLite 写失败 fallback 和 setting 同步。
+- 运行时 provider SQLite 优先验证：`test-shortcut-command-system.js` 覆盖 [../../../src/global/shortcutStore.js](../../../src/global/shortcutStore.js:57) 的 `getEffectiveShortcutBindings()`，确认 SQLite override 会改变运行时 binding，SQLite 读取失败时使用 setting override；`pnpm run build` 覆盖 [../../../src/cpns/HotkeyProvider.vue](../../../src/cpns/HotkeyProvider.vue:19) 的导入与打包。
+- 浏览器 UI 验证：`pnpm run serve` 后访问本地 Vite 页面，关闭版本提示，进入设置页快捷键 tab，确认显示 `共 138 / 138 条命令绑定` 与 `快捷键配置存储：SQLite`，表格正常渲染；截图保存在 [../../../output/playwright/shortcut-settings-storage-status.png](../../../output/playwright/shortcut-settings-storage-status.png)。
+- 快捷键存储来源说明验证：浏览器验证访问 `http://localhost:8096/`，进入设置页快捷键 tab 后确认 `快捷键配置存储：SQLite` pill 的 title 为“当前快捷键改动会优先写入 SQLite override 表，并同步 setting 作为兼容副本。”截图保存在 [../../../output/playwright/shortcut-storage-pill-title.png](../../../output/playwright/shortcut-storage-pill-title.png)。
+- 快捷键存储来源可访问性验证：浏览器验证访问 `http://localhost:8097/`，进入设置页快捷键 tab 后确认存储来源 pill 的 `role` 为 `status`，`aria-label` 包含“快捷键配置存储：SQLite”和“SQLite override 表”。截图保存在 [../../../output/playwright/shortcut-storage-pill-aria.png](../../../output/playwright/shortcut-storage-pill-aria.png)。
+- 依赖方向验证：`rg -n "shortcutStore" src/storage` 无结果，确认 storage 层只依赖 [../../../src/global/shortcutOverrides.js](../../../src/global/shortcutOverrides.js:1) 的纯函数，不再 import store。
+- 重置快捷键验证：`test-shortcut-command-system.js` 覆盖空 override draft 保存到 SQLite backend 时会删除所有旧 override rows，并返回空 `hotkeyOverrides`；`pnpm run build` 覆盖 [../../../src/views/Setting.vue](../../../src/views/Setting.vue:1258) 的重置路径编译。
+- SQLite 保存持久化验证：`test-shortcut-command-system.js` 覆盖 [../../../src/global/shortcutStore.js](../../../src/global/shortcutStore.js:84) 在 SQLite 保存和重置成功后调用 `queuePersist()`，并确认 SQLite 写失败 fallback 时不会调用。
+- 快捷键保存顺序验证：`test-shortcut-command-system.js` 覆盖 [../../../src/global/shortcutStore.js](../../../src/global/shortcutStore.js:69) 中 `saveSetting()` 抛错时会直接抛出，不调用 SQLite backend、不调用 `queuePersist()`、不派发热更新事件。
+- 快捷键保存诊断字段验证：`test-shortcut-command-system.js` 覆盖 setting-only 保存返回 `settingSaved: true` / `sqliteSaved: false`，SQLite 成功返回 `sqliteSaved: true`，SQLite 写失败 fallback 返回 `sqliteSaved: false`。
+- 设置页保存状态提示验证：浏览器验证访问 `http://localhost:8094/`，进入设置页后点击保存，确认 toast 显示“保存成功，快捷键已写入SQLite，配置已热更新”。截图保存在 [../../../output/playwright/shortcut-save-toast-storage.png](../../../output/playwright/shortcut-save-toast-storage.png)。
+- 设置页保存状态类型验证：浏览器验证访问 `http://localhost:8095/`，进入设置页后点击保存，确认 SQLite 正常路径 toast class 为 `el-message--success`，文案仍显示“快捷键已写入SQLite”。截图保存在 [../../../output/playwright/shortcut-save-toast-success-type.png](../../../output/playwright/shortcut-save-toast-success-type.png)。
+- SQLite override 原子替换验证：`test-shortcut-command-system.js` 覆盖 [../../../src/storage/shortcutKeybindingRepository.js](../../../src/storage/shortcutKeybindingRepository.js:264) 的 `replaceOverrideRows()` 在真实 sql.js 上可清空/替换 overrides；非法 row 写入失败时会 rollback 并保留旧 overrides；store 测试确认保存优先调用 replace 而不是逐条 delete/upsert。
+- 功能配置页快捷键适配验证：`test-shortcut-command-system.js` 覆盖 [../../../src/global/shortcutCommandRows.js](../../../src/global/shortcutCommandRows.js:105) 的 operation -> command 快捷键查询和摘要生成，确认“删除”功能映射到 `list.item.delete` 的 `Delete / Backspace` 两条快捷键，未绑定直接 command 快捷键的功能明确显示“无直接快捷键”；`pnpm run build` 覆盖 [../../../src/views/Setting.vue](../../../src/views/Setting.vue:425) 模板和跳转函数编译。
+- 浏览器功能配置页联动验证：`pnpm run serve` 后访问 `http://localhost:8088/`，关闭版本提示，进入设置页“功能”tab，确认功能列表显示 `Delete / Backspace` 和无直接快捷键文案；点击 `Delete / Backspace` 后跳转到快捷键 tab 并显示 `list.item.delete` 的 `共 2 / 138 条命令绑定`。截图保存在 [../../../output/playwright/shortcut-feature-config-link.png](../../../output/playwright/shortcut-feature-config-link.png)。
+- 功能配置页映射完整性验证：`test-shortcut-command-system.js` 覆盖 [../../../src/global/shortcutCommandRows.js](../../../src/global/shortcutCommandRows.js:21) 中所有默认功能映射都指向已注册 command，并确认“编辑标签”映射到 `list.item.editTagOrAlias` 且摘要显示 `F2`；浏览器验证访问 `http://localhost:8089/`，进入设置页“功能”tab 后点击 `F2` 摘要，确认跳转到 `list.item.editTagOrAlias` 快捷键行。截图保存在 [../../../output/playwright/shortcut-feature-edit-tags-link.png](../../../output/playwright/shortcut-feature-edit-tags-link.png)。
+- 功能配置页错误映射回归验证：`test-shortcut-command-system.js` 覆盖 `save-file` 和 `open-folder` 不会被误判为直接快捷键；浏览器验证访问 `http://localhost:8090/`，进入设置页“功能”tab 后确认“保存”行显示“无直接快捷键”且不显示 `Ctrl+C`。截图保存在 [../../../output/playwright/shortcut-feature-save-file-no-shortcut.png](../../../output/playwright/shortcut-feature-save-file-no-shortcut.png)。
+- 功能配置页无直接快捷键文案验证：浏览器验证访问 `http://localhost:8091/`，进入设置页“功能”tab 后确认可见功能行只使用“无直接快捷键”文案，旧“无快捷键”文案不再出现；“保存”行仍显示“无直接快捷键”且不显示 `Ctrl+C`。截图保存在 [../../../output/playwright/shortcut-feature-no-direct-label.png](../../../output/playwright/shortcut-feature-no-direct-label.png)。
+- 功能配置页摘要提示验证：浏览器验证访问 `http://localhost:8092/`，进入设置页“功能”tab 后确认 `Delete / Backspace` 的 title 为“点击查看或修改对应 command 快捷键”，“保存”行的“无直接快捷键” title 为“可通过功能按钮或动态抽屉序号执行”，自定义功能无直绑 title 为“自定义功能暂未接入 command 快捷键”。截图保存在 [../../../output/playwright/shortcut-feature-summary-hints.png](../../../output/playwright/shortcut-feature-summary-hints.png)。
+- 功能配置页快捷键摘要可访问性验证：浏览器验证访问 `http://localhost:8093/`，进入设置页“功能”tab 后确认“删除”行 `Delete / Backspace` 按钮的 `aria-label` 为“查看 删除 的 command 快捷键：Delete / Backspace”，`title` 仍为“点击查看或修改对应 command 快捷键”。截图保存在 [../../../output/playwright/shortcut-feature-aria-label.png](../../../output/playwright/shortcut-feature-aria-label.png)。
+- 功能配置页快捷键摘要焦点态验证：`pnpm run build` 覆盖 [../../../src/views/Setting.vue](../../../src/views/Setting.vue:1986) 的 Less 编译；焦点态沿用项目现有 `outline: 2px solid var(--primary-color)` 模式。
+- 功能配置页命令快捷键入口验证：`pnpm run build` 覆盖 [../../../src/views/Setting.vue](../../../src/views/Setting.vue:587) 的新增配置行、[../../../src/views/Setting.vue](../../../src/views/Setting.vue:844) 的已修改/禁用计数、[../../../src/views/Setting.vue](../../../src/views/Setting.vue:1174) 的跳转函数和 [../../../src/views/Setting.vue](../../../src/views/Setting.vue:2147) 的状态 pill 样式；本轮浏览器插件拦截 `http://localhost:8098/` 的本地页面操作，未新增截图。
+- 组合命令存储验证：`test-shortcut-command-system.js` 覆盖 [../../../src/storage/commandMacroRepository.js](../../../src/storage/commandMacroRepository.js:1) 的 schema 字符串、有效/无效 macro rows 拆分、step 顺序和 args JSON 往返、坏 JSON 容错、版本 hash 稳定性、fake DB schema/upsert/delete/query、真实 sql.js 事务替换、失败 rollback、export/reload 保留；`pnpm run build` 覆盖 [../../../src/storage/sqliteClipboardRepository.js](../../../src/storage/sqliteClipboardRepository.js:6) 对 command macro repository 的打包导入和初始化路径。
+- 组合命令 store 验证：`test-shortcut-command-system.js` 覆盖 [../../../src/global/commandMacroStore.js](../../../src/global/commandMacroStore.js:1) 的 backend 探测、SQLite 优先读取、读取失败 fallback、非法 macro 不写库、保存成功触发 `queuePersist()`、SQLite 写失败回退内存草稿且不触发持久化队列。
+- 设置页命令化入口验证：`pnpm run build` 覆盖 [../../../src/views/Setting.vue](../../../src/views/Setting.vue:17) 的 tab 文案、[../../../src/views/Setting.vue](../../../src/views/Setting.vue:139) 的 command keybinding 摘要、[../../../src/views/Setting.vue](../../../src/views/Setting.vue:587) 的“命令与动作”配置行和组合命令后置状态文案。
+- 设置页组合命令只读状态验证：`pnpm run build` 覆盖 [../../../src/views/Setting.vue](../../../src/views/Setting.vue:597) 的 macro summary、[../../../src/views/Setting.vue](../../../src/views/Setting.vue:609) 的 `Macro SQLite` / `Macro Draft` 状态 pill，以及 [../../../src/views/Setting.vue](../../../src/views/Setting.vue:718) 的 `getEffectiveCommandMacros()` 初始化路径。
+- 设置页组合命令只读列表验证：`pnpm run build` 覆盖 [../../../src/views/Setting.vue](../../../src/views/Setting.vue:627) 的只读弹窗、[../../../src/views/Setting.vue](../../../src/views/Setting.vue:797) 的 macro 表格列和 [../../../src/views/Setting.vue](../../../src/views/Setting.vue:878) 的步骤摘要生成逻辑。
+- 设置页组合命令草稿创建验证：`pnpm run build` 覆盖 [../../../src/views/Setting.vue](../../../src/views/Setting.vue:633) 的新增草稿弹窗、[../../../src/views/Setting.vue](../../../src/views/Setting.vue:695) 的动态步骤列表、[../../../src/views/Setting.vue](../../../src/views/Setting.vue:709) 的每步 delay 输入、[../../../src/views/Setting.vue](../../../src/views/Setting.vue:1003) 的非写入 command 选项过滤、[../../../src/views/Setting.vue](../../../src/views/Setting.vue:1047) 的草稿 payload 生成和 [../../../src/views/Setting.vue](../../../src/views/Setting.vue:1070) 的 `saveCommandMacros()` 保存路径。
+- 设置页组合命令草稿编辑/删除验证：`pnpm run build` 覆盖 [../../../src/views/Setting.vue](../../../src/views/Setting.vue:672) 的表格操作、[../../../src/views/Setting.vue](../../../src/views/Setting.vue:1019) 的编辑表单填充、[../../../src/views/Setting.vue](../../../src/views/Setting.vue:1042) 的 edit mode 保留 id 逻辑和 [../../../src/views/Setting.vue](../../../src/views/Setting.vue:1083) 的删除确认保存路径。
+
+== 阶段 0：现状快照与测试护栏
+
+修改文件：
+
+- [../../../src/global/hotkeyBindings.js](../../../src/global/hotkeyBindings.js:55)
+- [../../../src/global/hotkeyRegistry.js](../../../src/global/hotkeyRegistry.js:149)
+- [../../../src/global/shortcutKey.js](../../../src/global/shortcutKey.js:42)
+- 新增 `src/global/__tests__/` 或项目现有测试目录。
+
+预期改动：
+
+- 导出当前默认绑定快照 JSON，用于后续对比。
+- 为 `normalizeShortcutId()`、`eventToShortcutId()`、`shortcutIdForLookup()` 补单元测试。
+- 为当前 `findBinding()` 行为补 resolver 对照测试：main、search、overlay、`*` block、设置页输入保护。
+- 本轮先覆盖 command 映射、when 解析、冲突判断；事件级测试在 resolver 接入前补齐。
+
+风险点：
+
+- 项目当前可能没有测试框架；若无测试框架，先用轻量 node 脚本校验纯函数，不新增重依赖。
+
+验证方式：
+
+- `pnpm run build`
+- `pnpm run serve` 后访问本地页面，确认设置页快捷键 tab 可渲染
+- 纯函数测试或脚本输出现有绑定数量、重复 key、layer/state 分布。
+
+== 阶段 1：Command 元数据层
+
+修改文件：
+
+- 新增 `src/global/commandRegistry.js`
+- 新增 `src/global/commandDefaults.js`
+- [../../../src/global/hotkeyLabels.js](../../../src/global/hotkeyLabels.js:1)
+- [../../../src/global/hotkeyBindings.js](../../../src/global/hotkeyBindings.js:55)
+
+预期改动：
+
+- 建立 `COMMANDS`：`id/title/category/description/defaultWhen/handler/risk/source`。
+- 建立旧 feature 到新 command 的映射，例如 `list-delete -> list.item.delete`。
+- 保留 `registerFeature()`，新增兼容 API：`registerCommand(commandId, handler)`。
+- 默认绑定从 `features` 逐步生成 `command`，短期允许 `features` 和 `command` 双字段并存。
+- 已新增 `registerCommand()` / `unregisterCommand()`，但所有现有业务 handler 可继续只注册 feature；command handler 未注册时自动 fallback 到 feature。
+- 设置页低风险 command handler 已开始真实接入：`setting.scroll.up/down`、`setting.tab.prev/next`。
+- 标签编辑弹窗 command handler 已开始真实接入：`tag.edit.close`、`tag.edit.focus.next`、`tag.edit.save`；其中保存类命令已通过原 handler 逻辑迁移。
+- 完整预览弹层低风险 command handler 已开始真实接入：`preview.full.close`、`preview.full.scroll.up/down`、`preview.full.blockUnhandled`。
+- 标签搜索弹层低风险 command handler 已开始真实接入：`tag.search.close`、`tag.search.blockUnhandled`。
+- 抽屉菜单 command handler 已开始真实接入：`drawer.close`、`drawer.navigate.up/down`、`drawer.select`、`drawer.select.1-9`、`drawer.blockUnhandled`。
+- 置顶组合编辑器 command handler 已开始真实接入：`pin.group.edit.close`、`pin.group.edit.save`、`pin.group.edit.navigate.up/down`、`pin.group.edit.toggleSelect`、`pin.group.edit.moveUp/down`、`pin.group.edit.blockUnhandled`。
+- 清空确认弹窗非写入 command handler 已开始真实接入：`dialog.clear.close`、`dialog.clear.range.*`、`dialog.clear.range.navigate`、`dialog.clear.focus.next`、`dialog.clear.blockUnhandled`。
+- 主界面非写入/低风险控制 command handler 已开始真实接入：`main.tab.*`、`main.collectSubTab.*`、`search.focus`、`main.setting.open`、`search.locked.toggle`、`dialog.clear.open`、`tag.search.open`。
+- 列表非写入 command handler 已开始真实接入：`list.navigate.*`、`list.preview.*`（含 `list.preview.shift`）、`list.multi.toggleCurrent`、`list.item.copyOnly`、`list.item.openFull`、`list.item.openDrawer`。
+- 以上已接入组件统一使用 `registerCommandFeaturePairs()`，后续迁移新组件时优先沿用该 helper。
+
+风险点：
+
+- 命名过度重构会扩大 diff；第一阶段 command id 只服务系统内核，不追求一次命名完美。
+- 多 feature 串行绑定需要保留，例如清除对话框和 block 类绑定。
+
+验证方式：
+
+- 默认 bindings 转换后数量不减少。
+- 所有旧 feature 都能找到 command 或被标记为 `system.blockUnhandled`。
+- 设置页仍能展示现有快捷键。
+
+== 阶段 2：Context 与 when 引擎
+
+修改文件：
+
+- 新增 `src/global/whenExpression.js`
+- 新增 `src/global/hotkeyContext.js`
+- [../../../src/global/hotkeyLayers.js](../../../src/global/hotkeyLayers.js:3)
+- [../../../src/global/hotkeyRegistry.js](../../../src/global/hotkeyRegistry.js:149)
+- [../../../src/views/Main.vue](../../../src/views/Main.vue:696)
+- [../../../src/views/Setting.vue](../../../src/views/Setting.vue:984)
+
+预期改动：
+
+- 实现 when tokenizer/AST/evaluate，支持 `!`、`&&`、`||`、括号、`==`。
+- 建立 context service：`setContext(key, value)`、`getContextSnapshot()`。
+- 从现有状态同步基础 context：
+  - `mainFocus`、`settingFocus`
+  - `searchActive`、`multiSelect`
+  - `inputFocus`、`searchInputFocus`
+  - `drawerOpen`、`fullDataOpen`、`tagSearchOpen`、`tagEditOpen`、`pinGroupEditOpen`
+  - `activeTab`、`previewKind`
+- layer 栈继续存在，但成为 context 输入之一。
+- 本轮已补 `hotkeyContext.js` 纯函数和测试，覆盖 main/search/setting/overlay/inputFocus 映射；dispatch 已在触发时即时生成 context，不做全局 context store。
+
+风险点：
+
+- editable target 判断不能完全移动到 context；dispatch 仍保留安全短路，避免输入框删除被热键抢走。
+- context 更新时机不准会导致快捷键偶发失效，必须从组件 mounted/unmounted/watch 处补齐。
+
+验证方式：
+
+- when 单元测试覆盖布尔、取反、括号、枚举比较。
+- 手动验证 main、setting、tag-edit、drawer、full-data 的 Esc/Enter/方向键。
+- 搜索输入中文 IME 时不触发复制/删除。
+
+== 阶段 3：Resolver 替换 layer/state 查找
+
+修改文件：
+
+- [../../../src/global/hotkeyRegistry.js](../../../src/global/hotkeyRegistry.js:116)
+- [../../../src/global/hotkeyBindings.js](../../../src/global/hotkeyBindings.js:27)
+- 新增 `src/global/keybindingResolver.js`
+
+预期改动：
+
+- 新 resolver 输入：`key`、`context`、`bindings`。
+- 候选筛选：key 相同、未禁用、when 为 true。
+- 排序规则：`source -> weight -> when specificity -> declaration order`。
+- 保留旧 layer/state 到 when 的兼容生成：
+  - `layer: "main"` -> `mainFocus`
+  - `state: "search"` -> `mainFocus && searchActive`
+  - `layer: "clip-drawer"` -> `drawerOpen`
+  - `shortcutId: "*"` -> block binding
+- dispatch 由新 resolver 命中 command-aware binding，优先执行 command handler，缺失时 fallback 到旧 feature handler。
+- 旧 `resolveLegacyBinding()` 保留为测试和 shadow 对照工具，不再作为 dispatch 主解析路径。
+
+风险点：
+
+- `*` block 规则若排序错误，会吞掉 overlay 内允许的快捷键。
+- main fallback 逻辑必须谨慎；overlay 打开时部分快捷键应允许 fallback 到 main，部分应被 block。
+
+验证方式：
+
+- 当前全部默认快捷键解析结果与旧 resolver 对照一致。
+- overlay 打开后 Esc/方向键/数字键/block 行为一致。
+- `ctrl+Delete` 在搜索态和普通态分别命中正确 command。
+- `buildHotkeyContextSnapshot()` 生成的 overlay context 仍保留 `mainFocus`，用于延续旧 fallback 语义；resolver 通过 overlay-specific weight 保证弹层绑定优先。
+- `previewKeybindingResolution()` 覆盖 search、overlay、wildcard block 三类关键路径，证明新 resolver 可在这些路径上复刻旧命中结果。
+- 默认 `HOTKEY_BINDINGS` 矩阵逐条对照通过，dispatch 主路径已切换；若后续新增默认绑定，该测试会阻止未建模的 when/priority 差异进入。
+- 测试覆盖 `setBindings()` 保留用户 `when/source`，并验证 dispatch 会优先执行 `source: "user"` 且 when 为真的绑定。
+- 测试覆盖 command handler 优先、未注册 command fallback 到 feature、纯 command binding 三条执行路径。
+- 测试覆盖 `registerCommandFeaturePair()` 同时注册 command/feature，并验证 disposer 后仍可 fallback 到 feature。
+- 测试覆盖无效 `registerCommandFeaturePair()` / `registerCommandFeaturePairs()` 输入会被跳过，不会产生可 dispatch 的无效 command。
+- 测试覆盖 data-write command 改键和禁用后的运行时 dispatch：旧快捷键失效，新快捷键命中 `list.item.delete` command handler 并保留默认键与用户来源元数据；禁用 override 下默认键不再命中该 command。
+- 测试固定设置页 command id 与旧 feature id 的映射，避免真实组件双注册后发生命名漂移。
+- 测试固定 tag edit command id 与旧 feature id 的映射，并标记 `tag.edit.save` 为 `data-write`。
+- 测试固定完整 `data-write` command id 清单，避免后续迁移时丢失风险标记。
+- 测试固定 full preview command id 与旧 feature id 的映射，覆盖 close、scroll、block 三类非写入行为。
+- 测试固定 tag search command id 与旧 feature id 的映射，覆盖 close 和 block。
+- 测试固定 drawer command id 与旧 feature id 的映射，覆盖 close、nav、select、number select 和 block。
+- 测试固定 pin group edit command id 与旧 feature id 的映射，并标记 save/clear 为 `data-write`。
+- 测试固定 clear dialog command id 与旧 feature id 的映射，并标记 confirm 为 `data-write`。
+- 测试固定 main/search/pin group open 控制 command id 与旧 feature id 的映射，并覆盖 `main.escape`、搜索删除/强删的 `data-write` 风险清单。
+- 测试固定 list navigation/preview/open/copy/delete/data-write/quick copy/drawer sub command id 与旧 feature id 的映射，并保留完整 `data-write` 风险清单。
+
+== 阶段 4：冲突检测
+
+修改文件：
+
+- 新增 `src/global/keybindingConflicts.js`
+- 新增 `src/global/contextConstraints.js`
+- [../../../src/views/Setting.vue](../../../src/views/Setting.vue:579)
+
+预期改动：
+
+- 提供 `detectConflicts(binding, allBindings)`。
+- 判断维度：key 相同、when 可能同时为真、同优先级不可自动消解。
+- 定义互斥 context：
+  - `mainFocus` vs `settingFocus`
+  - `drawerOpen`、`fullDataOpen`、`tagSearchOpen`、`tagEditOpen`、`pinGroupEditOpen` 按当前 top layer 互斥
+  - `searchActive` 与 `!searchActive`
+  - `inputFocus` 与 `!inputFocus`
+- 对无法证明不冲突的表达式给“可能冲突”。
+- 本轮先实现保守纯函数冲突判断，不接入设置页提示。
+
+风险点：
+
+- 不能为了“少报冲突”写复杂 SAT 求解。保守提示更安全。
+- 用户覆盖默认绑定时要显示“覆盖后哪个绑定会失效/让位”。
+
+验证方式：
+
+- 同 key 不同互斥 when 不报冲突。
+- 同 key 同 when 报冲突。
+- 同 key 一个泛 when、一个具体 when 提示优先级覆盖。
+
+== 阶段 5：设置页快捷键工作台
+
+修改文件：
+
+- [../../../src/views/Setting.vue](../../../src/views/Setting.vue:519)
+- [../../../src/cpns/HotkeyTreeView.vue](../../../src/cpns/HotkeyTreeView.vue:1)
+- 新增 `src/cpns/ShortcutCommandTable.vue`
+- 新增 `src/cpns/ShortcutRecorderDialog.vue`
+- 新增 `src/cpns/WhenEditorDialog.vue`
+- [../../../src/style/cpns/setting.less](../../../src/style/cpns/setting.less:1)
+
+预期改动：
+
+- 以表格替代只读树，保留搜索和 scope 过滤。
+- 表格展示全部 command-aware bindings；不得再隐藏基础导航或设置页自身快捷键，否则已迁移 command 无法被用户配置。
+- 设置页过滤逻辑通过 `filterShortcutCommandRows()` 复用纯函数，避免 UI 组件里再次出现不可测试的旧过滤分支。
+- 设置页冲突预览通过 `getShortcutCommandRowConflicts()` 复用纯函数，录制和 when 编辑不能各自维护一套冲突判断。
+- 设置页 override 生成通过 `buildShortcutOverrideValue()` 复用纯函数，后续接 SQLite 时沿用同一语义：只存非默认字段，恢复默认时返回 `undefined` 以删除覆盖项。
+- 设置页 override map 更新通过 `applyShortcutOverrideValue()` / `disableShortcutOverride()` 复用纯函数，禁用语义固定为 `null`，恢复默认语义固定为删除对应 key。
+- 表头固定，列包含：命令、快捷键、when、来源、备注、操作。
+- 行级操作：录制快捷键、编辑 when、禁用、恢复默认、查看冲突。
+- 命令 hover 显示 description/risk/default binding。
+- 录制快捷键期间启用独立 context/layer，阻止触发底层命令。
+- when 编辑器第一版支持文本编辑 + context 选择列表，不做复杂拖拽逻辑。
+
+风险点：
+
+- 设置页输入保护是高风险点。录制、搜索、when 文本框都必须先让输入控件正常处理 Backspace/Delete/方向键/IME。
+- 不要重排存储 tab 状态区，不要破坏设置页既有四 tab 结构。
+
+验证方式：
+
+- 设置页快捷键 tab：搜索、录制、保存、重置、冲突弹窗。
+- 输入框内 Backspace/Delete 不触发全局快捷键。
+- Ctrl/Cmd+F 聚焦快捷键搜索仍可用。
+
+== 阶段 6：存储迁移到 SQLite
+
+修改文件：
+
+- 新增 `src/storage/shortcutRepository.js`
+- [../../../src/storage/sqliteClipboardRepository.js](../../../src/storage/sqliteClipboardRepository.js:1) 或新增专用 SQLite 表初始化入口。
+- [../../../src/global/readSetting.js](../../../src/global/readSetting.js:1)
+- [../../../src/global/restoreSetting.js](../../../src/global/restoreSetting.js:13)
+- [../../../src/views/Setting.vue](../../../src/views/Setting.vue:904)
+
+预期改动：
+
+- SQLite 表建议：
+  - `shortcut_command_snapshot(command_id, version, title, category, description, default_when, risk, updated_at)`
+  - `shortcut_keybinding(id, command_id, key, when_expr, source, weight, enabled, updated_at)`
+  - `shortcut_migration(version, migrated_at)`
+- 首次启动：把 system defaults 写入 snapshot；把旧 `setting.hotkeyOverrides` 转为 user keybindings。
+- 恢复默认：删除/禁用 user row，重新启用 default snapshot；不改 system defaults。
+- SQLite 不可用：继续读写 `setting.hotkeyOverrides` fallback。
+
+风险点：
+
+- 存储改动是高风险。必须说明 SQLite 主路径、JSON fallback、迁移备份、重复导入防护和设置页状态展示。
+- 快捷键系统不能依赖 SQLite 初始化成功，否则插件启动时无快捷键。
+
+验证方式：
+
+- 新装：默认快捷键可用，SQLite 有 snapshot。
+- 旧版本升级：旧 overrides 只导入一次。
+- SQLite 失败：fallback 快捷键仍可用，设置页提示降级。
+- 恢复默认：只影响用户绑定，不污染默认快照。
+
+== 阶段 7：组合 command 预留
+
+修改文件：
+
+- 新增 `src/global/commandMacro.js`
+- `src/global/commandRegistry.js`
+
+预期改动：
+
+- 已定义纯 schema，不开放复杂 UI：
+
+```
+{
+  id: "macro.example",
+  steps: [
+    { command: "clipboard.list.copy", delayMs: 0 },
+    { command: "main.hide", delayMs: 120 }
+  ],
+  mode: "sequence"
+}
+```
+
+- command handler 接口预留 `args` 和 `ctx`。
+- 已新增 [../../../src/global/commandMacro.js](../../../src/global/commandMacro.js:1)，提供 `normalizeCommandMacro()`、`validateCommandMacro()`、`buildCommandMacroCommand()`。
+- [../../../src/global/commandMacro.js](../../../src/global/commandMacro.js:88) 已新增 `buildCommandMacroPlan()`，可生成纯执行计划：顺序步骤、累计延迟、风险集合和 `hasDataWrite` 标记，但不调用任何 command handler。
+- [../../../src/global/commandMacro.js](../../../src/global/commandMacro.js:124) 已新增 `validateCommandMacroPlanExecutable()`，可在真实执行器接入前检查每一步是否存在 command handler，返回缺失 handler 的具体步骤。
+- [../../../src/global/commandMacro.js](../../../src/global/commandMacro.js:148) 已新增 `buildCommandMacroDryRun()`，可生成无副作用 dry-run 结果：每步 `scheduled/blocked` 状态、预计执行时间、缺失 handler 原因和风险摘要。
+- [../../../src/global/commandMacro.js](../../../src/global/commandMacro.js:185) 已新增 macro 执行结果协议：`normalizeCommandMacroStepResult()` 固定 step 结果形状，`buildCommandMacroRunResult()` 聚合 `completed/failed/cancelled`、`handled`、失败/取消 step 和执行耗时。
+- [../../../src/global/commandMacro.js](../../../src/global/commandMacro.js:225) 已新增注入式 `executeCommandMacroPlan()`：只使用调用方传入的 `runCommand`、`wait`、`now` 和 `hasCommandHandler`，可顺序执行 plan、遇到 failed/cancelled 停止并把未执行步骤标记为 `skipped`。
+- 第一版只允许 `sequence`，限制最多 12 步、单步延迟最多 5000ms。
+- 默认禁止 `data-write` command 进入 macro，避免删除、清空、强制删除等副作用被组合放大。
+- 当前不接入 hotkey dispatch、不落 SQLite、不在设置页开放编辑入口；`executeCommandMacroPlan()` 是可注入执行器，不直接读取 registry 或触发全局 command。
+
+风险点：
+
+- 组合命令会放大副作用，第一版不开放删除、清空、强制删除类命令进入 macro。
+
+验证方式：
+
+- `node test-shortcut-command-system.js` 覆盖 normalize、未知 command 拒绝、`data-write` 默认禁入、macro command metadata 生成、纯执行计划累计延迟和风险汇总、缺失 command handler 的步骤级报错、dry-run 的 scheduled/blocked 状态和预计时间、run result 的失败/取消/耗时聚合、注入式 executor 的成功顺序、异常失败和缺失 handler 不执行；不接入设置页可视编辑。
+
+== 默认 command 初稿
+
+建议第一版 command id：
+
+- `setting.scroll.up`
+- `setting.scroll.down`
+- `setting.tab.prev`
+- `setting.tab.next`
+- `dialog.clear.close`
+- `dialog.clear.confirm`
+- `dialog.clear.range.1h`
+- `dialog.clear.range.5h`
+- `dialog.clear.range.8h`
+- `dialog.clear.range.24h`
+- `dialog.clear.range.7d`
+- `dialog.clear.range.all`
+- `dialog.clear.range.navigate`
+- `dialog.clear.focus.next`
+- `drawer.close`
+- `drawer.navigate.up`
+- `drawer.navigate.down`
+- `drawer.select`
+- `drawer.select.1` 到 `drawer.select.9`
+- `preview.full.close`
+- `preview.full.scroll.up`
+- `preview.full.scroll.down`
+- `tag.search.open`
+- `tag.search.close`
+- `tag.edit.close`
+- `tag.edit.save`
+- `tag.edit.focus.next`
+- `pin.group.open`
+- `pin.group.edit.save`
+- `pin.group.edit.clear`
+- `main.tab.next`
+- `main.tab.prev`
+- `main.tab.1` 到 `main.tab.9`
+- `main.setting.open`
+- `search.focus`
+- `search.locked.toggle`
+- `search.results.delete`
+- `search.results.forceDelete`
+- `list.navigate.up`
+- `list.navigate.down`
+- `list.navigate.pageUp`
+- `list.navigate.pageDown`
+- `list.navigate.top`
+- `list.navigate.bottom`
+- `list.preview.text.up`
+- `list.preview.text.down`
+- `list.preview.image.left`
+- `list.preview.image.right`
+- `list.preview.shift`
+- `list.multi.toggleCurrent`
+- `list.item.openFull`
+- `list.item.openDrawer`
+- `list.item.copyOnly`
+- `list.item.editTagOrAlias`
+- `list.item.copyPaste`
+- `list.item.copyPasteAndLock`
+- `list.item.aliasPaste`
+- `list.item.pinToggle`
+- `list.item.collectToggle`
+- `list.item.lockToggle`
+- `list.item.delete`
+- `list.item.forceDelete`
+- `list.quickCopy.1` 到 `list.quickCopy.9`
+
+== 验证矩阵
+
+- 主界面普通态：方向键、Tab、Enter、Ctrl/Cmd+Enter、Delete、Ctrl/Cmd+Delete、Alt+1~9。
+- 搜索态：Ctrl/Cmd+F、Esc、搜索结果删除、强制删除、输入框 Backspace/Delete、中文 IME。
+- 多选态：Space、Enter、Shift+Enter、删除、强制删除、收藏、锁定。
+- 预览态：全文预览 Esc/方向键，图片/文本预览滚动。
+- 抽屉态：Esc、方向键、Enter、Ctrl/Cmd+数字、block。
+- 标签搜索/标签编辑/置顶组合编辑：Esc、Enter、Tab、Ctrl/Cmd+S、block。
+- 设置页：四个 tab 切换、快捷键搜索、快捷键录制、when 编辑、输入框删除、保存热更新、重置默认。
+- 存储：新装、旧 overrides 迁移、SQLite 降级、恢复默认、版本新增默认 command。
+
+== 回滚策略
+
+- 阶段 1-3 保留旧 `HOTKEY_BINDINGS` 和旧 resolver fallback，可通过开关回旧分发。
+- 阶段 5 设置页新表格可保留旧树组件隐藏入口，便于对照。
+- 阶段 6 迁移只复制旧 overrides，不删除旧数据；SQLite 失败走 dbStorage fallback。
+
+== 当前建议执行顺序
+
+1. 先做阶段 0-1，建立 command 元数据但不改变行为。
+2. 再做阶段 2-3，用 when resolver 复现当前行为。
+3. 行为一致后做阶段 4-5，开放编辑和冲突提示。
+4. 最后做阶段 6，迁移存储。
+5. 组合 command 只保留 schema，等基础系统稳定后再开放。

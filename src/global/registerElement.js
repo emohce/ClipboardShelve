@@ -12,6 +12,12 @@ import 'element-plus/theme-chalk/el-scrollbar.css'
 import 'element-plus/theme-chalk/el-tag.css'
 import 'element-plus/theme-chalk/el-popover.css'
 import 'element-plus/theme-chalk/el-tooltip.css'
+import 'element-plus/theme-chalk/el-divider.css'
+import 'element-plus/theme-chalk/el-progress.css'
+import 'element-plus/theme-chalk/el-dialog.css'
+import 'element-plus/theme-chalk/el-form.css'
+import 'element-plus/theme-chalk/el-form-item.css'
+import 'element-plus/theme-chalk/el-pagination.css'
 import {
   ElButton,
   ElMessageBox,
@@ -23,7 +29,13 @@ import {
   ElScrollbar,
   ElTag,
   ElPopover,
-  ElTooltip
+  ElTooltip,
+  ElDivider,
+  ElProgress,
+  ElDialog,
+  ElForm,
+  ElFormItem,
+  ElPagination
 } from 'element-plus'
 
 const components = [
@@ -37,7 +49,13 @@ const components = [
   ElScrollbar,
   ElTag,
   ElPopover,
-  ElTooltip
+  ElTooltip,
+  ElDivider,
+  ElProgress,
+  ElDialog,
+  ElForm,
+  ElFormItem,
+  ElPagination
 ]
 
 document.querySelector('html').className = utools.isDarkColors() ? 'dark' : ''

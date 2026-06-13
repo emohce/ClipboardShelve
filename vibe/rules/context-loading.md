@@ -15,6 +15,7 @@ Always load:
 - Project constraints: [project.md](project.md)
 - Workflow and verification: [workflow.md](workflow.md)
 - Knowledge routing: [knowledge.md](knowledge.md)
+- Documentation routing: [documentation.md](documentation.md)
 - Memory reference index: [../knowledge/MEMORY_INDEX.md](../knowledge/MEMORY_INDEX.md)
 - Project process hub: [../specs/PROJECT_STATUS.md](../specs/PROJECT_STATUS.md)
 - Global CodeNote rules: [../../../CzzProj/CodeNote/AiRef/VibePractice/Vibe_Rules/VibeAi.md](../../../CzzProj/CodeNote/AiRef/VibePractice/Vibe_Rules/VibeAi.md)

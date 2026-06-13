@@ -259,7 +259,7 @@ import {
     ElProgress,
 } from "element-plus";
 import { activateLayer, deactivateLayer, getCurrentLayer } from "../global/hotkeyLayers";
-import { registerFeature, setMainState } from "../global/hotkeyRegistry";
+import { registerCommandFeaturePairs, setMainState } from "../global/hotkeyRegistry";
 import { formatShortcutDisplay } from "../global/shortcutKey";
 import { copyAndPasteAndExit, itemMatchesBodyKeyword } from "../utils";
 import ClipItemList from "../cpns/ClipItemList.vue";
@@ -841,30 +841,11 @@ const getPinGroupPreviewLines = (items = []) =>
         return [String(item.data || "").slice(0, 60)];
     });
 
-const getBaseTopItemsForContext = (context = getCurrentFilterContext()) => {
-    const source =
-        context.tab === "collect"
-            ? window.db?.dataBase?.collectData || []
-            : window.db?.dataBase?.data || [];
-    return source.filter((item) => itemMatchesContext(item, context));
-};
-
-const composeTopItems = (baseItems = [], context = getCurrentFilterContext(), options = {}) => {
-    const { includeCurrentClipboard = false } = options;
-    const seen = new Set();
-    const result = [];
-    const push = (item) => {
-        if (!item?.id || seen.has(item.id)) return;
-        seen.add(item.id);
-        result.push(item);
-    };
-    if (includeCurrentClipboard) {
-        push(getCurrentClipboardItemForContext(context));
-    }
-    getPinnedItemsForContext(context).forEach(push);
-    baseItems.forEach(push);
-    return result;
-};
+const composeTopItems = (baseItems = [], context = getCurrentFilterContext()) =>
+    composeQuickPasteTopItems({
+        baseItems,
+        pinnedItems: getPinnedItemsForContext(context),
+    });
 
 const prefetchTabPages = (type) => {
     if (!window.db?.query || parseStarFilter(filterText.value).isStar) return;
@@ -1941,45 +1922,20 @@ onMounted(() => {
         const tabs = switchRef.tabs || [];
         const tabTypes = tabs.map((t) => t.type);
 
-        registerFeature("clear-dialog-close", () => {
+        const handleClearDialogCloseCommand = () => {
             closeClearDialog();
             return true;
-        });
-        registerFeature("clear-dialog-confirm", () => {
+        };
+        const handleClearDialogConfirmCommand = () => {
             handleClearConfirm();
             return true;
-        });
-        registerFeature("clear-dialog-range-1h", () => {
-            clearRange.value = "1h";
-            focusRangeButton("1h");
+        };
+        const createClearDialogRangeCommand = (range) => () => {
+            clearRange.value = range;
+            focusRangeButton(range);
             return true;
-        });
-        registerFeature("clear-dialog-range-5h", () => {
-            clearRange.value = "5h";
-            focusRangeButton("5h");
-            return true;
-        });
-        registerFeature("clear-dialog-range-8h", () => {
-            clearRange.value = "8h";
-            focusRangeButton("8h");
-            return true;
-        });
-        registerFeature("clear-dialog-range-24h", () => {
-            clearRange.value = "24h";
-            focusRangeButton("24h");
-            return true;
-        });
-        registerFeature("clear-dialog-range-7d", () => {
-            clearRange.value = "7d";
-            focusRangeButton("7d");
-            return true;
-        });
-        registerFeature("clear-dialog-range-all", () => {
-            clearRange.value = "all";
-            focusRangeButton("all");
-            return true;
-        });
-        registerFeature("clear-dialog-arrow-nav", (e) => {
+        };
+        const handleClearDialogArrowNavCommand = (e) => {
             const arrowMap = { ArrowLeft: -1, ArrowRight: 1, ArrowUp: -CLEAR_GRID_COLS, ArrowDown: CLEAR_GRID_COLS };
             const delta = arrowMap[e.key];
             if (delta === undefined) return false;
@@ -1990,8 +1946,8 @@ onMounted(() => {
                 focusRangeButton(CLEAR_RANGE_OPTIONS[next].value);
             }
             return true;
-        });
-        registerFeature("clear-dialog-tab", (e) => {
+        };
+        const handleClearDialogTabCommand = (e) => {
             const focusable = getClearDialogFocusables();
             if (!focusable.length) return false;
             const active = document.activeElement;
@@ -2009,10 +1965,23 @@ onMounted(() => {
                 }
             }
             return true;
-        });
-        registerFeature("clear-dialog-block", () => true);
+        };
+        const handleClearDialogBlockCommand = () => true;
+        registerCommandFeaturePairs([
+            { featureId: "clear-dialog-close", commandId: "dialog.clear.close", handler: handleClearDialogCloseCommand },
+            { featureId: "clear-dialog-range-1h", commandId: "dialog.clear.range.1h", handler: createClearDialogRangeCommand("1h") },
+            { featureId: "clear-dialog-range-5h", commandId: "dialog.clear.range.5h", handler: createClearDialogRangeCommand("5h") },
+            { featureId: "clear-dialog-range-8h", commandId: "dialog.clear.range.8h", handler: createClearDialogRangeCommand("8h") },
+            { featureId: "clear-dialog-range-24h", commandId: "dialog.clear.range.24h", handler: createClearDialogRangeCommand("24h") },
+            { featureId: "clear-dialog-range-7d", commandId: "dialog.clear.range.7d", handler: createClearDialogRangeCommand("7d") },
+            { featureId: "clear-dialog-range-all", commandId: "dialog.clear.range.all", handler: createClearDialogRangeCommand("all") },
+            { featureId: "clear-dialog-arrow-nav", commandId: "dialog.clear.range.navigate", handler: handleClearDialogArrowNavCommand },
+            { featureId: "clear-dialog-tab", commandId: "dialog.clear.focus.next", handler: handleClearDialogTabCommand },
+            { featureId: "clear-dialog-confirm", commandId: "dialog.clear.confirm", handler: handleClearDialogConfirmCommand },
+            { featureId: "clear-dialog-block", commandId: "dialog.clear.blockUnhandled", handler: handleClearDialogBlockCommand }
+        ]);
 
-        registerFeature("main-tab", (e) => {
+        const handleMainTabCommand = (e) => {
             const index = tabTypes.indexOf(activeTab.value);
             const target = e.shiftKey
                 ? index <= 0
@@ -2023,7 +1992,7 @@ onMounted(() => {
                   : tabTypes[index + 1];
             toggleNav(target);
             return true;
-        });
+        };
         const switchMainTabByOffset = (delta) => {
             if (isSearchPanelExpand.value) return false;
             const index = tabTypes.indexOf(activeTab.value);
@@ -2033,9 +2002,9 @@ onMounted(() => {
             toggleNav(target);
             return true;
         };
-        registerFeature("main-tab-prev", () => switchMainTabByOffset(-1));
-        registerFeature("main-tab-next", () => switchMainTabByOffset(1));
-        registerFeature("collect-sub-tab-next", () => {
+        const handleMainTabPrevCommand = () => switchMainTabByOffset(-1);
+        const handleMainTabNextCommand = () => switchMainTabByOffset(1);
+        const handleCollectSubTabNextCommand = () => {
             if (activeTab.value !== "collect") return false;
             const list =
                 switchRef.collectSubTabsList?.value ??
@@ -2050,8 +2019,8 @@ onMounted(() => {
             const nextIdx = idx < 0 ? 0 : (idx + 1) % list.length;
             switchRef.setCollectSubTab(list[nextIdx].type);
             return true;
-        });
-        registerFeature("collect-sub-tab-prev", () => {
+        };
+        const handleCollectSubTabPrevCommand = () => {
             if (activeTab.value !== "collect") return false;
             const list =
                 switchRef.collectSubTabsList?.value ??
@@ -2066,17 +2035,17 @@ onMounted(() => {
             const prevIdx = idx <= 0 ? list.length - 1 : idx - 1;
             switchRef.setCollectSubTab(list[prevIdx].type);
             return true;
-        });
-        registerFeature("main-focus-search", () => {
+        };
+        const handleMainFocusSearchCommand = () => {
             if (!isSearchPanelExpand.value) isSearchPanelExpand.value = true;
             focusSearchInput();
             return true;
-        });
-        registerFeature("main-open-setting", () => {
+        };
+        const handleMainOpenSettingCommand = () => {
             emit("showSetting");
             return true;
-        });
-        registerFeature("main-toggle-locked-search", () => {
+        };
+        const handleMainToggleLockedSearchCommand = () => {
             lockFilter.value =
                 lockFilter.value === "locked" ? "all" : "locked";
             if (!isSearchPanelExpand.value) {
@@ -2084,140 +2053,179 @@ onMounted(() => {
             }
             focusSearchInput(filterText.value);
             return true;
-        });
+        };
+        const mainCommandPairs = [
+            { featureId: "main-tab", commandId: "main.tab.next", handler: handleMainTabCommand },
+            { featureId: "main-tab-prev", commandId: "main.tab.prev", handler: handleMainTabPrevCommand },
+            { featureId: "main-tab-next", commandId: "main.tab.nextExplicit", handler: handleMainTabNextCommand },
+            { featureId: "collect-sub-tab-next", commandId: "main.collectSubTab.next", handler: handleCollectSubTabNextCommand },
+            { featureId: "collect-sub-tab-prev", commandId: "main.collectSubTab.prev", handler: handleCollectSubTabPrevCommand },
+            { featureId: "main-focus-search", commandId: "search.focus", handler: handleMainFocusSearchCommand },
+            { featureId: "main-open-setting", commandId: "main.setting.open", handler: handleMainOpenSettingCommand },
+            { featureId: "main-toggle-locked-search", commandId: "search.locked.toggle", handler: handleMainToggleLockedSearchCommand }
+        ];
         for (let i = 1; i <= 9; i++) {
             const n = i;
-            registerFeature(`main-alt-tab-${n}`, () => {
-                const target = tabTypes[Math.min(n - 1, tabTypes.length - 1)];
-                if (target) {
-                    toggleNav(target);
+            mainCommandPairs.push({
+                featureId: `main-alt-tab-${n}`,
+                commandId: `main.tab.${n}`,
+                handler: () => {
+                    const target = tabTypes[Math.min(n - 1, tabTypes.length - 1)];
+                    if (target) {
+                        toggleNav(target);
+                        return true;
+                    }
+                    return false;
+                }
+            });
+        }
+        mainCommandPairs.push({
+            featureId: "open-clear-dialog",
+            commandId: "dialog.clear.open",
+            handler: () => {
+                handleOpenCleanDialog();
+                return true;
+            }
+        });
+        mainCommandPairs.push({
+            featureId: "tag-search",
+            commandId: "tag.search.open",
+            handler: () => {
+                openTagSearchModal();
+                return true;
+            }
+        });
+        mainCommandPairs.push({
+            featureId: "pin-group-open",
+            commandId: "pin.group.open",
+            handler: () => {
+                const current = ClipItemListRef.value?.activeIndex !== undefined
+                    ? currentShowList.value[ClipItemListRef.value.activeIndex]
+                    : null;
+                if (current?.__pinGroup) {
+                    handlePinGroupClear();
+                    return true;
+                }
+                if (!isMultiple.value) {
+                    ElMessage({ type: "info", message: "请先进入多选并选择组合条目" });
+                    return true;
+                }
+                openPinGroupEditor(ClipItemListRef.value?.selectItemList || []);
+                return true;
+            }
+        });
+        mainCommandPairs.push({
+            featureId: "main-escape",
+            commandId: "main.escape",
+            handler: (e) => {
+                const aliasDialogCancelButton = document.querySelector(
+                    ".el-overlay .el-message-box .el-message-box__btns .el-button:not(.el-button--primary)",
+                );
+                if (aliasDialogCancelButton) {
+                    aliasDialogCancelButton.click();
+                    return true;
+                }
+                if (filterText.value) {
+                    filterText.value = "";
+                    window.focus();
+                    return true;
+                }
+                if (lockFilter.value !== "all") {
+                    lockFilter.value = "all";
+                    window.focus();
+                    return true;
+                }
+                if (isSearchPanelExpand.value) {
+                    window.focus(true);
+                    return true;
+                }
+                if (isMultiple.value) {
+                    isMultiple.value = false;
                     return true;
                 }
                 return false;
-            });
-        }
-        registerFeature("open-clear-dialog", () => {
-            handleOpenCleanDialog();
-            return true;
+            }
         });
-        registerFeature("tag-search", () => {
-            openTagSearchModal();
-            return true;
+        mainCommandPairs.push({
+            featureId: "search-delete-normal",
+            commandId: "search.results.delete",
+            handler: () => {
+                if (!filterText.value.trim()) return false;
+                const candidates = displayList.value.filter((item) =>
+                    textFilterCallBack(item),
+                );
+                if (!candidates.length) {
+                    ElMessage({ message: "没有符合条件的搜索结果", type: "info" });
+                    return true;
+                }
+                const removable = candidates.filter((item) => item.locked !== true);
+                const skippedLocked = candidates.length - removable.length;
+                const result = window.db.removeItems
+                    ? window.db.removeItems(removable.map((item) => item.id), { force: false })
+                    : { removed: 0 };
+                const removed = result.removed || 0;
+                if (removed > 0) {
+                    const ai = getActiveIndex();
+                    const preferId = currentShowList.value[ai]?.id;
+                    ClipItemListRef.value?.prepareDeleteRecovery?.({
+                        anchorIndex: ai,
+                        preferItemId: preferId,
+                    });
+                    removeVisibleItemsByIds(removable.map((item) => item.id));
+                    scheduleDataRefresh();
+                    ElMessage({
+                        type: "success",
+                        message:
+                            skippedLocked > 0
+                                ? `已删除 ${removed} 条搜索结果，跳过锁定 ${skippedLocked} 条`
+                                : `已删除 ${removed} 条搜索结果`,
+                    });
+                } else {
+                    ElMessage({
+                        message:
+                            skippedLocked > 0
+                                ? `没有可删除的条目（跳过锁定 ${skippedLocked} 条）`
+                                : "没有可删除的条目",
+                        type: "info",
+                    });
+                }
+                return true;
+            }
         });
-        registerFeature("pin-group-open", () => {
-            const current = ClipItemListRef.value?.activeIndex !== undefined
-                ? currentShowList.value[ClipItemListRef.value.activeIndex]
-                : null;
-            if (current?.__pinGroup) {
-                handlePinGroupClear();
+        mainCommandPairs.push({
+            featureId: "search-delete-force",
+            commandId: "search.results.forceDelete",
+            handler: () => {
+                if (!filterText.value.trim()) return false;
+                const candidates = displayList.value.filter((item) =>
+                    textFilterCallBack(item),
+                );
+                if (!candidates.length) {
+                    ElMessage({ message: "没有符合条件的搜索结果", type: "info" });
+                    return true;
+                }
+                const result = window.db.removeItems
+                    ? window.db.removeItems(candidates.map((item) => item.id), { force: true })
+                    : { removed: 0 };
+                const removed = result.removed || 0;
+                if (removed > 0) {
+                    const ai = getActiveIndex();
+                    const preferId = currentShowList.value[ai]?.id;
+                    ClipItemListRef.value?.prepareDeleteRecovery?.({
+                        anchorIndex: ai,
+                        preferItemId: preferId,
+                    });
+                    removeVisibleItemsByIds(candidates.map((item) => item.id));
+                    scheduleDataRefresh();
+                    ElMessage({
+                        type: "success",
+                        message: `已强制删除 ${removed} 条搜索结果`,
+                    });
+                }
                 return true;
             }
-            if (!isMultiple.value) {
-                ElMessage({ type: "info", message: "请先进入多选并选择组合条目" });
-                return true;
-            }
-            openPinGroupEditor(ClipItemListRef.value?.selectItemList || []);
-            return true;
         });
-        registerFeature("main-escape", (e) => {
-            const aliasDialogCancelButton = document.querySelector(
-                ".el-overlay .el-message-box .el-message-box__btns .el-button:not(.el-button--primary)",
-            );
-            if (aliasDialogCancelButton) {
-                aliasDialogCancelButton.click();
-                return true;
-            }
-            if (filterText.value) {
-                filterText.value = "";
-                window.focus();
-                return true;
-            }
-            if (lockFilter.value !== "all") {
-                lockFilter.value = "all";
-                window.focus();
-                return true;
-            }
-            if (isSearchPanelExpand.value) {
-                window.focus(true);
-                return true;
-            }
-            if (isMultiple.value) {
-                isMultiple.value = false;
-                return true;
-            }
-            return false;
-        });
-        registerFeature("search-delete-normal", () => {
-            if (!filterText.value.trim()) return false;
-            const candidates = displayList.value.filter((item) =>
-                textFilterCallBack(item),
-            );
-            if (!candidates.length) {
-                ElMessage({ message: "没有符合条件的搜索结果", type: "info" });
-                return true;
-            }
-            const removable = candidates.filter((item) => item.locked !== true);
-            const skippedLocked = candidates.length - removable.length;
-            const result = window.db.removeItems
-                ? window.db.removeItems(removable.map((item) => item.id), { force: false })
-                : { removed: 0 };
-            const removed = result.removed || 0;
-            if (removed > 0) {
-                const ai = getActiveIndex();
-                const preferId = currentShowList.value[ai]?.id;
-                ClipItemListRef.value?.prepareDeleteRecovery?.({
-                    anchorIndex: ai,
-                    preferItemId: preferId,
-                });
-                removeVisibleItemsByIds(removable.map((item) => item.id));
-                scheduleDataRefresh();
-                ElMessage({
-                    type: "success",
-                    message:
-                        skippedLocked > 0
-                            ? `已删除 ${removed} 条搜索结果，跳过锁定 ${skippedLocked} 条`
-                            : `已删除 ${removed} 条搜索结果`,
-                });
-            } else {
-                ElMessage({
-                    message:
-                        skippedLocked > 0
-                            ? `没有可删除的条目（跳过锁定 ${skippedLocked} 条）`
-                            : "没有可删除的条目",
-                    type: "info",
-                });
-            }
-            return true;
-        });
-        registerFeature("search-delete-force", () => {
-            if (!filterText.value.trim()) return false;
-            const candidates = displayList.value.filter((item) =>
-                textFilterCallBack(item),
-            );
-            if (!candidates.length) {
-                ElMessage({ message: "没有符合条件的搜索结果", type: "info" });
-                return true;
-            }
-            const result = window.db.removeItems
-                ? window.db.removeItems(candidates.map((item) => item.id), { force: true })
-                : { removed: 0 };
-            const removed = result.removed || 0;
-            if (removed > 0) {
-                const ai = getActiveIndex();
-                const preferId = currentShowList.value[ai]?.id;
-                ClipItemListRef.value?.prepareDeleteRecovery?.({
-                    anchorIndex: ai,
-                    preferItemId: preferId,
-                });
-                removeVisibleItemsByIds(candidates.map((item) => item.id));
-                scheduleDataRefresh();
-                ElMessage({
-                    type: "success",
-                    message: `已强制删除 ${removed} 条搜索结果`,
-                });
-            }
-            return true;
-        });
+        registerCommandFeaturePairs(mainCommandPairs);
     };
     nextTick(() => registerMainHotkeyFeatures());
 

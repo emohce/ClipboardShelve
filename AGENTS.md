@@ -6,6 +6,8 @@ Read first:
 - [../CzzProj/CodeNote/AiRef/VibePractice/Vibe_Rules/VibeAi.md](../CzzProj/CodeNote/AiRef/VibePractice/Vibe_Rules/VibeAi.md)
 - [vibe/rules/README.md](vibe/rules/README.md)
 - [vibe/rules/context-loading.md](vibe/rules/context-loading.md)
+- [vibe/rules/documentation.md](vibe/rules/documentation.md)
+- [vibe/specs/PROJECT_STATUS.md](vibe/specs/PROJECT_STATUS.md)
 - [.agents/skills/ezclipboard-rules/SKILL.md](.agents/skills/ezclipboard-rules/SKILL.md)
 
 Hard constraints:

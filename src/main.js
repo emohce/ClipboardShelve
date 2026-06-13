@@ -1,5 +1,5 @@
-import initPlugin from './global/initPlugin'
 import { ensureDevDbStub } from './global/devDbStub'
+import initPlugin from './global/initPlugin'
 import { createApp } from 'vue'
 import App from './App.vue'
 import registerElement from './global/registerElement'

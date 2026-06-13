@@ -15,7 +15,7 @@
             :class="{ 'is-current': activeTab === 'shortcut' }"
             @click="activeTab = 'shortcut'"
           >
-            快捷键
+            命令
           </el-button>
           <el-button
             class="sub-tab-btn"
@@ -128,21 +128,31 @@
         <div class="sub-tab-content" v-show="activeTab === 'shortcut'">
           <div class="setting-card-content-item">
             <div class="setting-section-head">
-              <div class="setting-section-title">当前快捷键列表</div>
+              <div class="setting-section-title">命令与快捷键</div>
               <HelpHint
                 marker="!"
                 button-class="setting-help-btn"
-                aria-label="查看快捷键列表说明"
+                aria-label="查看命令列表说明"
                 :content="shortcutHelpContent"
               />
             </div>
-            <p class="shortcut-count">共 {{ shortcutCount }} 条快捷键</p>
+            <p class="shortcut-count">{{ commandSystemSummary }}</p>
+            <div
+              class="shortcut-storage-status"
+              :class="{ fallback: shortcutCommandStorageMode !== SHORTCUT_STORAGE_MODE_SQLITE }"
+              :title="shortcutStorageHint"
+              role="status"
+              :aria-label="`${shortcutStorageLabel}。${shortcutStorageHint}`"
+            >
+              <span class="shortcut-storage-dot"></span>
+              <span>{{ shortcutStorageLabel }}</span>
+            </div>
             <div class="setting-search-row">
               <el-input
                 ref="shortcutSearchInputRef"
                 v-model="shortcutQueryInput"
                 clearable
-                placeholder="搜索层级、键位或功能说明"
+                placeholder="搜索 command、动作、键位、when、来源或作用域"
                 @clear="applyShortcutSearch"
                 @keydown.enter.prevent="applyShortcutSearch"
               />
@@ -172,15 +182,222 @@
               >
                 弹窗层
               </button>
+              <button
+                type="button"
+                class="filter-chip"
+                :class="{ active: shortcutScope === 'user' }"
+                @click="shortcutScope = 'user'"
+              >
+                已修改
+              </button>
+              <button
+                type="button"
+                class="filter-chip"
+                :class="{ active: shortcutScope === 'risk' }"
+                @click="shortcutScope = 'risk'"
+              >
+                高风险
+              </button>
             </div>
             <el-divider></el-divider>
-            <HotkeyTreeView
-              :tree-data="filteredHotkeyTreeRoot"
+            <SettingPagedTable
+              :rows="filteredShortcutCommandRows"
+              :columns="shortcutColumns"
+              :total="filteredShortcutCommandRows.length"
+              row-key="id"
+              empty-text="暂无命令绑定数据"
+              :show-pagination="false"
+              action-label="配置"
+              :action-width="150"
               body-max-height="420px"
-              :default-expand-all="false"
-            />
+            >
+              <template #cell-commandTitle="{ row }">
+                <div class="shortcut-command-cell">
+                  <div class="shortcut-command-title-row">
+                    <span class="shortcut-command-title">{{ row.commandTitle }}</span>
+                    <span v-if="row.risk === 'data-write'" class="shortcut-risk-tag">写入</span>
+                  </div>
+                  <div class="shortcut-command-meta">
+                    <span>{{ row.commandId }}</span>
+                    <span>{{ row.scopeLabel }}</span>
+                  </div>
+                </div>
+              </template>
+              <template #cell-shortcutId="{ row }">
+                <span class="shortcut-key-cell">{{ formatShortcutDisplay(row.shortcutId) }}</span>
+              </template>
+              <template #cell-when="{ row }">
+                <span class="shortcut-when-cell" :title="row.when">{{ row.when || '始终' }}</span>
+              </template>
+              <template #cell-sourceLabel="{ row }">
+                <span class="shortcut-source-tag" :class="{ user: row.source === 'user' }">{{ row.sourceLabel }}</span>
+              </template>
+              <template #actions="{ row }">
+                <el-button link type="primary" size="small" @click="openShortcutEdit(row)">改键</el-button>
+                <el-button link type="primary" size="small" @click="openWhenEdit(row)">When</el-button>
+                <el-button
+                  v-if="row.source === 'user' || row.source === 'removed'"
+                  link
+                  type="primary"
+                  size="small"
+                  @click="restoreShortcutDefault(row)"
+                >
+                  默认
+                </el-button>
+                <el-button
+                  v-if="!row.disabled"
+                  link
+                  type="danger"
+                  size="small"
+                  @click="disableShortcut(row)"
+                >
+                  禁用
+                </el-button>
+              </template>
+            </SettingPagedTable>
           </div>
         </div>
+        <el-dialog
+          v-model="shortcutRecordVisible"
+          title="录制快捷键"
+          width="420px"
+          class="shortcut-record-dialog"
+          :close-on-click-modal="false"
+          @opened="focusShortcutRecorder"
+          @closed="resetShortcutRecorder"
+        >
+          <div
+            ref="shortcutRecorderRef"
+            class="shortcut-recorder"
+            tabindex="0"
+            @keydown.stop.prevent="handleShortcutRecordKeydown"
+          >
+            <div class="shortcut-recorder-label">按下新的快捷键</div>
+            <div class="shortcut-recorder-key">
+              {{ recordedShortcutId ? formatShortcutDisplay(recordedShortcutId) : '等待输入' }}
+            </div>
+            <div class="shortcut-recorder-meta">
+              {{ shortcutRecordRow?.commandTitle || '' }}
+            </div>
+          </div>
+          <el-input
+            v-model="recordedShortcutInput"
+            class="shortcut-recorder-manual"
+            placeholder="也可手动输入，如 ctrl+shift+f"
+            @keydown.stop
+          />
+          <template #footer>
+            <el-button @click="shortcutRecordVisible = false">取消</el-button>
+            <el-button type="primary" :disabled="!normalizedRecordedShortcutId" @click="submitShortcutRecord">确定</el-button>
+          </template>
+        </el-dialog>
+        <el-dialog
+          v-model="whenEditVisible"
+          title="编辑 When 条件"
+          width="640px"
+          class="when-edit-dialog"
+          :close-on-click-modal="false"
+          @closed="resetWhenEditor"
+        >
+          <div class="when-editor-head">
+            <div class="when-editor-title">{{ whenEditRow?.commandTitle || '' }}</div>
+            <div class="when-editor-meta">{{ whenEditRow?.commandId || '' }}</div>
+          </div>
+          <div class="when-editor-mode-row">
+            <button
+              type="button"
+              class="filter-chip"
+              :class="{ active: whenEditMode === 'builder' }"
+              @click="switchWhenEditMode('builder')"
+            >
+              图形
+            </button>
+            <button
+              type="button"
+              class="filter-chip"
+              :class="{ active: whenEditMode === 'text' }"
+              @click="switchWhenEditMode('text')"
+            >
+              文本
+            </button>
+            <span class="when-editor-summary">{{ getWhenBuilderSummary(whenEditInput) }}</span>
+          </div>
+          <div v-if="whenEditMode === 'builder'" class="when-builder">
+            <div class="when-builder-toolbar">
+              <span>条件关系</span>
+              <button
+                type="button"
+                class="filter-chip"
+                :class="{ active: whenBuilderOperator === '&&' }"
+                @click="setWhenBuilderOperator('&&')"
+              >
+                全部满足
+              </button>
+              <button
+                type="button"
+                class="filter-chip"
+                :class="{ active: whenBuilderOperator === '||' }"
+                @click="setWhenBuilderOperator('||')"
+              >
+                任一满足
+              </button>
+            </div>
+            <div class="when-builder-groups">
+              <div v-for="group in WHEN_CONTEXT_GROUPS" :key="group.id" class="when-builder-group">
+                <div class="when-builder-group-title">{{ group.title }}</div>
+                <div class="when-builder-options">
+                  <div v-for="item in group.keys" :key="item.key" class="when-builder-option">
+                    <span class="when-builder-option-label">{{ item.label }}</span>
+                    <div class="when-builder-option-actions">
+                      <button
+                        type="button"
+                        class="when-state-btn"
+                        :class="{ active: whenBuilderStates[item.key] === 'include' }"
+                        @click="setWhenBuilderState(item.key, 'include')"
+                      >
+                        是
+                      </button>
+                      <button
+                        type="button"
+                        class="when-state-btn"
+                        :class="{ active: whenBuilderStates[item.key] === 'exclude' }"
+                        @click="setWhenBuilderState(item.key, 'exclude')"
+                      >
+                        否
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+          <el-input
+            v-show="whenEditMode === 'text'"
+            v-model="whenEditInput"
+            type="textarea"
+            :rows="4"
+            placeholder="例如 mainFocus && !inputFocus"
+            @input="validateWhenEdit"
+          />
+          <div class="when-editor-status" :class="{ error: whenEditError }">
+            {{ whenEditError || whenEditConflictLabel || 'When 表达式有效' }}
+          </div>
+          <div class="when-editor-examples">
+            <button
+              v-for="preset in WHEN_PRESETS"
+              :key="preset.label"
+              type="button"
+              class="filter-chip"
+              @click="applyWhenEditPreset(preset.when)"
+            >
+              {{ preset.label }}
+            </button>
+          </div>
+          <template #footer>
+            <el-button @click="whenEditVisible = false">取消</el-button>
+            <el-button type="primary" :disabled="Boolean(whenEditError)" @click="submitWhenEdit">确定</el-button>
+          </template>
+        </el-dialog>
         <div class="sub-tab-content" v-show="activeTab === 'feature'">
           <div class="setting-card-content-item">
             <div class="setting-section-head">
@@ -286,7 +503,20 @@
               </template>
               <template #cell-commandDisplay="{ row }">
                 <div class="feature-command-cell">
-                  <span class="feature-command-text">{{ row.commandDisplay || '内置动作，无额外命令' }}</span>
+                  <span class="feature-command-text">{{ row.commandDisplay || '内置动作' }}</span>
+                  <button
+                    v-if="row.shortcutSummary.count"
+                    type="button"
+                    class="feature-shortcut-link"
+                    :title="row.shortcutSummary.hint"
+                    :aria-label="`查看 ${row.title} 的 command 快捷键：${row.shortcutSummary.label}`"
+                    @click="openFeatureShortcut(row)"
+                  >
+                    {{ row.shortcutSummary.label }}
+                  </button>
+                  <span v-else class="feature-shortcut-muted" :title="row.shortcutSummary.hint">
+                    {{ row.shortcutSummary.label }}
+                  </span>
                 </div>
               </template>
               <template #actions="{ row }">
@@ -427,9 +657,261 @@
                   </el-button>
                 </div>
               </div>
+              <div class="feature-config-row">
+                <div class="feature-config-meta">
+                  <div class="feature-config-title-row">
+                    <strong>命令与动作</strong>
+                    <HelpHint
+                      aria-label="查看命令快捷键说明"
+                      content="本地 command/keybinding 优先读取 SQLite 快照与 override 表；SQLite 不可用时回退 setting.hotkeyOverrides。组合命令支持配置快捷键、When、串行 delay，并在运行时动态注册执行。"
+                    />
+                  </div>
+                  <p class="feature-config-desc">
+                    {{ commandSystemConfigSummary }}
+                  </p>
+                  <p class="feature-config-desc">
+                    {{ commandMacroSummary }}
+                  </p>
+                  <p class="feature-config-desc">
+                    {{ contextMenuActionSummary }}
+                  </p>
+                </div>
+                <div class="feature-config-control feature-config-actions">
+                  <span
+                    class="feature-config-status"
+                    :class="{ fallback: shortcutCommandStorageMode !== SHORTCUT_STORAGE_MODE_SQLITE }"
+                    :title="shortcutStorageHint"
+                  >
+                    {{ shortcutCommandStorageMode === SHORTCUT_STORAGE_MODE_SQLITE ? 'SQLite' : 'Fallback' }}
+                  </span>
+                  <span
+                    class="feature-config-status"
+                    :class="{ fallback: commandMacroStorageMode !== COMMAND_MACRO_STORAGE_MODE_SQLITE }"
+                    :title="commandMacroStorageHint"
+                  >
+                    {{ commandMacroStorageMode === COMMAND_MACRO_STORAGE_MODE_SQLITE ? 'Macro SQLite' : 'Macro Draft' }}
+                  </span>
+                  <el-button
+                    type="primary"
+                    plain
+                    class="feature-config-action"
+                    @click="openShortcutSystemConfig"
+                  >
+                    配置命令
+                  </el-button>
+                  <el-button
+                    plain
+                    class="feature-config-action"
+                    @click="commandMacroDialogVisible = true"
+                  >
+                    查看组合
+                  </el-button>
+                  <el-button
+                    plain
+                    class="feature-config-action"
+                    @click="contextMenuDialogVisible = true"
+                  >
+                    右键菜单
+                  </el-button>
+                  <el-button
+                    plain
+                    class="feature-config-action"
+                    @click="openCommandMacroDraftAdd"
+                  >
+                    新增组合
+                  </el-button>
+                </div>
+              </div>
             </div>
           </div>
         </div>
+        <el-dialog
+          v-model="commandMacroDialogVisible"
+          title="组合命令"
+          width="720px"
+          class="command-macro-dialog"
+        >
+          <SettingPagedTable
+            :rows="commandMacroRows"
+            :columns="commandMacroColumns"
+            :total="commandMacroRows.length"
+            row-key="id"
+            empty-text="暂无组合命令"
+            :show-pagination="false"
+            body-max-height="360px"
+          >
+            <template #cell-title="{ row }">
+              <div class="command-macro-cell">
+                <div class="command-macro-title">{{ row.title }}</div>
+                <div class="command-macro-meta">{{ row.id }}</div>
+              </div>
+            </template>
+            <template #cell-steps="{ row }">
+              <span class="command-macro-steps" :title="row.stepHint">{{ row.stepSummary }}</span>
+            </template>
+            <template #cell-runtimeLabel="{ row }">
+              <span class="shortcut-source-tag" :class="{ user: row.runtimeStatus === 'running' || row.runtimeStatus === 'completed' }">
+                {{ row.runtimeLabel }}
+              </span>
+            </template>
+            <template #cell-storageLabel="{ row }">
+              <span class="shortcut-source-tag">{{ row.storageLabel }}</span>
+            </template>
+            <template #actions="{ row }">
+              <el-button v-if="row.canCancel" link type="warning" size="small" @click="cancelCommandMacroRuntime(row)">取消</el-button>
+              <el-button link type="primary" size="small" @click="openCommandMacroDraftEdit(row.raw)">编辑</el-button>
+              <el-button link type="danger" size="small" @click="deleteCommandMacroDraft(row.raw)">删除</el-button>
+            </template>
+          </SettingPagedTable>
+          <p class="command-macro-dialog-note">
+            组合命令会在快捷键刷新时动态注册为 macro.* command；当前仍只允许非写入 command 进入组合。
+          </p>
+        </el-dialog>
+        <el-dialog
+          v-model="contextMenuDialogVisible"
+          title="右键菜单"
+          width="720px"
+          class="command-macro-dialog"
+        >
+          <SettingPagedTable
+            :rows="contextMenuActionRows"
+            :columns="contextMenuActionColumns"
+            :total="contextMenuActionRows.length"
+            row-key="id"
+            empty-text="暂无右键菜单项"
+            :show-pagination="false"
+            body-max-height="360px"
+            draggable
+            drag-handle=".context-menu-drag-handle"
+            :move-guard="allowContextMenuActionDrag"
+            @drag-end="handleContextMenuActionDragEnd"
+          >
+            <template #cell-drag="{ row }">
+              <span
+                v-if="row.orderable"
+                class="drag-handle context-menu-drag-handle"
+                title="拖拽调整右键菜单顺序"
+              >⋮⋮</span>
+              <span
+                v-else
+                class="feature-shortcut-muted"
+                title="该动作固定在第 2 位"
+              >固定</span>
+            </template>
+            <template #cell-title="{ row }">
+              <div class="command-macro-cell">
+                <div class="command-macro-title">
+                  <span class="context-menu-action-icon">{{ row.icon }}</span>
+                  <span>{{ row.title }}</span>
+                  <span v-if="row.risk === 'data-write'" class="shortcut-risk-tag">写入</span>
+                </div>
+                <div class="command-macro-meta">{{ row.id }}</div>
+              </div>
+            </template>
+            <template #cell-shortcut="{ row }">
+              <button
+                v-if="row.shortcutSummary.count"
+                type="button"
+                class="feature-shortcut-link"
+                :title="row.shortcutSummary.hint"
+                :aria-label="`查看 ${row.title} 的 command 快捷键：${row.shortcutSummary.label}`"
+                @click="openContextMenuShortcut(row)"
+              >
+                {{ row.shortcutSummary.label }}
+              </button>
+              <span v-else class="feature-shortcut-muted" :title="row.shortcutSummary.hint">
+                {{ row.shortcutSummary.label }}
+              </span>
+            </template>
+            <template #cell-sourceLabel="{ row }">
+              <span class="shortcut-source-tag" :class="{ user: row.source !== 'system' }">{{ row.sourceLabel }}</span>
+            </template>
+          </SettingPagedTable>
+          <p class="command-macro-dialog-note">
+            右键抽屉渲染、数字序号执行和本列表共用同一 action 模型；当前仅管理顺序审计和恢复默认，不隐藏业务动作。
+          </p>
+          <template #footer>
+            <el-button
+              plain
+              :disabled="!contextMenuDrawerOrder.length"
+              @click="restoreContextMenuOrder"
+            >
+              恢复默认顺序
+            </el-button>
+            <el-button @click="contextMenuDialogVisible = false">关闭</el-button>
+          </template>
+        </el-dialog>
+        <el-dialog
+          v-model="commandMacroDraftDialogVisible"
+          :title="commandMacroDraftMode === 'add' ? '新增组合命令' : '编辑组合命令'"
+          width="560px"
+          class="command-macro-dialog"
+          :close-on-click-modal="false"
+        >
+          <el-form class="feature-form" :model="commandMacroDraftForm" label-width="92px">
+            <el-form-item label="标题">
+              <el-input v-model="commandMacroDraftForm.title" placeholder="例如 打开设置并切换页签" />
+            </el-form-item>
+            <el-form-item label="快捷键">
+              <el-input v-model="commandMacroDraftForm.shortcutId" placeholder="例如 ctrl+shift+1" />
+            </el-form-item>
+            <el-form-item label="When">
+              <el-input v-model="commandMacroDraftForm.when" placeholder="例如 mainFocus" />
+            </el-form-item>
+            <el-form-item label="步骤">
+              <div class="command-macro-step-list">
+                <div
+                  v-for="(step, index) in commandMacroDraftForm.steps"
+                  :key="index"
+                  class="command-macro-step-row"
+                >
+                  <span class="command-macro-step-index">{{ index + 1 }}</span>
+                  <el-select v-model="step.command" filterable clearable placeholder="选择 command">
+                    <el-option
+                      v-for="command in macroCommandOptions"
+                      :key="command.id"
+                      :label="`${command.id} - ${command.title}`"
+                      :value="command.id"
+                    />
+                  </el-select>
+                  <input
+                    v-model.number="step.delayMs"
+                    class="command-macro-delay-input"
+                    type="number"
+                    :min="0"
+                    :max="COMMAND_MACRO_MAX_DELAY_MS"
+                    :step="50"
+                    title="执行前延迟 ms"
+                  >
+                  <el-button
+                    link
+                    type="danger"
+                    size="small"
+                    :disabled="commandMacroDraftForm.steps.length <= 1"
+                    @click="removeCommandMacroDraftStep(index)"
+                  >
+                    删除
+                  </el-button>
+                </div>
+                <el-button
+                  plain
+                  size="small"
+                  :disabled="commandMacroDraftForm.steps.length >= COMMAND_MACRO_MAX_STEPS"
+                  @click="addCommandMacroDraftStep"
+                >
+                  添加步骤
+                </el-button>
+              </div>
+            </el-form-item>
+          </el-form>
+          <p class="command-macro-dialog-note">
+            当前只允许非写入 command 进入组合命令，避免删除、清空、锁定等副作用被组合放大。
+          </p>
+          <template #footer>
+            <el-button @click="commandMacroDraftDialogVisible = false">取消</el-button>
+            <el-button type="primary" @click="submitCommandMacroDraft">{{ commandMacroDraftMode === 'add' ? '保存草稿' : '保存修改' }}</el-button>
+          </template>
+        </el-dialog>
       </div>
       <div class="setting-card-footer">
         <el-button @click="handleRestoreBtnClick">重置</el-button>
@@ -443,20 +925,55 @@
 <script setup>
 import { ref, computed, onMounted, onUnmounted, watch, nextTick } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import setting, { saveSetting, syncSetting, getHoverPreviewConfig } from '../global/readSetting'
+import setting, { saveSetting, getHoverPreviewConfig } from '../global/readSetting'
 import restoreSetting from '../global/restoreSetting'
 import defaultOperation from '../data/operation.json'
-import {
-  getEffectiveBindings,
-  HOTKEY_BINDINGS_UPDATED_EVENT
-} from '../global/hotkeyBindings'
 import { activateLayer, deactivateLayer } from '../global/hotkeyLayers'
-import { getLayerLabel, getFeatureLabel } from '../global/hotkeyLabels'
-import { buildHotkeyTree } from '../global/hotkeyGraph'
-import { registerFeature } from '../global/hotkeyRegistry'
+import { getFeatureLabel } from '../global/hotkeyLabels'
+import { COMMANDS } from '../global/commandDefaults.js'
+import {
+  buildContextMenuDrawerOrderFromRows,
+  buildContextMenuActionRows,
+  getContextMenuActionSummary
+} from '../global/contextMenuActions'
+import { formatShortcutDisplay, normalizeShortcutId } from '../global/shortcutKey'
+import {
+  applyShortcutOverrideValue,
+  buildShortcutOverrideValue,
+  disableShortcutOverride,
+  filterShortcutCommandRows,
+  getOperationShortcutSummary
+} from '../global/shortcutCommandRows'
+import { getShortcutCommandRowConflicts } from '../global/keybindingConflicts'
+import { parseWhenExpression } from '../global/whenExpression'
+import {
+  WHEN_CONTEXT_GROUPS,
+  WHEN_PRESETS,
+  buildWhenExpression,
+  getWhenBuilderSummary,
+  parseWhenToSelection
+} from '../global/whenBuilder'
+import { eventLikeToShortcutId, isRecordableShortcutId } from '../global/shortcutRecorder'
+import { registerCommandFeaturePairs } from '../global/hotkeyRegistry'
+import { COMMAND_MACRO_MAX_DELAY_MS, COMMAND_MACRO_MAX_STEPS } from '../global/commandMacro.js'
+import {
+  SHORTCUT_STORAGE_MODE_SQLITE,
+  getEffectiveShortcutCommandRows,
+  getEffectiveShortcutOverrides,
+  saveShortcutSettingsPayload
+} from '../global/shortcutStore'
+import {
+  COMMAND_MACRO_STORAGE_MODE_SQLITE,
+  getEffectiveCommandMacros,
+  saveCommandMacros
+} from '../global/commandMacroStore'
+import {
+  COMMAND_MACRO_RUNTIME_EVENT,
+  getCommandMacroRuntimeSnapshot,
+  requestCancelCommandMacroRun
+} from '../global/commandMacroRuntime'
 import { getNativeId } from '../utils'
 import SettingPagedTable from '../cpns/SettingPagedTable.vue'
-import HotkeyTreeView from '../cpns/HotkeyTreeView.vue'
 import HelpHint from '../cpns/HelpHint.vue'
 import {
   STORAGE_STATUS_EVENT,
@@ -479,6 +996,7 @@ const isRetryingMigration = ref(false)
 const refreshStorageStatus = (event) => {
   storageStatus.value = event?.detail || getStorageRuntimeStatus()
 }
+let disposeSettingCommandHandlers = null
 const storageSqlitePath = computed(() => storageStatus.value.sqlitePath || sqlitePath.value)
 const storageJsonPath = computed(() => storageStatus.value.jsonPath || path.value)
 const storageAssetDir = computed(() => storageStatus.value.assetDir || assetDir.value)
@@ -511,7 +1029,12 @@ const storageUpdatedAtLabel = computed(() => {
 })
 
 const custom = ref(operation.custom.map((c) => ({ ...c })))
-const hotkeyOverrides = ref({ ...(setting.hotkeyOverrides || {}) })
+const initialShortcutStorage = getEffectiveShortcutOverrides({ setting })
+const hotkeyOverrides = ref(initialShortcutStorage.hotkeyOverrides)
+const shortcutStorageMode = ref(initialShortcutStorage.storageMode)
+const initialCommandMacroStorage = getEffectiveCommandMacros({ warn: () => {} })
+const commandMacros = ref(initialCommandMacroStorage.macros)
+const commandMacroStorageMode = ref(initialCommandMacroStorage.storageMode)
 const initialHoverPreviewConfig = getHoverPreviewConfig(setting)
 const hoverPreviewEnabled = ref(initialHoverPreviewConfig.enabled)
 const hoverPreviewDelay = ref(initialHoverPreviewConfig.delay)
@@ -523,6 +1046,36 @@ const shortcutQueryInput = ref('')
 const featureQuery = ref('')
 const shortcutScope = ref('all')
 const shortcutSearchInputRef = ref(null)
+const shortcutRecordVisible = ref(false)
+const shortcutRecordRow = ref(null)
+const shortcutRecorderRef = ref(null)
+const commandMacroDialogVisible = ref(false)
+const commandMacroDraftDialogVisible = ref(false)
+const contextMenuDialogVisible = ref(false)
+const commandMacroDraftMode = ref('add')
+const commandMacroEditId = ref('')
+const commandMacroRuntimeSnapshot = ref(getCommandMacroRuntimeSnapshot())
+const commandMacroDraftForm = ref({
+  title: '',
+  shortcutId: '',
+  when: 'mainFocus',
+  steps: [{ command: '', delayMs: 0 }]
+})
+const recordedShortcutId = ref('')
+const recordedShortcutInput = ref('')
+const whenEditVisible = ref(false)
+const whenEditRow = ref(null)
+const whenEditInput = ref('')
+const whenEditError = ref('')
+const whenEditConflictLabel = ref('')
+const whenEditMode = ref('builder')
+const whenBuilderOperator = ref('&&')
+const whenBuilderStates = ref({})
+const normalizedRecordedShortcutId = computed(() => {
+  const value = recordedShortcutInput.value.trim() || recordedShortcutId.value
+  const normalized = normalizeShortcutId(value)
+  return isRecordableShortcutId(normalized) ? normalized : ''
+})
 
 function isEditableTarget(target) {
   if (!target || typeof target.closest !== 'function') return false
@@ -565,73 +1118,328 @@ function buildFeatureOrder(savedOrder, customIds) {
 
 const featureOrder = ref(buildFeatureOrder(setting.operation?.order, custom.value.map((c) => c.id)))
 const shown = ref(sortShownByOrder(operation.shown, featureOrder.value))
-const baseGuideFeatureIds = new Set([
-  'list-nav-up',
-  'list-nav-down',
-  'main-tab-prev',
-  'main-tab-next',
-  'setting-scroll-up',
-  'setting-scroll-down',
-  'setting-tab-prev',
-  'setting-tab-next',
-  'clear-dialog-arrow-nav'
-])
-const hotkeyTreeRoot = computed(() => {
-  const bindings = getEffectiveBindings()
-  return buildHotkeyTree(bindings)
-    .map((layerNode) => ({
-      ...layerNode,
-      shortcuts: (layerNode.shortcuts || []).filter((shortcut) => {
-        const featureIds = shortcut.features || []
-        return !featureIds.some((featureId) => baseGuideFeatureIds.has(featureId))
-      })
+const shortcutColumns = [
+  { key: 'commandTitle', label: 'Command', minWidth: 220 },
+  { key: 'shortcutId', label: '快捷键', width: 112 },
+  { key: 'when', label: 'When', minWidth: 170 },
+  { key: 'sourceLabel', label: '来源', width: 74, align: 'center' }
+]
+const commandMacroColumns = [
+  { key: 'title', label: '组合命令', minWidth: 220 },
+  { key: 'shortcutDisplay', label: '快捷键', width: 112 },
+  { key: 'runtimeLabel', label: '状态', width: 96, align: 'center' },
+  { key: 'stepCount', label: '步骤', width: 72, align: 'center' },
+  { key: 'steps', label: '步骤摘要', minWidth: 260 },
+  { key: 'storageLabel', label: '来源', width: 110, align: 'center' }
+]
+const contextMenuActionColumns = [
+  { key: 'drag', label: '', width: 44, align: 'center' },
+  { key: 'currentIndex', label: '序号', width: 70, align: 'center' },
+  { key: 'title', label: '右键动作', minWidth: 240 },
+  { key: 'shortcut', label: 'Command 快捷键', minWidth: 160 },
+  { key: 'sourceLabel', label: '来源', width: 88, align: 'center' }
+]
+
+const effectiveShortcutCommandResult = computed(() =>
+  getEffectiveShortcutCommandRows({
+    setting: {
+      hotkeyOverrides: hotkeyOverrides.value
+    },
+    getFeatureLabel
+  })
+)
+
+const shortcutCommandRows = computed(() => effectiveShortcutCommandResult.value.rows)
+const shortcutCommandStorageMode = computed(() => effectiveShortcutCommandResult.value.storageMode)
+const macroConflictRows = computed(() =>
+  commandMacros.value
+    .filter((macro) => macro?.shortcutId)
+    .map((macro) => ({
+      id: macro.id || `macro:${macro.shortcutId}`,
+      commandId: macro.id || '',
+      commandTitle: macro.title || macro.id || '未命名组合命令',
+      shortcutId: macro.shortcutId || '',
+      key: macro.shortcutId || '',
+      when: macro.when || 'mainFocus',
+      source: 'user',
+      sourceLabel: '组合',
+      disabled: macro.enabled === false,
+      scopeLabel: '组合命令',
+      type: 'macro'
     }))
-    .filter((layerNode) => (layerNode.shortcuts || []).length > 0)
-})
+)
+const shortcutConflictRows = computed(() => [...shortcutCommandRows.value, ...macroConflictRows.value])
 
 const shortcutHelpContent = computed(() =>
   [
-    '默认展开实际生效的快捷键；输入关键词后按 Enter 搜索，Ctrl/Cmd+F 可快速定位到搜索框。',
-    '基础操作：↑/↓ 用于主界面上下选择与设置页上下滚动；←/→ 用于主界面类型页、设置页页签与清除范围切换。'
+    '以 command 形式展示实际生效的快捷键；输入关键词后按 Enter 搜索，Ctrl/Cmd+F 可快速定位到搜索框。',
+    '支持录制快捷键、禁用、恢复默认和编辑 When 条件；SQLite 可用时优先写入快捷键表，异常时自动回退设置存储。'
   ].join(' ')
 )
 
-const filteredHotkeyTreeRoot = computed(() => {
-  const keyword = shortcutQuery.value.trim().toLowerCase()
-  const scope = shortcutScope.value
-  const scopedRows = (hotkeyTreeRoot.value || []).filter((layerNode) => {
-    if (scope === 'all') return true
-    if (scope === 'main') return layerNode.layer === 'main'
-    return layerNode.layer !== 'main'
+const shortcutStorageLabel = computed(() =>
+  shortcutCommandStorageMode.value === SHORTCUT_STORAGE_MODE_SQLITE
+    ? '快捷键配置存储：SQLite'
+    : '快捷键配置存储：设置 fallback'
+)
+
+const shortcutStorageHint = computed(() =>
+  shortcutCommandStorageMode.value === SHORTCUT_STORAGE_MODE_SQLITE
+    ? '当前快捷键改动会优先写入 SQLite override 表，并同步 setting 作为兼容副本。'
+    : '当前快捷键改动会保存到 setting.hotkeyOverrides；SQLite 不可用或写入失败时使用该 fallback。'
+)
+
+function getShortcutSaveMessage(result, actionLabel = '保存') {
+  const storageLabel = result?.sqliteSaved ? 'SQLite' : '设置 fallback'
+  return `${actionLabel}成功，快捷键已写入${storageLabel}，配置已热更新`
+}
+
+function showShortcutSaveMessage(result, actionLabel = '保存') {
+  const message = getShortcutSaveMessage(result, actionLabel)
+  if (result?.sqliteSaved || shortcutStorageMode.value === SHORTCUT_STORAGE_MODE_SQLITE) {
+    ElMessage.success(message)
+  } else {
+    ElMessage.warning(message)
+  }
+}
+
+const filteredShortcutCommandRows = computed(() => {
+  return filterShortcutCommandRows(shortcutCommandRows.value, {
+    keyword: shortcutQuery.value,
+    scope: shortcutScope.value,
+    formatShortcut: formatShortcutDisplay
   })
-  if (!keyword) return scopedRows
-
-  return scopedRows
-    .map((layerNode) => {
-      const layerLabel = getLayerLabel(layerNode.layer, layerNode.state).toLowerCase()
-      const matchedShortcuts = (layerNode.shortcuts || []).filter((shortcut) => {
-        const shortcutId = (shortcut.shortcutIds || [])
-          .map((id) => String(id || '').toLowerCase())
-          .join(' ')
-        const featureText = (shortcut.features || [])
-          .map((feature) => getFeatureLabel(feature))
-          .join(' ')
-          .toLowerCase()
-        return (
-          layerLabel.includes(keyword) ||
-          shortcutId.includes(keyword) ||
-          featureText.includes(keyword)
-        )
-      })
-
-      if (layerLabel.includes(keyword)) {
-        return layerNode
-      }
-      if (!matchedShortcuts.length) return null
-      return { ...layerNode, shortcuts: matchedShortcuts }
-    })
-    .filter(Boolean)
 })
+const shortcutModifiedCount = computed(
+  () => shortcutCommandRows.value.filter((row) => row.source === 'user' || row.source === 'removed').length
+)
+const commandSystemSummary = computed(
+  () => `共 ${filteredShortcutCommandRows.value.length} / ${shortcutCommandRows.value.length} 条 command keybinding`
+)
+const commandMacroStorageHint = computed(() =>
+  commandMacroStorageMode.value === COMMAND_MACRO_STORAGE_MODE_SQLITE
+    ? '组合命令已可从 SQLite commandMacros repository 读写；配置快捷键后会在运行时注册执行。'
+    : '组合命令当前使用内存草稿 fallback；SQLite 不可用或读取失败时不会阻断命令快捷键配置。'
+)
+const commandMacroSummary = computed(() =>
+  `组合命令 ${commandMacros.value.length} 个，${commandMacroStorageMode.value === COMMAND_MACRO_STORAGE_MODE_SQLITE ? 'SQLite 已接入' : '内存草稿模式'}；已接入快捷键运行时执行。`
+)
+const contextMenuDrawerOrder = ref(
+  Array.isArray(utools.dbStorage.getItem('drawer.order'))
+    ? utools.dbStorage.getItem('drawer.order')
+    : []
+)
+const contextMenuOperations = computed(() => [
+  ...defaultOperation,
+  ...custom.value
+])
+const contextMenuActionRows = computed(() =>
+  buildContextMenuActionRows({
+    operations: contextMenuOperations.value,
+    drawerOrder: contextMenuDrawerOrder.value,
+    shortcutRows: shortcutCommandRows.value,
+    formatShortcut: formatShortcutDisplay
+  })
+)
+const contextMenuActionSummary = computed(() => getContextMenuActionSummary(contextMenuActionRows.value))
+const commandSystemConfigSummary = computed(
+  () => `当前 ${shortcutCommandRows.value.length} 条 command keybinding，${shortcutModifiedCount.value} 条已修改或禁用。`
+)
+const commandMacroRows = computed(() => {
+  const storageLabel = commandMacroStorageMode.value === COMMAND_MACRO_STORAGE_MODE_SQLITE ? 'SQLite' : '草稿'
+  const runtimeMap = new Map(commandMacroRuntimeSnapshot.value.map((state) => [state.macroId, state]))
+  return commandMacros.value.map((macro) => {
+    const steps = Array.isArray(macro.steps) ? macro.steps : []
+    const runtime = runtimeMap.get(macro.id)
+    const runtimeStatus = runtime?.status || 'idle'
+    const stepIds = steps.map((step) => step.command).filter(Boolean)
+    const stepSummary = steps.length
+      ? steps.slice(0, 3).map((step) => `${step.command || 'empty'}${step.delayMs ? ` +${step.delayMs}ms` : ''}`).join(' -> ')
+      : '无步骤'
+    const suffix = stepIds.length > 3 ? ` +${stepIds.length - 3}` : ''
+    return {
+      id: macro.id || '',
+      title: macro.title || macro.id || '未命名组合命令',
+      shortcutDisplay: macro.shortcutId ? formatShortcutDisplay(macro.shortcutId) : '未绑定',
+      runtimeStatus,
+      runtimeLabel: getCommandMacroRuntimeLabel(runtime),
+      stepCount: steps.length,
+      stepSummary: `${stepSummary}${suffix}`,
+      stepHint: steps.map((step) => `${step.command || 'empty'} (${step.delayMs || 0}ms)`).join(' -> ') || '无步骤',
+      storageLabel,
+      canCancel: runtimeStatus === 'running' || runtimeStatus === 'cancelling',
+      raw: macro
+    }
+  })
+})
+const macroCommandOptions = computed(() =>
+  COMMANDS.filter((command) => command.risk !== 'data-write' && command.category !== 'macro')
+    .map((command) => ({
+      id: command.id,
+      title: command.title || command.id
+    }))
+)
+
+function refreshCommandMacroState() {
+  const result = getEffectiveCommandMacros({ warn: () => {} })
+  commandMacros.value = result.macros
+  commandMacroStorageMode.value = result.storageMode
+}
+
+function refreshCommandMacroRuntime(event) {
+  commandMacroRuntimeSnapshot.value = Array.isArray(event?.detail)
+    ? event.detail
+    : getCommandMacroRuntimeSnapshot()
+}
+
+function getCommandMacroRuntimeLabel(runtime) {
+  const status = runtime?.status || 'idle'
+  const labels = {
+    idle: '空闲',
+    running: runtime?.currentStep >= 0 ? `执行 ${runtime.currentStep + 1}/${runtime.totalSteps || '?'}` : '执行中',
+    cancelling: '取消中',
+    cancelled: '已取消',
+    failed: '失败',
+    completed: '完成'
+  }
+  return labels[status] || status
+}
+
+function openCommandMacroDraftAdd() {
+  commandMacroDraftMode.value = 'add'
+  commandMacroEditId.value = ''
+  commandMacroDraftForm.value = {
+    title: '',
+    shortcutId: '',
+    when: 'mainFocus',
+    steps: [{ command: '', delayMs: 0 }]
+  }
+  commandMacroDraftDialogVisible.value = true
+}
+
+function openCommandMacroDraftEdit(macro) {
+  const steps = Array.isArray(macro?.steps) ? macro.steps : []
+  commandMacroDraftMode.value = 'edit'
+  commandMacroEditId.value = macro?.id || ''
+  commandMacroDraftForm.value = {
+    title: macro?.title || '',
+    shortcutId: macro?.shortcutId || '',
+    when: macro?.when || 'mainFocus',
+    steps: steps.length
+      ? steps.map((step) => ({ command: step.command || '', delayMs: step.delayMs || 0 }))
+      : [{ command: '', delayMs: 0 }]
+  }
+  commandMacroDraftDialogVisible.value = true
+}
+
+function addCommandMacroDraftStep() {
+  if (commandMacroDraftForm.value.steps.length >= COMMAND_MACRO_MAX_STEPS) return
+  commandMacroDraftForm.value.steps.push({ command: '', delayMs: 0 })
+}
+
+function removeCommandMacroDraftStep(index) {
+  if (commandMacroDraftForm.value.steps.length <= 1) return
+  commandMacroDraftForm.value.steps.splice(index, 1)
+}
+
+function buildCommandMacroDraftPayload() {
+  const title = commandMacroDraftForm.value.title.trim()
+  const shortcutId = normalizeShortcutId(commandMacroDraftForm.value.shortcutId || '')
+  const when = (commandMacroDraftForm.value.when || '').trim() || 'mainFocus'
+  const steps = commandMacroDraftForm.value.steps
+    .filter((step) => step.command)
+    .map((step) => ({ command: step.command, delayMs: step.delayMs || 0 }))
+  return {
+    id: commandMacroDraftMode.value === 'edit' && commandMacroEditId.value
+      ? commandMacroEditId.value
+      : `macro.${Date.now()}`,
+    title: title || '未命名组合命令',
+    shortcutId,
+    when,
+    steps
+  }
+}
+
+function persistCommandMacrosDrafts(nextMacros, successMessage) {
+  const result = saveCommandMacros(nextMacros, {
+    warn: () => {}
+  })
+  if (!result.ok) {
+    const message = result.errors?.[0]?.errors?.[0]?.message || '组合命令校验失败'
+    ElMessage.error(message)
+    return false
+  }
+  commandMacros.value = result.macros
+  commandMacroStorageMode.value = result.storageMode
+  refreshCommandMacroState()
+  ElMessage.success(successMessage || (result.sqliteSaved ? '组合命令已写入 SQLite' : '组合命令已保存在内存模式'))
+  return true
+}
+
+async function submitCommandMacroDraft() {
+  const draft = buildCommandMacroDraftPayload()
+  if (!draft.steps.length) {
+    ElMessage.error('请至少选择一个 command')
+    return
+  }
+  if (!draft.shortcutId || !isRecordableShortcutId(draft.shortcutId)) {
+    ElMessage.error('请填写有效快捷键')
+    return
+  }
+  try {
+    if (draft.when) parseWhenExpression(draft.when)
+  } catch (err) {
+    ElMessage.error(`When 表达式无效：${err?.message || err}`)
+    return
+  }
+  const conflicts = getShortcutCommandRowConflicts(
+    {
+      id: draft.id,
+      shortcutId: draft.shortcutId,
+      when: draft.when
+    },
+    shortcutConflictRows.value,
+    {
+      shortcutId: draft.shortcutId,
+      when: draft.when
+    }
+  )
+  if (conflicts.length) {
+    const ok = await confirmShortcutConflictRows(conflicts, draft.shortcutId)
+    if (!ok) return
+  }
+  const nextMacros = commandMacroDraftMode.value === 'edit'
+    ? commandMacros.value.map((macro) => (macro.id === draft.id ? draft : macro))
+    : [...commandMacros.value, draft]
+  if (!persistCommandMacrosDrafts(
+    nextMacros,
+    commandMacroDraftMode.value === 'edit' ? '组合命令已更新' : '组合命令草稿已保存'
+  )) return
+  commandMacroDraftDialogVisible.value = false
+  commandMacroDialogVisible.value = true
+}
+
+async function deleteCommandMacroDraft(macro) {
+  if (!macro?.id) return
+  try {
+    await ElMessageBox.confirm(`确定删除组合命令“${macro.title || macro.id}”吗？`, '删除组合命令', {
+      confirmButtonText: '删除',
+      cancelButtonText: '取消',
+      type: 'warning'
+    })
+    persistCommandMacrosDrafts(
+      commandMacros.value.filter((item) => item.id !== macro.id),
+      '组合命令已删除'
+    )
+  } catch (_) {}
+}
+
+function cancelCommandMacroRuntime(row) {
+  if (!row?.id) return
+  if (requestCancelCommandMacroRun(row.id)) {
+    ElMessage.warning(`已请求取消组合命令：${row.title || row.id}`)
+  }
+}
 
 function applyShortcutSearch() {
   shortcutQuery.value = shortcutQueryInput.value.trim()
@@ -643,12 +1451,208 @@ function focusShortcutSearch() {
   })
 }
 
-const shortcutCount = computed(() => {
-  if (!Array.isArray(hotkeyTreeRoot.value)) return 0
-  return hotkeyTreeRoot.value.reduce((total, layerNode) => {
-    return total + (layerNode.shortcuts ? layerNode.shortcuts.length : 0)
-  }, 0)
-})
+function getShortcutConflictRows(row, nextShortcutId) {
+  return getShortcutConflictRowsWithWhen(row, nextShortcutId, row.when)
+}
+
+function getShortcutConflictRowsWithWhen(row, nextShortcutId, nextWhen) {
+  return getShortcutCommandRowConflicts(row, shortcutConflictRows.value, {
+    shortcutId: nextShortcutId,
+    when: nextWhen
+  })
+}
+
+async function confirmShortcutConflict(row, nextShortcutId) {
+  const conflicts = getShortcutConflictRows(row, nextShortcutId)
+  return confirmShortcutConflictRows(conflicts, nextShortcutId)
+}
+
+async function confirmShortcutConflictRows(conflicts, nextShortcutId) {
+  if (!conflicts.length) return true
+  const names = conflicts
+    .slice(0, 5)
+    .map((item) => `${formatShortcutDisplay(item.shortcutId)} / ${item.commandTitle} / ${item.scopeLabel} / ${getWhenBuilderSummary(item.when)}`)
+    .join('；')
+  try {
+    await ElMessageBox.confirm(
+      `该快捷键可能与 ${conflicts.length} 个命令冲突：${names}。仍要保存这个绑定吗？`,
+      '快捷键冲突提醒',
+      {
+        confirmButtonText: '仍然保存',
+        cancelButtonText: '取消',
+        type: 'warning'
+      }
+    )
+    return true
+  } catch (_) {
+    return false
+  }
+}
+
+function setShortcutOverride(row, overrideValue) {
+  hotkeyOverrides.value = applyShortcutOverrideValue(hotkeyOverrides.value, row, overrideValue)
+}
+
+function openShortcutEdit(row) {
+  shortcutRecordRow.value = row
+  recordedShortcutId.value = ''
+  recordedShortcutInput.value = row.disabled ? row.defaultShortcutId : row.shortcutId
+  shortcutRecordVisible.value = true
+}
+
+function focusShortcutRecorder() {
+  nextTick(() => {
+    shortcutRecorderRef.value?.focus?.()
+  })
+}
+
+function resetShortcutRecorder() {
+  shortcutRecordRow.value = null
+  recordedShortcutId.value = ''
+  recordedShortcutInput.value = ''
+}
+
+function handleShortcutRecordKeydown(e) {
+  if (e.key === 'Escape') {
+    shortcutRecordVisible.value = false
+    return
+  }
+  const nextShortcutId = eventLikeToShortcutId(e)
+  if (!isRecordableShortcutId(nextShortcutId)) {
+    recordedShortcutId.value = nextShortcutId
+    recordedShortcutInput.value = ''
+    return
+  }
+  recordedShortcutId.value = nextShortcutId
+  recordedShortcutInput.value = nextShortcutId
+}
+
+async function submitShortcutRecord() {
+  const row = shortcutRecordRow.value
+  const nextShortcutId = normalizedRecordedShortcutId.value
+  if (!row || !nextShortcutId) {
+    ElMessage.error('请先录制有效快捷键')
+    return
+  }
+  const ok = await confirmShortcutConflict(row, nextShortcutId)
+  if (!ok) return
+  setShortcutOverride(row, buildShortcutOverrideValue(row, { shortcutId: nextShortcutId }))
+  shortcutRecordVisible.value = false
+  ElMessage.success('快捷键已更新，点击保存后生效')
+}
+
+function openWhenEdit(row) {
+  whenEditRow.value = row
+  whenEditInput.value = row.when || ''
+  syncWhenBuilderFromInput()
+  whenEditVisible.value = true
+  validateWhenEdit()
+}
+
+function resetWhenEditor() {
+  whenEditRow.value = null
+  whenEditInput.value = ''
+  whenEditError.value = ''
+  whenEditConflictLabel.value = ''
+  whenEditMode.value = 'builder'
+  whenBuilderOperator.value = '&&'
+  whenBuilderStates.value = {}
+}
+
+function syncWhenBuilderFromInput() {
+  const parsed = parseWhenToSelection(whenEditInput.value)
+  whenBuilderOperator.value = parsed.selection.operator || '&&'
+  whenBuilderStates.value = { ...(parsed.selection.states || {}) }
+  whenEditMode.value = parsed.mode === 'builder' ? 'builder' : 'text'
+}
+
+function syncWhenInputFromBuilder() {
+  whenEditInput.value = buildWhenExpression({
+    operator: whenBuilderOperator.value,
+    states: whenBuilderStates.value
+  })
+  validateWhenEdit()
+}
+
+function setWhenBuilderState(key, state) {
+  const next = { ...whenBuilderStates.value }
+  if (!state || next[key] === state) delete next[key]
+  else next[key] = state
+  whenBuilderStates.value = next
+  syncWhenInputFromBuilder()
+}
+
+function setWhenBuilderOperator(operator) {
+  whenBuilderOperator.value = operator === '||' ? '||' : '&&'
+  syncWhenInputFromBuilder()
+}
+
+function switchWhenEditMode(mode) {
+  if (mode === 'builder') {
+    syncWhenBuilderFromInput()
+    if (whenEditMode.value !== 'builder') {
+      ElMessage.warning('当前 When 较复杂，已保留文本模式')
+    }
+    return
+  }
+  whenEditMode.value = 'text'
+}
+
+function validateWhenEdit() {
+  const row = whenEditRow.value
+  whenEditError.value = ''
+  whenEditConflictLabel.value = ''
+  try {
+    if (whenEditInput.value.trim()) parseWhenExpression(whenEditInput.value)
+  } catch (err) {
+    whenEditError.value = `When 表达式无效：${err?.message || err}`
+    return
+  }
+  if (!row) return
+  const conflicts = getShortcutConflictRowsWithWhen(row, row.shortcutId, whenEditInput.value.trim())
+  if (conflicts.length) {
+    whenEditConflictLabel.value = `可能与 ${conflicts.length} 个同快捷键命令冲突`
+  }
+}
+
+function applyWhenEditPreset(nextWhen) {
+  whenEditInput.value = nextWhen
+  syncWhenBuilderFromInput()
+  validateWhenEdit()
+}
+
+async function submitWhenEdit() {
+  const row = whenEditRow.value
+  const nextWhen = whenEditInput.value.trim()
+  if (!row) return
+  validateWhenEdit()
+  if (whenEditError.value) return
+  const conflicts = getShortcutConflictRowsWithWhen(row, row.shortcutId, nextWhen)
+  if (conflicts.length) {
+    const ok = await confirmShortcutConflictRows(conflicts, row.shortcutId)
+    if (!ok) return
+  }
+  setShortcutOverride(row, buildShortcutOverrideValue(row, { when: nextWhen }))
+  whenEditVisible.value = false
+  ElMessage.success('When 已更新，点击保存后生效')
+}
+
+async function disableShortcut(row) {
+  try {
+    await ElMessageBox.confirm(`确定禁用“${row.commandTitle}”的快捷键 ${formatShortcutDisplay(row.shortcutId)} 吗？`, '禁用快捷键', {
+      confirmButtonText: '禁用',
+      cancelButtonText: '取消',
+      type: 'warning'
+    })
+    hotkeyOverrides.value = disableShortcutOverride(hotkeyOverrides.value, row)
+    ElMessage.success('快捷键已禁用，点击保存后生效')
+  } catch (_) {}
+}
+
+function restoreShortcutDefault(row) {
+  setShortcutOverride(row, undefined)
+  ElMessage.success('已恢复默认，点击保存后生效')
+}
 
 const customDialogVisible = ref(false)
 const customDialogMode = ref('add')
@@ -683,6 +1687,7 @@ const featureRows = computed(() => {
     isCustom: false,
     matchDisplay: '',
     commandDisplay: '',
+    shortcutSummary: getOperationShortcutSummary(o.id, shortcutCommandRows.value, formatShortcutDisplay),
     raw: o
   }))
   const customs = custom.value.map((o) => ({
@@ -693,6 +1698,13 @@ const featureRows = computed(() => {
     isCustom: true,
     matchDisplay: Array.isArray(o.match) ? o.match.join(', ') : '',
     commandDisplay: o.command || '',
+    shortcutSummary: {
+      count: 0,
+      activeCount: 0,
+      label: '无直接快捷键',
+      query: '',
+      hint: '自定义功能暂未接入 command 快捷键'
+    },
     raw: o
   }))
   const map = new Map([...defaults, ...customs].map((item) => [item.id, item]))
@@ -713,6 +1725,9 @@ const filteredFeatureRows = computed(() => {
       row.title,
       row.typeLabel,
       row.commandDisplay,
+      row.shortcutSummary?.label,
+      row.shortcutSummary?.hint,
+      row.shortcutSummary?.query,
       row.id
     ]
       .filter(Boolean)
@@ -786,6 +1801,49 @@ function openCustomEdit(item) {
     command: item.command || ''
   }
   customDialogVisible.value = true
+}
+
+function openFeatureShortcut(row) {
+  const query = row?.shortcutSummary?.query || row?.id || ''
+  activeTab.value = 'shortcut'
+  shortcutQueryInput.value = query
+  shortcutQuery.value = query
+  focusShortcutSearch()
+}
+
+function openShortcutSystemConfig() {
+  activeTab.value = 'shortcut'
+  shortcutScope.value = 'all'
+  shortcutQueryInput.value = ''
+  shortcutQuery.value = ''
+  focusShortcutSearch()
+}
+
+function openContextMenuShortcut(row) {
+  const query = row?.shortcutSummary?.query || row?.commandId || row?.id || ''
+  contextMenuDialogVisible.value = false
+  activeTab.value = 'shortcut'
+  shortcutScope.value = 'all'
+  shortcutQueryInput.value = query
+  shortcutQuery.value = query
+  focusShortcutSearch()
+}
+
+function allowContextMenuActionDrag(evt) {
+  return evt?.draggedContext?.element?.orderable !== false
+}
+
+function handleContextMenuActionDragEnd({ rows }) {
+  if (!Array.isArray(rows) || !rows.length) return
+  contextMenuDrawerOrder.value = buildContextMenuDrawerOrderFromRows(rows)
+  utools.dbStorage.setItem('drawer.order', contextMenuDrawerOrder.value)
+  ElMessage.success('右键菜单顺序已更新')
+}
+
+function restoreContextMenuOrder() {
+  contextMenuDrawerOrder.value = []
+  utools.dbStorage.setItem('drawer.order', [])
+  ElMessage.success('右键菜单已恢复默认顺序')
 }
 
 function parseMatch(str) {
@@ -922,7 +1980,8 @@ const handleSaveBtnClick = () => {
     operation: {
       shown: shown.value,
       custom: custom.value,
-      order: featureOrder.value
+      order: featureOrder.value,
+      drawerOrder: contextMenuDrawerOrder.value
     },
     hotkeyOverrides: hotkeyOverrides.value,
     userConfig: {
@@ -934,9 +1993,13 @@ const handleSaveBtnClick = () => {
       }
     }
   }
-  saveSetting(payload)
-  window.dispatchEvent?.(new CustomEvent(HOTKEY_BINDINGS_UPDATED_EVENT))
-  ElMessage.success('保存成功，配置已热更新')
+  const shortcutSaveResult = saveShortcutSettingsPayload(payload, {
+    overrides: hotkeyOverrides.value,
+    saveSetting
+  })
+  shortcutStorageMode.value = shortcutSaveResult.storageMode
+  hotkeyOverrides.value = shortcutSaveResult.hotkeyOverrides
+  showShortcutSaveMessage(shortcutSaveResult, '保存')
 }
 
 const handlePathBtnClick = (param) => {
@@ -963,20 +2026,28 @@ const handleRestoreBtnClick = () => {
   })
     .then(() => {
       const restored = restoreSetting()
-      syncSetting(restored)
-      path.value = restored.database.path[nativeId]
-      maxsize.value = restored.database.maxsize ?? unlimitedVal
-      maxage.value = restored.database.maxage ?? unlimitedVal
-      shown.value = sortShownByOrder(restored.operation?.shown || [], featureOrder.value)
-      custom.value = (restored.operation?.custom || []).map((c) => ({ ...c }))
-      featureOrder.value = buildFeatureOrder(restored.operation?.order, custom.value.map((c) => c.id))
+      const shortcutRestoreResult = saveShortcutSettingsPayload(restored, {
+        overrides: restored.hotkeyOverrides || {},
+        saveSetting
+      })
+      const restoredSetting = shortcutRestoreResult.setting
+      path.value = restoredSetting.database.path[nativeId]
+      maxsize.value = restoredSetting.database.maxsize ?? unlimitedVal
+      maxage.value = restoredSetting.database.maxage ?? unlimitedVal
+      shown.value = sortShownByOrder(restoredSetting.operation?.shown || [], featureOrder.value)
+      custom.value = (restoredSetting.operation?.custom || []).map((c) => ({ ...c }))
+      featureOrder.value = buildFeatureOrder(restoredSetting.operation?.order, custom.value.map((c) => c.id))
+      contextMenuDrawerOrder.value = Array.isArray(restoredSetting.operation?.drawerOrder)
+        ? restoredSetting.operation.drawerOrder
+        : []
+      utools.dbStorage.setItem('drawer.order', contextMenuDrawerOrder.value)
       syncShownOrder()
-      hotkeyOverrides.value = { ...(restored.hotkeyOverrides || {}) }
-      const restoredHoverPreviewConfig = getHoverPreviewConfig(restored)
+      hotkeyOverrides.value = shortcutRestoreResult.hotkeyOverrides
+      shortcutStorageMode.value = shortcutRestoreResult.storageMode
+      const restoredHoverPreviewConfig = getHoverPreviewConfig(restoredSetting)
       hoverPreviewEnabled.value = restoredHoverPreviewConfig.enabled
       hoverPreviewDelay.value = restoredHoverPreviewConfig.delay
-      window.dispatchEvent?.(new CustomEvent(HOTKEY_BINDINGS_UPDATED_EVENT))
-      ElMessage.success('重置成功，配置已热更新')
+      showShortcutSaveMessage(shortcutRestoreResult, '重置')
     })
     .catch(() => {})
 }
@@ -1013,14 +2084,18 @@ const keyDownHandler = (e) => {
 
 onMounted(() => {
   window.addEventListener(STORAGE_STATUS_EVENT, refreshStorageStatus)
+  window.addEventListener(COMMAND_MACRO_RUNTIME_EVENT, refreshCommandMacroRuntime)
   refreshStorageStatus()
+  refreshCommandMacroRuntime()
   if (storageStatus.value.noticeUnread) {
     storageStatus.value = markStorageNoticeRead()
   }
-  registerFeature('setting-scroll-up', () => scrollSettingBy(-120))
-  registerFeature('setting-scroll-down', () => scrollSettingBy(120))
-  registerFeature('setting-tab-prev', () => switchSettingTabByOffset(-1))
-  registerFeature('setting-tab-next', () => switchSettingTabByOffset(1))
+  disposeSettingCommandHandlers = registerCommandFeaturePairs([
+    { featureId: 'setting-scroll-up', commandId: 'setting.scroll.up', handler: () => scrollSettingBy(-120) },
+    { featureId: 'setting-scroll-down', commandId: 'setting.scroll.down', handler: () => scrollSettingBy(120) },
+    { featureId: 'setting-tab-prev', commandId: 'setting.tab.prev', handler: () => switchSettingTabByOffset(-1) },
+    { featureId: 'setting-tab-next', commandId: 'setting.tab.next', handler: () => switchSettingTabByOffset(1) }
+  ])
   activateLayer('setting')
   document.addEventListener('keydown', keyDownHandler)
 })
@@ -1033,7 +2108,10 @@ watch(hoverPreviewEnabled, (enabled) => {
 
 onUnmounted(() => {
   window.removeEventListener(STORAGE_STATUS_EVENT, refreshStorageStatus)
+  window.removeEventListener(COMMAND_MACRO_RUNTIME_EVENT, refreshCommandMacroRuntime)
   document.removeEventListener('keydown', keyDownHandler)
+  disposeSettingCommandHandlers?.()
+  disposeSettingCommandHandlers = null
   deactivateLayer('setting')
 })
 </script>
@@ -1127,6 +2205,36 @@ onUnmounted(() => {
   margin: 4px 0 0;
   font-size: 13px;
   color: var(--text-color-lighter);
+}
+.shortcut-storage-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  min-height: 26px;
+  margin-top: 8px;
+  padding: 0 10px;
+  border-radius: 999px;
+  border: 1px solid rgba(28, 113, 82, 0.18);
+  background: rgba(28, 113, 82, 0.08);
+  color: #16684a;
+  font-size: 12px;
+  font-weight: 600;
+  &.fallback {
+    color: var(--text-color-lighter);
+    border-color: var(--border-color);
+    background: var(--bg-soft-color);
+    .shortcut-storage-dot {
+      background: var(--text-color-lighter);
+      box-shadow: none;
+    }
+  }
+}
+.shortcut-storage-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #1c7152;
+  box-shadow: 0 0 0 3px rgba(28, 113, 82, 0.12);
 }
 .shortcut-summary {
   display: grid;
@@ -1273,13 +2381,22 @@ onUnmounted(() => {
 }
 
 .shortcut-key-cell {
-  padding: 4px 8px;
-  background: var(--text-bg-color);
-  border: 1px solid var(--text-bg-color-lighter);
-  border-radius: 4px;
-  font-family: 'Courier New', monospace;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 26px;
+  max-width: 100%;
+  padding: 3px 8px;
+  background: var(--bg-soft-color);
+  border: 1px solid var(--border-color);
+  border-radius: 7px;
+  font-family: 'SFMono-Regular', 'Consolas', 'Courier New', monospace;
   font-size: 12px;
+  font-weight: 600;
   color: var(--primary-color);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 .shortcut-desc-cell {
   overflow: hidden;
@@ -1287,6 +2404,247 @@ onUnmounted(() => {
   white-space: nowrap;
   display: inline-block;
   max-width: 100%;
+}
+.shortcut-command-cell {
+  min-width: 0;
+}
+.shortcut-command-title-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+.shortcut-command-title {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 13px;
+  font-weight: 650;
+  color: var(--text-color);
+}
+.shortcut-command-meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  margin-top: 5px;
+  font-size: 11px;
+  color: var(--text-color-lighter);
+  span {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+}
+.shortcut-risk-tag,
+.shortcut-source-tag {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 22px;
+  padding: 0 7px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+.shortcut-risk-tag {
+  color: #b42318;
+  background: rgba(255, 241, 240, 0.88);
+  border: 1px solid rgba(180, 35, 24, 0.22);
+}
+.shortcut-source-tag {
+  color: var(--text-color-lighter);
+  background: var(--bg-soft-color);
+  border: 1px solid var(--border-color);
+  &.user {
+    color: var(--primary-color);
+    border-color: rgba(53, 95, 157, 0.26);
+    background: rgba(53, 95, 157, 0.08);
+  }
+}
+.shortcut-when-cell {
+  display: inline-block;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-family: 'SFMono-Regular', 'Consolas', 'Courier New', monospace;
+  font-size: 12px;
+  color: var(--text-color-lighter);
+}
+.shortcut-record-dialog :deep(.el-dialog__body) {
+  padding: 18px 24px 10px;
+}
+.shortcut-recorder {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 132px;
+  padding: 18px;
+  border: 1px dashed rgba(53, 95, 157, 0.38);
+  border-radius: 12px;
+  background: var(--bg-soft-color);
+  outline: none;
+  &:focus {
+    border-color: var(--primary-color);
+    box-shadow: 0 0 0 3px rgba(53, 95, 157, 0.12);
+  }
+}
+.shortcut-recorder-label {
+  font-size: 12px;
+  color: var(--text-color-lighter);
+}
+.shortcut-recorder-key {
+  max-width: 100%;
+  min-height: 34px;
+  padding: 6px 12px;
+  border-radius: 9px;
+  border: 1px solid var(--border-color);
+  background: var(--bg-elevated-color);
+  color: var(--primary-color);
+  font-size: 18px;
+  font-weight: 700;
+  font-family: 'SFMono-Regular', 'Consolas', 'Courier New', monospace;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.shortcut-recorder-meta {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 12px;
+  color: var(--text-color-lighter);
+}
+.shortcut-recorder-manual {
+  margin-top: 12px;
+}
+.when-edit-dialog :deep(.el-dialog__body) {
+  padding: 18px 24px 10px;
+}
+.when-editor-head {
+  margin-bottom: 12px;
+}
+.when-editor-mode-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+.when-editor-summary {
+  min-width: 0;
+  margin-left: auto;
+  color: var(--text-color-lighter);
+  font-size: 12px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.when-editor-title {
+  font-size: 14px;
+  font-weight: 650;
+  color: var(--text-color);
+}
+.when-editor-meta {
+  margin-top: 4px;
+  font-size: 12px;
+  color: var(--text-color-lighter);
+  font-family: 'SFMono-Regular', 'Consolas', 'Courier New', monospace;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.when-editor-status {
+  margin-top: 10px;
+  min-height: 22px;
+  font-size: 12px;
+  color: var(--text-color-lighter);
+  &.error {
+    color: #b42318;
+  }
+}
+.when-editor-examples {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 12px;
+}
+.when-builder {
+  display: grid;
+  gap: 12px;
+  padding: 12px;
+  border: 1px solid var(--border-color);
+  border-radius: 10px;
+  background: var(--bg-soft-color);
+}
+.when-builder-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--text-color-lighter);
+  font-size: 12px;
+}
+.when-builder-groups {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+}
+.when-builder-group {
+  min-width: 0;
+  padding: 10px;
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  background: var(--bg-elevated-color);
+}
+.when-builder-group-title {
+  margin-bottom: 8px;
+  color: var(--text-color);
+  font-size: 12px;
+  font-weight: 700;
+}
+.when-builder-options {
+  display: grid;
+  gap: 7px;
+}
+.when-builder-option {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 8px;
+}
+.when-builder-option-label {
+  min-width: 0;
+  color: var(--text-color-lighter);
+  font-size: 12px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.when-builder-option-actions {
+  display: inline-flex;
+  gap: 4px;
+}
+.when-state-btn {
+  width: 28px;
+  height: 24px;
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  background: var(--bg-color);
+  color: var(--text-color-lighter);
+  font-size: 12px;
+  cursor: pointer;
+  &.active {
+    border-color: color-mix(in srgb, var(--primary-color) 40%, transparent);
+    background: color-mix(in srgb, var(--primary-color) 12%, transparent);
+    color: var(--primary-color);
+    font-weight: 700;
+  }
 }
 .drag-handle {
   cursor: grab;
@@ -1427,8 +2785,9 @@ onUnmounted(() => {
   color: var(--text-color-lighter);
 }
 .feature-command-cell {
-  display: flex;
-  align-items: center;
+  display: grid;
+  gap: 6px;
+  align-content: center;
   min-height: 42px;
 }
 .feature-command-text {
@@ -1438,6 +2797,32 @@ onUnmounted(() => {
   line-height: 1.6;
   color: var(--text-color-lighter);
   word-break: break-all;
+}
+.feature-shortcut-link {
+  display: inline-flex;
+  align-items: center;
+  justify-self: start;
+  min-height: 24px;
+  padding: 0 8px;
+  border-radius: 6px;
+  border: 1px solid rgba(53, 95, 157, 0.2);
+  background: rgba(53, 95, 157, 0.08);
+  color: var(--primary-color);
+  font-size: 12px;
+  line-height: 1;
+  cursor: pointer;
+}
+.feature-shortcut-link:hover {
+  border-color: rgba(53, 95, 157, 0.35);
+  background: rgba(53, 95, 157, 0.12);
+}
+.feature-shortcut-link:focus-visible {
+  outline: 2px solid var(--primary-color);
+  outline-offset: 2px;
+}
+.feature-shortcut-muted {
+  font-size: 12px;
+  color: var(--text-color-lighter);
 }
 @media (max-width: 900px) {
   .feature-toolbar {
@@ -1519,6 +2904,104 @@ onUnmounted(() => {
 }
 .feature-config-actions {
   flex-wrap: wrap;
+}
+.feature-config-status {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 72px;
+  min-height: 30px;
+  padding: 0 10px;
+  border: 1px solid rgba(28, 113, 82, 0.18);
+  border-radius: 999px;
+  background: rgba(28, 113, 82, 0.08);
+  color: #16684a;
+  font-size: 12px;
+  font-weight: 700;
+  &.fallback {
+    border-color: rgba(153, 99, 20, 0.24);
+    background: rgba(153, 99, 20, 0.10);
+    color: #8a5a12;
+  }
+}
+.command-macro-dialog :deep(.el-dialog__body) {
+  padding: 16px 20px 18px;
+}
+.command-macro-cell {
+  min-width: 0;
+}
+.command-macro-title {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 13px;
+  font-weight: 650;
+  color: var(--text-color);
+}
+.context-menu-action-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  margin-right: 6px;
+}
+.command-macro-meta,
+.command-macro-dialog-note {
+  margin-top: 5px;
+  font-size: 12px;
+  color: var(--text-color-lighter);
+}
+.command-macro-meta,
+.command-macro-steps {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.command-macro-steps {
+  font-family: 'SFMono-Regular', 'Consolas', 'Courier New', monospace;
+  font-size: 12px;
+  color: var(--text-color-lighter);
+}
+.command-macro-step-list {
+  display: grid;
+  gap: 10px;
+  width: 100%;
+}
+.command-macro-step-row {
+  display: grid;
+  grid-template-columns: 28px minmax(0, 1fr) 96px 44px;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+}
+.command-macro-delay-input {
+  width: 96px;
+  height: 32px;
+  box-sizing: border-box;
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  padding: 0 8px;
+  background: var(--bg-color);
+  color: var(--text-color);
+  font-size: 12px;
+  outline: none;
+}
+.command-macro-delay-input:focus {
+  border-color: var(--primary-color);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--primary-color) 14%, transparent);
+}
+.command-macro-step-index {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border-radius: 999px;
+  background: var(--bg-soft-color);
+  color: var(--text-color-lighter);
+  font-size: 12px;
+  font-weight: 700;
 }
 .feature-config-inline-row {
   display: inline-flex;

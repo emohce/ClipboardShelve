@@ -169,7 +169,12 @@ import useClipOperate from "../hooks/useClipOperate";
 import { useListNavigation } from "../hooks/useListNavigation";
 import { useVirtualListScroll } from "../hooks/useVirtualListScroll";
 import { desktopPreviewManager } from "../global/desktopPreview";
-import { registerFeature } from "../global/hotkeyRegistry";
+import { registerCommandFeaturePairs } from "../global/hotkeyRegistry";
+import {
+    ALIAS_CONTEXT_MENU_ACTION_ID,
+    buildDrawerMenuItems,
+    getContextMenuActionByIndex,
+} from "../global/contextMenuActions";
 const props = defineProps({
     showList: {
         type: Array,
@@ -204,6 +209,7 @@ const props = defineProps({
         default: () => ({}),
     },
 });
+let disposeListCommandHandlers = null;
 const emit = defineEmits([
     "onDataChange",
     "onDataRemove",
@@ -325,12 +331,6 @@ const saveAliasForItem = (item) => {
 };
 const isAliasDialogOpen = () =>
     Boolean(document.querySelector(".el-overlay .el-message-box"));
-const aliasDrawerOperation = {
-    id: "edit-alias",
-    title: "别名编辑",
-    icon: "🏷️",
-};
-
 // 图片数据验证
 const isValidImageData = (data) => {
     if (!data || typeof data !== "string") return false;
@@ -1243,7 +1243,7 @@ const closeDrawer = () => {
 const handleDrawerSelect = (op, meta = {}) => {
     const currentItem = props.showList[activeIndex.value];
     if (!currentItem) return;
-    if (op?.id === "edit-alias") {
+    if (op?.id === ALIAS_CONTEXT_MENU_ACTION_ID) {
         saveAliasForItem(currentItem);
         if (!meta.sub) {
             drawerShow.value = false;
@@ -1262,28 +1262,15 @@ const handleDrawerReorder = (list) => {
     utools.dbStorage.setItem("drawer.order", drawerOrder.value);
 };
 
-const applyDrawerOrder = (list) => {
-    if (!drawerOrder.value.length) return list;
-    const orderSet = new Set(drawerOrder.value);
-    const ordered = drawerOrder.value
-        .map((id) => list.find((op) => op.id === id))
-        .filter(Boolean);
-    const remaining = list.filter((op) => !orderSet.has(op.id));
-    return [...ordered, ...remaining];
-};
-
 // 全部信息内的菜单：与主层 ClipOperate 一致，filterOperate + applyDrawerOrder，用于右侧抽屉
 // 防漂移约束：抽屉渲染与序号快捷执行必须共用该菜单数据源。
 const getDrawerFullMenuItems = (currentItem) => {
-    if (!currentItem) return [];
-    const available = operations.value.filter((op) =>
-        filterOperate(op, currentItem, false, "drawer"),
-    );
-    const ordered = applyDrawerOrder(available).filter(
-        (op) => op?.id !== aliasDrawerOperation.id,
-    );
-    ordered.splice(Math.min(1, ordered.length), 0, aliasDrawerOperation);
-    return ordered;
+    return buildDrawerMenuItems({
+        item: currentItem,
+        operations: operations.value,
+        filterOperate,
+        drawerOrder: drawerOrder.value,
+    });
 };
 
 // 打开当前 item 的快捷菜单抽屉（右侧抽屉，展示全部菜单；右方向键/鼠标右键/c-s-序号 调用）
@@ -2094,7 +2081,7 @@ function registerListHotkeyFeatures() {
         return false;
     };
 
-    registerFeature("list-nav-up", (e) => {
+    const handleListNavUpCommand = (e) => {
         if (isAliasDialogOpen()) return false;
         if (e?.repeat) {
             startAutoScroll("up");
@@ -2115,8 +2102,8 @@ function registerListHotkeyFeatures() {
             });
         }
         return setKeyboardActiveIndex(nextIdx, { ...STEP_NAV_UP_REVEAL_OPTIONS });
-    });
-    registerFeature("list-nav-down", (e) => {
+    };
+    const handleListNavDownCommand = (e) => {
         if (isAliasDialogOpen()) return false;
         if (e?.repeat) {
             startAutoScroll("down");
@@ -2154,26 +2141,26 @@ function registerListHotkeyFeatures() {
             return setKeyboardActiveIndex(nextIdx, { ...STEP_NAV_EDGE_END_OPTIONS });
         }
         return setKeyboardActiveIndex(nextIdx, { ...STEP_NAV_CENTER_OPTIONS });
-    });
-    registerFeature("list-page-up", () => {
+    };
+    const handleListPageUpCommand = () => {
         if (isAliasDialogOpen()) return false;
         if (isFocusInSearch()) return false;
         if (props.showList.length === 0) return false;
 
         return runPageNavigation("up");
-    });
-    registerFeature("list-page-down", () => {
+    };
+    const handleListPageDownCommand = () => {
         if (isAliasDialogOpen()) return false;
         if (isFocusInSearch()) return false;
         if (props.showList.length === 0) return false;
 
         return runPageNavigation("down");
-    });
-    registerFeature("list-nav-left", () => {
+    };
+    const handleListNavLeftCommand = () => {
         if (isAliasDialogOpen()) return false;
         return setKeyboardActiveIndex(activeIndex.value - 1);
-    });
-    registerFeature("list-scroll-to-bottom", () => {
+    };
+    const handleListScrollToBottomCommand = () => {
         if (isAliasDialogOpen()) return false;
         return setKeyboardActiveIndex(props.showList.length - 1, {
             actionType: "page-nav",
@@ -2181,8 +2168,8 @@ function registerListHotkeyFeatures() {
             edge: "end",
             forceScroll: true,
         });
-    });
-    registerFeature("list-scroll-to-top", () => {
+    };
+    const handleListScrollToTopCommand = () => {
         if (isAliasDialogOpen()) return false;
         return setKeyboardActiveIndex(0, {
             actionType: "page-nav",
@@ -2190,28 +2177,28 @@ function registerListHotkeyFeatures() {
             edge: "start",
             forceScroll: true,
         });
-    });
-    registerFeature("text-preview-scroll-up", () => {
+    };
+    const handleTextPreviewScrollUpCommand = () => {
         if (isAliasDialogOpen()) return false;
         return handlePreviewScrollShortcut("up");
-    });
-    registerFeature("text-preview-scroll-down", () => {
+    };
+    const handleTextPreviewScrollDownCommand = () => {
         if (isAliasDialogOpen()) return false;
         return handlePreviewScrollShortcut("down");
-    });
-    registerFeature("image-preview-scroll-left", () => {
+    };
+    const handleImagePreviewScrollLeftCommand = () => {
         if (isAliasDialogOpen()) return false;
         return handlePreviewScrollShortcut("left");
-    });
-    registerFeature("image-preview-scroll-right", () => {
+    };
+    const handleImagePreviewScrollRightCommand = () => {
         if (isAliasDialogOpen()) return false;
         return handlePreviewScrollShortcut("right");
-    });
+    };
     const isFocusInSearch = () => {
         const el = document.activeElement;
         return el && (el.classList?.contains("clip-search-input") || el.closest?.(".clip-search"));
     };
-    registerFeature("list-view-full", () => {
+    const handleListViewFullCommand = () => {
         if (isAliasDialogOpen()) return false;
         if (isFocusInSearch()) return false;
         const item = props.showList[activeIndex.value];
@@ -2224,26 +2211,61 @@ function registerListHotkeyFeatures() {
             return true;
         }
         return false;
-    });
-    registerFeature("list-drawer-open", () => {
+    };
+    const handleListDrawerOpenCommand = () => {
         if (isAliasDialogOpen()) return false;
         if (isFocusInSearch()) return false;
         openDrawerForCurrentItem();
         return true;
-    });
-    registerFeature("list-tag-edit", () => {
-        const item = props.showList[activeIndex.value];
-        if (!item) {
-            ElMessage({ type: "info", message: "当前无可操作条目" });
-            return false;
+    };
+    const handleListPreviewShiftCommand = () => {
+        if (isAliasDialogOpen()) return false;
+        if (props.isMultiple) isShiftDown.value = true;
+        handleShiftKeyDown();
+        return {
+            handled: true,
+            preventDefault: false,
+            stopPropagation: false,
+        };
+    };
+    const handleListMultiToggleCurrentCommand = () => {
+        if (isAliasDialogOpen()) return false;
+        if (props.isSearchPanelExpand) return false;
+        if (!props.isMultiple) emit("toggleMultiSelect", true);
+        const currentItem = props.showList[activeIndex.value];
+        if (!currentItem) return true;
+        if (selectedItemIdSet.value.has(currentItem.id)) {
+            removeSelectedItemById(currentItem.id);
+        } else {
+            appendSelectedItems([currentItem]);
+            setKeyboardActiveIndex(activeIndex.value + 1, {
+                actionType: "step-nav",
+                scrollMode: "center-preferred",
+            });
         }
-        if (window.db && window.db.isCollected(item.id)) {
-            emit("openTagEdit", item);
+        return true;
+    };
+    const handleListCopyOnlyCommand = () => {
+        if (isAliasDialogOpen()) return false;
+        if (props.fullData.data) {
+            emit("onMultiCopyExecute", {
+                paste: false,
+                persist: true,
+                exit: true,
+            });
             return true;
         }
-        return saveAliasForItem(item);
-    });
-    registerFeature("list-enter", (e) => {
+        if (!props.isMultiple && props.showList[activeIndex.value]) {
+            copyAndPasteAndExit(props.showList[activeIndex.value], {
+                paste: false,
+                respectImageCopyGuard: true,
+            });
+            ElMessage({ message: "澶嶅埗鎴愬姛", type: "success" });
+            return true;
+        }
+        return false;
+    };
+    const handleListCopyPasteCommand = (e) => {
         if (isAliasDialogOpen()) return false;
         if (e && (e.isComposing || e.key === "Process")) return false;
         if (props.isMultiple) {
@@ -2263,27 +2285,8 @@ function registerListHotkeyFeatures() {
                 respectImageCopyGuard: true,
             });
         return true;
-    });
-    registerFeature("list-ctrl-enter", (e) => {
-        if (isAliasDialogOpen()) return false;
-        if (e && (e.isComposing || e.key === "Process")) return false;
-        if (!props.isMultiple && props.showList[activeIndex.value]) {
-            const current = props.showList[activeIndex.value];
-            setItemLockedState(current.id, true);
-            copyAndPasteAndExit(current, { respectImageCopyGuard: true });
-            return true;
-        }
-        if (props.isMultiple && selectItemList.value.length) {
-            emit("onMultiCopyExecute", {
-                paste: true,
-                persist: true,
-                exit: true,
-            });
-            return true;
-        }
-        return false;
-    });
-    registerFeature("list-save-by-alias", (e) => {
+    };
+    const handleListAliasPasteCommand = (e) => {
         if (isAliasDialogOpen()) return false;
         if (e && (e.isComposing || e.key === "Process")) return false;
         if (props.isMultiple && selectItemList.value.length) {
@@ -2338,28 +2341,39 @@ function registerListHotkeyFeatures() {
         }
         copyAndPasteAndExit(item, { respectImageCopyGuard: true });
         return true;
-    });
-    registerFeature("list-copy", () => {
+    };
+    const handleListTagEditCommand = () => {
+        const item = props.showList[activeIndex.value];
+        if (!item) {
+            ElMessage({ type: "info", message: "当前无可操作条目" });
+            return false;
+        }
+        if (window.db && window.db.isCollected(item.id)) {
+            emit("openTagEdit", item);
+            return true;
+        }
+        return saveAliasForItem(item);
+    };
+    const handleListCopyPasteAndLockCommand = (e) => {
         if (isAliasDialogOpen()) return false;
-        if (props.fullData.data) {
+        if (e && (e.isComposing || e.key === "Process")) return false;
+        if (!props.isMultiple && props.showList[activeIndex.value]) {
+            const current = props.showList[activeIndex.value];
+            setItemLockedState(current.id, true);
+            copyAndPasteAndExit(current, { respectImageCopyGuard: true });
+            return true;
+        }
+        if (props.isMultiple && selectItemList.value.length) {
             emit("onMultiCopyExecute", {
-                paste: false,
+                paste: true,
                 persist: true,
                 exit: true,
             });
             return true;
         }
-        if (!props.isMultiple && props.showList[activeIndex.value]) {
-            copyAndPasteAndExit(props.showList[activeIndex.value], {
-                paste: false,
-                respectImageCopyGuard: true,
-            });
-            ElMessage({ message: "澶嶅埗鎴愬姛", type: "success" });
-            return true;
-        }
         return false;
-    });
-    registerFeature("list-pin-toggle", () => {
+    };
+    const handleListPinToggleCommand = () => {
         if (isAliasDialogOpen()) return false;
         const item = props.showList[activeIndex.value];
         if (!item) {
@@ -2368,8 +2382,8 @@ function registerListHotkeyFeatures() {
         }
         emit("togglePin", item);
         return true;
-    });
-    registerFeature("list-collect", () => {
+    };
+    const handleListCollectCommand = () => {
         if (isAliasDialogOpen()) return false;
         const targets =
             props.isMultiple && selectItemList.value.length
@@ -2400,8 +2414,8 @@ function registerListHotkeyFeatures() {
             emit("onDataRemove");
         }
         return true;
-    });
-    registerFeature("list-lock", () => {
+    };
+    const handleListLockCommand = () => {
         if (isAliasDialogOpen()) return false;
         const targets =
             props.isMultiple && selectItemList.value.length
@@ -2427,8 +2441,8 @@ function registerListHotkeyFeatures() {
             emit("onDataRemove");
         }
         return true;
-    });
-    registerFeature("list-delete", (e) => {
+    };
+    const handleListDeleteCommand = (e) => {
         if (isAliasDialogOpen()) return false;
         if (!getCanDeleteItem(e, false)) return false;
         const itemsToDelete = props.isMultiple
@@ -2470,8 +2484,8 @@ function registerListHotkeyFeatures() {
                 message: `已跳过锁定 ${skippedLocked} 条，使用 Ctrl+Delete/Ctrl+Backspace 强制删除`,
             });
         return true;
-    });
-    registerFeature("list-force-delete", (e) => {
+    };
+    const handleListForceDeleteCommand = (e) => {
         if (isAliasDialogOpen()) return false;
         const itemsToDelete = props.isMultiple
             ? selectItemList.value.length
@@ -2511,53 +2525,74 @@ function registerListHotkeyFeatures() {
             return true;
         }
         return false;
-    });
-    registerFeature("list-space", () => {
-        if (isAliasDialogOpen()) return false;
-        if (props.isSearchPanelExpand) return false;
-        if (!props.isMultiple) emit("toggleMultiSelect", true);
-        const currentItem = props.showList[activeIndex.value];
-        if (!currentItem) return true;
-        if (selectedItemIdSet.value.has(currentItem.id)) {
-            removeSelectedItemById(currentItem.id);
-        } else {
-            appendSelectedItems([currentItem]);
-            setKeyboardActiveIndex(activeIndex.value + 1, {
-                actionType: "step-nav",
-                scrollMode: "center-preferred",
-            });
-        }
-        return true;
-    });
+    };
+    const listCommandPairs = [
+        { featureId: "list-nav-up", commandId: "list.navigate.up", handler: handleListNavUpCommand },
+        { featureId: "list-nav-down", commandId: "list.navigate.down", handler: handleListNavDownCommand },
+        { featureId: "list-page-up", commandId: "list.navigate.pageUp", handler: handleListPageUpCommand },
+        { featureId: "list-page-down", commandId: "list.navigate.pageDown", handler: handleListPageDownCommand },
+        { featureId: "list-nav-left", commandId: "list.navigate.left", handler: handleListNavLeftCommand },
+        { featureId: "list-scroll-to-bottom", commandId: "list.navigate.bottom", handler: handleListScrollToBottomCommand },
+        { featureId: "list-scroll-to-top", commandId: "list.navigate.top", handler: handleListScrollToTopCommand },
+        { featureId: "text-preview-scroll-up", commandId: "list.preview.text.up", handler: handleTextPreviewScrollUpCommand },
+        { featureId: "text-preview-scroll-down", commandId: "list.preview.text.down", handler: handleTextPreviewScrollDownCommand },
+        { featureId: "image-preview-scroll-left", commandId: "list.preview.image.left", handler: handleImagePreviewScrollLeftCommand },
+        { featureId: "image-preview-scroll-right", commandId: "list.preview.image.right", handler: handleImagePreviewScrollRightCommand },
+        { featureId: "list-view-full", commandId: "list.item.openFull", handler: handleListViewFullCommand },
+        { featureId: "list-drawer-open", commandId: "list.item.openDrawer", handler: handleListDrawerOpenCommand },
+        { featureId: "list-shift", commandId: "list.preview.shift", handler: handleListPreviewShiftCommand },
+        { featureId: "list-space", commandId: "list.multi.toggleCurrent", handler: handleListMultiToggleCurrentCommand },
+        { featureId: "list-copy", commandId: "list.item.copyOnly", handler: handleListCopyOnlyCommand },
+        { featureId: "list-enter", commandId: "list.item.copyPaste", handler: handleListCopyPasteCommand },
+        { featureId: "list-save-by-alias", commandId: "list.item.aliasPaste", handler: handleListAliasPasteCommand },
+        { featureId: "list-tag-edit", commandId: "list.item.editTagOrAlias", handler: handleListTagEditCommand },
+        { featureId: "list-ctrl-enter", commandId: "list.item.copyPasteAndLock", handler: handleListCopyPasteAndLockCommand },
+        { featureId: "list-pin-toggle", commandId: "list.item.pinToggle", handler: handleListPinToggleCommand },
+        { featureId: "list-collect", commandId: "list.item.collectToggle", handler: handleListCollectCommand },
+        { featureId: "list-lock", commandId: "list.item.lockToggle", handler: handleListLockCommand },
+        { featureId: "list-delete", commandId: "list.item.delete", handler: handleListDeleteCommand },
+        { featureId: "list-force-delete", commandId: "list.item.forceDelete", handler: handleListForceDeleteCommand },
+    ];
     for (let n = 1; n <= 9; n++) {
-        registerFeature(`list-quick-copy-${n}`, () => {
-            if (isAliasDialogOpen()) return false;
-            const targetItem = props.showList[n - 1];
-            if (targetItem) {
-                copyAndPasteAndExit(targetItem, {
-                    respectImageCopyGuard: true,
-                });
-                replaceSelectedItems([]);
-                return true;
-            }
-            return false;
+        const num = n;
+        listCommandPairs.push({
+            featureId: `list-quick-copy-${num}`,
+            commandId: `list.quickCopy.${num}`,
+            handler: () => {
+                if (isAliasDialogOpen()) return false;
+                const targetItem = props.showList[num - 1];
+                if (targetItem) {
+                    copyAndPasteAndExit(targetItem, {
+                        respectImageCopyGuard: true,
+                    });
+                    replaceSelectedItems([]);
+                    return true;
+                }
+                return false;
+            },
         });
     }
     for (let n = 1; n <= 9; n++) {
         const num = n;
-        registerFeature(`list-drawer-sub-${num}`, () => {
-            if (isAliasDialogOpen()) return false;
-            const currentItem = props.showList[activeIndex.value];
-            if (!currentItem) return false;
-            const menu = getDrawerFullMenuItems(currentItem);
-            if (num - 1 >= menu.length) {
-                ElMessage({ type: "info", message: "该序号无可执行操作" });
-                return false;
-            }
-            handleDrawerSelect(menu[num - 1], { sub: false, fromShortcut: true });
-            return true;
+        listCommandPairs.push({
+            featureId: `list-drawer-sub-${num}`,
+            commandId: `list.drawerSub.${num}`,
+            handler: () => {
+                if (isAliasDialogOpen()) return false;
+                const currentItem = props.showList[activeIndex.value];
+                if (!currentItem) return false;
+                const menu = getDrawerFullMenuItems(currentItem);
+                const result = getContextMenuActionByIndex(menu, num);
+                if (!result.ok) {
+                    ElMessage({ type: "info", message: "该序号无可执行操作" });
+                    return false;
+                }
+                handleDrawerSelect(result.action, { sub: false, fromShortcut: true });
+                return true;
+            },
         });
     }
+    disposeListCommandHandlers = registerCommandFeaturePairs(listCommandPairs);
 }
 
 // 长按方向键：先逐条移动，重复后按页加速滚动
@@ -2739,6 +2774,8 @@ onMounted(() => {
 
 onUnmounted(() => {
     // 从不同行移入时停止上一行的 hover 预览，避免同一行内移动造成闪烁
+    disposeListCommandHandlers?.();
+    disposeListCommandHandlers = null;
     document.removeEventListener("keydown", unifiedKeyHandler, true);
     document.removeEventListener("keyup", unifiedKeyReleaseHandler, true);
     window.removeEventListener(SETTING_UPDATED_EVENT, handleSettingUpdated);

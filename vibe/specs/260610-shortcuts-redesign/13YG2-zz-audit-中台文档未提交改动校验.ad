@@ -1,0 +1,98 @@
+= 中台文档未提交改动校验
+
+Tool: codex
+
+== 结论
+
+本次复核结论：当前 [../PROJECT_STATUS.md](../PROJECT_STATUS.md:20) 对“UI 交互优化 v1.2.1 完成、右键统一第一阶段完成、快捷键命令重构主线继续”的描述，与当前未提交代码和任务文档总体一致。
+
+可确认闭环：
+
+- UI 交互优化评估文档已声明 9 项需求完成，并补充右键统一第一阶段关联进度：[../260610-ui交互优化/评估报告-2026-06-11.md](../260610-ui交互优化/评估报告-2026-06-11.md:1)。
+- 快捷键重构主线已有 command、when、resolver、SQLite/fallback、macro、设置页工作台和验证矩阵：[12YG2-zz-summary-快捷键重构全景文档.md](12YG2-zz-summary-快捷键重构全景文档.md:1)。
+- 右键统一第一阶段已有独立计划、进度、验证记录，并与快捷键审计文档同步：[../260612-right-click-unification/01-plan.md](../260612-right-click-unification/01-plan.md:1)。
+
+不应改写为“全部终局完成”的点：
+
+- uTools 生产壳首次迁移仍是后续手工验证项。
+- macro 冲突预览虽已纳入设置页冲突行，但仍可继续增强为更完整的前置合并视图。
+- `registerCommandFeaturePair()` fallback 清理仍被中台正确列为后续候选。
+
+== 核验范围
+
+当前未提交改动分两类：
+
+- 已暂存新增：快捷键命令系统核心、SQLite 快捷键/宏仓库、测试脚本、快捷键重构过程文档。
+- 未暂存修改：右键统一接入、设置页联动、UI 交互优化评估报告、中台文档更新、相关组件 command/feature pair 迁移。
+
+本次没有修改业务实现，只新增本校验文档。
+
+== 中台声明对照
+
+| 中台声明 | 核验结果 | 证据 |
+|---|---|---|
+| UI interaction optimization v1.2.1 completed | 符合 | 评估报告已列出 9 项需求实现与代码位置：[../260610-ui交互优化/评估报告-2026-06-11.md](../260610-ui交互优化/评估报告-2026-06-11.md:1) |
+| Right-click unification first-stage completed | 符合 | 右键 action 模型生成抽屉菜单：[../../../src/global/contextMenuActions.js](../../../src/global/contextMenuActions.js:76)；列表抽屉渲染共用模型：[../../../src/cpns/ClipItemList.vue](../../../src/cpns/ClipItemList.vue:1267)；列表数字执行共用序号解析：[../../../src/cpns/ClipItemList.vue](../../../src/cpns/ClipItemList.vue:2584)；设置页弹窗入口：[../../../src/views/Setting.vue](../../../src/views/Setting.vue:770)；排序写回 `drawer.order`：[../../../src/views/Setting.vue](../../../src/views/Setting.vue:1836) |
+| Shortcut command redesign main line continues | 符合 | 快捷键 store SQLite 优先/fallback：[../../../src/global/shortcutStore.js](../../../src/global/shortcutStore.js:28)；设置保存写 SQLite 并 fallback：[../../../src/global/shortcutStore.js](../../../src/global/shortcutStore.js:133)；SQLite schema 与事务替换：[../../../src/storage/shortcutKeybindingRepository.js](../../../src/storage/shortcutKeybindingRepository.js:7)、[../../../src/storage/shortcutKeybindingRepository.js](../../../src/storage/shortcutKeybindingRepository.js:264) |
+| Macro 已接入第一阶段运行时 | 符合 | macro 约束与非写入默认策略：[../../../src/global/commandMacro.js](../../../src/global/commandMacro.js:3)；运行时动态注册 macro command 并合入 binding：[../../../src/cpns/HotkeyProvider.vue](../../../src/cpns/HotkeyProvider.vue:43)；macro 纳入冲突行：[../../../src/views/Setting.vue](../../../src/views/Setting.vue:1154) |
+| 下一步候选为生产壳迁移、macro 冲突预览、fallback cleanup | 符合 | 当前文档没有把这些项误标为终局完成；全景文档也将 uTools 生产壳验证和 fallback cleanup 列为后续建议：[12YG2-zz-summary-快捷键重构全景文档.md](12YG2-zz-summary-快捷键重构全景文档.md:1) |
+
+== 实现一致性判断
+
+=== 快捷键命令系统
+
+符合需求。
+
+- command 元数据和旧 feature 映射已存在，支持 command-aware binding。
+- when/resolver 已接入 dispatch，并有默认矩阵 shadow 对照测试。
+- 用户 override 支持改键、禁用、恢复默认；SQLite 优先，setting fallback 保留。
+- 设置页 command 表、搜索、筛选、风险标记、存储来源、录制改键、When 图形/文本双模式已落地。
+
+主要限制：生产壳首次迁移还没有本轮手工验证记录，因此中台保留为后续候选是正确的。
+
+=== 右键统一
+
+符合第一阶段需求。
+
+- 抽屉渲染和列表层 `list.drawerSub.N` 使用同一菜单模型。
+- 别名编辑固定插入第 2 位，且标记为不可排序写入动作。
+- 设置页能查看右键 action、快捷键摘要，并支持拖拽排序和恢复默认顺序。
+- 未改 SQLite schema，旧 `drawer.order` 路径继续可读。
+
+主要限制：当前为第一阶段统一，尚未扩展到隐藏/删除 action 或更复杂权限配置。
+
+=== UI 交互优化
+
+符合当前评估文档。
+
+- 中台仅把该任务作为 completed/reference，且说明仅在回归或新 UI 交互任务时再更新。
+- 当前未提交 UI 相关改动未发现与“已完成 v1.2.1”的中台描述冲突。
+
+== 验证结果
+
+已执行并通过：
+
+- `node test-shortcut-command-system.js`
+- `pnpm run build`
+
+非阻断提示：
+
+- `node test-shortcut-command-system.js` 出现 Node `MODULE_TYPELESS_PACKAGE_JSON` ESM 解析性能提示，不影响测试结果。
+- `pnpm run build` 出现 Vite chunk 大于 500 kB 提示，不影响构建结果。
+
+规则审计结果：
+
+- `python3 /Users/gdkmjd/work/czz/CzzProj/CodeNote/AiRef/VibePractice/Vibe_Rules/scripts/audit_ai_rules.py . --mode project` 未通过。
+- 失败项为项目规则治理缺口：缺少 `vibe/rules/documentation.md`；[../../../AGENTS.md](../../../AGENTS.md:1) 未显式路由到 documentation rules；[../../../AGENTS.md](../../../AGENTS.md:1) 未显式路由到 process hub。
+- 该问题不推翻本次中台/实现一致性结论，但应作为后续 documentation governance 小任务处理。
+
+== 风险与建议
+
+- P0：无本次一致性阻断。
+- P1：已补齐 [../../../vibe/rules/documentation.md](../../../vibe/rules/documentation.md:1)，并让 [../../../AGENTS.md](../../../AGENTS.md:1) 显式路由到 documentation rules 与 [../PROJECT_STATUS.md](../PROJECT_STATUS.md:1)，项目规则审计已恢复通过。
+- P1：后续做一次 uTools 生产壳首次迁移验证，覆盖旧 `setting.hotkeyOverrides` 导入、改键保存、重启后 SQLite override 生效、fallback 提示。
+- P2：继续收敛 macro 冲突前置合并视图和 `registerCommandFeaturePair()` fallback 成对清理。
+
+== 记忆路由
+
+本次结论是当前任务校验证据，保留在本任务目录即可；不新增长期项目记忆、不新增 ADR、不写 DB memory。

@@ -1,0 +1,243 @@
+= 快捷键命令系统重构理解
+
+== 结论
+
+本次不应把现有快捷键系统直接推倒重写。最佳路径是把当前 `layer + state + feature` 模型演进为 `command + keybinding + when context + resolver` 模型：
+
+- `feature` 逐步升级为 `command`，保留现有 handler 作为 command handler，降低回归风险。
+- `layer/state` 不再作为绑定主模型，而是沉淀为可组合的 when context，例如 `mainFocus && searchVisible && !inputFocus`。
+- 快捷键冲突判断不能只比较 key；必须比较 `key + when 可同时为真 + 优先级`。
+- 设置页先做可搜索/可编辑的 command-keybinding 工作台，再做 SQLite 化；存储迁移必须分阶段。
+- 业务安全限制仍保留在 handler 内。`when` 只决定“是否触发”，不能替代删除、锁定、IME、多选、空数据等业务 guard。
+
+== 原始需求理解
+
+来源：[7YG2-zz-raw-快捷键重构.ad](7YG2-zz-raw-快捷键重构.ad:1)。
+
+用户要的不是“快捷键 UI 美化”，而是完整快捷键体系重构：
+
+- 抽象 command：有 `id`、默认快捷键、备注、when、source、可恢复默认。
+- when 条件统一替代当前默认层/冲突优先级：普通、搜索、预览、多选、浮窗、侧栏等状态都要显式化。
+- 冲突判断按 when 逻辑判断：允许不同状态复用同一快捷键；同一可达状态冲突要提示。
+- 当前系统 command 先固定：按现有快捷键完整复现，逻辑相近的命令可融合，但执行时仍要检查业务限制。
+- 设置页按 VS Code 快捷键页重构：可搜索、可编辑、展示备注、可恢复默认、可管理 when。
+- 默认数据与用户数据分层：系统默认固定缓存，用户/初始化快照进入 SQLite；恢复默认只影响用户层，不污染系统默认。
+- 为未来组合 command 留扩展点：延迟执行、串行执行、并行执行、状态穿透等。
+
+== 当前代码事实
+
+=== 已有基础
+
+- 默认绑定集中在 [../../../src/global/hotkeyBindings.js](../../../src/global/hotkeyBindings.js:55)，结构是 `{ layer, state?, shortcutId, features }`。
+- 用户覆盖目前存在 `setting.hotkeyOverrides`，通过 [../../../src/global/hotkeyBindings.js](../../../src/global/hotkeyBindings.js:27) 合成 effective bindings。
+- 热键 provider 在 mounted/focus/设置更新/HMR 时刷新绑定：[../../../src/cpns/HotkeyProvider.vue](../../../src/cpns/HotkeyProvider.vue:18)。
+- dispatch 已集中处理 normalize、macOS Cmd/Ctrl 映射、重复按键、IME、MessageBox、设置页输入控件保护：[../../../src/global/hotkeyRegistry.js](../../../src/global/hotkeyRegistry.js:149)。
+- 当前 layer 栈只有名称和 top layer：[../../../src/global/hotkeyLayers.js](../../../src/global/hotkeyLayers.js:3)。
+- 主界面搜索态通过 `setMainState()` 注入 registry：[../../../src/global/hotkeyRegistry.js](../../../src/global/hotkeyRegistry.js:81)。
+- 设置页快捷键展示通过 `buildHotkeyTree()` 把绑定转为树：[../../../src/views/Setting.vue](../../../src/views/Setting.vue:579)、[../../../src/global/hotkeyGraph.js](../../../src/global/hotkeyGraph.js:70)。
+- 设置页保存仍把快捷键覆盖写入 `setting`，不是 SQLite：[../../../src/views/Setting.vue](../../../src/views/Setting.vue:916)。
+
+=== 现有模型的局限
+
+- `feature` 不是 command。它缺少 title、category、description、defaultWhen、args、source、可见性、危险等级等元信息。
+- `layer/state` 表达力不足。当前只有 main search 这类粗粒度 state，无法表达 `multiSelect && !searchInputFocus`、`previewKind == image`、`tagEditOpen || aliasDialogOpen`。
+- 冲突判断没有完整模型。现有 override key 由 `layer:state:shortcut:features` 拼出：[../../../src/global/hotkeyBindings.js](../../../src/global/hotkeyBindings.js:17)，无法稳定承载 command 级编辑、默认恢复、版本升级。
+- settings 快捷键页目前更像只读树。它能搜索与展示，但不具备 VS Code 风格的行级绑定编辑、when 编辑、冲突解释、source 区分：[../../../src/cpns/HotkeyTreeView.vue](../../../src/cpns/HotkeyTreeView.vue:1)。
+- handler 内部有大量业务 guard，例如搜索框焦点、别名弹窗、锁定项、多选删除、IME。它们不能全量上移为 when，否则会破坏数据安全和交互一致性。
+- 系统默认与用户修改没有独立存储层。当前 `restoreSetting()` 直接清空 `hotkeyOverrides` 并写回 `setting`：[../../../src/global/restoreSetting.js](../../../src/global/restoreSetting.js:17)。
+
+== 外部实践参考
+
+- VS Code 快捷键规则核心是 `key + command + when`，when 基于上下文键决定命令是否启用；官方示例使用 `debuggersAvailable && !inDebugMode` 这种布尔表达式：[VS Code Keyboard Shortcuts](https://code.visualstudio.com/docs/configure/keybindings)、[VS Code when clause contexts](https://code.visualstudio.com/api/references/when-clause-contexts)。
+- VS Code command contribution 把命令作为可被菜单、快捷键、命令面板复用的主体；keybindings 只是 command 的触发入口：[VS Code Contribution Points](https://code.visualstudio.com/api/references/contribution-points)、[VS Code Commands](https://code.visualstudio.com/api/extension-guides/command)。
+- Electron accelerator 是跨平台快捷键字符串，大小写不敏感，修饰键和 key 用 `+` 组合；跨平台可用 `CommandOrControl`，但本项目运行在 uTools 插件环境，应继续用当前 `ctrl -> mac Command` 的展示/匹配策略：[Electron Keyboard Shortcuts](https://electronjs.org/docs/latest/tutorial/keyboard-shortcuts)。
+- Electron `globalShortcut` 是主进程能力，应用失焦也能检测快捷键，但被占用时会失败；不适合本轮应用内 command 系统直接依赖：[Electron globalShortcut](https://electronjs.org/docs/latest/api/global-shortcut)。
+- CodeMirror keymap 强调 keymap 的顺序/优先级；这可类比本项目 overlay layer 优先于 main 的 resolver，但更好的做法是把“优先级”显式写入 binding resolver，而不是散落在 layer 栈中：[CodeMirror configuration](https://codemirror.net/examples/config/)。
+- uTools 支持为插件指令配置全局快捷键，并提供 `utools.redirectHotKeySetting(cmdLabel)` 引导用户到设置；全局快捷键应走 uTools 指令，不应由应用内快捷键系统抢占系统键：[uTools 全局快捷键](https://www.u-tools.cn/docs/guide/global-shortcut.html)、[uTools 动态指令](https://www.u-tools.cn/docs/developer/utools-api/features.html)。
+
+== 推荐目标模型
+
+=== Command
+
+Command 是“可执行能力”的唯一主体：
+
+```
+{
+  id: "clipboard.list.delete",
+  title: "删除选中项",
+  category: "列表",
+  description: "删除当前高亮或多选项目；锁定项会被跳过。",
+  defaultWhen: "mainFocus && listFocus && !inputFocus && !aliasDialogOpen",
+  handler: "list-delete",
+  source: "system",
+  risk: "data-write"
+}
+```
+
+说明：
+
+- `handler` 初期指向现有 feature id，后续再把 `registerFeature()` 重命名/兼容为 `registerCommand()`。
+- `defaultWhen` 是建议触发条件，不替代 handler 内业务检查。
+- `risk` 用于设置页标注删除、强制删除、清空等高风险命令。
+
+=== Keybinding
+
+Keybinding 是“按键到 command 的绑定”：
+
+```
+{
+  id: "kb.clipboard.list.delete.default",
+  key: "Delete",
+  command: "clipboard.list.delete",
+  when: "mainFocus && listFocus && !searchActive && !inputFocus",
+  source: "system",
+  weight: 100
+}
+```
+
+说明：
+
+- 同一 command 可有多个 keybinding。
+- 同一 key 可绑定多个 command，但 when 不可同时为真，除非显式用更高 `weight` 覆盖并给出冲突解释。
+- `source` 只描述绑定来源：`system`、`defaultSnapshot`、`user`、`removed`。
+
+=== Context
+
+Context 是当前 UI 状态快照：
+
+```
+{
+  appFocus: true,
+  mainFocus: true,
+  settingFocus: false,
+  inputFocus: false,
+  searchActive: false,
+  searchInputFocus: false,
+  multiSelect: false,
+  drawerOpen: false,
+  fullDataOpen: false,
+  tagSearchOpen: false,
+  tagEditOpen: false,
+  pinGroupEditOpen: false,
+  previewKind: "text"
+}
+```
+
+说明：
+
+- 当前 `layerStack` 可降级成 context 来源之一，例如 `drawerOpen = activeLayers.includes("clip-drawer")`。
+- `mainStateRef.current === "search"` 应迁移为 `searchActive`。
+- editable target 不应只靠 dispatch 临时判断，应进入 context 的 `inputFocus/searchInputFocus`，但 dispatch 仍保留安全短路。
+
+=== Resolver
+
+Resolver 负责：
+
+1. 从 KeyboardEvent 得到 normalized key。
+2. 读取 context。
+3. 找出 key 相同且 when 为 true 的 bindings。
+4. 按 `weight/source/specificity/order` 排序。
+5. 如果多个候选同级命中，返回冲突诊断。
+6. 执行 command handler。
+
+推荐优先级：
+
+- `user` 高于 `defaultSnapshot` 高于 `system`。
+- overlay/modal context 高于 main context。
+- when 更具体者高于更泛者。
+- 显式 `weight` 高于隐式顺序。
+- `*` block 规则保留，但应表达为 `when: "drawerOpen"` + `command: "system.blockUnhandled"`。
+
+== when 语言建议
+
+先实现 VS Code 子集，不要一开始做完整表达式语言：
+
+- 支持布尔 key：`mainFocus`。
+- 支持取反：`!inputFocus`。
+- 支持与/或：`&&`、`||`。
+- 支持括号：`mainFocus && (searchActive || multiSelect)`。
+- 支持枚举比较：`previewKind == 'image'`、`activeTab == 'collect'`。
+- 暂不建议支持 XOR 作为第一阶段语法。UI 可提供“互斥条件”选择，但落到表达式时用 `A && !B` 更可读。
+
+冲突判断只需要判断两个 when 是否“可能同时为真”。第一阶段可用保守算法：
+
+- 显式互斥 context 表：如 `mainFocus` 与 `settingFocus` 互斥，`drawerOpen` 与 `fullDataOpen` 按当前 layer 策略互斥。
+- 将表达式转为 AST，提取正/负 literal。
+- 有正负同名矛盾则不冲突；命中互斥组则不冲突；否则按可能冲突提示。
+- 对无法证明不冲突的复杂表达式，保守提示“可能冲突”，允许用户确认覆盖。
+
+== Command 梳理方向
+
+初期 command 不追求完美命名，先完整覆盖现有 feature：
+
+- `setting.*`：设置滚动、设置 tab 切换。
+- `dialog.clear.*`：清除范围选择、确认、关闭、block。
+- `drawer.*`：关闭、上下选择、选择第 N 项、执行第 N 个子操作、block。
+- `preview.fullData.*`：关闭、滚动、block。
+- `tag.search.*`、`tag.edit.*`：关闭、保存、焦点切换、block。
+- `pin.group.*`：编辑、保存、上移、下移、清空、block。
+- `main.tab.*`：主 tab、收藏子 tab、数字切换。
+- `list.navigate.*`：上下、翻页、首尾、预览滚动。
+- `list.copy.*`：复制、复制并锁定、别名粘贴、快速复制。
+- `list.item.*`：删除、强制删除、收藏、锁定、置顶、标签编辑、查看全部、抽屉。
+- `search.*`：聚焦搜索、锁定筛选、搜索结果删除/强制删除。
+
+删除/强制删除可共享内部执行方法，但不建议合并成一个 command 再靠 when 判断 force。更清晰的是：
+
+- `list.item.delete`
+- `list.item.forceDelete`
+- `search.results.delete`
+- `search.results.forceDelete`
+
+业务内部可共用 `deleteItems({ force, scope })`。
+
+== 设置页形态
+
+设置页应从树形只读展示改为表格工作台：
+
+- 列：命令、快捷键、when、来源、备注、操作。
+- 搜索：按命令标题、id、快捷键、when、备注过滤。
+- 行操作：录制快捷键、编辑 when、重置、禁用绑定、查看冲突。
+- 悬浮：命令标题悬浮展示 description、风险、默认绑定。
+- when 编辑：左键快速编辑文本；右键打开结构化编辑器，展示可选 context、互斥关系、当前冲突。
+- 表头固定，分页/过滤继续复用设置页现有工作台模式。
+
+UI 约束：
+
+- 这是紧凑工具设置页，不能做大卡片化重排。
+- 输入框聚焦时必须保留删除、方向键、IME 默认行为。
+- 快捷键录制 overlay 必须独立 context，避免录制期间触发底层命令。
+
+== 存储策略
+
+第一阶段不要直接把运行时绑定迁到 SQLite。推荐分三层：
+
+- system defaults：代码内只读默认数据，随版本发布。
+- default snapshot：首次加载某版本时，把 system defaults 快照进 SQLite，用于展示“当前默认”与版本迁移。
+- user bindings：用户修改、禁用、恢复默认都写 SQLite。
+
+迁移原则：
+
+- 旧 `setting.hotkeyOverrides` 保留读取，迁移后标记版本，不重复导入。
+- SQLite 不可用时，降级到当前 `utools.dbStorage setting.hotkeyOverrides`，不能导致快捷键失效。
+- 恢复默认只删除/重置 user binding，不修改 system defaults。
+- 系统升级新增 command 时，只追加默认快照；用户已有绑定不被覆盖。
+
+== 非目标
+
+- 不在第一阶段实现组合 command 执行器，只预留 schema。
+- 不全局监听系统快捷键；uTools 全局快捷键继续走功能指令。
+- 不修改主界面布局、滚动容器、搜索 reveal guard、IME guard。
+- 不把所有 handler guard 移到 when。
+- 不引入新依赖，when parser 可以先写小型 tokenizer/AST。
+
+== 当前判断
+
+最佳方案是“兼容式内核升级”：
+
+1. 先把默认绑定和 labels 结构化成 command/keybinding 元数据。
+2. 再实现 context/when/resolver，与旧 `layer/state` 并行运行。
+3. 确认全部现有快捷键行为一致后，设置页再升级为可编辑工作台。
+4. 最后迁移存储到 SQLite，并保留 JSON/dbStorage fallback。
+
+这样能满足 VS Code 风格设计，同时保护当前已验证的删除、搜索、预览、多选、浮窗和设置页输入行为。

@@ -10,6 +10,7 @@ Tool: codex
 - Workflow rules: [workflow.md](workflow.md)
 - Knowledge routing: [knowledge.md](knowledge.md)
 - Context loading and tool adapters: [context-loading.md](context-loading.md)
+- Documentation routing: [documentation.md](documentation.md)
 
 ## Rule Boundary
 
@@ -17,6 +18,7 @@ Tool: codex
 - This project stores only project-specific stack, commands, paths, business rules, risk areas, and verification notes.
 - Legacy AI rules are preserved under `vibe/knowledge/legacy/` when replaced by this structure.
 - Tool-specific adapters are discovery surfaces only; the authoritative rule tree remains this directory plus CodeNote.
+- Documentation layering is defined in [documentation.md](documentation.md); keep task details in `vibe/specs/` instead of adapters.
 
 ## Task Closeout
 
