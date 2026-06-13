@@ -18,6 +18,7 @@ Rules:
 
 - Keep project-specific rules in `vibe/rules/`; do not copy the CodeNote master into this repository.
 - Load task-specific memories from `.agents/skills/ezclipboard-rules/SKILL.md` instead of pasting every rule into the model context.
+- Documentation hygiene: authoritative knowledge = correct facts only; error-memory = misconception concepts only—remove stale refs and intermediate/wrong-code history from formal docs ([../../vibe/rules/documentation.md](../../vibe/rules/documentation.md#knowledge-hygiene权威文档原则)).
 - For UI changes, read the UI guardrail memory before editing and verify search, keyboard navigation, virtual scroll, delete anchor, and input behavior.
 - For storage changes, read the storage performance memory before editing and verify SQLite, JSON fallback, migration, repeat-import protection, and settings status.
 - Preserve user changes and unrelated business code.

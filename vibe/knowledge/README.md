@@ -26,6 +26,6 @@ Tool: codex
 ## Governance
 
 - Keep reusable project facts here; keep cross-project rules in CodeNote.
-- Do not delete historical documents without preserving useful conclusions and replacement links.
+- Apply [../rules/documentation.md](../rules/documentation.md#knowledge-hygiene权威文档原则): one authoritative body per topic; remove stale references; misconceptions go to [error-memory/](error-memory/README.md) without wrong-code detail.
 - Before adding memory, search existing records and update the authoritative one when possible.
 - Medium or larger tasks must cite [MEMORY_INDEX.md](MEMORY_INDEX.md) in their knowledge context and record memory routing at closeout.

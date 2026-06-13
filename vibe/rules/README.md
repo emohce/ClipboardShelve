@@ -19,6 +19,7 @@ Tool: codex
 - Legacy AI rules are preserved under `vibe/knowledge/legacy/` when replaced by this structure.
 - Tool-specific adapters are discovery surfaces only; the authoritative rule tree remains this directory plus CodeNote.
 - Documentation layering is defined in [documentation.md](documentation.md); keep task details in `vibe/specs/` instead of adapters.
+- Knowledge hygiene: see [documentation.md#Knowledge-Hygiene](documentation.md#knowledge-hygiene权威文档原则).
 
 ## Task Closeout
 

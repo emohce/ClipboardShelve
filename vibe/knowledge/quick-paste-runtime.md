@@ -59,7 +59,7 @@ Tool: codex
 
 ## 误区（勿再试）
 
-见 [error-memory/](error-memory/README.md)：静默入口误用列表粘贴的 `simulateKeyboardTap`；用延迟掩盖 API/焦点选择错误。
+见 [error-memory/](error-memory/README.md)（概念级误区，非排查流水账）。文档整理原则见 [../rules/documentation.md](../rules/documentation.md#knowledge-hygiene权威文档原则)。
 
 ## 验证
 
