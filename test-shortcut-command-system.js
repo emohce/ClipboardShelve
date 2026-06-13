@@ -70,7 +70,9 @@ async function main() {
   } = await import('./src/global/commandMacroRuntime.js')
   const { HOTKEY_BINDINGS, applyHotkeyOverride, getCommandAwareBindings } = await import('./src/global/hotkeyBindings.js')
   const {
+    buildPinGroupRuntimeCache,
     composeQuickPasteTopItems,
+    resolvePinGroupCacheCursorEntry,
     resolvePinGroupCursorEntry,
     resolvePinGroupCursorItem,
     resolvePinGroupItemsById,
@@ -298,6 +300,39 @@ async function main() {
     ['missing-cache', 'pinned'],
     'pin group should resolve ids from repository fallback and ignore synthetic group rows'
   )
+  let pinGroupCacheFallbackReads = 0
+  const pinGroupRuntimeCache = buildPinGroupRuntimeCache(['missing-cache', 'unsupported', 'pinned', 'base'], {
+    cursor: 1,
+    knownItems: [{ id: 'unsupported', type: 'unknown', data: 'skip' }, quickPastePinned, quickPasteBase],
+    getItemById: (id) => {
+      pinGroupCacheFallbackReads += 1
+      return id === 'missing-cache' ? { id, type: 'text', data: 'cached-from-repository' } : null
+    }
+  })
+  assert.strictEqual(pinGroupCacheFallbackReads, 1)
+  assert.deepStrictEqual(
+    pinGroupRuntimeCache.entries.map((entry) => [entry.type, entry.value.id, entry.sourceIndex]),
+    [
+      ['clipboard-item', 'missing-cache', 0],
+      ['clipboard-item', 'pinned', 2],
+      ['clipboard-item', 'base', 3]
+    ],
+    'pin group runtime cache should store one pasteable clipboard item per entry'
+  )
+  assert.deepStrictEqual(
+    [
+      resolvePinGroupCacheCursorEntry(pinGroupRuntimeCache, { cursor: 1 }),
+      resolvePinGroupCacheCursorEntry(pinGroupRuntimeCache, { cursor: 2 }),
+      resolvePinGroupCacheCursorEntry(pinGroupRuntimeCache, { cursor: 99 })
+    ].map((entry) => [entry.item.id, entry.index, entry.nextIndex]),
+    [
+      ['pinned', 2, 3],
+      ['pinned', 2, 3],
+      ['missing-cache', 0, 2]
+    ],
+    'pin group runtime cache should cycle without resolving items again'
+  )
+  assert.strictEqual(pinGroupCacheFallbackReads, 1)
   const expectedDataWriteCommands = [
     'dialog.clear.confirm',
     'tag.edit.save',
@@ -398,6 +433,7 @@ async function main() {
           title: 'Open settings',
           risk: 'normal',
           delayMs: 10,
+          settleAfterMs: 0,
           elapsedMs: 10,
           args: {}
         },
@@ -407,12 +443,25 @@ async function main() {
           title: 'Next setting tab',
           risk: 'normal',
           delayMs: 120,
+          settleAfterMs: 0,
           elapsedMs: 130,
           args: {}
         }
       ]
     },
     'command macro plan should include ordered steps, elapsed delay and risk summary'
+  )
+  const pasteMacroPlan = buildCommandMacroPlan({
+    id: 'macro.pasteThenMove',
+    steps: [{ command: 'list.item.copyPaste' }, { command: 'list.navigate.down' }]
+  })
+  assert.deepStrictEqual(
+    pasteMacroPlan.plan.steps.map((step) => [step.commandId, step.delayMs, step.settleAfterMs]),
+    [
+      ['list.item.copyPaste', 0, 180],
+      ['list.navigate.down', 0, 0]
+    ],
+    'paste-like macro steps should include a post-run settle delay before the next step'
   )
   const dataWriteMacroPlan = buildCommandMacroPlan(
     { id: 'macro.deleteAllowed', steps: [{ command: 'list.item.delete', delayMs: 5 }] },
@@ -549,6 +598,28 @@ async function main() {
       ['setting.tab.next', 'completed', false]
     ],
     'macro executor should run injected handlers sequentially and aggregate results'
+  )
+  const pasteMacroExecutionTrace = []
+  const successfulPasteMacroExecution = await executeCommandMacroPlan(pasteMacroPlan, {
+    hasCommandHandler: () => true,
+    now: () => 1,
+    wait: async (delayMs, step, phase) => {
+      pasteMacroExecutionTrace.push(['wait', step.commandId, delayMs, phase])
+    },
+    runCommand: async (commandId) => {
+      pasteMacroExecutionTrace.push(['run', commandId])
+      return { handled: true }
+    }
+  })
+  assert.strictEqual(successfulPasteMacroExecution.ok, true)
+  assert.deepStrictEqual(
+    pasteMacroExecutionTrace,
+    [
+      ['run', 'list.item.copyPaste'],
+      ['wait', 'list.item.copyPaste', 180, 'settle'],
+      ['run', 'list.navigate.down']
+    ],
+    'macro executor should wait after paste-like steps so the next command does not race clipboard paste'
   )
   const failedMacroExecution = await executeCommandMacroPlan(macroDryRunPlan, {
     hasCommandHandler: () => true,

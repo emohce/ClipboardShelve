@@ -4,6 +4,17 @@ const pushUniqueItem = (result, seen, item) => {
   result.push(item)
 }
 
+const PIN_GROUP_CACHE_ENTRY_TYPE = 'clipboard-item'
+const PASTEABLE_CLIPBOARD_ITEM_TYPES = new Set(['text', 'image', 'file'])
+
+const isPasteableClipboardItem = (item) =>
+  Boolean(item?.id && !item.__pinGroup && PASTEABLE_CLIPBOARD_ITEM_TYPES.has(item.type))
+
+const getCachePasteItem = (entry = {}) =>
+  entry.type === PIN_GROUP_CACHE_ENTRY_TYPE && isPasteableClipboardItem(entry.value)
+    ? entry.value
+    : null
+
 export function composeQuickPasteTopItems(options = {}) {
   const { baseItems = [], pinnedItems = [] } = options
   const seen = new Set()
@@ -45,6 +56,47 @@ export function resolvePinGroupCursorEntry(itemIds = [], options = {}) {
   const next = entries[(selectedEntryIndex + 1) % entries.length]
   return {
     item: selected.item,
+    index: selected.sourceIndex,
+    nextIndex: next.sourceIndex
+  }
+}
+
+export function buildPinGroupRuntimeCache(itemIds = [], options = {}) {
+  const ids = Array.isArray(itemIds) ? itemIds.filter((id) => id && id !== '__ez_pin_group__') : []
+  const knownItems = Array.isArray(options.knownItems) ? options.knownItems : []
+  const byId = new Map(knownItems.filter((item) => item?.id).map((item) => [item.id, item]))
+  const getItemById = typeof options.getItemById === 'function' ? options.getItemById : () => null
+  const entries = ids
+    .map((id, sourceIndex) => {
+      const item = byId.get(id) || getItemById(id)
+      return {
+        type: PIN_GROUP_CACHE_ENTRY_TYPE,
+        value: isPasteableClipboardItem(item) ? item : null,
+        sourceIndex
+      }
+    })
+    .filter((entry) => getCachePasteItem(entry))
+  return {
+    itemIds: ids,
+    entries,
+    cursor: Math.max(0, Number(options.cursor) || 0),
+    updatedAt: Number(options.updatedAt) || 0
+  }
+}
+
+export function resolvePinGroupCacheCursorEntry(cache = {}, options = {}) {
+  const entries = Array.isArray(cache.entries) ? cache.entries.filter((entry) => getCachePasteItem(entry)) : []
+  if (!entries.length) return { item: null, index: 0, nextIndex: 0 }
+
+  const cursor = Math.max(0, Number(options.cursor ?? cache.cursor) || 0)
+  const entryIndex = entries.findIndex((entry) => entry.sourceIndex >= cursor)
+  const selectedEntryIndex = entryIndex === -1 ? 0 : entryIndex
+  const selected = entries[selectedEntryIndex]
+  const next = entries[(selectedEntryIndex + 1) % entries.length]
+  return {
+    item: getCachePasteItem(selected),
+    type: selected.type || PIN_GROUP_CACHE_ENTRY_TYPE,
+    value: getCachePasteItem(selected),
     index: selected.sourceIndex,
     nextIndex: next.sourceIndex
   }

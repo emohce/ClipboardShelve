@@ -106,6 +106,9 @@ export function buildCommandMacroPlan(macro = {}, options = {}) {
       title: command?.title || step.command,
       risk: command?.risk || 'normal',
       delayMs: step.delayMs,
+      settleAfterMs: Number.isFinite(Number(command?.macroSettleAfterMs))
+        ? Math.max(0, Math.round(Number(command.macroSettleAfterMs)))
+        : 0,
       elapsedMs,
       args: { ...step.args }
     }
@@ -277,7 +280,7 @@ export async function executeCommandMacroPlan(planResult = {}, options = {}) {
       })
       break
     }
-    if (step.delayMs > 0) await wait(step.delayMs, step)
+    if (step.delayMs > 0) await wait(step.delayMs, step, 'delay')
     if (shouldCancel(step)) {
       stepResults.push({
         index: step.index,
@@ -309,6 +312,7 @@ export async function executeCommandMacroPlan(planResult = {}, options = {}) {
       stepResults.push(stepResult)
       onStepEnd(stepResult, step)
       if (status === 'failed' || status === 'cancelled') break
+      if (step.settleAfterMs > 0) await wait(step.settleAfterMs, step, 'settle')
     } catch (err) {
       const stepResult = {
         index: step.index,
