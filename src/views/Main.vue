@@ -289,6 +289,10 @@ import {
     composeQuickPasteTopItems,
     resolvePinGroupItemsById,
 } from "../global/quickPasteSelection";
+import {
+    clearQuickPastePinGroupCache,
+    setQuickPastePinGroupCache,
+} from "../global/quickPasteRuntime";
 
 const CLEAR_RANGE_OPTIONS = [
     { label: "1 小时内", value: "1h" },
@@ -1220,6 +1224,19 @@ const pinGroupListItem = computed(() => {
     };
 });
 
+const syncQuickPastePinGroupCache = () => {
+    const group = pinGroup.value;
+    if (!group?.itemIds?.length) {
+        clearQuickPastePinGroupCache();
+        return;
+    }
+    setQuickPastePinGroupCache(pinGroupItems.value, {
+        itemIds: group.itemIds,
+        cursor: group.cursor,
+        updatedAt: group.updatedAt,
+    });
+};
+
 const getDbVersion = () =>
     typeof window.db?.getVersion === "function" ? window.db.getVersion() : Date.now();
 
@@ -1230,6 +1247,7 @@ const removeVisibleItemsByIds = (ids = []) => {
     pinGroup.value = removePinGroupItems([...idSet]);
     showList.value = showList.value.filter((item) => !idSet.has(item.id));
     collectBlockList.value = collectBlockList.value.filter((item) => !idSet.has(item.id));
+    syncQuickPastePinGroupCache();
 };
 
 const handleTogglePin = (item) => {
@@ -1267,6 +1285,11 @@ const closePinGroupEditor = () => {
 const handlePinGroupSave = (items = []) => {
     const ids = items.map((item) => item?.id).filter((id) => id && id !== "__ez_pin_group__");
     pinGroup.value = savePinGroup(ids, { cursor: 0 });
+    setQuickPastePinGroupCache(items, {
+        itemIds: ids,
+        cursor: pinGroup.value.cursor,
+        updatedAt: pinGroup.value.updatedAt,
+    });
     pinGroupEditorVisible.value = false;
     isMultiple.value = false;
     ClipItemListRef.value?.emptySelectItemList?.();
@@ -1275,6 +1298,7 @@ const handlePinGroupSave = (items = []) => {
 
 const handlePinGroupClear = () => {
     pinGroup.value = clearPinGroup();
+    clearQuickPastePinGroupCache();
     pinGroupEditorVisible.value = false;
     ElMessage({ type: "success", message: "已取消置顶组合" });
 };
@@ -1283,6 +1307,7 @@ const pastePinGroupItem = (index) => {
     const item = pinGroupItems.value[index];
     if (!item) return false;
     pinGroup.value = savePinGroup(pinGroup.value.itemIds, { cursor: index });
+    syncQuickPastePinGroupCache();
     return copyAndPasteAndExit(item, { respectImageCopyGuard: true });
 };
 
@@ -1802,6 +1827,7 @@ onMounted(() => {
     list.value = window.db.dataBase.data;
     showList.value = list.value.slice(0, GAP); // 最初展示 10条
     updateShowList(activeTab.value);
+    syncQuickPastePinGroupCache();
 
     // 定期检查更新
     if (window.listener.listening) {

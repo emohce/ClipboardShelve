@@ -9,6 +9,8 @@ const LAYER_WHEN_MAP = {
   'pin-group-edit': 'pinGroupEditOpen'
 }
 
+const PASTE_COMMAND_SETTLE_AFTER_MS = 180
+
 const COMMAND_DEFINITIONS = [
   ['setting.scroll.up', 'setting-scroll-up', 'setting', 'Setting scroll up'],
   ['setting.scroll.down', 'setting-scroll-down', 'setting', 'Setting scroll down'],
@@ -85,9 +87,9 @@ const COMMAND_DEFINITIONS = [
   ['list.item.openFull', 'list-view-full', 'list', 'Open full item view'],
   ['list.item.openDrawer', 'list-drawer-open', 'list', 'Open item drawer'],
   ['list.item.editTagOrAlias', 'list-tag-edit', 'list', 'Edit tag or alias', 'data-write'],
-  ['list.item.copyPaste', 'list-enter', 'list', 'Copy and paste selected item'],
-  ['list.item.copyPasteAndLock', 'list-ctrl-enter', 'list', 'Copy, paste, and lock selected item', 'data-write'],
-  ['list.item.aliasPaste', 'list-save-by-alias', 'list', 'Paste selected item using alias'],
+  ['list.item.copyPaste', 'list-enter', 'list', 'Copy and paste selected item', 'normal', { macroSettleAfterMs: PASTE_COMMAND_SETTLE_AFTER_MS }],
+  ['list.item.copyPasteAndLock', 'list-ctrl-enter', 'list', 'Copy, paste, and lock selected item', 'data-write', { macroSettleAfterMs: PASTE_COMMAND_SETTLE_AFTER_MS }],
+  ['list.item.aliasPaste', 'list-save-by-alias', 'list', 'Paste selected item using alias', 'normal', { macroSettleAfterMs: PASTE_COMMAND_SETTLE_AFTER_MS }],
   ['list.item.copyOnly', 'list-copy', 'list', 'Copy selected item'],
   ['list.item.pinToggle', 'list-pin-toggle', 'list', 'Toggle selected item pin', 'data-write'],
   ['list.item.collectToggle', 'list-collect', 'list', 'Toggle selected item collection', 'data-write'],
@@ -102,19 +104,22 @@ for (let i = 1; i <= 9; i += 1) {
   COMMAND_DEFINITIONS.push(
     [`drawer.select.${i}`, `drawer-select-${i}`, 'drawer', `Select drawer item ${i}`],
     [`main.tab.${i}`, `main-alt-tab-${i}`, 'main', `Switch to main tab ${i}`],
-    [`list.quickCopy.${i}`, `list-quick-copy-${i}`, 'list', `Quick copy item ${i}`],
+    [`list.quickCopy.${i}`, `list-quick-copy-${i}`, 'list', `Quick copy item ${i}`, 'normal', { macroSettleAfterMs: PASTE_COMMAND_SETTLE_AFTER_MS }],
     [`list.drawerSub.${i}`, `list-drawer-sub-${i}`, 'list', `Run drawer sub action ${i}`]
   )
 }
 
-export const COMMANDS = COMMAND_DEFINITIONS.map(([id, featureId, category, description, risk = 'normal']) => ({
+export const COMMANDS = COMMAND_DEFINITIONS.map(([id, featureId, category, description, risk = 'normal', meta = {}]) => ({
   id,
   title: description,
   category,
   description,
   handler: featureId,
   source: 'system',
-  risk
+  risk,
+  macroSettleAfterMs: Number.isFinite(Number(meta.macroSettleAfterMs))
+    ? Math.max(0, Math.round(Number(meta.macroSettleAfterMs)))
+    : 0
 }))
 
 export const FEATURE_COMMAND_MAP = COMMANDS.reduce((map, command) => {

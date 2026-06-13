@@ -13,6 +13,7 @@ This index is the project-level entry for reusable memories. Tasks should link t
 | Cross-project rules | [../../../CzzProj/CodeNote/AiRef/VibePractice/Vibe_Rules/VibeAi.md](../../../CzzProj/CodeNote/AiRef/VibePractice/Vibe_Rules/VibeAi.md) | General AI workflow, process, testing, memory, safety, and documentation rules. |
 | Project rules | [../rules/README.md](../rules/README.md) | EzClipboard-specific constraints, task loading, verification, and high-risk areas. |
 | Project architecture | [ARCHITECTURE.md](ARCHITECTURE.md) | Stable architecture, module boundaries, runtime assumptions, and business behavior. |
+| Quick paste pin group cache | [quick-paste-pin-group-cache.md](quick-paste-pin-group-cache.md) | When modifying pinned group silent paste, cache shape, cache update timing, or global quick paste runtime behavior. |
 | Error memories | [error-memory/README.md](error-memory/README.md) | Past failures, guardrails, and repeat-risk implementation details. |
 | ADRs | [adr/README.md](adr/README.md) | Accepted decisions and tradeoffs that should not be rediscovered. |
 | Active process hub | [../specs/PROJECT_STATUS.md](../specs/PROJECT_STATUS.md) | Current progress, active task docs, and latest implementation focus. |
@@ -33,4 +34,3 @@ Each medium or larger task should include a `Knowledge Context` section in its s
 - Prefer updating an existing authoritative memory over creating duplicates.
 - Keep task-specific investigation details in `vibe/specs/<task-id>/`; promote only the compact rule, decision, or failure pattern.
 - When memory affects future implementation, link it from this index or an index linked here.
-
