@@ -20,8 +20,9 @@ Tool: codex
 
 - Search existing knowledge before adding new records.
 - Store only reusable, verified, safe knowledge.
+- Follow [documentation.md](documentation.md) **Knowledge Hygiene**: authoritative pages hold correct facts; [../knowledge/error-memory/](../knowledge/error-memory/) holds misconception concepts only—no intermediate patches or wrong-code walkthroughs.
 - Mark evidence as code, test, DBTools, user-confirmed, official-doc, or inference.
-- Link old and new docs when business behavior changes.
+- When behavior changes, update the authoritative knowledge page and error-memory index; remove superseded claims from spec bodies instead of appending historical appendices.
 
 ## Document Governance Map
 

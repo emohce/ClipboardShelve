@@ -17,4 +17,5 @@ Hard constraints:
 - Write Markdown links relative to the target document location.
 - Cursor, Codex, Windsurf, and other AI tools must use adapter files only as routing surfaces; authoritative project rules stay in `vibe/rules/`, and cross-project rules stay in CodeNote.
 - Load task-specific memories through `.agents/skills/ezclipboard-rules/SKILL.md` instead of pasting all rules into every prompt.
+- Knowledge hygiene ([vibe/rules/documentation.md](vibe/rules/documentation.md#knowledge-hygiene权威文档原则)): formal docs keep correct knowledge and misconception concepts only; drop stale references, intermediate artifacts, and wrong-code traces.
 - Final replies must include verification status and memory/process-document status.

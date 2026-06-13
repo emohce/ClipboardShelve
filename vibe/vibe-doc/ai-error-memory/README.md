@@ -12,7 +12,7 @@
 
 ## 当前重点记录
 
-粘贴相关（列表退出竞态、静默快捷粘贴 API）：[../../knowledge/error-memory/README.md](../../knowledge/error-memory/README.md)
+粘贴相关权威知识与误区：[../../knowledge/error-memory/README.md](../../knowledge/error-memory/README.md)、[../../knowledge/quick-paste-runtime.md](../../knowledge/quick-paste-runtime.md)。整理原则：[../../rules/documentation.md](../../rules/documentation.md#knowledge-hygiene权威文档原则)。
 
 - [2026-06-09-ui-structure-interaction-guardrails.md](2026-06-09-ui-structure-interaction-guardrails.md): 当前 UI 页面结构、回滚后交互约束和防误改规则。
 - [2026-06-09-storage-performance-rewrite-pitfalls.md](2026-06-09-storage-performance-rewrite-pitfalls.md): SQLite / JSON fallback / 虚拟列表 / 大数据查询改造的高频错误。

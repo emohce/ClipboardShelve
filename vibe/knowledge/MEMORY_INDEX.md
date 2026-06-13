@@ -15,7 +15,7 @@ This index is the project-level entry for reusable memories. Tasks should link t
 | Project architecture | [ARCHITECTURE.md](ARCHITECTURE.md) | Stable architecture, module boundaries, runtime assumptions, and business behavior. |
 | Quick paste runtime (top + group) | [quick-paste-runtime.md](quick-paste-runtime.md) | **Read first** when modifying `quick-paste-top`, `quick-paste-pin-group`, silent paste API, bootstrap pending, or product selection rules. |
 | Quick paste pin group cache | [quick-paste-pin-group-cache.md](quick-paste-pin-group-cache.md) | Pin-group runtime cache shape, update timing, and hot-path id-resolution limits (subsection of quick paste runtime). |
-| Error memories | [error-memory/README.md](error-memory/README.md) | Past failures, guardrails, and repeat-risk implementation details. |
+| Error memories | [error-memory/README.md](error-memory/README.md) | Verified **misconception concepts** and guardrails—not intermediate attempts or wrong-code traces. |
 | ADRs | [adr/README.md](adr/README.md) | Accepted decisions and tradeoffs that should not be rediscovered. |
 | Active process hub | [../specs/PROJECT_STATUS.md](../specs/PROJECT_STATUS.md) | Current progress, active task docs, and latest implementation focus. |
 | Legacy sources | [legacy/README.md](legacy/README.md) | Historical context only; promote useful conclusions before relying on them. |
@@ -33,5 +33,6 @@ Each medium or larger task should include a `Knowledge Context` section in its s
 
 - Promote only reusable, verified, safe knowledge.
 - Prefer updating an existing authoritative memory over creating duplicates.
-- Keep task-specific investigation details in `vibe/specs/<task-id>/`; promote only the compact rule, decision, or failure pattern.
+- **Hygiene** ([../rules/documentation.md](../rules/documentation.md#knowledge-hygiene权威文档原则)): task specs keep scope and evidence; long-term truth lives in `vibe/knowledge/`; wrong ideas live in `error-memory/` as concepts only.
+- Do not duplicate authoritative bodies in task notes—link once from spec conclusion or PROJECT_STATUS.
 - When memory affects future implementation, link it from this index or an index linked here.
