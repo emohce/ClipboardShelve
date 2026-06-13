@@ -1,7 +1,11 @@
-import { HOTKEY_BINDINGS_UPDATED_EVENT, getCommandAwareBindings, getConfiguredBindings } from './hotkeyBindings.js'
+import { HOTKEY_BINDINGS_UPDATED_EVENT, getCommandAwareBindings } from './hotkeyBindings.js'
 import { buildShortcutKeybindingSnapshotRows, buildShortcutOverrideRows } from '../storage/shortcutKeybindingRepository.js'
 import { normalizeShortcutOverrides } from './shortcutOverrides.js'
-import { buildShortcutCommandRows } from './shortcutCommandRows.js'
+import { buildShortcutCommandRowsFromProfiles } from './shortcutCommandRows.js'
+import {
+  buildCommandShortcutProfiles,
+  expandCommandGroupedBindings
+} from './commandKeybindings.js'
 
 export const SHORTCUT_STORAGE_MODE_SETTING = 'setting-hotkey-overrides'
 export const SHORTCUT_STORAGE_MODE_SQLITE = 'sqlite-shortcut-keybindings'
@@ -43,36 +47,19 @@ export function getEffectiveShortcutOverrides(options = {}) {
   }
 }
 
-export function getEffectiveShortcutBindings(options = {}) {
+export function getEffectiveShortcutProfiles(options = {}) {
   const { hotkeyOverrides } = getEffectiveShortcutOverrides(options)
-  return getConfiguredBindings(hotkeyOverrides).filter((binding) => binding.disabled !== true)
+  return buildCommandShortcutProfiles(hotkeyOverrides)
+}
+
+export function getEffectiveShortcutBindings(options = {}) {
+  const profiles = getEffectiveShortcutProfiles(options)
+  return expandCommandGroupedBindings(profiles)
 }
 
 export function keybindingSnapshotRowsToBindings(snapshotRows, overrides = {}) {
   const normalizedOverrides = normalizeShortcutOverrides(overrides)
-  return (Array.isArray(snapshotRows) ? snapshotRows : []).map((row) => {
-    const overrideKey = row?.overrideKey || ''
-    const override = Object.prototype.hasOwnProperty.call(normalizedOverrides, overrideKey)
-      ? normalizedOverrides[overrideKey]
-      : undefined
-    const disabled = override === null
-    const shortcutId = disabled ? row.defaultShortcutId : override?.shortcutId || row.defaultShortcutId
-    const when = disabled ? row.defaultWhen : override?.when || row.defaultWhen
-    return {
-      layer: row.layer || '',
-      state: row.state || '',
-      shortcutId: shortcutId || '',
-      defaultShortcutId: row.defaultShortcutId || '',
-      when: when || '',
-      defaultWhen: row.defaultWhen || '',
-      source: disabled ? 'removed' : override ? 'user' : 'defaultSnapshot',
-      disabled,
-      overrideKey,
-      commands: [row.commandId].filter(Boolean),
-      features: [row.featureId].filter(Boolean),
-      weight: Number(row.weight) || 0
-    }
-  })
+  return expandCommandGroupedBindings(buildCommandShortcutProfiles(normalizedOverrides))
 }
 
 export function commandSnapshotRowsToMap(snapshotRows) {
@@ -90,29 +77,18 @@ export function getEffectiveShortcutCommandRows(options = {}) {
     getFeatureLabel = (featureId) => featureId,
     warn = console.warn
   } = options
-  if (backend && typeof backend.getKeybindingSnapshotRows === 'function') {
+  const { hotkeyOverrides, storageMode } = getEffectiveShortcutOverrides({ setting, backend, warn })
+  let commandMap = new Map()
+  if (backend && typeof backend.getCommandSnapshotRows === 'function') {
     try {
-      const overrides = normalizeShortcutOverrides(backend.getOverridesMap())
-      const bindings = keybindingSnapshotRowsToBindings(backend.getKeybindingSnapshotRows(), overrides)
-      let commandMap = new Map()
-      if (typeof backend.getCommandSnapshotRows === 'function') {
-        try {
-          commandMap = commandSnapshotRowsToMap(backend.getCommandSnapshotRows())
-        } catch (err) {
-          warn?.('[shortcutStore] 读取 SQLite 命令快照失败，继续使用代码默认命令元数据:', err)
-        }
-      }
-      return {
-        rows: buildShortcutCommandRows(bindings, getFeatureLabel, (commandId) => commandMap.get(commandId)),
-        storageMode: SHORTCUT_STORAGE_MODE_SQLITE
-      }
+      commandMap = commandSnapshotRowsToMap(backend.getCommandSnapshotRows())
     } catch (err) {
-      warn?.('[shortcutStore] 读取 SQLite 快捷键快照失败，回退默认声明:', err)
+      warn?.('[shortcutStore] 读取 SQLite 命令快照失败，继续使用代码默认命令元数据:', err)
     }
   }
-  const { hotkeyOverrides, storageMode } = getEffectiveShortcutOverrides({ setting, backend, warn })
+  const profiles = buildCommandShortcutProfiles(hotkeyOverrides)
   return {
-    rows: buildShortcutCommandRows(getCommandAwareBindings(getConfiguredBindings(hotkeyOverrides)), getFeatureLabel),
+    rows: buildShortcutCommandRowsFromProfiles(profiles, getFeatureLabel, (commandId) => commandMap.get(commandId)),
     storageMode
   }
 }
