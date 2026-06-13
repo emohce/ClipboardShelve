@@ -71,6 +71,7 @@ async function main() {
   const { HOTKEY_BINDINGS, applyHotkeyOverride, getCommandAwareBindings } = await import('./src/global/hotkeyBindings.js')
   const {
     composeQuickPasteTopItems,
+    resolvePinGroupCursorEntry,
     resolvePinGroupCursorItem,
     resolvePinGroupItemsById,
     resolveQuickPastePinnedItem
@@ -124,7 +125,10 @@ async function main() {
       pluginEnterCallback = callback
     }
   }
-  const { registerPluginEnterHandler } = await import(`./src/global/pluginEnterHandlers.js?test=${Date.now()}`)
+  const {
+    consumePendingPluginEnterAction,
+    registerPluginEnterHandler
+  } = await import(`./src/global/pluginEnterHandlers.js?test=${Date.now()}`)
   const pluginEnterCalls = []
   const disposePluginEnterA = registerPluginEnterHandler((action) => pluginEnterCalls.push(['a', action.code]))
   registerPluginEnterHandler((action) => pluginEnterCalls.push(['b', action.code]))
@@ -141,6 +145,31 @@ async function main() {
     ['b', 'quick-paste-pin-group'],
     ['b', 'quick-paste-top']
   ])
+  assert.strictEqual(
+    consumePendingPluginEnterAction((action) => action.code === 'clipboard'),
+    null,
+    'non quick-paste actions should not be pending'
+  )
+  assert.strictEqual(
+    consumePendingPluginEnterAction((action) => action.code === 'quick-paste-top').code,
+    'quick-paste-top',
+    'quick-paste action should be consumable once by late handler'
+  )
+  assert.strictEqual(
+    consumePendingPluginEnterAction((action) => action.code === 'quick-paste-top'),
+    null,
+    'consumed quick-paste action should not replay again'
+  )
+  assert.strictEqual(
+    consumePendingPluginEnterAction((action) => action.code === 'quick-paste-pin-group').code,
+    'quick-paste-pin-group',
+    'older pending quick-paste action should remain available until consumed'
+  )
+  assert.strictEqual(
+    consumePendingPluginEnterAction((action) => action.code === 'quick-paste-pin-group'),
+    null,
+    'pin group pending action should also consume once'
+  )
   assert.ok(COMMANDS.length > 0, 'command defaults should not be empty')
   assert.strictEqual(getCommandIdForFeature('list-delete'), 'list.item.delete')
   assert.strictEqual(getCommandById('list.item.delete').risk, 'data-write')
@@ -248,6 +277,19 @@ async function main() {
   assert.strictEqual(resolvePinGroupCursorItem([quickPastePinned, quickPasteBase], 99).item.id, 'base')
   assert.strictEqual(resolvePinGroupCursorItem([quickPastePinned, quickPasteBase], -1).item.id, 'pinned')
   assert.strictEqual(resolvePinGroupCursorItem([], 0).item, null)
+  const pinGroupCursorEntry = resolvePinGroupCursorEntry(['missing', 'pinned', 'base'], {
+    cursor: 0,
+    knownItems: [quickPastePinned, quickPasteBase]
+  })
+  assert.strictEqual(pinGroupCursorEntry.item.id, 'pinned')
+  assert.strictEqual(pinGroupCursorEntry.index, 1)
+  assert.strictEqual(pinGroupCursorEntry.nextIndex, 2)
+  const wrappedPinGroupCursorEntry = resolvePinGroupCursorEntry(['missing', 'pinned', 'base'], {
+    cursor: 99,
+    knownItems: [quickPastePinned, quickPasteBase]
+  })
+  assert.strictEqual(wrappedPinGroupCursorEntry.item.id, 'pinned')
+  assert.strictEqual(wrappedPinGroupCursorEntry.nextIndex, 2)
   assert.deepStrictEqual(
     resolvePinGroupItemsById(['missing-cache', '__ez_pin_group__', 'pinned', 'missing-cache'], {
       knownItems: [quickPastePinned],

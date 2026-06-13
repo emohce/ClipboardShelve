@@ -17,15 +17,15 @@ Detailed requirements, plans, evidence, and implementation notes stay in task di
 
 Time window: 2026-06-11 to 2026-06-13.
 
-Current focus: UI interaction optimization v1.2.1 completed, right-click unification first-stage completed, shortcut command redesign main line continues; quick paste pin stability fix completed and verified on 2026-06-13.
+Current focus: UI interaction optimization v1.2.1 completed, right-click unification first-stage completed, shortcut command redesign main line continues; quick paste pin top/group global silent runtime fix completed and verified on 2026-06-13.
 
-Current core task: UI interaction optimization evaluation completed and documented; right-click unification first-stage completed and verified; quick paste pin top/group stability fix has landed. Recommended next candidates are uTools production-shell migration verification, macro conflict preview, or `registerCommandFeaturePair()` fallback cleanup.
+Current core task: UI interaction optimization evaluation completed and documented; right-click unification first-stage completed and verified; quick paste pin top/group commands now use a global silent runtime instead of `Main.vue` mounted state. Recommended next candidates are uTools production-shell migration verification, macro conflict preview, or `registerCommandFeaturePair()` fallback cleanup.
 
 Completed milestones:
 
 - UI interaction optimization (v1.2.1): All 9 requirements implemented including pin/group features, page scroll shortcuts, cache navigation, uTools global commands, and hotkey runtime refresh.
 - Right-click unification first-stage: Menu model unified, entry and execution aligned, settings-page management added, automated and browser verification completed.
-- Quick paste pin stability fix: `quick-paste-top` priority, state refresh, serial execution, short uTools command labels, `onPluginEnter` multiplexing, and pin-group cursor bounds covered by automated tests and build verification.
+- Quick paste pin stability fix: `quick-paste-top` priority, global silent runtime, latest DB reuse, serial execution, short uTools command labels, `onPluginEnter` multiplexing, and pin-group resolvable-cursor bounds covered by automated tests and build verification.
 - Evaluation documentation: Comprehensive evaluation report updated with right-click unification progress.
 
 ## Task Reference Index

@@ -1,0 +1,62 @@
+const pushUniqueItem = (result, seen, item) => {
+  if (!item?.id || seen.has(item.id)) return
+  seen.add(item.id)
+  result.push(item)
+}
+
+export function composeQuickPasteTopItems(options = {}) {
+  const { baseItems = [], pinnedItems = [] } = options
+  const seen = new Set()
+  const result = []
+  pinnedItems.forEach((item) => pushUniqueItem(result, seen, item))
+  baseItems.forEach((item) => pushUniqueItem(result, seen, item))
+  return result
+}
+
+export function resolveQuickPastePinnedItem(pinnedItems = []) {
+  const list = Array.isArray(pinnedItems) ? pinnedItems.filter((item) => item?.id) : []
+  return list[0] || null
+}
+
+export function resolvePinGroupCursorItem(items = [], cursor = 0) {
+  const list = Array.isArray(items) ? items.filter(Boolean) : []
+  if (!list.length) return { item: null, index: 0 }
+  const index = Math.min(Math.max(Number(cursor) || 0, 0), list.length - 1)
+  return { item: list[index], index }
+}
+
+export function resolvePinGroupCursorEntry(itemIds = [], options = {}) {
+  const ids = Array.isArray(itemIds) ? itemIds.filter((id) => id && id !== '__ez_pin_group__') : []
+  const knownItems = Array.isArray(options.knownItems) ? options.knownItems : []
+  const byId = new Map(knownItems.filter((item) => item?.id).map((item) => [item.id, item]))
+  const getItemById = typeof options.getItemById === 'function' ? options.getItemById : () => null
+  const entries = ids
+    .map((id, sourceIndex) => ({
+      item: byId.get(id) || getItemById(id),
+      sourceIndex
+    }))
+    .filter((entry) => entry.item?.id && !entry.item.__pinGroup)
+  if (!entries.length) return { item: null, index: 0, nextIndex: 0 }
+
+  const cursor = Math.max(0, Number(options.cursor) || 0)
+  const entryIndex = entries.findIndex((entry) => entry.sourceIndex >= cursor)
+  const selectedEntryIndex = entryIndex === -1 ? 0 : entryIndex
+  const selected = entries[selectedEntryIndex]
+  const next = entries[(selectedEntryIndex + 1) % entries.length]
+  return {
+    item: selected.item,
+    index: selected.sourceIndex,
+    nextIndex: next.sourceIndex
+  }
+}
+
+export function resolvePinGroupItemsById(itemIds = [], options = {}) {
+  const ids = [...new Set((Array.isArray(itemIds) ? itemIds : []).filter(Boolean))]
+  const knownItems = Array.isArray(options.knownItems) ? options.knownItems : []
+  const byId = new Map(knownItems.filter((item) => item?.id).map((item) => [item.id, item]))
+  const getItemById = typeof options.getItemById === 'function' ? options.getItemById : () => null
+  return ids
+    .filter((id) => id !== '__ez_pin_group__')
+    .map((id) => byId.get(id) || getItemById(id))
+    .filter((item) => item?.id && !item.__pinGroup)
+}

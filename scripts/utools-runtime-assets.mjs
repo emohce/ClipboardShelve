@@ -21,13 +21,15 @@ const pluginManifest = {
     },
     {
       code: 'quick-paste-top',
-      explain: '粘贴隐藏前标签页的顶部可展示项',
-      cmds: ['粘贴置顶顶部项']
+      explain: '粘贴置顶项',
+      mainHide: true,
+      cmds: ['粘贴置顶项']
     },
     {
       code: 'quick-paste-pin-group',
-      explain: '循环粘贴置顶组合内的项目',
-      cmds: ['循环粘贴置顶组合项']
+      explain: '循环粘贴组合项',
+      mainHide: true,
+      cmds: ['循环粘贴组合项']
     }
   ]
 }

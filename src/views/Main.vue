@@ -275,10 +275,8 @@ import {
     getStorageRuntimeStatus,
 } from "../storage/storageRuntimeStatus";
 import {
-    getLastActiveContext,
     getPinGroup,
     getPinnedMap,
-    advancePinGroupCursor,
     clearPinGroup,
     removePinGroupItems,
     removePinnedItems,
@@ -287,6 +285,10 @@ import {
     sortPinnedItems,
     togglePinnedItem,
 } from "../storage/pinnedItems";
+import {
+    composeQuickPasteTopItems,
+    resolvePinGroupItemsById,
+} from "../global/quickPasteSelection";
 
 const CLEAR_RANGE_OPTIONS = [
     { label: "1 小时内", value: "1h" },
@@ -506,7 +508,6 @@ const showList = shallowRef([]); // 展示的数据
 const collectBlockList = shallowRef([]); // 非收藏 tab 且 * 前缀时，上方展示的收藏匹配结果
 const collectVersion = ref(0); // 收藏列表变更时自增，用于驱动星标等 UI 更新
 const pinnedMap = shallowRef(getPinnedMap());
-const currentClipboardItemId = ref(null);
 const pinGroup = shallowRef(getPinGroup());
 const pinGroupEditorVisible = ref(false);
 const pinGroupEditorItems = shallowRef([]);
@@ -766,25 +767,18 @@ const persistLastActiveContext = () => {
     setLastActiveContext(getCurrentFilterContext());
 };
 
-const refreshCurrentClipboardItem = () => {
-    currentClipboardItemId.value = window.db?.dataBase?.data?.[0]?.id || null;
-};
-
 const getPinnedItemsForContext = (context = getCurrentFilterContext()) => {
     const map = pinnedMap.value || {};
-    const pinnedIds = new Set(Object.keys(map));
-    if (!pinnedIds.size) return [];
+    const pinnedIds = Object.keys(map).filter(Boolean);
+    if (!pinnedIds.length) return [];
+    const items = resolvePinGroupItemsById(pinnedIds, {
+        knownItems: getAllKnownItems(),
+        getItemById: (id) => window.db?.getById?.(id) || window.db?.filterDataBaseViaId?.(id)?.[0] || null,
+    });
     return sortPinnedItems(
-        getAllKnownItems().filter((item) => pinnedIds.has(item.id) && itemMatchesContext(item, context)),
+        items.filter((item) => itemMatchesContext(item, context)),
         map,
     );
-};
-
-const getCurrentClipboardItemForContext = (context = getCurrentFilterContext()) => {
-    const id = currentClipboardItemId.value || window.db?.dataBase?.data?.[0]?.id;
-    if (!id) return null;
-    const item = getAllKnownItems().find((candidate) => candidate.id === id);
-    return itemMatchesContext(item, context) ? item : null;
 };
 
 const getItemInlineSummary = (item) => {
@@ -948,7 +942,6 @@ const updateShowList = (type, toTop = true) => {
             window.toTop();
         }
     }
-    refreshCurrentClipboardItem();
     persistLastActiveContext();
 };
 
@@ -1204,14 +1197,10 @@ const pinGroupItems = computed(() => {
     collectVersion.value;
     const ids = pinGroup.value?.itemIds || [];
     if (!ids.length) return [];
-    const byId = new Map(getAllKnownItems().map((item) => [item.id, item]));
-    return ids.map((id) => byId.get(id)).filter(Boolean);
-});
-
-const pinGroupCursorIndex = computed(() => {
-    const len = pinGroupItems.value.length;
-    if (!len) return 0;
-    return Math.min(Math.max(Number(pinGroup.value?.cursor) || 0, 0), len - 1);
+    return resolvePinGroupItemsById(ids, {
+        knownItems: getAllKnownItems(),
+        getItemById: (id) => window.db?.getById?.(id) || window.db?.filterDataBaseViaId?.(id)?.[0] || null,
+    });
 });
 
 const pinGroupListItem = computed(() => {
@@ -1252,14 +1241,6 @@ const handleTogglePin = (item) => {
     });
 };
 
-const pasteTopItemForLastActiveContext = () => {
-    const context = getLastActiveContext();
-    const baseItems = getBaseTopItemsForContext(context);
-    const item = composeTopItems(baseItems, context, { includeCurrentClipboard: true })[0];
-    if (!item) return false;
-    return copyAndPasteAndExit(item, { respectImageCopyGuard: true });
-};
-
 const openPinGroupEditor = (items = []) => {
     const list = Array.isArray(items) ? items.filter(Boolean) : [];
     if (!list.length) {
@@ -1284,7 +1265,7 @@ const closePinGroupEditor = () => {
 };
 
 const handlePinGroupSave = (items = []) => {
-    const ids = items.map((item) => item?.id).filter(Boolean);
+    const ids = items.map((item) => item?.id).filter((id) => id && id !== "__ez_pin_group__");
     pinGroup.value = savePinGroup(ids, { cursor: 0 });
     pinGroupEditorVisible.value = false;
     isMultiple.value = false;
@@ -1303,17 +1284,6 @@ const pastePinGroupItem = (index) => {
     if (!item) return false;
     pinGroup.value = savePinGroup(pinGroup.value.itemIds, { cursor: index });
     return copyAndPasteAndExit(item, { respectImageCopyGuard: true });
-};
-
-const pasteNextPinGroupItem = () => {
-    const items = pinGroupItems.value;
-    if (!items.length) return false;
-    const index = pinGroupCursorIndex.value;
-    const item = items[index];
-    if (!item) return false;
-    const ok = copyAndPasteAndExit(item, { respectImageCopyGuard: true });
-    if (ok) pinGroup.value = advancePinGroupCursor();
-    return ok;
 };
 
 const pastePinGroupAll = () => {
@@ -1692,7 +1662,36 @@ const clearTooltip = computed(
 );
 const searchTooltip = computed(() => formatShortcutDisplay("ctrl+f"));
 
-const activeTab = ref("all");
+const MAIN_TAB_STATE_KEY = "ui.main.activeTab";
+const MAIN_COLLECT_SUB_TAB_STATE_KEY = "ui.main.collectSubTab";
+const MAIN_TAB_TYPES = ["collect", "all", "text", "image", "file"];
+const COLLECT_ALL_TAB = "*全部*";
+
+const getUToolsRuntime = () => {
+    if (typeof utools !== "undefined") return utools;
+    return window?.utools || window?.exports?.utools || null;
+};
+
+const getPersistedUiState = (key, fallback) => {
+    try {
+        return getUToolsRuntime()?.dbStorage?.getItem?.(key) || fallback;
+    } catch (_) {
+        return fallback;
+    }
+};
+
+const setPersistedUiState = (key, value) => {
+    try {
+        getUToolsRuntime()?.dbStorage?.setItem?.(key, value);
+    } catch (_) {}
+};
+
+const getInitialMainTab = () => {
+    const saved = getPersistedUiState(MAIN_TAB_STATE_KEY, "all");
+    return MAIN_TAB_TYPES.includes(saved) ? saved : "all";
+};
+
+const activeTab = ref(getInitialMainTab());
 // 保存每个 tab 的状态（activeIndex）
 const tabStateMap = ref(new Map());
 const activeTabLabel = computed(() => {
@@ -1711,21 +1710,19 @@ onMounted(() => {
     window.addEventListener(STORAGE_STATUS_EVENT, refreshStorageStatus);
     refreshStorageStatus();
     window.resetPluginUiState = resetPluginUiState;
-    utools.onPluginEnter((action) => {
-        if (action?.code === "quick-paste-top") {
-            pasteTopItemForLastActiveContext();
-            return;
-        }
-        if (action?.code === "quick-paste-pin-group") {
-            pasteNextPinGroupItem();
-            return;
-        }
-        window.focus();
-        document.activeElement?.blur?.();
-    });
     // 获取挂载的导航组件 Ref
     const toggleNav = ClipSwitchRef.value.toggleNav;
-    const tabs = ClipSwitchRef.value.tabs;
+    const initialCollectSubTab = getPersistedUiState(MAIN_COLLECT_SUB_TAB_STATE_KEY, COLLECT_ALL_TAB);
+    if (activeTab.value !== "all") {
+        toggleNav(activeTab.value);
+    }
+    if (activeTab.value === "collect" && ClipSwitchRef.value?.setCollectSubTab) {
+        const collectSubTabs = ClipSwitchRef.value.collectSubTabsList?.value ?? ClipSwitchRef.value.collectSubTabsList ?? [];
+        const collectSubTypes = collectSubTabs.map((sub) => sub.type);
+        ClipSwitchRef.value.setCollectSubTab(
+            collectSubTypes.includes(initialCollectSubTab) ? initialCollectSubTab : COLLECT_ALL_TAB,
+        );
+    }
 
     watch(
         () => {
@@ -1739,6 +1736,9 @@ onMounted(() => {
                 tabStateMap.value.set(oldVal, ClipItemListRef.value.activeIndex);
             }
             activeTab.value = newVal;
+            if (MAIN_TAB_TYPES.includes(newVal)) {
+                setPersistedUiState(MAIN_TAB_STATE_KEY, newVal);
+            }
             updateShowList(newVal);
             // 恢复新 tab 的状态
             nextTick(() => {
@@ -1766,6 +1766,7 @@ onMounted(() => {
         (newVal, oldVal) => {
             if (activeTab.value === "collect") {
                 tabQueryCache.clear();
+                setPersistedUiState(MAIN_COLLECT_SUB_TAB_STATE_KEY, newVal || COLLECT_ALL_TAB);
                 // 保存旧收藏子 tab 的状态
                 if (oldVal && ClipItemListRef.value?.activeIndex !== undefined) {
                     const key = `collect-${oldVal}`;
@@ -1799,7 +1800,6 @@ onMounted(() => {
 
     // 初始化数据
     list.value = window.db.dataBase.data;
-    refreshCurrentClipboardItem();
     showList.value = list.value.slice(0, GAP); // 最初展示 10条
     updateShowList(activeTab.value);
 
@@ -1808,7 +1808,6 @@ onMounted(() => {
         // 监听器开启时
         window.listener.on("change", () => {
             list.value = window.db.dataBase.data;
-            refreshCurrentClipboardItem();
             updateShowList(activeTab.value);
         });
     } else {
@@ -1820,7 +1819,6 @@ onMounted(() => {
             } else {
                 // 有更新
                 list.value = window.db.dataBase.data;
-                refreshCurrentClipboardItem();
                 updateShowList(activeTab.value);
                 prev = now;
             }
@@ -1832,7 +1830,6 @@ onMounted(() => {
     window.listener.on("view-change", () => {
         // 检查到change事件 更新展示数据
         list.value = window.db.dataBase.data;
-        refreshCurrentClipboardItem();
         updateShowList(activeTab.value, false);
     });
 
