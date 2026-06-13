@@ -57,7 +57,7 @@
               <div class="setting-row setting-row--compact setting-row--split">
                 <div class="setting-field-group">
                   <span class="setting-label">最大历史</span>
-                  <el-select class="number-select" v-model="maxsize" fit-input-width placeholder="">
+                  <el-select class="number-select" v-model="maxsize" placeholder="">
                     <el-option label="无限" :value="unlimitedVal" />
                     <el-option v-for="n in [500, 1000, 5000, 50000]" :key="n" :value="n" />
                   </el-select>
@@ -65,7 +65,7 @@
                 </div>
                 <div class="setting-field-group">
                   <span class="setting-label">保存时间</span>
-                  <el-select class="number-select" v-model="maxage" fit-input-width placeholder="">
+                  <el-select class="number-select" v-model="maxage" placeholder="">
                     <el-option label="无限" :value="unlimitedVal" />
                     <el-option v-for="n in [1, 5, 7, 15, 30, 60, 90, 360]" :key="n" :value="n" />
                   </el-select>
@@ -171,12 +171,35 @@
                   </span>
                   <span class="shortcut-strip-meta-count">{{ filteredShortcutCommandRows.length }}/{{ shortcutCommandRows.length }}</span>
                 </span>
-                <HelpHint
-                  marker="⌨"
-                  button-class="setting-help-btn setting-help-btn--compact"
-                  aria-label="查看固定快捷键"
-                  :content="shortcutFixedKeyHintContent"
-                />
+                <el-popover
+                  placement="bottom-start"
+                  trigger="hover"
+                  :width="520"
+                  :show-after="200"
+                  popper-class="shortcut-record-reserved-popper"
+                >
+                  <template #reference>
+                    <button type="button" class="setting-help-btn setting-help-btn--compact" aria-label="查看保留按键规则">⌨</button>
+                  </template>
+                  <table class="shortcut-reservation-table">
+                    <thead>
+                      <tr>
+                        <th>快捷键</th>
+                        <th>Command ID</th>
+                        <th>When</th>
+                        <th>说明</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      <tr v-for="(rule, ruleIndex) in shortcutReservationRows" :key="`strip:${rule.commandId}:${rule.shortcutId}:${ruleIndex}`">
+                        <td>{{ formatShortcutDisplay(rule.shortcutId) }}</td>
+                        <td>{{ rule.commandId }}</td>
+                        <td>{{ rule.when || '—' }}</td>
+                        <td>{{ rule.description }}</td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </el-popover>
                 <HelpHint
                   marker="?"
                   button-class="setting-help-btn setting-help-btn--compact"
@@ -215,9 +238,12 @@
                     <span class="shortcut-list-badge" :title="row.scopeLabel">{{ row.scopeLabel }}</span>
                   </div>
                   <span class="shortcut-col shortcut-col--kbd">
-                    <span class="feature-kbd" :class="{ 'feature-kbd--muted': row.disabled }">
-                      {{ formatShortcutDisplay(row.shortcutId) }}
-                    </span>
+                    <template v-for="(sid, sidIndex) in (row.shortcutIds || [row.shortcutId]).filter(Boolean)" :key="`${row.id}:${sid}`">
+                      <span v-if="sidIndex > 0" class="shortcut-kbd-sep"> / </span>
+                      <span class="feature-kbd" :class="{ 'feature-kbd--muted': row.disabled }">
+                        {{ formatShortcutDisplay(sid) }}
+                      </span>
+                    </template>
                   </span>
                   <span class="shortcut-col shortcut-col--when" :title="row.when">{{ row.when || '始终' }}</span>
                   <span class="shortcut-col shortcut-col--source" :class="{ user: row.source === 'user' }">{{ row.sourceLabel }}</span>
@@ -237,8 +263,16 @@
                       <button type="button" class="shortcut-list-op" @click="restoreShortcutDefault(row)">复</button>
                     </el-tooltip>
                     <el-tooltip
-                      v-if="!row.disabled"
-                      content="禁用此快捷键"
+                      v-if="row.disabled"
+                      content="启用此 action 的快捷键触发"
+                      placement="top"
+                      :show-after="280"
+                    >
+                      <button type="button" class="shortcut-list-op" @click="enableShortcut(row)">启</button>
+                    </el-tooltip>
+                    <el-tooltip
+                      v-else
+                      content="禁用此 action 的快捷键触发"
                       placement="top"
                       :show-after="280"
                     >
@@ -276,62 +310,100 @@
           <el-popover
             placement="top-start"
             trigger="hover"
-            :width="360"
+            :width="520"
             :show-after="200"
             :offset="8"
             popper-class="shortcut-record-reserved-popper"
           >
             <template #reference>
-              <div class="shortcut-recorder-reserved">固定按键不可绑定，悬浮查看</div>
+              <div class="shortcut-recorder-reserved">保留按键规则，悬浮查看</div>
             </template>
-            <div class="shortcut-record-reserved-popover-body">{{ shortcutRecordReservedHint }}</div>
+            <table class="shortcut-reservation-table">
+              <thead>
+                <tr>
+                  <th>快捷键</th>
+                  <th>Command ID</th>
+                  <th>When</th>
+                  <th>说明</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr v-for="(rule, ruleIndex) in shortcutReservationRows" :key="`${rule.commandId}:${rule.shortcutId}:${ruleIndex}`">
+                  <td>{{ formatShortcutDisplay(rule.shortcutId) }}</td>
+                  <td>{{ rule.commandId }}</td>
+                  <td>{{ rule.when || '—' }}</td>
+                  <td>{{ rule.description }}</td>
+                </tr>
+              </tbody>
+            </table>
           </el-popover>
-          <div class="shortcut-record-head">
-            <div class="shortcut-record-command">{{ shortcutRecordRow?.commandTitle || '' }}</div>
-            <div class="shortcut-record-command-id">{{ shortcutRecordRow?.commandId || '' }}</div>
+          <div class="shortcut-record-head shortcut-record-head--command">
+            <div class="shortcut-record-head-main">
+              <div class="shortcut-record-command">{{ shortcutRecordRow?.commandTitle || '' }}</div>
+              <div class="shortcut-record-command-id">{{ shortcutRecordRow?.commandId || '' }}</div>
+            </div>
+            <div class="shortcut-record-head-defaults">
+              <span class="shortcut-record-default-label">默认值</span>
+              <span
+                v-for="defId in shortcutRecordDefaultIds"
+                :key="defId"
+                class="shortcut-record-default-value"
+              >{{ formatShortcutDisplay(defId) }}</span>
+              <button
+                v-if="showShortcutRecordDefaultRestore"
+                type="button"
+                class="shortcut-record-default-reset"
+                @click="restoreShortcutRecordToDefault"
+              >
+                恢复默认
+              </button>
+            </div>
           </div>
           <div class="shortcut-record-panels">
             <div class="shortcut-record-panel shortcut-record-panel--current">
               <div class="shortcut-record-panel-label">当前绑定</div>
-              <div class="shortcut-recorder-key shortcut-recorder-key--current">
-                {{ formatShortcutDisplay(shortcutRecordBaseline) || '—' }}
-              </div>
-              <div
-                v-if="showShortcutRecordDefaultRestore"
-                class="shortcut-record-panel-default"
-              >
-                <span class="shortcut-record-default-label">默认值</span>
-                <button
-                  type="button"
-                  class="shortcut-record-default-value"
-                  @click="restoreShortcutRecordToDefault"
+              <div v-if="shortcutRecordActiveIds.length" class="shortcut-record-key-list">
+                <div
+                  v-for="(sid, index) in shortcutRecordActiveIds"
+                  :key="`active:${sid}:${index}`"
+                  class="shortcut-record-key-row"
                 >
-                  {{ formatShortcutDisplay(shortcutRecordDefaultId) }}
-                </button>
-                <span class="shortcut-record-default-hint">点击恢复</span>
+                  <span class="feature-kbd">{{ formatShortcutDisplay(sid) }}</span>
+                  <button type="button" class="shortcut-record-key-remove" @click="removeShortcutRecordActiveId(index)">×</button>
+                </div>
               </div>
+              <div v-else class="shortcut-record-key-empty">暂无绑定</div>
             </div>
-            <div
-              ref="shortcutRecorderRef"
-              class="shortcut-record-panel shortcut-record-panel--capture shortcut-recorder"
-              tabindex="0"
-              @keydown.stop.prevent="handleShortcutRecordKeydown"
-            >
-              <div class="shortcut-record-panel-label">按下新快捷键</div>
-              <div class="shortcut-recorder-key" :class="{ 'is-waiting': !recordedShortcutId }">
-                {{ recordedShortcutId ? formatShortcutDisplay(recordedShortcutId) : '等待输入' }}
+            <div class="shortcut-record-panel shortcut-record-panel--pending">
+              <div class="shortcut-record-panel-label">待绑定</div>
+              <div v-if="shortcutRecordPendingIds.length" class="shortcut-record-key-list">
+                <div
+                  v-for="(sid, index) in shortcutRecordPendingIds"
+                  :key="`pending:${sid}:${index}`"
+                  class="shortcut-record-key-row"
+                >
+                  <span class="feature-kbd">{{ formatShortcutDisplay(sid) }}</span>
+                  <button type="button" class="shortcut-record-key-remove" @click="removeShortcutRecordPendingId(index)">×</button>
+                </div>
               </div>
+              <div v-else class="shortcut-record-key-empty">录制后点 ✅ 添加</div>
             </div>
           </div>
-          <el-input
-            v-model="recordedShortcutInput"
-            class="shortcut-recorder-manual"
-            placeholder="也可手动输入，如 ctrl+shift+f"
-            @keydown.stop
-          />
+          <div
+            ref="shortcutRecorderRef"
+            class="shortcut-record-capture-row shortcut-recorder"
+            tabindex="0"
+            @keydown.stop.prevent="handleShortcutRecordKeydown"
+          >
+            <span class="shortcut-record-capture-hint">按下快捷键录制</span>
+            <div v-if="shortcutRecordCapturedId" class="shortcut-record-capture-staging">
+              <span class="feature-kbd">{{ formatShortcutDisplay(shortcutRecordCapturedId) }}</span>
+              <button type="button" class="shortcut-record-capture-confirm" @click="promoteShortcutRecordCaptured">✓</button>
+            </div>
+          </div>
           <template #footer>
             <el-button @click="requestCloseShortcutRecord">取消</el-button>
-            <el-button type="primary" :disabled="!normalizedRecordedShortcutId" @click="submitShortcutRecord">确定</el-button>
+            <el-button type="primary" :disabled="!canSubmitShortcutRecord" @click="submitShortcutRecord">确定</el-button>
           </template>
         </el-dialog>
         <el-dialog
@@ -977,11 +1049,13 @@ import { formatShortcutDisplay, normalizeShortcutId } from '../global/shortcutKe
 import {
   applyShortcutOverrideValue,
   buildShortcutOverrideValue,
-  disableShortcutOverride,
+  disableCommandShortcutOverride,
+  enableCommandShortcutOverride,
   filterShortcutCommandRows,
-  getOperationShortcutSummary
+  getOperationShortcutSummary,
+  shortcutIdsEqual
 } from '../global/shortcutCommandRows'
-import { getShortcutCommandRowConflicts } from '../global/keybindingConflicts'
+import { formatShortcutConflictMessage, getShortcutCommandRowConflicts } from '../global/keybindingConflicts'
 import { parseWhenExpression } from '../global/whenExpression'
 import {
   WHEN_CONTEXT_GROUPS,
@@ -991,7 +1065,8 @@ import {
   getWhenBuilderDisabledKeys,
   parseWhenToSelection
 } from '../global/whenBuilder'
-import { eventLikeToShortcutId, isRecordableShortcutId, isNonConfigurableShortcutId, NON_CONFIGURABLE_SHORTCUT_IDS, SETTING_PAGE_FIXED_SHORTCUTS } from '../global/shortcutRecorder'
+import { eventLikeToShortcutId, isRecordableShortcutId, getShortcutReservationRows } from '../global/shortcutRecorder'
+import { dedupeShortcutIds } from '../global/commandKeybindings'
 import { registerCommandFeaturePairs } from '../global/hotkeyRegistry'
 import { COMMAND_MACRO_MAX_DELAY_MS, COMMAND_MACRO_MAX_STEPS } from '../global/commandMacro.js'
 import {
@@ -1119,7 +1194,11 @@ const currentShortcutScopeLabel = computed(
 )
 const shortcutRecordVisible = ref(false)
 const shortcutRecordRow = ref(null)
-const shortcutRecordBaseline = ref('')
+const shortcutRecordBaselineIds = ref([])
+const shortcutRecordActiveIds = ref([])
+const shortcutRecordPendingIds = ref([])
+const shortcutRecordCapturedId = ref('')
+const shortcutRecordDefaultIds = ref([])
 const shortcutRecorderRef = ref(null)
 const commandMacroDialogVisible = ref(false)
 const commandMacroDraftDialogVisible = ref(false)
@@ -1133,8 +1212,6 @@ const commandMacroDraftForm = ref({
   when: 'mainFocus',
   steps: [{ command: '', delayMs: 0 }]
 })
-const recordedShortcutId = ref('')
-const recordedShortcutInput = ref('')
 const whenEditVisible = ref(false)
 const whenEditRow = ref(null)
 const whenEditBaseline = ref('')
@@ -1147,24 +1224,17 @@ const whenBuilderStates = ref({})
 const whenBuilderDisabledKeys = computed(() =>
   getWhenBuilderDisabledKeys(whenBuilderStates.value, whenBuilderOperator.value)
 )
-const normalizedRecordedShortcutId = computed(() => {
-  const value = recordedShortcutInput.value.trim() || recordedShortcutId.value
-  const normalized = normalizeShortcutId(value)
-  return isRecordableShortcutId(normalized) ? normalized : ''
-})
 const SETTING_SHORTCUT_RECORD_LAYER = 'setting-shortcut-record'
-const shortcutRecordDefaultId = computed(() => shortcutRecordRow.value?.defaultShortcutId || '')
-const shortcutRecordEditingId = computed(() => {
-  const value = recordedShortcutInput.value.trim() || recordedShortcutId.value || shortcutRecordBaseline.value
-  return normalizeShortcutId(value)
-})
+const shortcutReservationRows = getShortcutReservationRows()
+const shortcutRecordMergedIds = computed(() =>
+  dedupeShortcutIds([...shortcutRecordActiveIds.value, ...shortcutRecordPendingIds.value])
+)
 const showShortcutRecordDefaultRestore = computed(() => {
-  const def = normalizeShortcutId(shortcutRecordDefaultId.value)
-  if (!def) return false
-  const baseline = normalizeShortcutId(shortcutRecordBaseline.value)
-  const editing = shortcutRecordEditingId.value
-  return baseline !== def || editing !== def
+  const defaults = dedupeShortcutIds(shortcutRecordDefaultIds.value)
+  if (!defaults.length) return false
+  return !shortcutIdsEqual(shortcutRecordMergedIds.value, defaults)
 })
+const canSubmitShortcutRecord = computed(() => shortcutRecordMergedIds.value.length > 0)
 const SETTING_WHEN_EDIT_LAYER = 'setting-when-edit'
 const whenEditDefaultWhen = computed(() => whenEditRow.value?.defaultWhen || '')
 const showWhenEditDefaultRestore = computed(() => {
@@ -1293,26 +1363,9 @@ const shortcutConflictRows = computed(() => [...shortcutCommandRows.value, ...ma
 const shortcutHelpContent = computed(() =>
   [
     '以 command 形式展示实际生效的快捷键；输入关键词后按 Enter 搜索，Ctrl/Cmd+F 可快速定位到搜索框。',
-    '支持录制快捷键、禁用、恢复默认和编辑 When 条件；SQLite 可用时优先写入快捷键表，异常时自动回退设置存储。'
+    '支持多键绑定、禁用 action 触发、恢复默认和编辑 When 条件；冲突键录入时直接拒绝。'
   ].join(' ')
 )
-
-const shortcutFixedKeyHintContent = computed(() => {
-  const fixed = SETTING_PAGE_FIXED_SHORTCUTS.map(
-    (item) => `${formatShortcutDisplay(item.shortcutId)}：${item.description}`
-  ).join('；')
-  const reserved = NON_CONFIGURABLE_SHORTCUT_IDS.map(
-    (shortcutId) => formatShortcutDisplay(shortcutId)
-  ).join('、')
-  return `设置页固定：${fixed}。不可绑定：${reserved}。`
-})
-
-const shortcutRecordReservedHint = computed(() => {
-  const reserved = NON_CONFIGURABLE_SHORTCUT_IDS.map(
-    (shortcutId) => `${formatShortcutDisplay(shortcutId)} 不可绑定`
-  ).join('；')
-  return `${reserved}。Esc 仅关闭弹窗，不会退出设置页。`
-})
 
 const shortcutStorageLabel = computed(() =>
   shortcutCommandStorageMode.value === SHORTCUT_STORAGE_MODE_SQLITE
@@ -1593,8 +1646,50 @@ function focusShortcutSearch() {
   })
 }
 
-function getShortcutConflictRows(row, nextShortcutId) {
-  return getShortcutConflictRowsWithWhen(row, nextShortcutId, row.when)
+function getRecordShortcutContext() {
+  const row = shortcutRecordRow.value
+  return {
+    commandId: row?.commandId || '',
+    when: row?.when || ''
+  }
+}
+
+function getRecordShortcutConflicts(shortcutId) {
+  const row = shortcutRecordRow.value
+  if (!row || !shortcutId) return []
+  const existingIds = dedupeShortcutIds([
+    ...shortcutRecordActiveIds.value,
+    ...shortcutRecordPendingIds.value
+  ])
+  return getShortcutCommandRowConflicts(
+    { ...row, shortcutIds: existingIds },
+    shortcutConflictRows.value,
+    { shortcutId }
+  )
+}
+
+function rejectShortcutCandidate(shortcutId) {
+  const normalized = normalizeShortcutId(shortcutId)
+  if (!normalized) return '无效快捷键'
+  const context = getRecordShortcutContext()
+  if (!isRecordableShortcutId(normalized, context)) {
+    const conflicts = getRecordShortcutConflicts(normalized)
+    if (conflicts.length) {
+      return formatShortcutConflictMessage(conflicts, formatShortcutDisplay)
+    }
+    return '该按键不可绑定'
+  }
+  const existing = dedupeShortcutIds([
+    ...shortcutRecordActiveIds.value,
+    ...shortcutRecordPendingIds.value,
+    shortcutRecordCapturedId.value
+  ])
+  if (existing.includes(normalized)) return '该快捷键已在列表中'
+  const conflicts = getRecordShortcutConflicts(normalized)
+  if (conflicts.length) {
+    return formatShortcutConflictMessage(conflicts, formatShortcutDisplay)
+  }
+  return ''
 }
 
 function getShortcutConflictRowsWithWhen(row, nextShortcutId, nextWhen) {
@@ -1602,11 +1697,6 @@ function getShortcutConflictRowsWithWhen(row, nextShortcutId, nextWhen) {
     shortcutId: nextShortcutId,
     when: nextWhen
   })
-}
-
-async function confirmShortcutConflict(row, nextShortcutId) {
-  const conflicts = getShortcutConflictRows(row, nextShortcutId)
-  return confirmShortcutConflictRows(conflicts, nextShortcutId)
 }
 
 async function confirmShortcutConflictRows(conflicts, nextShortcutId) {
@@ -1719,9 +1809,12 @@ function closeTopSettingOverlay() {
 function openShortcutEdit(row) {
   whenEditVisible.value = false
   shortcutRecordRow.value = row
-  shortcutRecordBaseline.value = row.disabled ? row.defaultShortcutId : row.shortcutId
-  recordedShortcutId.value = ''
-  recordedShortcutInput.value = shortcutRecordBaseline.value
+  const activeIds = dedupeShortcutIds(row.shortcutIds || [row.shortcutId])
+  shortcutRecordActiveIds.value = [...activeIds]
+  shortcutRecordPendingIds.value = []
+  shortcutRecordCapturedId.value = ''
+  shortcutRecordBaselineIds.value = [...activeIds]
+  shortcutRecordDefaultIds.value = dedupeShortcutIds(row.defaultShortcutIds || [row.defaultShortcutId])
   shortcutRecordVisible.value = true
 }
 
@@ -1753,28 +1846,45 @@ function focusShortcutRecorder() {
 
 function resetShortcutRecorder() {
   shortcutRecordRow.value = null
-  shortcutRecordBaseline.value = ''
-  recordedShortcutId.value = ''
-  recordedShortcutInput.value = ''
+  shortcutRecordBaselineIds.value = []
+  shortcutRecordActiveIds.value = []
+  shortcutRecordPendingIds.value = []
+  shortcutRecordCapturedId.value = ''
+  shortcutRecordDefaultIds.value = []
 }
 
 function restoreShortcutRecordToDefault() {
-  const def = shortcutRecordDefaultId.value
-  if (!def) return
-  recordedShortcutId.value = def
-  recordedShortcutInput.value = def
+  shortcutRecordActiveIds.value = [...dedupeShortcutIds(shortcutRecordDefaultIds.value)]
+  shortcutRecordPendingIds.value = []
+  shortcutRecordCapturedId.value = ''
+  focusShortcutRecorder()
+}
+
+function removeShortcutRecordActiveId(index) {
+  shortcutRecordActiveIds.value = shortcutRecordActiveIds.value.filter((_, idx) => idx !== index)
+}
+
+function removeShortcutRecordPendingId(index) {
+  shortcutRecordPendingIds.value = shortcutRecordPendingIds.value.filter((_, idx) => idx !== index)
+}
+
+function promoteShortcutRecordCaptured() {
+  const captured = normalizeShortcutId(shortcutRecordCapturedId.value)
+  if (!captured) return
+  const message = rejectShortcutCandidate(captured)
+  if (message) {
+    ElMessage.warning(message)
+    return
+  }
+  if (!shortcutRecordPendingIds.value.includes(captured)) {
+    shortcutRecordPendingIds.value = [...shortcutRecordPendingIds.value, captured]
+  }
+  shortcutRecordCapturedId.value = ''
   focusShortcutRecorder()
 }
 
 function isShortcutRecordDirty() {
-  if (!shortcutRecordRow.value) return false
-  const current = recordedShortcutInput.value.trim() || recordedShortcutId.value
-  const normalizedCurrent = normalizeShortcutId(current)
-  const normalizedBaseline = normalizeShortcutId(shortcutRecordBaseline.value)
-  if (normalizedCurrent && isRecordableShortcutId(normalizedCurrent)) {
-    return normalizedCurrent !== normalizedBaseline
-  }
-  return current.trim() !== String(shortcutRecordBaseline.value || '').trim()
+  return !shortcutIdsEqual(shortcutRecordMergedIds.value, shortcutRecordBaselineIds.value)
 }
 
 function isWhenEditDirty() {
@@ -1798,15 +1908,16 @@ async function promptSaveUnsavedChanges(title) {
 
 async function applyShortcutRecord() {
   const row = shortcutRecordRow.value
-  const nextShortcutId = normalizedRecordedShortcutId.value
-  if (!row || !nextShortcutId) {
-    ElMessage.error('请先录制有效快捷键')
+  const nextShortcutIds = dedupeShortcutIds(shortcutRecordMergedIds.value)
+  if (!row || !nextShortcutIds.length) {
+    ElMessage.error('请至少保留一个有效快捷键')
     return false
   }
-  const ok = await confirmShortcutConflict(row, nextShortcutId)
-  if (!ok) return false
-  setShortcutOverride(row, buildShortcutOverrideValue(row, { shortcutId: nextShortcutId }))
-  ElMessage.success('快捷键已更新，点击保存后生效')
+  setShortcutOverride(
+    row,
+    buildShortcutOverrideValue(row, { shortcutIds: nextShortcutIds })
+  )
+  ElMessage.success('快捷键已更新，点击顶栏保存后生效')
   return true
 }
 
@@ -1892,16 +2003,12 @@ function handleShortcutRecordKeydown(e) {
     return
   }
   const nextShortcutId = eventLikeToShortcutId(e)
-  if (!nextShortcutId || !isRecordableShortcutId(nextShortcutId)) {
-    if (nextShortcutId && isNonConfigurableShortcutId(nextShortcutId)) {
-      ElMessage.warning(`「${formatShortcutDisplay(nextShortcutId)}」为固定按键，不可绑定`)
-    } else if (nextShortcutId) {
-      ElMessage.warning('仅支持有效快捷键组合，单独的修饰键不可绑定')
-    }
+  const message = rejectShortcutCandidate(nextShortcutId)
+  if (message) {
+    ElMessage.warning(message)
     return
   }
-  recordedShortcutId.value = nextShortcutId
-  recordedShortcutInput.value = nextShortcutId
+  shortcutRecordCapturedId.value = nextShortcutId
 }
 
 async function submitShortcutRecord() {
@@ -2002,14 +2109,24 @@ async function submitWhenEdit() {
 
 async function disableShortcut(row) {
   try {
-    await ElMessageBox.confirm(`确定禁用“${row.commandTitle}”的快捷键 ${formatShortcutDisplay(row.shortcutId)} 吗？`, '禁用快捷键', {
-      confirmButtonText: '禁用',
-      cancelButtonText: '取消',
-      type: 'warning'
-    })
-    hotkeyOverrides.value = disableShortcutOverride(hotkeyOverrides.value, row)
-    ElMessage.success('快捷键已禁用，点击保存后生效')
+    const keys = (row.shortcutIds || [row.shortcutId]).map(formatShortcutDisplay).filter(Boolean).join(' / ')
+    await ElMessageBox.confirm(
+      `确定禁用「${row.commandTitle}」的快捷键触发吗？已绑定的 ${keys || '快捷键'} 将保留，按下不再执行。`,
+      '禁用快捷键触发',
+      {
+        confirmButtonText: '禁用',
+        cancelButtonText: '取消',
+        type: 'warning'
+      }
+    )
+    hotkeyOverrides.value = disableCommandShortcutOverride(hotkeyOverrides.value, row)
+    ElMessage.success('快捷键触发已禁用，点击顶栏保存后生效')
   } catch (_) {}
+}
+
+async function enableShortcut(row) {
+  hotkeyOverrides.value = enableCommandShortcutOverride(hotkeyOverrides.value, row)
+  ElMessage.success('快捷键触发已启用，点击顶栏保存后生效')
 }
 
 function restoreShortcutDefault(row) {
@@ -2509,7 +2626,9 @@ onUnmounted(() => {
   display: flex;
   flex-direction: column;
   min-height: 0;
-  padding: 8px 6px 4px;
+  padding: 0;
+  --setting-tab-font: 12px;
+  --setting-tab-h: calc(var(--setting-tab-font) + 2px);
 }
 .setting-header-bar {
   display: flex;
@@ -2519,10 +2638,11 @@ onUnmounted(() => {
   position: sticky;
   top: 0;
   z-index: 10;
-  margin: -2px -2px 4px;
-  padding: 2px 2px 5px;
-  background:
-    linear-gradient(180deg, rgba(247, 250, 254, 0.98) 0%, rgba(247, 250, 254, 0.94) 70%, rgba(247, 250, 254, 0) 100%);
+  width: 100%;
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+  background: rgba(247, 250, 254, 0.98);
 }
 .setting-header-actions {
   display: flex;
@@ -2535,16 +2655,16 @@ onUnmounted(() => {
   display: inline-flex;
   flex-wrap: nowrap;
   gap: 2px;
-  padding: 2px;
+  padding: 1px;
   border: 1px solid rgba(53, 95, 157, 0.14);
-  border-radius: 11px;
+  border-radius: 6px;
   background: linear-gradient(180deg, rgba(255, 255, 255, 0.96), rgba(236, 242, 249, 0.9));
   box-shadow:
     0 4px 14px rgba(15, 23, 42, 0.05),
     inset 0 1px 0 rgba(255, 255, 255, 0.98);
   overflow-x: auto;
   overflow-y: hidden;
-  flex: 1 1 auto;
+  flex: 0 0 auto;
   min-width: 0;
   scrollbar-width: none;
   &::-webkit-scrollbar {
@@ -2553,38 +2673,40 @@ onUnmounted(() => {
 }
 .sub-tab-btn {
   position: relative;
-  font-size: 12px;
+  font-size: var(--setting-tab-font);
   font-weight: 600;
-  min-height: 26px;
-  min-width: 52px;
-  padding: 0 10px;
+  line-height: 1;
+  min-height: var(--setting-tab-h);
+  height: var(--setting-tab-h);
+  min-width: 0;
+  padding: 0 8px;
   border-color: transparent;
   background: transparent;
   color: var(--text-color);
   border-radius: 8px;
   box-shadow: none;
   &.is-current {
-    border-color: rgba(53, 95, 157, 0.22);
-    background: linear-gradient(180deg, #ffffff 0%, #eef4fb 100%);
+    border-color: rgba(53, 95, 157, 0.35);
+    background: linear-gradient(180deg, #ffffff 0%, #e8f0f8 100%);
     color: var(--primary-color);
     box-shadow:
-      0 4px 10px rgba(53, 95, 157, 0.10),
-      0 0 0 1px rgba(53, 95, 157, 0.08) inset;
+      0 4px 12px rgba(53, 95, 157, 0.15),
+      0 0 0 1px rgba(53, 95, 157, 0.12) inset;
   }
   &.is-current::after {
     content: '';
     position: absolute;
-    left: 9px;
-    right: 9px;
+    left: 2px;
+    right: 2px;
     bottom: 2px;
-    height: 1.5px;
+    height: 2.5px;
     border-radius: 999px;
     background: currentColor;
-    opacity: 0.85;
+    opacity: 1;
   }
 }
 .sub-tab-content {
-  padding: 10px 2px 8px;
+  padding: 0;
   min-height: 0;
 }
 .sub-tab-content--fill {
@@ -2592,11 +2714,12 @@ onUnmounted(() => {
   display: flex;
   flex-direction: column;
   min-height: 0;
+  padding: 0;
 }
 .setting-card-content-item {
   display: block;
   margin: 0;
-  padding: 0 10px;
+  padding: 0;
   background: transparent;
   box-shadow: none;
 }
@@ -2779,12 +2902,12 @@ onUnmounted(() => {
 .setting-storage-compact {
   display: flex;
   flex-direction: column;
-  gap: 8px;
-  padding: 0 4px;
+  gap: 0;
+  padding: 0;
 }
 .setting-panel {
-  padding: 10px 12px;
-  border-radius: 14px;
+  padding: 0;
+  border-radius: 0;
   border: 1px solid var(--border-color);
 }
 .setting-panel--config {
@@ -2797,7 +2920,7 @@ onUnmounted(() => {
 .setting-row--compact {
   margin: 0;
   & + & {
-    margin-top: 8px;
+    margin-top: 6px;
   }
 }
 .setting-row--split {
@@ -2894,11 +3017,43 @@ onUnmounted(() => {
   min-height: 30px;
   padding: 0 12px;
 }
-.setting-storage-compact :deep(.el-input__wrapper) {
-  min-height: 30px;
+.setting-storage-compact .number-select :deep(.el-select__wrapper) {
+  min-height: 24px;
+  padding: 0 4px;
+}
+.setting-storage-compact .number-select :deep(.el-select__wrapper .el-select__selected-item) {
+  overflow: visible;
+  flex: 1 1 auto;
+  min-width: 0;
+}
+.setting-storage-compact .number-select :deep(.el-select__wrapper .el-select__selection) {
+  overflow: visible;
+  width: auto;
+  flex: 1 1 auto;
+  min-width: 0;
+}
+.setting-storage-compact .number-select :deep(.el-input__wrapper) {
+  min-height: 24px;
+  padding: 0 4px;
+}
+.setting-storage-compact .number-select :deep(.el-input__inner) {
+  padding: 0;
+  text-overflow: clip;
+  overflow: visible;
+}
+.setting-storage-compact .number-select :deep(.el-input__suffix) {
+  flex-shrink: 0;
+  width: 16px;
+  margin-left: 0;
+}
+.setting-storage-compact .number-select :deep(.el-select__suffix) {
+  margin-left: 28px;
+  padding-left: 0;
+  flex: 0 0 auto;
+  position: relative;
 }
 .setting-storage-compact .number-select {
-  width: 96px;
+  width: 180px;
 }
 .setting-inline-hint {
   font-size: 12px;
@@ -3022,6 +3177,24 @@ onUnmounted(() => {
   padding-bottom: 10px;
   border-bottom: 1px solid var(--border-color);
 }
+.shortcut-record-head--command {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+.shortcut-record-head-main {
+  min-width: 0;
+  flex: 1;
+}
+.shortcut-record-head-defaults {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 6px;
+  flex-shrink: 0;
+}
 .shortcut-record-command {
   font-size: 14px;
   font-weight: 700;
@@ -3048,14 +3221,93 @@ onUnmounted(() => {
 .shortcut-record-panel {
   display: flex;
   flex-direction: column;
-  align-items: center;
-  justify-content: center;
+  align-items: stretch;
+  justify-content: flex-start;
   gap: 8px;
   min-height: 132px;
-  padding: 14px 12px;
+  padding: 10px 12px;
   border: 1px solid var(--border-color-strong);
   border-radius: 12px;
   background: var(--bg-soft-color);
+}
+.shortcut-record-key-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  width: 100%;
+}
+.shortcut-record-key-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+.shortcut-record-key-remove {
+  width: 22px;
+  height: 22px;
+  border: none;
+  border-radius: 999px;
+  background: rgba(180, 35, 24, 0.1);
+  color: #b42318;
+  font-size: 14px;
+  line-height: 1;
+  cursor: pointer;
+}
+.shortcut-record-key-empty {
+  font-size: 12px;
+  color: var(--text-color-lighter);
+  text-align: center;
+  padding: 16px 0;
+}
+.shortcut-record-capture-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 12px;
+  padding: 10px 12px;
+  border: 1px dashed var(--border-color-strong);
+  border-radius: 10px;
+  background: var(--bg-soft-color);
+  outline: none;
+}
+.shortcut-record-capture-hint {
+  font-size: 12px;
+  color: var(--text-color-lighter);
+}
+.shortcut-record-capture-staging {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.shortcut-record-capture-confirm {
+  width: 28px;
+  height: 28px;
+  border: none;
+  border-radius: 999px;
+  background: rgba(53, 95, 157, 0.12);
+  color: var(--primary-color);
+  font-size: 16px;
+  cursor: pointer;
+}
+.shortcut-kbd-sep {
+  color: var(--text-color-lighter);
+  font-size: 11px;
+}
+.shortcut-reservation-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 11px;
+  th, td {
+    padding: 4px 6px;
+    border-bottom: 1px solid var(--border-color);
+    text-align: left;
+    vertical-align: top;
+  }
+  th {
+    font-weight: 700;
+    color: var(--text-color-lighter);
+  }
 }
 .shortcut-record-panel-label {
   font-size: 12px;
@@ -3127,17 +3379,20 @@ onUnmounted(() => {
   color: var(--text-color-lighter);
   font-size: 13px;
   font-family: 'SFMono-Regular', 'Consolas', 'Courier New', monospace;
+}
+.shortcut-record-default-reset {
+  padding: 3px 10px;
+  border-radius: 8px;
+  border: 1px solid var(--border-color);
+  background: var(--bg-elevated-color);
+  color: var(--text-color-lighter);
+  font-size: 12px;
   cursor: pointer;
   transition: color 0.15s, border-color 0.15s, background 0.15s;
   &:hover {
-    color: var(--text-color);
+    color: var(--primary-color);
     border-color: var(--primary-color);
-    background: var(--bg-elevated-color);
   }
-}
-.shortcut-record-default-hint {
-  font-size: 11px;
-  color: var(--text-color-lighter);
 }
 .shortcut-recorder-manual {
   margin-top: 12px;
@@ -3493,16 +3748,17 @@ onUnmounted(() => {
   flex: 1;
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 0;
   min-height: 0;
-  padding: 0 2px;
+  padding: 0;
 }
 .feature-strip {
   display: flex;
   align-items: center;
   gap: 5px;
-  padding: 3px 6px;
-  border-radius: 10px;
+  padding: 0;
+  border-radius: 0;
+  margin-bottom: -1px;
   background: linear-gradient(90deg, rgba(239, 246, 252, 0.95), rgba(255, 255, 255, 0.88));
   border: 1px solid rgba(53, 95, 157, 0.12);
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.85);
@@ -3550,7 +3806,7 @@ onUnmounted(() => {
 .feature-search-wrap {
   flex: 1 1 auto;
   min-width: 72px;
-  max-width: 168px;
+  max-width: none;
 }
 .setting-feature-shell .feature-search-wrap :deep(.el-input__wrapper) {
   min-height: 24px;
@@ -3572,8 +3828,9 @@ onUnmounted(() => {
   flex: 1;
   min-height: 0;
   overflow-y: auto;
-  padding: 3px 2px 4px;
-  border-radius: 12px;
+  padding: 0;
+  border-radius: 0;
+  border-top: none;
   background:
     linear-gradient(180deg, rgba(255, 255, 255, 0.55), rgba(247, 250, 254, 0.35)),
     rgba(255, 255, 255, 0.72);
@@ -3583,16 +3840,16 @@ onUnmounted(() => {
 .feature-list {
   display: flex;
   flex-direction: column;
-  gap: 3px;
+  gap: 0;
   min-height: 100%;
 }
 .feature-list-item {
   display: flex;
   align-items: center;
   gap: 6px;
-  min-height: 30px;
-  padding: 3px 8px 3px 4px;
-  border-radius: 9px;
+  min-height: 26px;
+  padding: 0;
+  border-radius: 0;
   border: 1px solid transparent;
   background: rgba(255, 255, 255, 0.62);
   transition: border-color 0.16s ease, background-color 0.16s ease, box-shadow 0.16s ease;
@@ -3763,18 +4020,19 @@ onUnmounted(() => {
   flex: 1;
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 0;
   min-height: 0;
-  padding: 0 2px;
+  padding: 0;
 }
 .shortcut-strip {
   display: flex;
   align-items: center;
   gap: 6px;
-  padding: 3px 6px;
-  border-radius: 10px;
+  padding: 0;
+  border-radius: 0;
+  margin-bottom: -3px;
   background: linear-gradient(90deg, rgba(239, 246, 252, 0.95), rgba(255, 255, 255, 0.88));
-  border: 1px solid rgba(53, 95, 157, 0.12);
+  border: 2px solid rgba(53, 95, 157, 0.15);
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.85);
 }
 .shortcut-strip--single {
@@ -3785,7 +4043,7 @@ onUnmounted(() => {
   align-items: center;
   gap: 5px;
   flex: 0 0 auto;
-  min-height: 22px;
+  min-height: 18px;
   padding: 0 8px;
   border-radius: 999px;
   border: 1px solid rgba(28, 113, 82, 0.18);
@@ -3818,7 +4076,7 @@ onUnmounted(() => {
 .shortcut-search-wrap {
   flex: 1 1 auto;
   min-width: 108px;
-  max-width: 42%;
+  max-width: none;
 }
 .shortcut-strip-actions {
   margin-left: auto;
@@ -3828,8 +4086,8 @@ onUnmounted(() => {
   flex: 0 0 auto;
 }
 .setting-shortcut-shell .shortcut-search-wrap :deep(.el-input__wrapper) {
-  min-height: 22px;
-  padding: 0 8px;
+  min-height: 18px;
+  padding: 0 6px;
   border-radius: 999px;
   box-shadow: 0 0 0 1px rgba(53, 95, 157, 0.12) inset;
 }
@@ -3839,28 +4097,43 @@ onUnmounted(() => {
 .shortcut-scope-select {
   width: auto;
   min-width: 4em;
-  max-width: 5.5em;
+  max-width: 7em;
   flex: 0 0 auto;
 }
 .setting-shortcut-shell .shortcut-scope-select :deep(.el-select__wrapper) {
   min-height: 22px;
-  padding: 0 8px;
+  padding: 0 4px 0 8px;
   border-radius: 999px;
   box-shadow: 0 0 0 1px rgba(53, 95, 157, 0.12) inset;
+  justify-content: flex-start;
 }
 .setting-shortcut-shell .shortcut-scope-select :deep(.el-select__selected-item) {
   font-size: 10px;
   font-weight: 600;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  overflow: visible;
   white-space: nowrap;
+  flex: 1 1 auto;
+  min-width: 0;
+}
+.setting-shortcut-shell .shortcut-scope-select :deep(.el-select__selection) {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: visible;
+  width: auto;
+}
+.setting-shortcut-shell .shortcut-scope-select :deep(.el-select__suffix) {
+  margin-left: 16px;
+  padding-left: 2px;
+  flex: 0 0 auto;
+  position: relative;
 }
 .shortcut-list-scroll {
   flex: 1;
   min-height: 0;
   overflow-y: auto;
-  padding: 3px 2px 4px;
-  border-radius: 12px;
+  padding: 0;
+  border-radius: 0;
+  border-top: none;
   background:
     linear-gradient(180deg, rgba(255, 255, 255, 0.55), rgba(247, 250, 254, 0.35)),
     rgba(255, 255, 255, 0.72);
@@ -3870,7 +4143,7 @@ onUnmounted(() => {
 .shortcut-list {
   display: flex;
   flex-direction: column;
-  gap: 3px;
+  gap: 0;
   min-height: 100%;
 }
 .shortcut-list--grid {
@@ -3887,8 +4160,8 @@ onUnmounted(() => {
   position: sticky;
   top: 0;
   z-index: 1;
-  padding: 5px 8px 6px;
-  margin-bottom: 1px;
+  padding: 0;
+  margin-bottom: 0;
   border-bottom: 1px solid rgba(53, 95, 157, 0.10);
   background: rgba(247, 250, 254, 0.96);
   font-size: 10px;
@@ -3899,9 +4172,9 @@ onUnmounted(() => {
 .shortcut-list-item {
   position: relative;
   overflow: hidden;
-  min-height: 34px;
-  padding: 3px 8px;
-  border-radius: 9px;
+  min-height: 28px;
+  padding: 0;
+  border-radius: 0;
   border: 1px solid transparent;
   background: rgba(255, 255, 255, 0.62);
   transition: border-color 0.16s ease, background-color 0.16s ease, box-shadow 0.16s ease;
@@ -3968,8 +4241,8 @@ onUnmounted(() => {
   gap: 8px;
   width: max-content;
   max-width: var(--shortcut-drawer-max, 100%);
-  height: 28px;
-  margin-top: -14px;
+  height: 24px;
+  margin-top: -12px;
   padding: 0 12px 0 16px;
   border-radius: 0 8px 8px 0;
   border: 1px solid rgba(53, 95, 157, 0.14);
@@ -4072,8 +4345,8 @@ onUnmounted(() => {
   gap: 2px;
 }
 .shortcut-list-op {
-  width: 20px;
-  height: 20px;
+  width: 18px;
+  height: 18px;
   border: none;
   border-radius: 5px;
   background: transparent;
@@ -4128,10 +4401,10 @@ onUnmounted(() => {
   display: flex;
   flex-direction: column;
   min-height: 0;
-  padding: 0 2px;
+  padding: 0;
 }
 .feature-config-panel--compact {
-  gap: 6px;
+  gap: 0;
 }
 .feature-config-row {
   display: flex;
@@ -4154,16 +4427,16 @@ onUnmounted(() => {
   }
 }
 .feature-config-row--compact {
-  padding: 6px 10px;
+  padding: 0;
   gap: 8px;
+  max-width: 100%;
+  box-sizing: border-box;
   border-radius: 10px;
   border-color: rgba(53, 95, 157, 0.12);
   background: linear-gradient(90deg, rgba(255, 255, 255, 0.94), rgba(247, 250, 254, 0.88));
-  box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.9),
-    0 4px 12px rgba(15, 23, 42, 0.04);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.9);
   &:hover {
-    box-shadow: 0 6px 16px rgba(53, 95, 157, 0.08);
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.9);
   }
 }
 .feature-config-meta-inline {
@@ -4182,6 +4455,9 @@ onUnmounted(() => {
 .feature-config-control--compact {
   gap: 5px;
   flex-wrap: nowrap;
+  min-width: 0;
+  flex-shrink: 1;
+  overflow: hidden;
 }
 .feature-config-row--compact .feature-config-title-row strong {
   font-size: 12px;
@@ -4599,23 +4875,24 @@ onUnmounted(() => {
   display: flex;
   flex-direction: column;
   min-height: 0;
+  margin: 0;
   overflow: hidden;
   background: rgba(255, 255, 255, 0.94);
   border-color: var(--border-color-strong);
-  border-radius: 24px;
-  box-shadow:
-    0 26px 56px var(--shadow-color),
-    inset 0 1px 0 rgba(255, 255, 255, 0.96);
+  border-radius: 0;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.96);
 }
 .setting-card {
   flex: 1;
   min-height: 0;
 }
 .setting-header-actions :deep(.el-button.setting-header-btn) {
-  min-height: 26px;
+  min-height: var(--setting-tab-h);
+  height: var(--setting-tab-h);
+  line-height: 1;
   padding: 0 11px;
-  border-radius: 9px;
-  font-size: 12px;
+  border-radius: 6px;
+  font-size: var(--setting-tab-font);
   font-weight: 600;
   box-shadow: 0 2px 8px rgba(15, 23, 42, 0.06);
 }
@@ -4623,10 +4900,12 @@ onUnmounted(() => {
   box-shadow: 0 4px 12px rgba(53, 95, 157, 0.18);
 }
 .sub-tab-nav :deep(.el-button.sub-tab-btn) {
-  min-height: 26px;
-  padding: 0 10px;
-  border-radius: 8px;
-  font-size: 12px;
+  min-height: var(--setting-tab-h);
+  height: var(--setting-tab-h);
+  line-height: 1;
+  padding: 0 8px;
+  border-radius: 6px;
+  font-size: var(--setting-tab-font);
   box-shadow: none;
 }
 .setting :deep(.el-button:not(.is-link)) {
