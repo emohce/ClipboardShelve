@@ -25,7 +25,3 @@ const handleItemClick = (item) => {
   item.checked = !item.checked
 }
 </script>
-
-<style lang="less" scoped>
-@import '../style/index.less';
-</style>

@@ -41,6 +41,30 @@ export const WHEN_PRESETS = [
   { label: '始终', when: '' }
 ]
 
+export const WHEN_MUTEX_GROUPS = [
+  ['mainFocus', 'settingFocus'],
+  ['settingFocus', 'clearDialogOpen', 'drawerOpen', 'fullDataOpen', 'tagSearchOpen', 'tagEditOpen', 'pinGroupEditOpen'],
+  ['clearDialogOpen', 'drawerOpen', 'fullDataOpen', 'tagSearchOpen', 'tagEditOpen', 'pinGroupEditOpen']
+]
+
+export function getWhenBuilderDisabledKeys(states = {}, operator = '&&') {
+  if (operator === '||') return new Set()
+  const disabled = new Set()
+  const includes = Object.entries(states)
+    .filter(([, state]) => state === 'include')
+    .map(([key]) => key)
+  if (!includes.length) return disabled
+  for (const group of WHEN_MUTEX_GROUPS) {
+    const selected = includes.filter((key) => group.includes(key))
+    if (!selected.length) continue
+    const anchor = selected[0]
+    for (const key of group) {
+      if (key !== anchor && !includes.includes(key)) disabled.add(key)
+    }
+  }
+  return disabled
+}
+
 export function createEmptyWhenSelection() {
   return {
     operator: '&&',

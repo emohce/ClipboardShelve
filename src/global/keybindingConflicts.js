@@ -1,10 +1,7 @@
 import { getWhenLiteralSets } from './whenExpression.js'
+import { WHEN_MUTEX_GROUPS } from './whenBuilder.js'
 
-const MUTEX_GROUPS = [
-  ['mainFocus', 'settingFocus'],
-  ['settingFocus', 'clearDialogOpen', 'drawerOpen', 'fullDataOpen', 'tagSearchOpen', 'tagEditOpen', 'pinGroupEditOpen'],
-  ['clearDialogOpen', 'drawerOpen', 'fullDataOpen', 'tagSearchOpen', 'tagEditOpen', 'pinGroupEditOpen']
-]
+const MUTEX_GROUPS = WHEN_MUTEX_GROUPS
 
 function normalizedKey(binding) {
   return String(binding?.key || binding?.shortcutId || '').trim()

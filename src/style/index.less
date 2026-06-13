@@ -12,6 +12,7 @@
 }
 
 @media (prefers-color-scheme: dark) {
+  html,
   #app {
     @primary-color: #6b8fd6;
     @primary-color-lighter: #8ca7df;
@@ -48,6 +49,7 @@
 }
 
 @media (prefers-color-scheme: light) {
+  html,
   #app {
     @primary-color: #355f9d;
     @primary-color-lighter: #4e78b6;
@@ -80,5 +82,285 @@
     --shadow-color: @shadow-color;
     --overlay-color: @overlay-color;
     .import();
+  }
+}
+
+.el-overlay {
+  background-color: var(--overlay-color);
+  backdrop-filter: blur(4px);
+}
+
+.el-dialog {
+  border-radius: 16px;
+  padding: 0 8px 12px;
+  background: var(--bg-elevated-color);
+  border: 1px solid var(--border-color);
+  box-shadow:
+    0 30px 80px var(--shadow-color),
+    0 10px 30px var(--shadow-color);
+}
+
+.el-dialog__header {
+  text-align: center;
+  font-weight: 600;
+  letter-spacing: 0.5px;
+}
+
+.el-message-box {
+  border-radius: 16px;
+  background: var(--bg-elevated-color);
+  border: 1px solid var(--border-color);
+  box-shadow:
+    0 30px 80px var(--shadow-color),
+    0 10px 30px var(--shadow-color);
+}
+
+.shortcut-scope-popper.el-select__popper {
+  min-width: 4em !important;
+  width: max-content !important;
+}
+
+.shortcut-scope-popper .el-select-dropdown__item {
+  white-space: nowrap;
+  padding-right: 12px;
+}
+
+.setting-modal-overlay {
+  background: rgba(10, 16, 30, 0.96) !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+}
+
+.el-overlay.setting-modal-overlay {
+  background: rgba(10, 16, 30, 0.96) !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+}
+
+.setting-modal-body-shell {
+  padding: 14px;
+  border-radius: 12px;
+  border: 1px solid var(--border-color-strong);
+  background: var(--bg-elevated-color);
+}
+
+.shortcut-record-reserved-popper.el-popper {
+  z-index: 4000 !important;
+  padding: 10px 12px !important;
+  border: 1px solid var(--border-color-strong) !important;
+  border-radius: 10px !important;
+  background: var(--bg-elevated-color, #ffffff) !important;
+  box-shadow: 0 12px 32px rgba(15, 23, 42, 0.22) !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+}
+
+.shortcut-record-reserved-popover-body {
+  color: var(--text-color, #162033);
+  font-size: 12px;
+  line-height: 1.55;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
+.shortcut-record-reserved-popper.el-popper .el-popper__arrow::before {
+  background: var(--bg-elevated-color, #ffffff) !important;
+  border: 1px solid var(--border-color-strong) !important;
+}
+
+.setting-modal-dialog.el-dialog {
+  border-radius: 16px;
+  border: 1px solid var(--border-color-strong);
+  background: var(--bg-elevated-color, #ffffff) !important;
+  backdrop-filter: none;
+  box-shadow:
+    0 28px 72px rgba(15, 23, 42, 0.42),
+    0 0 0 1px rgba(255, 255, 255, 0.04) inset;
+  overflow: hidden;
+}
+
+.setting-modal-dialog .el-dialog__header {
+  margin: 0;
+  padding: 14px 18px 8px;
+  border-bottom: 1px solid var(--border-color);
+  background: var(--bg-elevated-color, #ffffff);
+}
+
+.setting-modal-dialog .el-dialog__title {
+  font-size: 14px;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  color: var(--primary-color);
+}
+
+.setting-modal-dialog .el-dialog__footer {
+  padding: 10px 18px 14px;
+  border-top: 1px solid var(--border-color);
+  background: var(--bg-elevated-color, #ffffff);
+}
+
+.when-edit-dialog.el-dialog,
+.when-edit-dialog .el-dialog__header,
+.when-edit-dialog .el-dialog__body,
+.when-edit-dialog .el-dialog__footer,
+.shortcut-record-dialog.el-dialog,
+.shortcut-record-dialog .el-dialog__header,
+.shortcut-record-dialog .el-dialog__body,
+.shortcut-record-dialog .el-dialog__footer,
+.feature-dialog.el-dialog,
+.feature-dialog .el-dialog__header,
+.feature-dialog .el-dialog__body,
+.feature-dialog .el-dialog__footer,
+.command-macro-dialog.el-dialog,
+.command-macro-dialog .el-dialog__header,
+.command-macro-dialog .el-dialog__body,
+.command-macro-dialog .el-dialog__footer {
+  background: var(--bg-elevated-color, #ffffff) !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+  opacity: 1 !important;
+}
+
+.shortcut-record-dialog {
+  .shortcut-record-panel {
+    border: 1px solid var(--border-color-strong);
+    background: var(--bg-soft-color, #e8eef5);
+  }
+  .shortcut-record-panel--current {
+    background: var(--bg-elevated-color, #ffffff);
+  }
+  .shortcut-recorder-key {
+    border: 1px solid var(--border-color);
+    background: var(--bg-elevated-color, #ffffff);
+  }
+  .shortcut-record-panel-default {
+    border-top-color: var(--border-color);
+  }
+  .shortcut-record-default-value {
+    border: 1px solid var(--border-color);
+    background: var(--bg-elevated-color, #ffffff);
+  }
+  .shortcut-recorder-reserved {
+    border: 1px dashed var(--border-color);
+    background: var(--bg-soft-color, #e8eef5);
+  }
+}
+
+.when-edit-dialog {
+  .when-editor-shell {
+    border: 1px solid var(--border-color-strong);
+    background: var(--bg-elevated-color, #ffffff);
+  }
+  .when-editor-head,
+  .when-editor-mode-row {
+    border: 1px solid var(--border-color);
+    background: var(--bg-soft-color, #e8eef5);
+  }
+  .when-builder {
+    border: 1px solid var(--border-color);
+    background: var(--bg-soft-color, #e8eef5);
+  }
+  .when-builder-group {
+    border: 1px solid var(--border-color);
+    background: var(--bg-elevated-color, #ffffff);
+  }
+  .when-builder-group--surface {
+    border-color: rgba(53, 95, 157, 0.3);
+    background: linear-gradient(160deg, rgba(53, 95, 157, 0.12), var(--bg-elevated-color, #ffffff));
+  }
+  .when-builder-group--state {
+    border-color: rgba(31, 154, 114, 0.3);
+    background: linear-gradient(160deg, rgba(31, 154, 114, 0.12), var(--bg-elevated-color, #ffffff));
+  }
+  .when-builder-group--overlay {
+    border-color: rgba(217, 119, 6, 0.3);
+    background: linear-gradient(160deg, rgba(217, 119, 6, 0.12), var(--bg-elevated-color, #ffffff));
+  }
+  .when-builder-option {
+    border: 1px solid var(--border-color);
+    background: var(--bg-soft-color, #e8eef5);
+  }
+  .when-editor-default {
+    border: 1px dashed var(--border-color);
+    background: var(--bg-soft-color, #e8eef5);
+  }
+  .when-editor-default-value {
+    border: 1px solid var(--border-color);
+    background: var(--bg-elevated-color, #ffffff);
+  }
+}
+
+@media (prefers-color-scheme: dark) {
+  .setting-modal-overlay,
+  .el-overlay.setting-modal-overlay {
+    background: rgba(4, 8, 18, 0.96) !important;
+  }
+  .setting-modal-dialog.el-dialog {
+    background: var(--bg-elevated-color, #151b24) !important;
+    box-shadow:
+      0 28px 72px rgba(0, 0, 0, 0.55),
+      0 0 0 1px rgba(255, 255, 255, 0.06) inset;
+  }
+  .setting-modal-dialog .el-dialog__header,
+  .setting-modal-dialog .el-dialog__footer {
+    background: var(--bg-elevated-color, #151b24);
+  }
+  .when-edit-dialog.el-dialog,
+  .when-edit-dialog .el-dialog__header,
+  .when-edit-dialog .el-dialog__body,
+  .when-edit-dialog .el-dialog__footer,
+  .shortcut-record-dialog.el-dialog,
+  .shortcut-record-dialog .el-dialog__header,
+  .shortcut-record-dialog .el-dialog__body,
+  .shortcut-record-dialog .el-dialog__footer,
+  .feature-dialog.el-dialog,
+  .feature-dialog .el-dialog__header,
+  .feature-dialog .el-dialog__body,
+  .feature-dialog .el-dialog__footer,
+  .command-macro-dialog.el-dialog,
+  .command-macro-dialog .el-dialog__header,
+  .command-macro-dialog .el-dialog__body,
+  .command-macro-dialog .el-dialog__footer {
+    background: var(--bg-elevated-color, #151b24) !important;
+  }
+  .shortcut-record-dialog {
+    .shortcut-record-panel {
+      background: var(--bg-soft-color, #1b2230);
+    }
+    .shortcut-record-panel--current,
+    .shortcut-recorder-key,
+    .shortcut-record-default-value {
+      background: var(--bg-elevated-color, #151b24);
+    }
+    .shortcut-recorder-reserved {
+      background: var(--bg-soft-color, #1b2230);
+    }
+  }
+  .when-edit-dialog {
+    .when-editor-shell,
+    .when-builder-group,
+    .when-editor-default-value {
+      background: var(--bg-elevated-color, #151b24);
+    }
+    .when-editor-head,
+    .when-editor-mode-row,
+    .when-builder,
+    .when-builder-option,
+    .when-editor-default {
+      background: var(--bg-soft-color, #1b2230);
+    }
+    .when-builder-group--surface {
+      background: linear-gradient(160deg, rgba(107, 143, 214, 0.16), var(--bg-elevated-color, #151b24));
+    }
+    .when-builder-group--state {
+      background: linear-gradient(160deg, rgba(31, 154, 114, 0.14), var(--bg-elevated-color, #151b24));
+    }
+    .when-builder-group--overlay {
+      background: linear-gradient(160deg, rgba(217, 119, 6, 0.14), var(--bg-elevated-color, #151b24));
+    }
+  }
+  .shortcut-record-reserved-popper.el-popper {
+    background: var(--bg-elevated-color, #151b24) !important;
+    box-shadow: 0 12px 32px rgba(0, 0, 0, 0.45) !important;
   }
 }

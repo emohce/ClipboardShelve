@@ -2304,27 +2304,6 @@ onUnmounted(() => {
     letter-spacing: 0.08em;
 }
 
-:deep(.el-overlay) {
-    background-color: var(--overlay-color);
-    backdrop-filter: blur(4px);
-}
-
-:deep(.el-dialog) {
-    border-radius: 16px;
-    padding: 0 8px 12px;
-    background: var(--bg-elevated-color);
-    border: 1px solid var(--border-color);
-    box-shadow:
-        0 30px 80px var(--shadow-color),
-        0 10px 30px var(--shadow-color);
-}
-
-:deep(.el-dialog__header) {
-    text-align: center;
-    font-weight: 600;
-    letter-spacing: 0.5px;
-}
-
 .clear-panel-overlay {
     position: fixed;
     inset: 0;

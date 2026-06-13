@@ -4,6 +4,7 @@ import { installPluginEnterMultiplexer } from './global/pluginEnterHandlers'
 import { flushPendingQuickPasteActions } from './global/quickPasteRuntime'
 import { createApp } from 'vue'
 import App from './App.vue'
+import './style/index.less'
 import registerElement from './global/registerElement'
 import { STORAGE_STATUS_EVENT, getStorageRuntimeStatus } from './storage/storageRuntimeStatus'
 
