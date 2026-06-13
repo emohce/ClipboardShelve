@@ -18,6 +18,8 @@ This index is the project-level entry for reusable memories. Tasks should link t
 | Error memories | [error-memory/README.md](error-memory/README.md) | Verified **misconception concepts** and guardrails—not intermediate attempts or wrong-code traces. |
 | ADRs | [adr/README.md](adr/README.md) | Accepted decisions and tradeoffs that should not be rediscovered. |
 | Active process hub | [../specs/PROJECT_STATUS.md](../specs/PROJECT_STATUS.md) | Current progress, active task docs, and latest implementation focus. |
+| Setting page UI (2026-06-13) | [../specs/260613-SettingUiModify/260613-zz-raw-settingUiModify.md](../specs/260613-SettingUiModify/260613-zz-raw-settingUiModify.md) | Tab 布局、改键/When 弹窗、遮罩与 teleport 样式、热键穿透屏蔽。 |
+| Shortcut multi-key binding (2026-06-13) | [../specs/260613-SettingUiModify/260613-shortcut-multi-key-plan.md](../specs/260613-SettingUiModify/260613-shortcut-multi-key-plan.md) | `cmd:` override、`shortcutIds[]`、场景化保留规则、改键弹窗状态机、冲突硬阻断；实现见 `src/global/commandKeybindings.js`、`src/global/shortcutReservations.js`。 |
 | Legacy sources | [legacy/README.md](legacy/README.md) | Historical context only; promote useful conclusions before relying on them. |
 
 ## Task Memory Protocol

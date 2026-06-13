@@ -17,9 +17,9 @@ Detailed requirements, plans, evidence, and implementation notes stay in task di
 
 Time window: 2026-06-11 to 2026-06-13.
 
-Current focus: UI interaction optimization v1.2.1 completed, right-click unification first-stage completed, shortcut command redesign main line continues; quick paste silent runtime verified 2026-06-13 ([../knowledge/quick-paste-runtime.md](../knowledge/quick-paste-runtime.md)).
+Current focus: Shortcut command redesign — **command 级多键绑定 + 场景化保留规则 + 改键弹窗重构** completed ([260613-SettingUiModify/260613-shortcut-multi-key-plan.md](260613-SettingUiModify/260613-shortcut-multi-key-plan.md)). Recommended next: uTools production-shell migration verification, macro conflict preview.
 
-Current core task: Shortcut command redesign main line continues. Quick paste authoritative memory: [../knowledge/quick-paste-runtime.md](../knowledge/quick-paste-runtime.md). Recommended next: uTools production-shell migration verification, macro conflict preview, or `registerCommandFeaturePair()` fallback cleanup.
+Current core task: Shortcut command redesign follow-ups (uTools migration verification, macro conflict preview). Multi-key binding authoritative spec: [260613-SettingUiModify/260613-shortcut-multi-key-plan.md](260613-SettingUiModify/260613-shortcut-multi-key-plan.md).
 
 Completed milestones:
 
@@ -28,14 +28,16 @@ Completed milestones:
 - Quick paste: global silent runtime for `quick-paste-top` / `quick-paste-pin-group` — [../knowledge/quick-paste-runtime.md](../knowledge/quick-paste-runtime.md).
 - Command macro: paste-like steps use `macroSettleAfterMs` between steps.
 - Evaluation documentation: Comprehensive evaluation report updated with right-click unification progress.
+- Setting page UI + multi-key binding (2026-06-13): Layout/overlay baseline, command-level `shortcutIds[]`, reservation rules, record dialog refactor — [260613-SettingUiModify/260613-shortcut-multi-key-plan.md](260613-SettingUiModify/260613-shortcut-multi-key-plan.md).
 
 ## Task Reference Index
 
 | Task | Status | Read first | Update when |
 |------|--------|------------|-------------|
-| Shortcut command redesign | active / main line | [260610-shortcuts-redesign/12YG2-zz-summary-快捷键重构全景文档.md](260610-shortcuts-redesign/12YG2-zz-summary-快捷键重构全景文档.md) | Command, keybinding, when, resolver, SQLite shortcut, macro, or command-entry behavior changes. |
+| Shortcut command redesign | active / main line | [260610-shortcuts-redesign/12YG2-zz-summary-快捷键重构全景文档.md](260610-shortcuts-redesign/12YG2-zz-summary-快捷键重构全景文档.md), **改键多键** [260613-SettingUiModify/260613-shortcut-multi-key-plan.md](260613-SettingUiModify/260613-shortcut-multi-key-plan.md) | Command, keybinding, when, resolver, SQLite shortcut, macro, record dialog, multi-key, or conflict behavior changes. |
 | Right-click unification | completed first stage / reference | [260612-right-click-unification/01-plan.md](260612-right-click-unification/01-plan.md) | Right-click action model, drawer order, numeric execution, settings-page management, verification, or handoff changes. |
 | UI interaction optimization | completed / reference | [260610-ui交互优化/评估报告-2026-06-11.md](260610-ui交互优化/评估报告-2026-06-11.md) | Only when a regression or explicit new UI interaction task reopens the behavior. |
+| Setting page UI modify | completed / reference | [260613-SettingUiModify/260613-zz-raw-settingUiModify.md](260613-SettingUiModify/260613-zz-raw-settingUiModify.md), [260613-SettingUiModify/260613-shortcut-multi-key-plan.md](260613-SettingUiModify/260613-shortcut-multi-key-plan.md) | Layout/overlay baseline; multi-key record dialog + cmd override model implemented. |
 | Documentation and memory governance | active / infrastructure | [../knowledge/MEMORY_INDEX.md](../knowledge/MEMORY_INDEX.md), [0000-template/README.md](0000-template/README.md) | Process rules, task templates, memory routing, or active task status changes. |
 | Storage performance rewrite | reference / risk area | [260609-performance-rewrite/README.md](260609-performance-rewrite/README.md) | Storage, migration, repeat-import, SQLite fallback, or repository facade behavior changes. |
 
