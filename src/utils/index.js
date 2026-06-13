@@ -281,6 +281,38 @@ const paste = () => {
   else utools.simulateKeyboardTap('v', 'ctrl')
 }
 
+const tryHideMainWindowPasteItem = (item, options = {}) => {
+  const { respectImageCopyGuard = true } = options
+  if (!item?.type) return false
+  if (item.type === 'text') {
+    if (typeof utools.hideMainWindowPasteText !== 'function') return null
+    return Boolean(utools.hideMainWindowPasteText(item.data))
+  }
+  if (item.type === 'image') {
+    if (typeof utools.hideMainWindowPasteImage !== 'function') return null
+    const dataUrl = getImageDataUrlForCopy(item)
+    if (!dataUrl) return respectImageCopyGuard ? false : null
+    return Boolean(utools.hideMainWindowPasteImage(dataUrl))
+  }
+  if (item.type === 'file') {
+    if (typeof utools.hideMainWindowPasteFile !== 'function') return null
+    try {
+      const paths = JSON.parse(item.data).map((file) => file.path).filter(Boolean)
+      if (!paths.length) return false
+      return Boolean(utools.hideMainWindowPasteFile(paths.length === 1 ? paths[0] : paths))
+    } catch (e) {
+      return false
+    }
+  }
+  return false
+}
+
+const setExitingPluginFlag = (active) => {
+  if (typeof window !== 'undefined') {
+    window.__isExitingPlugin = Boolean(active)
+  }
+}
+
 const isUToolsPlugin = () => {
   return typeof utools !== 'undefined' && utools.getNativeId
 }
@@ -317,7 +349,10 @@ const copyAndPasteAndExit = (item, options = {}) => {
   const {
     exit = true,
     paste: shouldPaste = true,
-    respectImageCopyGuard = true
+    respectImageCopyGuard = true,
+    markExitingPlugin = false,
+    skipResetPluginUiState = false,
+    useHideMainWindowPaste = false
   } = options
 
   if (item.type === 'image') {
@@ -328,15 +363,27 @@ const copyAndPasteAndExit = (item, options = {}) => {
     }
   }
 
+  if (shouldPaste && useHideMainWindowPaste) {
+    if (markExitingPlugin) setExitingPluginFlag(true)
+    const nativeResult = tryHideMainWindowPasteItem(item, { respectImageCopyGuard })
+    if (nativeResult !== null) {
+      if (markExitingPlugin) {
+        setTimeout(() => setExitingPluginFlag(false), 80)
+      }
+      return nativeResult
+    }
+    if (markExitingPlugin) setExitingPluginFlag(false)
+  }
+
   if (!shouldPaste) {
-    if (exit && typeof window.resetPluginUiState === 'function') {
+    if (exit && !skipResetPluginUiState && typeof window.resetPluginUiState === 'function') {
       window.resetPluginUiState()
     }
     copy(item, exit)
     return true
   }
 
-  if (exit && typeof window.resetPluginUiState === 'function') {
+  if (exit && !skipResetPluginUiState && typeof window.resetPluginUiState === 'function') {
     window.resetPluginUiState()
   }
 

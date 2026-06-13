@@ -1,6 +1,8 @@
-# 问题排查：点击/Enter 无法自动粘贴到外部编辑框 & uTools 窗口自动弹出
+# 问题排查：列表粘贴 & 静默快捷粘贴
 
-已沉淀错误记录：`EM-2026-04-06-hideMainWindow-showMainWindow-api-race` (`ai-error-memory/2026-04-06-hideMainWindow-showMainWindow-api-race.md`)。
+列表粘贴误区：EM-2026-04-06（[error-memory](../vibe/knowledge/error-memory/2026-04-06-hideMainWindow-showMainWindow-api-race.md)）
+
+静默快捷粘贴总览：[quick-paste-runtime.md](../vibe/knowledge/quick-paste-runtime.md)；误区 EM-2026-06-13（[error-memory](../vibe/knowledge/error-memory/2026-06-13-quick-paste-simulateKeyboardTap-only-v.md)）
 
 ## 1. 症状描述
 
@@ -91,9 +93,9 @@ t5: utools.showMainWindow()  ← ★ 窗口又弹出来了！
 t6: paste() → simulateKeyboardTap('v', 'ctrl')  ← 此时焦点已回到 uTools，粘贴目标错误
 ```
 
-**修复方向（已采纳方案 A）：**
-- `closeExternalPreview` 中的 `focusUtoolsMainWindow()` 仅在外部预览窗口**确实存在且被关闭**后调用；若本就没有外部窗口，只清空引用，不聚焦主窗口。
-- 备选：在 `copyAndPasteAndExit` 的退出流程中设置 `isExiting` 等标志位，使 `focusUtoolsMainWindow` 在退出中不执行（当前未实现）。
+**修复方向（已采纳）：**
+- 方案 A：`closeExternalPreview` 中的 `focusUtoolsMainWindow()` 仅在外部预览窗口**确实存在且被关闭**后调用。
+- 方案 B（已用于粘贴退出）：`copyAndPasteAndExit` 设置 `window.__isExitingPlugin`，`focusUtoolsMainWindow` / `handleWindowBlur` 在退出中短路（见 [src/utils/index.js](../src/utils/index.js)、[src/cpns/ClipItemList.vue](../src/cpns/ClipItemList.vue)）。
 
 ---
 
@@ -347,3 +349,15 @@ const handleWindowBlur = () => {
 | [src/views/Main.vue](../src/views/Main.vue) | L340-L346, L1142 | `resetPluginUiState` 定义与挂载 |
 | [src/global/initPlugin.js](../src/global/initPlugin.js) | L1283-L1323 | `onPluginEnter` 窗口焦点管理 |
 | `public/preload.js` | L1-L28 | Node 模块暴露（clipboard, utools 等） |
+
+---
+
+## 9. 静默快捷粘贴
+
+与上文列表内 `simulateKeyboardTap` 路径**不同**。权威说明：[quick-paste-runtime.md](../vibe/knowledge/quick-paste-runtime.md)。
+
+| 症状 | 误区 | 方向 |
+|------|------|------|
+| 只出现 `v` | 静默入口走列表粘贴通路 | 使用 `hideMainWindowPaste*` |
+| 面板滞留 | 用延迟掩盖 API 选择错误 | 同上 + 确认 mount 后 flush pending |
+| 组合顺序异常 | 热路径按 id 扫库 | 读 Main 维护的组合 cache |

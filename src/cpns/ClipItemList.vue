@@ -930,6 +930,7 @@ const openExternalPreview = (src, footer = "", ratio = 0.9) => {
 };
 
 const focusUtoolsMainWindow = () => {
+    if (window.__isExitingPlugin) return;
     if (typeof utools?.showMainWindow === "function") {
         utools.showMainWindow();
         return;
@@ -2736,6 +2737,7 @@ const unifiedKeyReleaseHandler = (e) => {
 
 // 绐楀彛澶辩劍鏃堕殣钘忔墍鏈夐瑙?
 const handleWindowBlur = () => {
+    if (window.__isExitingPlugin) return;
     resetTransientPreviewState();
     stopAutoScroll();
     // 文字预览半透明黑色背景，居中显示

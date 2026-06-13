@@ -6,7 +6,7 @@
 
 追加稳定可实施范围：按 [10YG2-zz-analysis-快捷置顶与当前剪贴板需求.ad](10YG2-zz-analysis-快捷置顶与当前剪贴板需求.ad:1) 实施 `Alt+P` 单项置顶/取消置顶、多置顶最新在上、按当前 tab/search 筛选展示；当前剪贴板临时项不在列表中悬浮展示。
 
-追加替代快捷粘贴方案：不全局抢占系统 `Ctrl/Cmd+V`；新增 uTools 功能指令“粘贴置顶顶部项”，由用户在 uTools 全局功能中绑定 `Ctrl+Shift+V` / `Command+Shift+V`，触发后按隐藏前 tab 的展示逻辑粘贴顶部可展示项。
+追加替代快捷粘贴方案：uTools 功能指令「粘贴置顶项」；规则见 [../../../vibe/knowledge/quick-paste-runtime.md](../../../vibe/knowledge/quick-paste-runtime.md)。
 
 追加组合置顶方案：按 [12YG2-zz-analysis-置顶组合需求.ad](12YG2-zz-analysis-置顶组合需求.ad:1) 实施 `Alt+G` 多选组合编辑、顶部组合合成项、组合独立存储、`Enter` 整体粘贴和 uTools 全局快捷键循环粘贴。
 
@@ -73,18 +73,16 @@
    - 触底加载只驱动普通列表分页，不把置顶项计入 `queryCursor`。
 
 9. 当前剪贴板临时项
-   - 当前剪贴板临时项不进入 [../../../src/views/Main.vue](../../../src/views/Main.vue:1479) 的常规列表展示，不悬浮压在置顶项上方。
-   - 只在 uTools “粘贴置顶顶部项”指令触发时作为候选项参与选择。
-   - 当前剪贴板临时项不写入 `pin.item.map`，不算用户置顶项。
+   - 不进入常规列表展示，不写入 `pin.item.map`。
+   - 不参与 `quick-paste-top`。
    - 插件自身复制/粘贴路径仍沿用现有防循环逻辑，不在本阶段新增外部 `Ctrl/Cmd+V` hook。
 
 10. uTools 全局快捷键指令
-   - 在 [../../../scripts/utools-runtime-assets.mjs](../../../scripts/utools-runtime-assets.mjs:16) 的 `pluginManifest.features` 增加功能指令：`code: "quick-paste-top"`，`cmds: ["粘贴置顶顶部项"]`。
+   - 注册 `quick-paste-top`（指令名「粘贴置顶项」）；规则见 [../../../vibe/knowledge/quick-paste-runtime.md](../../../vibe/knowledge/quick-paste-runtime.md)。
    - 在 [../../../src/views/Main.vue](../../../src/views/Main.vue:1517) 的 `utools.onPluginEnter` 中识别 `quick-paste-top`，避免与常规打开列表流程混在一起。
    - 在 [../../../src/views/Main.vue](../../../src/views/Main.vue:738) 维护最后 active context：tab、收藏子 tab、搜索词、锁定筛选；筛选变更时写入 `pin.lastActiveContext`。
-   - [../../../src/views/Main.vue](../../../src/views/Main.vue:1155) 收到 `quick-paste-top` 进入事件后，按最后 active context 组合顺序取顶部候选项：当前剪贴板临时项 > 置顶项 > 普通列表首项。
-   - 调用 [../../../src/utils/index.js](../../../src/utils/index.js:315) 的现有粘贴链路执行粘贴，并保留图片粘贴保护。
-   - [../../../src/views/Setting.vue](../../../src/views/Setting.vue:888) 可增加“配置快捷粘贴”入口，调用 `utools.redirectHotKeySetting("粘贴置顶顶部项")` 引导用户到 uTools 全局功能设置页绑定快捷键。
+   - [../../../src/views/Main.vue](../../../src/views/Main.vue:1155) `quick-paste-top` 只取符合 last context 的单项置顶最上方条目；见 [../../../vibe/knowledge/quick-paste-runtime.md](../../../vibe/knowledge/quick-paste-runtime.md)。
+   - [../../../src/views/Setting.vue](../../../src/views/Setting.vue:888) 可增加“配置快捷粘贴”入口，调用 `utools.redirectHotKeySetting("粘贴置顶项")` 引导用户到 uTools 全局功能设置页绑定快捷键。
 
 11. `Alt+G` 置顶组合
    - 在 [../../../src/global/hotkeyBindings.js](../../../src/global/hotkeyBindings.js:281) 增加 `alt+g -> pin-group-open`。
@@ -126,6 +124,6 @@
 - 文档链接校验：新增 plan 与需求方案内相对链接均能解析。
 - 代码检查：确认仅目标文件改动，未触碰无关业务代码。
 - 手动验证：`Alt+P` 置顶/取消置顶文本、图片、文件 item；多个置顶项最新在上；各 tab/search 下仅显示匹配置顶项；当前剪贴板临时项不在列表中悬浮展示；删除 item 后置顶状态清理。
-- uTools 手动验证：在 uTools 全局功能里把“粘贴置顶顶部项”绑定到 `Ctrl+Shift+V` / `Command+Shift+V`；从外部应用触发后，应粘贴隐藏前 tab 的顶部可展示项。
+- uTools 手动验证：绑定「粘贴置顶项」后，应粘贴符合 last context 的单项置顶最上方条目；无置顶时不粘贴。
 - 组合手动验证：多选若干 item 后 `Alt+G` 打开组合编辑；拖拽和 `Alt+U/E` 调整顺序；保存后各 tab 顶部出现组合合成项；方向键和 `Alt+U/E` 可高亮到组合项；高亮在组合项时 `Enter` 一次性粘贴整个组合，`Shift+F2` 重新编辑排序；删除 item 后组合引用清理。
-- 组合 uTools 验证：绑定“循环粘贴置顶组合项”为 `Ctrl+Shift+P` / `Command+Shift+P`，连续触发应按组合顺序循环粘贴。
+- 组合 uTools 验证：绑定“循环粘贴组合项”为 `Ctrl+Shift+P` / `Command+Shift+P`，连续触发应按组合顺序循环粘贴。

@@ -11,6 +11,9 @@
 4. 如果本次发现了新的失败模式，新增一条记录并回填索引。
 
 ## 当前重点记录
+
+粘贴相关（列表退出竞态、静默快捷粘贴 API）：[../../knowledge/error-memory/README.md](../../knowledge/error-memory/README.md)
+
 - [2026-06-09-ui-structure-interaction-guardrails.md](2026-06-09-ui-structure-interaction-guardrails.md): 当前 UI 页面结构、回滚后交互约束和防误改规则。
 - [2026-06-09-storage-performance-rewrite-pitfalls.md](2026-06-09-storage-performance-rewrite-pitfalls.md): SQLite / JSON fallback / 虚拟列表 / 大数据查询改造的高频错误。
 - [2026-04-10-utools-runtime-assets.md](2026-04-10-utools-runtime-assets.md): uTools 运行时入口资产、`preload.js` 和 `window.exports` 缺失。

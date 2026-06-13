@@ -172,6 +172,56 @@ async function main() {
     null,
     'pin group pending action should also consume once'
   )
+
+  const { PASTE_COMMAND_SETTLE_AFTER_MS } = await import('./src/global/commandDefaults.js')
+  assert.strictEqual(PASTE_COMMAND_SETTLE_AFTER_MS, 180, 'paste settle constant should be shared with macro commands')
+
+  const nativePasteCalls = []
+  globalThis.window = globalThis.window || {}
+  globalThis.window.exports = {
+    utools: {
+      hideMainWindowPasteText: (text) => {
+        nativePasteCalls.push(['text', text])
+        return true
+      },
+      hideMainWindowPasteImage: (image) => {
+        nativePasteCalls.push(['image', image])
+        return true
+      },
+      hideMainWindowPasteFile: (paths) => {
+        nativePasteCalls.push(['file', paths])
+        return true
+      },
+      isMacOs: () => false
+    },
+    existsSync: () => false,
+    sep: '/',
+    Buffer: { from: (value) => value }
+  }
+  const { copyAndPasteAndExit } = await import(`./src/utils/index.js?nativePaste=${Date.now()}`)
+  assert.strictEqual(
+    copyAndPasteAndExit({ type: 'text', data: 'pinned-top' }, { useHideMainWindowPaste: true }),
+    true,
+    'quick paste should prefer hideMainWindowPasteText over simulateKeyboardTap'
+  )
+  assert.deepStrictEqual(nativePasteCalls, [['text', 'pinned-top']])
+
+  let earlyMultiplexerCallback = null
+  globalThis.utools = {
+    onPluginEnter: (callback) => {
+      earlyMultiplexerCallback = callback
+    }
+  }
+  const earlyPluginEnterModule = await import(`./src/global/pluginEnterHandlers.js?early=${Date.now()}`)
+  assert.strictEqual(earlyPluginEnterModule.installPluginEnterMultiplexer(), true)
+  assert.strictEqual(typeof earlyMultiplexerCallback, 'function', 'early multiplexer should register onPluginEnter before handlers')
+  earlyMultiplexerCallback({ code: 'quick-paste-top' })
+  assert.strictEqual(
+    earlyPluginEnterModule.consumePendingPluginEnterAction((action) => action.code === 'quick-paste-top').code,
+    'quick-paste-top',
+    'early multiplexer should queue quick-paste before runtime handler registers'
+  )
+
   assert.ok(COMMANDS.length > 0, 'command defaults should not be empty')
   assert.strictEqual(getCommandIdForFeature('list-delete'), 'list.item.delete')
   assert.strictEqual(getCommandById('list.item.delete').risk, 'data-write')

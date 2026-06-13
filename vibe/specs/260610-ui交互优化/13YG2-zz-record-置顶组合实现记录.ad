@@ -2,7 +2,7 @@
 
 == 结论
 
-已按 [7YG2-zz-raw-交互优化需求.ad](7YG2-zz-raw-交互优化需求.ad:25) 的追加需求-2 实施单个置顶组合：多选后 `Alt+G` 编辑组合，保存后作为各 tab 顶部合成项参与列表导航，`Enter` 可一次性粘贴整个组合，uTools 指令可循环粘贴组合项。
+已按 [7YG2-zz-raw-交互优化需求.ad](7YG2-zz-raw-交互优化需求.ad:25) 的追加需求-2 实施单个置顶组合：多选后 `Alt+G` 编辑组合，保存后作为各 tab 顶部合成项参与列表导航，`Enter` 可一次性粘贴整个组合，uTools 指令可循环粘贴组合项。静默运行时见 [../../../vibe/knowledge/quick-paste-runtime.md](../../../vibe/knowledge/quick-paste-runtime.md)。
 
 == 代码落点
 
@@ -34,16 +34,3 @@
 - 已执行 `pnpm run build`，构建通过。
 - 已执行 `pnpm run prepare:utools`，生成的 `dist/plugin.json` 包含 `quick-paste-pin-group`。
 - uTools 全局快捷键绑定后仍需手动验证循环粘贴。
-
-== 2026-06-13 稳定性修复
-
-- `quick-paste-pin-group` 由全局运行时常驻注册，触发时读取最新 `window.db`、`pin.group` 和组合 cursor，避免外部快捷键进入时依赖 `Main.vue` 是否挂载：[../../../src/global/quickPasteRuntime.js](../../../src/global/quickPasteRuntime.js:112)。
-- 组合游标解析抽到纯函数，显式处理负数、越界和空组合，外部快捷触发与主界面逻辑共享同一边界规则：[../../../src/global/quickPasteSelection.js](../../../src/global/quickPasteSelection.js:24)、[../../../src/global/quickPasteRuntime.js](../../../src/global/quickPasteRuntime.js:125)。
-- 两个 uTools 快捷粘贴入口共用串行保护，但选择规则独立：组合项只按 `pin.group` 游标循环，置顶项只取单项置顶最上方条目，避免互相影响：[../../../src/global/quickPasteRuntime.js](../../../src/global/quickPasteRuntime.js:116)、[../../../src/global/quickPasteRuntime.js](../../../src/global/quickPasteRuntime.js:120)。
-- uTools 指令名统一为 `循环粘贴组合项`，设置页使用同名跳转；`onPluginEnter` 改为多路复用，避免组合循环入口被其它进入事件 handler 覆盖，并由全局运行时静默执行：[../../../scripts/utools-runtime-assets.mjs](../../../scripts/utools-runtime-assets.mjs:28)、[../../../src/views/Setting.vue](../../../src/views/Setting.vue:647)、[../../../src/global/pluginEnterHandlers.js](../../../src/global/pluginEnterHandlers.js:1)、[../../../src/global/quickPasteRuntime.js](../../../src/global/quickPasteRuntime.js:135)。
-- 组合循环 cursor 按实际可解析组合项推进；若组合保存的原始 id 中存在已删除、迁移后暂不可见或虚拟组合 id，会跳过不可粘贴项并写回下一个真实项位置，避免快捷键连续触发时卡在空项：[../../../src/global/quickPasteSelection.js](../../../src/global/quickPasteSelection.js:28)、[../../../src/global/quickPasteRuntime.js](../../../src/global/quickPasteRuntime.js:117)。
-
-== 2026-06-13 验证
-
-- 已执行 `node test-shortcut-command-system.js`，通过。
-- 已执行 `pnpm run build`，通过；仅保留 Vite chunk 体积提示。
