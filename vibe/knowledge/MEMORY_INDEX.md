@@ -16,6 +16,7 @@ This index is the project-level entry for reusable memories. Tasks should link t
 | Quick paste runtime (top + group) | [quick-paste-runtime.md](quick-paste-runtime.md) | **Read first** when modifying `quick-paste-top`, `quick-paste-pin-group`, silent paste API, bootstrap pending, or product selection rules. |
 | Quick paste pin group cache | [quick-paste-pin-group-cache.md](quick-paste-pin-group-cache.md) | Pin-group runtime cache shape, update timing, and hot-path id-resolution limits (subsection of quick paste runtime). |
 | Error memories | [error-memory/README.md](error-memory/README.md) | Verified **misconception concepts** and guardrails—not intermediate attempts or wrong-code traces. |
+| Clipboard navigation / deletion guardrails | [../vibe-doc/ai-error-memory/2026-04-08-clipboard-nav-scroll-search-layout.md](../vibe-doc/ai-error-memory/2026-04-08-clipboard-nav-scroll-search-layout.md) | Main list scroll, search focus, IME, multi-delete recovery, and delete-cache refresh; read before changing highlight, virtual scroll, multi-delete, or search-key handling. |
 | ADRs | [adr/README.md](adr/README.md) | Accepted decisions and tradeoffs that should not be rediscovered. |
 | Active process hub | [../specs/PROJECT_STATUS.md](../specs/PROJECT_STATUS.md) | Current progress, active task docs, and latest implementation focus. |
 | Setting page UI (2026-06-13) | [../specs/260613-SettingUiModify/260613-zz-raw-settingUiModify.md](../specs/260613-SettingUiModify/260613-zz-raw-settingUiModify.md) | Tab 布局、改键/When 弹窗、遮罩与 teleport 样式、热键穿透屏蔽。 |
