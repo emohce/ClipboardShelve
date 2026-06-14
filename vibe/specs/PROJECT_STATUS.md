@@ -34,6 +34,7 @@ Completed milestones:
 - Layer priority blocking (2026-06-14): `mainFocus` and resolver priority use static layer ordering; setting child overlays use internal feature-only wildcard blockers that stay out of command profiles and shortcut settings UI — [260610-shortcuts-redesign/14YG2-zz-plan-层级判断统一.md](260610-shortcuts-redesign/14YG2-zz-plan-层级判断统一.md).
 - Main page navigation recheck (2026-06-14): `a-u` / page-up default chain verified; observed failure was user shortcut override, not mapping, handler, scroll path, or layer penetration. Future triage checks runtime overrides before code paths — [260610-shortcuts-redesign/14YG2-zz-plan-层级判断统一.md](260610-shortcuts-redesign/14YG2-zz-plan-层级判断统一.md#翻页失效排查顺序).
 - Shortcut config management (2026-06-14): feature-config page now manages `shortcutSync` local/public profiles; each device keeps a local profile, can choose public runtime source, and can explicitly promote local config to public — [260610-shortcuts-redesign/12YG2-zz-summary-快捷键重构全景文档.md](260610-shortcuts-redesign/12YG2-zz-summary-快捷键重构全景文档.md).
+- Main list multi-delete recovery (2026-06-14): multi-delete now separates retained item recovery (`preferItemId`) from parent refresh index, removes deleted rows from visible cache, rewinds loaded cursors, and only fills one page instead of rebuilding the first page — [../vibe-doc/ai-error-memory/2026-04-08-clipboard-nav-scroll-search-layout.md](../vibe-doc/ai-error-memory/2026-04-08-clipboard-nav-scroll-search-layout.md).
 
 Open follow-ups:
 

@@ -25,7 +25,6 @@ Always load:
 - Codex / Devin-style agents: [../../AGENTS.md](../../AGENTS.md)
 - Cursor: [../../.cursor/rules/ezclipboard.mdc](../../.cursor/rules/ezclipboard.mdc:1)
 - Windsurf root adapter: [../../.windsurfrules](../../.windsurfrules)
-- Windsurf rule file: [../../.windsurf/rules/ezclipboard.md](../../.windsurf/rules/ezclipboard.md)
 - Project skill router: [../../.agents/skills/ezclipboard-rules/SKILL.md](../../.agents/skills/ezclipboard-rules/SKILL.md)
 
 ## Task-Specific Load
