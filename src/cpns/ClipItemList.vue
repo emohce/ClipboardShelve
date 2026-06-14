@@ -168,6 +168,10 @@ import setting, {
 import useClipOperate from "../hooks/useClipOperate";
 import { useListNavigation } from "../hooks/useListNavigation";
 import { useVirtualListScroll } from "../hooks/useVirtualListScroll";
+import {
+    buildDeleteEventMeta,
+    computeDeleteAnchorMeta,
+} from "../utils/deleteAnchor.mjs";
 import { desktopPreviewManager } from "../global/desktopPreview";
 import { registerCommandFeaturePairs } from "../global/hotkeyRegistry";
 import {
@@ -1925,45 +1929,23 @@ const DELETE_RECOVERY_OPTIONS = Object.freeze({
     scrollMode: "center-preferred",
     forceScroll: false,
 });
-const findPreferredKeptItemId = (keepIdSet, startIndex) => {
-    for (let i = startIndex; i < props.showList.length; i++) {
-        const it = props.showList[i];
-        if (keepIdSet.has(it?.id)) return it.id;
-    }
-    for (let i = startIndex - 1; i >= 0; i--) {
-        const it = props.showList[i];
-        if (keepIdSet.has(it?.id)) return it.id;
-    }
-    return null;
-};
 const getDeleteAnchorMeta = (itemsToDelete, options = {}) => {
-    const idx = activeIndex.value;
-    const len = props.showList.length;
     const force = options.force === true;
-    if (!props.isMultiple) {
-        let preferItemId = null;
-        if (len > 0) {
-            if (idx < len - 1) preferItemId = props.showList[idx + 1]?.id ?? null;
-            else if (idx > 0) preferItemId = props.showList[idx - 1]?.id ?? null;
-        }
-        return {
-            anchor: { anchorIndex: idx, preferItemId },
-            toKeep: null,
-        };
-    }
-    const toKeep = selectItemList.value.filter((item) => !itemsToDelete.includes(item));
-    const keepIdSet = new Set(toKeep.map((item) => item.id));
-    const highlighted = props.showList[idx];
-    const preferItemId = highlighted && keepIdSet.has(highlighted.id)
-        ? highlighted.id
-        : findPreferredKeptItemId(keepIdSet, idx);
+    const anchorItems = Array.isArray(options.anchorItems)
+        ? options.anchorItems
+        : itemsToDelete;
+    const meta = computeDeleteAnchorMeta({
+        showList: props.showList,
+        activeIndex: activeIndex.value,
+        isMultiple: props.isMultiple,
+        selectedItems: selectItemList.value,
+        itemsToDelete,
+        anchorItems,
+    });
     if (!force) {
-        selectedItemIds.value = toKeep.map((item) => item.id);
+        selectedItemIds.value = meta.toKeep?.map((item) => item.id) ?? [];
     }
-    return {
-        anchor: { anchorIndex: idx, preferItemId: preferItemId ?? null },
-        toKeep,
-    };
+    return meta;
 };
 const applyDeleteRecovery = (newList, anchor) => {
     if (!anchor || !Array.isArray(newList) || newList.length === 0) return;
@@ -2456,19 +2438,24 @@ function registerListHotkeyFeatures() {
         );
         const skippedLocked = itemsToDelete.length - deletableItems.length;
         if (deletableItems.length) {
-            const deleteMeta = getDeleteAnchorMeta(deletableItems, { force: false });
+            const deleteMeta = getDeleteAnchorMeta(deletableItems, {
+                force: false,
+                anchorItems: itemsToDelete,
+            });
             if (props.isMultiple && deleteMeta.toKeep) {
                 replaceSelectedItems(deleteMeta.toKeep);
             }
             setDeleteAnchor(deleteMeta.anchor);
             if (props.isMultiple && deletableItems.length > 1) {
-                emit("onItemsDelete", deletableItems, {
-                    anchorIndex: activeIndex.value,
+                emit("onItemsDelete", deletableItems, buildDeleteEventMeta({
+                    activeIndex: activeIndex.value,
+                    anchor: deleteMeta.anchor,
                     force: false,
-                });
+                }));
             } else {
                 emit("onItemDelete", deletableItems[0], {
                     anchorIndex: activeIndex.value,
+                    preferItemId: deleteMeta.anchor.preferItemId,
                     isBatch: false,
                     isLast: true,
                     force: false,
@@ -2502,10 +2489,11 @@ function registerListHotkeyFeatures() {
             if (props.isMultiple) {
                 setDeleteAnchor(deleteMeta.anchor);
                 replaceSelectedItems(deleteMeta.toKeep);
-                emit("onItemsDelete", itemsToDelete, {
-                    anchorIndex: activeIndex.value,
+                emit("onItemsDelete", itemsToDelete, buildDeleteEventMeta({
+                    activeIndex: activeIndex.value,
+                    anchor: deleteMeta.anchor,
                     force: true,
-                });
+                }));
                 replaceSelectedItems([]);
                 emit("toggleMultiSelect", false);
             } else {
@@ -2513,6 +2501,7 @@ function registerListHotkeyFeatures() {
                 itemsToDelete.forEach((item, index) =>
                     emit("onItemDelete", item, {
                         anchorIndex: activeIndex.value,
+                        preferItemId: deleteMeta.anchor.preferItemId,
                         isBatch: false,
                         isLast: true,
                         force: true,

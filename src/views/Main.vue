@@ -293,6 +293,7 @@ import {
     clearQuickPastePinGroupCache,
     setQuickPastePinGroupCache,
 } from "../global/quickPasteRuntime";
+import { rewindLoadedCursorAfterDelete } from "../utils/listRefresh.mjs";
 
 const CLEAR_RANGE_OPTIONS = [
     { label: "1 小时内", value: "1h" },
@@ -1242,12 +1243,14 @@ const getDbVersion = () =>
 
 const removeVisibleItemsByIds = (ids = []) => {
     const idSet = new Set(ids.filter(Boolean));
-    if (!idSet.size) return;
+    if (!idSet.size) return 0;
     pinnedMap.value = removePinnedItems([...idSet]);
     pinGroup.value = removePinGroupItems([...idSet]);
+    const beforeShowListLength = showList.value.length;
     showList.value = showList.value.filter((item) => !idSet.has(item.id));
     collectBlockList.value = collectBlockList.value.filter((item) => !idSet.has(item.id));
     syncQuickPastePinGroupCache();
+    return beforeShowListLength - showList.value.length;
 };
 
 const handleTogglePin = (item) => {
@@ -1457,6 +1460,23 @@ const handleDataRemove = () => {
     updateShowList(type, false);
 };
 
+const syncAfterVisibleDelete = (options = {}) => {
+    const removedVisibleCount = Math.max(0, Number(options.removedVisibleCount) || 0);
+    list.value = window.db.dataBase.data;
+    collectVersion.value++;
+    lastSyncedDbVersion = getDbVersion();
+    const tab = ClipSwitchRef.value?.activeTab;
+    const type = tab?.value ?? tab ?? activeTab.value;
+    tabQueryCache.delete(getQueryCacheKey(type));
+    if (removedVisibleCount > 0) {
+        if (queryCursor.value != null) {
+            queryCursor.value = rewindLoadedCursorAfterDelete(queryCursor.value, removedVisibleCount);
+        }
+        offset.value = rewindLoadedCursorAfterDelete(offset.value, removedVisibleCount);
+    }
+    loadMoreData();
+};
+
 const scheduleDataRefresh = () => {
     if (pendingDataRefresh) return;
     pendingDataRefresh = true;
@@ -1535,6 +1555,7 @@ const resolveDeleteRecoveryPreferId = (list = [], anchorIndex = 0, removedIds = 
 const handleItemDelete = (item, metadata = {}) => {
     const {
         anchorIndex,
+        preferItemId,
         isBatch = false,
         isLast = true,
         force = false,
@@ -1554,7 +1575,7 @@ const handleItemDelete = (item, metadata = {}) => {
             window.db.removeCollect(item.id, false);
             if (isLast) {
                 const ai = currentActiveIndex;
-                const preferId = resolveDeleteRecoveryPreferId(
+                const preferId = preferItemId ?? resolveDeleteRecoveryPreferId(
                     currentShowList.value,
                     ai,
                     [item.id],
@@ -1563,8 +1584,8 @@ const handleItemDelete = (item, metadata = {}) => {
                     anchorIndex: ai,
                     preferItemId: preferId,
                 });
-                removeVisibleItemsByIds([item.id]);
-                scheduleDataRefresh();
+                const removedVisibleCount = removeVisibleItemsByIds([item.id]);
+                syncAfterVisibleDelete({ removedVisibleCount });
             }
             return;
         }
@@ -1587,8 +1608,8 @@ const handleItemDelete = (item, metadata = {}) => {
         suppressAutoTopCount.value = 2;
         window.remove(item, { force });
         if (isLast) {
-            removeVisibleItemsByIds([item.id]);
-            scheduleDataRefresh();
+            const removedVisibleCount = removeVisibleItemsByIds([item.id]);
+            syncAfterVisibleDelete({ removedVisibleCount });
             // 删除恢复已由 ClipItemList 统一处理，无需此处调整
             // adjustActiveIndexAfterDelete(currentActiveIndex);
         }
@@ -1598,7 +1619,7 @@ const handleItemDelete = (item, metadata = {}) => {
 };
 
 const handleItemsDelete = (items = [], metadata = {}) => {
-    const { anchorIndex, force = false } = metadata;
+    const { anchorIndex, preferItemId, force = false } = metadata;
     const list = Array.isArray(items) ? items.filter(Boolean) : [];
     if (!list.length) return;
     const activeTabValue =
@@ -1621,7 +1642,7 @@ const handleItemsDelete = (items = [], metadata = {}) => {
         const removed = result.removed || 0;
         if (removed) {
             const removedIds = list.map((item) => item.id);
-            const preferId = resolveDeleteRecoveryPreferId(
+            const preferId = preferItemId ?? resolveDeleteRecoveryPreferId(
                 currentShowList.value,
                 ai,
                 removedIds,
@@ -1630,8 +1651,8 @@ const handleItemsDelete = (items = [], metadata = {}) => {
                 anchorIndex: ai,
                 preferItemId: preferId,
             });
-            removeVisibleItemsByIds(removedIds);
-            scheduleDataRefresh();
+            const removedVisibleCount = removeVisibleItemsByIds(removedIds);
+            syncAfterVisibleDelete({ removedVisibleCount });
         }
         return;
     }
@@ -1648,7 +1669,7 @@ const handleItemsDelete = (items = [], metadata = {}) => {
         const removedIds = candidates
             .filter((item) => force || !item.locked)
             .map((item) => item.id);
-        const preferId = resolveDeleteRecoveryPreferId(
+        const preferId = preferItemId ?? resolveDeleteRecoveryPreferId(
             currentShowList.value,
             ai,
             removedIds,
@@ -1657,8 +1678,8 @@ const handleItemsDelete = (items = [], metadata = {}) => {
             anchorIndex: ai,
             preferItemId: preferId,
         });
-        removeVisibleItemsByIds(removedIds);
-        scheduleDataRefresh();
+        const removedVisibleCount = removeVisibleItemsByIds(removedIds);
+        syncAfterVisibleDelete({ removedVisibleCount });
     }
     const skipped = skippedCollected + (result.skippedLocked || 0) + (result.skippedCollected || 0);
     if (skipped > 0) {
@@ -2194,8 +2215,8 @@ onMounted(() => {
                         anchorIndex: ai,
                         preferItemId: preferId,
                     });
-                    removeVisibleItemsByIds(removable.map((item) => item.id));
-                    scheduleDataRefresh();
+                    const removedVisibleCount = removeVisibleItemsByIds(removable.map((item) => item.id));
+                    syncAfterVisibleDelete({ removedVisibleCount });
                     ElMessage({
                         type: "success",
                         message:
@@ -2238,8 +2259,8 @@ onMounted(() => {
                         anchorIndex: ai,
                         preferItemId: preferId,
                     });
-                    removeVisibleItemsByIds(candidates.map((item) => item.id));
-                    scheduleDataRefresh();
+                    const removedVisibleCount = removeVisibleItemsByIds(candidates.map((item) => item.id));
+                    syncAfterVisibleDelete({ removedVisibleCount });
                     ElMessage({
                         type: "success",
                         message: `已强制删除 ${removed} 条搜索结果`,
