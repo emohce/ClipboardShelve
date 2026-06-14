@@ -26,6 +26,26 @@ if (!setting.userConfig.preview || typeof setting.userConfig.preview !== 'object
   setting.userConfig.preview = {}
 }
 
+if (!setting.userConfig.shortcut || typeof setting.userConfig.shortcut !== 'object') {
+  setting.userConfig.shortcut = {}
+}
+
+if (!setting.userConfig.shortcutSync || typeof setting.userConfig.shortcutSync !== 'object') {
+  setting.userConfig.shortcutSync = {
+    version: 1,
+    profiles: {},
+    devices: {},
+    runtimeSourceByDevice: {},
+    masterProfileId: 'public',
+    updatedAt: 0,
+    updatedBy: ''
+  }
+}
+
+if (typeof setting.userConfig.shortcut.syncWithUTools !== 'boolean') {
+  setting.userConfig.shortcut.syncWithUTools = false
+}
+
 if (!setting.userConfig.preview.hover || typeof setting.userConfig.preview.hover !== 'object') {
   setting.userConfig.preview.hover = {}
 }

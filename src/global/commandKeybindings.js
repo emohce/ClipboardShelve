@@ -136,6 +136,7 @@ export function buildCommandShortcutProfiles(overrides = {}, bindings = getComma
   const profileMap = new Map()
 
   for (const binding of bindings) {
+    if (binding?.internal === true) continue
     const commandIds = Array.isArray(binding.commands) ? binding.commands : []
     for (const commandId of commandIds) {
       if (!commandId) continue

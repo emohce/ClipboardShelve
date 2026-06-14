@@ -38,12 +38,13 @@ Implementation entry points:
 - `tab` and `space` are blocked by main-key token, so `tab`, `s-tab`, `c-tab`, `space`, and `c-space` are treated as fixed/non-configurable.
 - Recorder-level validation rejects fixed key families even when no command context is provided. This covers macro draft shortcut validation as well as normal command record dialogs.
 - Conflict handling is intentionally split: shortcut recording is a hard block, while When and macro conflict paths may still show a confirmation/preview because they change conditions rather than directly accepting a new recorded key.
+- Shortcut storage defaults to SQLite-first; `userConfig.shortcutSync` is the uTools-synchronized document that stores per-device local profiles and one public profile. A device uses public only when `runtimeSourceByDevice[nativeId]` is `public`; the local SQLite profile is always preserved.
 
 ## Recheck Notes
 
 - Current authoritative implementation files: [../../../src/global/shortcutKey.js](../../../src/global/shortcutKey.js:1), [../../../src/global/shortcutReservations.js](../../../src/global/shortcutReservations.js:1), [../../../src/global/commandKeybindings.js](../../../src/global/commandKeybindings.js:1), [../../../src/global/shortcutStore.js](../../../src/global/shortcutStore.js:1), [../../../src/storage/shortcutKeybindingRepository.js](../../../src/storage/shortcutKeybindingRepository.js:1).
 - Historical docs may still mention user-visible labels such as Ctrl+Enter or F2. Treat those as display text unless the document explicitly defines a storage `shortcutId`. Current storage/config examples must use compact ids.
-- Remaining manual gate: uTools production-shell first-run migration and restart persistence verification.
+- Remaining manual gate: uTools production-shell first-run migration, restart persistence verification, and `shortcutSync` local/public profile data-shape verification.
 
 ## Verification
 

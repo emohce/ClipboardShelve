@@ -170,7 +170,7 @@
                   :title="shortcutStorageHint"
                 >
                   <span class="shortcut-strip-meta-label">
-                    {{ shortcutCommandStorageMode === SHORTCUT_STORAGE_MODE_SQLITE ? 'SQLite' : 'Fallback' }}
+                    {{ shortcutStorageSourceLabel }}
                   </span>
                   <span class="shortcut-strip-meta-count">{{ filteredShortcutCommandRows.length }}/{{ shortcutCommandRows.length }}</span>
                 </span>
@@ -833,7 +833,7 @@
                     :class="{ fallback: shortcutCommandStorageMode !== SHORTCUT_STORAGE_MODE_SQLITE }"
                     :title="shortcutStorageHint"
                   >
-                    {{ shortcutCommandStorageMode === SHORTCUT_STORAGE_MODE_SQLITE ? 'SQLite' : 'Fallback' }}
+                    {{ shortcutStorageSourceLabel }}
                   </span>
                   <span
                     class="feature-config-status-mini"
@@ -858,9 +858,95 @@
                   </button>
                 </div>
               </div>
+              <div class="feature-config-row feature-config-row--compact">
+                <div class="feature-config-meta-inline">
+                  <strong>快捷键配置管理</strong>
+                  <HelpHint
+                    marker="?"
+                    button-class="setting-help-btn setting-help-btn--compact"
+                    aria-label="查看快捷键配置管理说明"
+                    content="每台机器都会保留自己的本机快捷键配置；公共配置单独共享。当前机器可选择使用本机配置或公共配置，推为公共需要确认。"
+                  />
+                  <span
+                    class="feature-config-status-mini"
+                    :class="{ fallback: shortcutRuntimeSource !== SHORTCUT_RUNTIME_SOURCE_PUBLIC }"
+                    :title="shortcutStorageHint"
+                  >
+                    {{ shortcutRuntimeSourceLabel }}
+                  </span>
+                </div>
+                <div class="feature-config-control feature-config-control--compact">
+                  <button type="button" class="feature-config-chip feature-config-chip--primary" @click="shortcutSyncDialogVisible = true">
+                    管理
+                  </button>
+                  <button type="button" class="feature-config-chip" @click="promoteShortcutLocalToPublic">
+                    推为公共
+                  </button>
+                </div>
+              </div>
             </div>
           </div>
         </div>
+        <el-dialog
+          v-model="shortcutSyncDialogVisible"
+          title="快捷键配置管理"
+          width="680px"
+          align-center
+          class="setting-modal-dialog command-macro-dialog"
+          modal-class="setting-modal-overlay"
+          :modal="true"
+          :close-on-click-modal="false"
+        >
+          <div class="shortcut-sync-dialog">
+            <div class="shortcut-sync-row">
+              <span class="shortcut-sync-label">本机别名</span>
+              <el-input v-model="shortcutDeviceAlias" placeholder="例如 办公 Mac" />
+              <el-button plain @click="saveShortcutDeviceAlias">保存别名</el-button>
+            </div>
+            <div class="shortcut-sync-row">
+              <span class="shortcut-sync-label">当前使用</span>
+              <el-radio-group v-model="shortcutRuntimeSourceDraft">
+                <el-radio-button :label="SHORTCUT_RUNTIME_SOURCE_LOCAL">本机配置</el-radio-button>
+                <el-radio-button :label="SHORTCUT_RUNTIME_SOURCE_PUBLIC">公共配置</el-radio-button>
+              </el-radio-group>
+              <el-button type="primary" plain @click="applyShortcutRuntimeSource">应用</el-button>
+            </div>
+            <div class="shortcut-sync-profiles">
+              <div class="shortcut-sync-profile">
+                <strong>本机配置</strong>
+                <span>{{ localShortcutProfileCount }} 项改动</span>
+              </div>
+              <div class="shortcut-sync-profile">
+                <strong>公共配置</strong>
+                <span>{{ publicShortcutProfileCount }} 项改动</span>
+              </div>
+              <div class="shortcut-sync-profile">
+                <strong>设备记录</strong>
+                <span>{{ shortcutSyncDeviceCount }} 台机器</span>
+              </div>
+            </div>
+            <div class="shortcut-sync-device-list">
+              <div
+                v-for="device in shortcutSyncDeviceRows"
+                :key="device.nativeId"
+                class="shortcut-sync-device-row"
+              >
+                <div class="shortcut-sync-device-main">
+                  <strong>{{ device.alias }}</strong>
+                  <span>{{ device.nativeId }}</span>
+                </div>
+                <div class="shortcut-sync-device-meta">
+                  <span>{{ device.runtimeLabel }}</span>
+                  <span>{{ device.updatedLabel }}</span>
+                </div>
+              </div>
+            </div>
+          </div>
+          <template #footer>
+            <el-button @click="shortcutSyncDialogVisible = false">关闭</el-button>
+            <el-button type="primary" @click="promoteShortcutLocalToPublic">推本机为公共</el-button>
+          </template>
+        </el-dialog>
         <el-dialog
           v-model="commandMacroDialogVisible"
           title="组合命令"
@@ -1098,13 +1184,24 @@ import {
 } from '../global/whenBuilder'
 import { eventLikeToShortcutId, isRecordableShortcutId, getShortcutReservationRows } from '../global/shortcutRecorder'
 import { dedupeShortcutIds } from '../global/commandKeybindings'
-import { registerCommandFeaturePairs } from '../global/hotkeyRegistry'
+import { registerCommandFeaturePairs, registerFeature, unregisterFeature } from '../global/hotkeyRegistry'
 import { COMMAND_MACRO_MAX_DELAY_MS, COMMAND_MACRO_MAX_STEPS } from '../global/commandMacro.js'
 import {
+  SHORTCUT_RUNTIME_SOURCE_LOCAL,
+  SHORTCUT_RUNTIME_SOURCE_PUBLIC,
   SHORTCUT_STORAGE_MODE_SQLITE,
+  SHORTCUT_STORAGE_MODE_UTOOLS_SYNC,
+  emitShortcutBindingsUpdated,
+  ensureShortcutSyncDocument,
   getEffectiveShortcutCommandRows,
   getEffectiveShortcutOverrides,
-  saveShortcutSettingsPayload
+  getLocalShortcutProfileId,
+  getShortcutRuntimeSource,
+  normalizeShortcutSyncDocument,
+  promoteLocalShortcutProfileToPublic,
+  saveShortcutSettingsPayload,
+  setShortcutRuntimeSource,
+  updateShortcutDeviceAlias
 } from '../global/shortcutStore'
 import {
   COMMAND_MACRO_STORAGE_MODE_SQLITE,
@@ -1173,9 +1270,13 @@ const storageUpdatedAtLabel = computed(() => {
 })
 
 const custom = ref(operation.custom.map((c) => ({ ...c })))
-const initialShortcutStorage = getEffectiveShortcutOverrides({ setting })
+const initialShortcutStorage = getEffectiveShortcutOverrides({ setting, nativeId })
 const hotkeyOverrides = ref(initialShortcutStorage.hotkeyOverrides)
 const shortcutStorageMode = ref(initialShortcutStorage.storageMode)
+const shortcutSyncDialogVisible = ref(false)
+const shortcutSyncDocument = ref(normalizeShortcutSyncDocument(setting?.userConfig?.shortcutSync))
+const shortcutDeviceAlias = ref(shortcutSyncDocument.value.devices?.[nativeId]?.alias || nativeId)
+const shortcutRuntimeSourceDraft = ref(getShortcutRuntimeSource(setting, nativeId))
 const initialCommandMacroStorage = getEffectiveCommandMacros({ warn: () => {} })
 const commandMacros = ref(initialCommandMacroStorage.macros)
 const commandMacroStorageMode = ref(initialCommandMacroStorage.storageMode)
@@ -1389,8 +1490,14 @@ const contextMenuActionColumns = [
 const effectiveShortcutCommandResult = computed(() =>
   getEffectiveShortcutCommandRows({
     setting: {
-      hotkeyOverrides: hotkeyOverrides.value
+      ...setting,
+      hotkeyOverrides: hotkeyOverrides.value,
+      userConfig: {
+        ...(setting.userConfig || {}),
+        shortcutSync: shortcutSyncDocument.value
+      }
     },
+    nativeId,
     getFeatureLabel
   })
 )
@@ -1424,25 +1531,93 @@ const shortcutHelpContent = computed(() =>
 )
 
 const shortcutStorageLabel = computed(() =>
-  shortcutCommandStorageMode.value === SHORTCUT_STORAGE_MODE_SQLITE
+  shortcutCommandStorageMode.value === SHORTCUT_STORAGE_MODE_UTOOLS_SYNC
+    ? '快捷键配置存储：uTools 同步'
+    : shortcutCommandStorageMode.value === SHORTCUT_STORAGE_MODE_SQLITE
     ? '快捷键配置存储：SQLite'
     : '快捷键配置存储：设置 fallback'
 )
 
+const shortcutStorageSourceLabel = computed(() => {
+  if (shortcutCommandStorageMode.value === SHORTCUT_STORAGE_MODE_UTOOLS_SYNC) return 'uTools 同步'
+  return shortcutCommandStorageMode.value === SHORTCUT_STORAGE_MODE_SQLITE ? 'SQLite' : 'Fallback'
+})
+
+const shortcutRuntimeSource = computed(() =>
+  getShortcutRuntimeSource(
+    {
+      ...setting,
+      userConfig: {
+        ...(setting.userConfig || {}),
+        shortcutSync: shortcutSyncDocument.value
+      }
+    },
+    nativeId
+  )
+)
+
+const shortcutRuntimeSourceLabel = computed(() =>
+  shortcutRuntimeSource.value === SHORTCUT_RUNTIME_SOURCE_PUBLIC ? '公共配置' : '本机配置'
+)
+
+const localShortcutProfileId = computed(() => getLocalShortcutProfileId(nativeId))
+const localShortcutProfileCount = computed(() =>
+  Object.keys(shortcutSyncDocument.value.profiles?.[localShortcutProfileId.value]?.hotkeyOverrides || {}).length
+)
+const publicShortcutProfileCount = computed(() =>
+  Object.keys(shortcutSyncDocument.value.profiles?.public?.hotkeyOverrides || {}).length
+)
+const shortcutSyncDeviceCount = computed(() => Object.keys(shortcutSyncDocument.value.devices || {}).length)
+const shortcutSyncDeviceRows = computed(() => {
+  const devices = shortcutSyncDocument.value.devices || {}
+  const rows = Object.values(devices).map((device) => {
+    const runtimeSource =
+      shortcutSyncDocument.value.runtimeSourceByDevice?.[device.nativeId] ||
+      device.runtimeSource ||
+      SHORTCUT_RUNTIME_SOURCE_LOCAL
+    const updatedAt = Number(device.updatedAt || device.lastUploadedAt) || 0
+    return {
+      nativeId: device.nativeId,
+      alias: device.alias || device.nativeId,
+      runtimeLabel: runtimeSource === SHORTCUT_RUNTIME_SOURCE_PUBLIC ? '公共配置' : '本机配置',
+      updatedLabel: updatedAt ? new Date(updatedAt).toLocaleString() : '暂无时间',
+      isCurrent: device.nativeId === nativeId
+    }
+  })
+  if (!rows.some((row) => row.nativeId === nativeId)) {
+    rows.push({
+      nativeId,
+      alias: shortcutDeviceAlias.value || nativeId,
+      runtimeLabel: shortcutRuntimeSourceLabel.value,
+      updatedLabel: '待上传',
+      isCurrent: true
+    })
+  }
+  return rows.sort((a, b) => Number(b.isCurrent) - Number(a.isCurrent) || a.alias.localeCompare(b.alias))
+})
+
 const shortcutStorageHint = computed(() =>
-  shortcutCommandStorageMode.value === SHORTCUT_STORAGE_MODE_SQLITE
+  shortcutCommandStorageMode.value === SHORTCUT_STORAGE_MODE_UTOOLS_SYNC
+    ? '当前快捷键改动会保存到 setting.hotkeyOverrides，并按 uTools 数据同步形态参与运行时热更新。'
+    : shortcutCommandStorageMode.value === SHORTCUT_STORAGE_MODE_SQLITE
     ? '当前快捷键改动会优先写入 SQLite override 表，并同步 setting 作为兼容副本。'
     : '当前快捷键改动会保存到 setting.hotkeyOverrides；SQLite 不可用或写入失败时使用该 fallback。'
 )
 
 function getShortcutSaveMessage(result, actionLabel = '保存') {
-  const storageLabel = result?.sqliteSaved ? 'SQLite' : '设置 fallback'
+  const storageLabel = result?.storageMode === SHORTCUT_STORAGE_MODE_UTOOLS_SYNC
+    ? 'uTools 同步配置'
+    : result?.sqliteSaved ? 'SQLite' : '设置 fallback'
   return `${actionLabel}成功，快捷键已写入${storageLabel}，配置已热更新`
 }
 
 function showShortcutSaveMessage(result, actionLabel = '保存') {
   const message = getShortcutSaveMessage(result, actionLabel)
-  if (result?.sqliteSaved || shortcutStorageMode.value === SHORTCUT_STORAGE_MODE_SQLITE) {
+  if (
+    result?.storageMode === SHORTCUT_STORAGE_MODE_UTOOLS_SYNC ||
+    result?.sqliteSaved ||
+    shortcutStorageMode.value === SHORTCUT_STORAGE_MODE_SQLITE
+  ) {
     ElMessage.success(message)
   } else {
     ElMessage.warning(message)
@@ -2322,6 +2497,67 @@ function toggleHoverPreview() {
   hoverPreviewEnabled.value = !hoverPreviewEnabled.value
 }
 
+function buildShortcutSyncSetting(nextSetting = setting, nextDoc = shortcutSyncDocument.value) {
+  return {
+    ...nextSetting,
+    userConfig: {
+      ...(nextSetting.userConfig || {}),
+      shortcutSync: normalizeShortcutSyncDocument(nextDoc)
+    }
+  }
+}
+
+function refreshShortcutSyncState(nextSetting = setting) {
+  shortcutSyncDocument.value = normalizeShortcutSyncDocument(nextSetting?.userConfig?.shortcutSync)
+  shortcutRuntimeSourceDraft.value = getShortcutRuntimeSource(nextSetting, nativeId)
+  shortcutDeviceAlias.value = shortcutSyncDocument.value.devices?.[nativeId]?.alias || nativeId
+}
+
+function saveShortcutSyncSetting(nextSetting) {
+  const saved = saveSetting(nextSetting)
+  refreshShortcutSyncState(saved)
+  return saved
+}
+
+function ensureShortcutSyncLocalProfile() {
+  return ensureShortcutSyncDocument(buildShortcutSyncSetting(), {
+    nativeId,
+    alias: shortcutDeviceAlias.value,
+    localOverrides: hotkeyOverrides.value
+  })
+}
+
+async function promoteShortcutLocalToPublic() {
+  try {
+    await ElMessageBox.confirm('将本机快捷键配置设为公共配置，选择公共配置的其它机器会使用这份配置。确定继续？', '推为公共配置', {
+      confirmButtonText: '确定',
+      cancelButtonText: '取消',
+      type: 'warning'
+    })
+    const ensured = ensureShortcutSyncLocalProfile()
+    const saved = saveShortcutSyncSetting(promoteLocalShortcutProfileToPublic(ensured, { nativeId }))
+    shortcutSyncDocument.value = normalizeShortcutSyncDocument(saved.userConfig?.shortcutSync)
+    emitShortcutBindingsUpdated()
+    ElMessage.success('已推为公共配置')
+  } catch (_) {}
+}
+
+function applyShortcutRuntimeSource() {
+  const ensured = ensureShortcutSyncLocalProfile()
+  const saved = saveShortcutSyncSetting(setShortcutRuntimeSource(ensured, nativeId, shortcutRuntimeSourceDraft.value))
+  const { hotkeyOverrides: nextOverrides, storageMode } = getEffectiveShortcutOverrides({ setting: saved, nativeId })
+  hotkeyOverrides.value = nextOverrides
+  shortcutStorageMode.value = storageMode
+  emitShortcutBindingsUpdated()
+  ElMessage.success(`已切换为${shortcutRuntimeSourceLabel.value}`)
+}
+
+function saveShortcutDeviceAlias() {
+  const ensured = ensureShortcutSyncLocalProfile()
+  saveShortcutSyncSetting(updateShortcutDeviceAlias(ensured, { nativeId, alias: shortcutDeviceAlias.value }))
+  ElMessage.success('本机别名已保存')
+}
+
 const orderedOperations = computed(() =>
   featureRows.value.map((row) => ({ id: row.id, title: row.title, icon: row.icon, index: row.index }))
 )
@@ -2559,6 +2795,10 @@ const handleSaveBtnClick = () => {
     },
     hotkeyOverrides: hotkeyOverrides.value,
     userConfig: {
+      shortcut: {
+        syncWithUTools: false
+      },
+      shortcutSync: shortcutSyncDocument.value,
       preview: {
         hover: {
           enabled: hoverPreviewEnabled.value,
@@ -2569,10 +2809,12 @@ const handleSaveBtnClick = () => {
   }
   const shortcutSaveResult = saveShortcutSettingsPayload(payload, {
     overrides: hotkeyOverrides.value,
+    nativeId,
     saveSetting
   })
   shortcutStorageMode.value = shortcutSaveResult.storageMode
   hotkeyOverrides.value = shortcutSaveResult.hotkeyOverrides
+  shortcutSyncDocument.value = normalizeShortcutSyncDocument(shortcutSaveResult.setting?.userConfig?.shortcutSync)
   showShortcutSaveMessage(shortcutSaveResult, '保存')
 }
 
@@ -2658,6 +2900,7 @@ onMounted(() => {
       handler: (e) => shouldAllowSettingArrowTabSwitch(e) && switchSettingTabByOffset(1)
     }
   ])
+  registerFeature('setting-overlay-block', () => ({ handled: true, preventDefault: false, stopPropagation: true }))
   activateLayer('setting')
   document.addEventListener('keydown', keyDownHandler, true)
   nextTick(() => {
@@ -2692,6 +2935,7 @@ onUnmounted(() => {
   detachShortcutScopePopperKeyHandler()
   disposeSettingCommandHandlers?.()
   disposeSettingCommandHandlers = null
+  unregisterFeature('setting-overlay-block')
   deactivateLayer('setting')
 })
 </script>
@@ -4615,6 +4859,92 @@ onUnmounted(() => {
     border-color: rgba(153, 99, 20, 0.24);
     background: rgba(153, 99, 20, 0.10);
     color: #8a5a12;
+  }
+}
+.shortcut-sync-dialog {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.shortcut-sync-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.shortcut-sync-label {
+  flex: 0 0 72px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-color);
+}
+.shortcut-sync-profiles {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
+.shortcut-sync-profile,
+.shortcut-sync-device-row {
+  border: 1px solid rgba(53, 95, 157, 0.14);
+  border-radius: 10px;
+  background: rgba(247, 250, 254, 0.9);
+}
+.shortcut-sync-profile {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 10px;
+  strong {
+    font-size: 12px;
+    color: var(--text-color);
+  }
+  span {
+    font-size: 12px;
+    color: var(--text-color-lighter);
+  }
+}
+.shortcut-sync-device-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding-top: 2px;
+}
+.shortcut-sync-device-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 8px 10px;
+}
+.shortcut-sync-device-main,
+.shortcut-sync-device-meta {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  strong,
+  span {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+}
+.shortcut-sync-device-main {
+  flex: 1 1 auto;
+  strong {
+    font-size: 12px;
+    color: var(--text-color);
+  }
+  span {
+    font-size: 11px;
+    color: var(--text-color-lighter);
+  }
+}
+.shortcut-sync-device-meta {
+  flex: 0 0 auto;
+  align-items: flex-end;
+  span {
+    font-size: 11px;
+    color: var(--text-color-lighter);
   }
 }
 .feature-config-meta {

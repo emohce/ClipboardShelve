@@ -7,6 +7,32 @@ const hotkeyState = reactive({
   sourceLayer: null
 })
 
+const LAYER_PRIORITY = {
+  main: 10,
+  setting: 20,
+  'clip-drawer': 30,
+  'clear-dialog': 35,
+  'full-data-overlay': 35,
+  'tag-search': 35,
+  'tag-edit': 40,
+  'pin-group-edit': 40,
+  'setting-shortcut-record': 50,
+  'setting-when-edit': 50,
+}
+
+export const getLayerPriority = (name) => LAYER_PRIORITY[name] ?? 0
+
+export const getLayerPriorityStack = (layers) => {
+  const source = layers != null ? layers : layerStack.map((l) => l.name)
+  const indexed = [...new Set([...source, 'main'])].map((name, index) => ({ name, index }))
+  return indexed
+    .sort((a, b) => {
+      const diff = getLayerPriority(b.name) - getLayerPriority(a.name)
+      return diff !== 0 ? diff : b.index - a.index
+    })
+    .map((item) => item.name)
+}
+
 export const activateLayer = (name) => {
   if (!name) return
   const idx = layerStack.findIndex((layer) => layer.name === name)

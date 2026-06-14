@@ -16,6 +16,7 @@
 - 认为 `scrollIntoView({ block: 'start' })` 在所有环境下对第 0 条都安全。
 - 未检查多选删除时 `preferItemId` 是否仍落在**保留集**内。
 - 将列表与顶栏间距一律加大（例如窄屏 `clip-break` 过高），误把「防遮挡」做成「大块留白」。
+- 主界面翻页快捷键失效时，未先检查用户快捷键覆盖（SQLite / `setting.hotkeyOverrides`），直接怀疑默认映射、handler、滚动函数或层级穿透。
 
 ## 4. 已证伪方案
 
@@ -51,6 +52,7 @@
 
 ## 8. 推荐优先策略
 
+- 主界面翻页快捷键：先核验运行期用户覆盖（设置页快捷键、SQLite `cmd:list.navigate.pageUp` / `cmd:list.navigate.pageDown`、fallback `setting.hotkeyOverrides`），再查默认映射、dispatcher、handler、滚动容器和层级穿透。
 - 键盘导航：**中部** `center-preferred`；**近顶小段**上移用 **`end` 对齐**；**首项** **`start` + `scrollTop=0`**。
 - 固定顶栏布局：**可测量或分断点**配置 `.clip-break`，与 **收藏子 Tab 双行** 分支 class 一致；定期与 UI 对照避免过剩 `padding`。
 - 搜索与 IME：先拦 **composition** 与 **搜索框焦点**，再谈 feature 级细节。

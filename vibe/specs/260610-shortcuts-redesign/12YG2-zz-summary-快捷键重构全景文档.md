@@ -55,7 +55,7 @@ Tool: codex
 - Keybinding：快捷键到 command 的绑定，旧 binding 通过 [src/global/commandDefaults.js](../../../src/global/commandDefaults.js:145) 转成 command-aware binding；存储层 shortcutId 使用 compact 语义，归一化入口见 [src/global/shortcutKey.js](../../../src/global/shortcutKey.js:211)。
 - When：可求值的上下文表达式，解析与求值在 [src/global/whenExpression.js](../../../src/global/whenExpression.js:1)。
 - Resolver：按 key、when、source、overlay、specificity、weight 选中最终 binding，逻辑在 [src/global/keybindingResolver.js](../../../src/global/keybindingResolver.js:53)。
-- Store：SQLite 优先读写，setting fallback 兜底，入口在 [src/global/shortcutStore.js](../../../src/global/shortcutStore.js:28)。
+- Store：默认 SQLite 优先读写，setting fallback 兜底；同时维护随 uTools setting 同步的 `shortcutSync` 配置文档，支持每机 local profile 与 public profile，入口在 [src/global/shortcutStore.js](../../../src/global/shortcutStore.js:28)。
 
 === 设计取舍
 
@@ -114,7 +114,7 @@ When 语言支持：
 
 SQLite 主仓库初始化时安全挂载快捷键 repository；失败只 warning 并回退 setting：[src/storage/sqliteClipboardRepository.js](../../../src/storage/sqliteClipboardRepository.js:232)。
 
-保存时先写 setting 兼容副本，再尝试写 SQLite override，并触发热更新事件：[src/global/shortcutStore.js](../../../src/global/shortcutStore.js:133)。事务式替换 override 用于避免半写状态：[src/storage/shortcutKeybindingRepository.js](../../../src/storage/shortcutKeybindingRepository.js:264)。
+保存时先写 setting 兼容副本，再尝试写 SQLite override，并触发热更新事件：[src/global/shortcutStore.js](../../../src/global/shortcutStore.js:133)。启动时 [src/cpns/HotkeyProvider.vue](../../../src/cpns/HotkeyProvider.vue:43) 会把本机有效快捷键上传到 `profiles.local:<nativeId>`；`profiles.public` 是独立公共配置，当前机器通过 `runtimeSourceByDevice[nativeId]` 选择运行本机或公共配置。事务式替换 override 用于避免半写状态：[src/storage/shortcutKeybindingRepository.js](../../../src/storage/shortcutKeybindingRepository.js:264)。
 
 === 6. 设置页 UI 层
 
@@ -123,6 +123,7 @@ SQLite 主仓库初始化时安全挂载快捷键 repository；失败只 warning
 - 头部显示命令数量与存储来源：[src/views/Setting.vue](../../../src/views/Setting.vue:130)
 - 搜索支持 command、动作、键位、when、来源和作用域：[src/views/Setting.vue](../../../src/views/Setting.vue:150)
 - 筛选包含全部、主界面、弹窗层、已修改、高风险：[src/views/Setting.vue](../../../src/views/Setting.vue:160)
+- 功能配置页底部提供“快捷键配置管理”，可查看本机/公共 profile、修改本机别名、切换本机或公共运行来源，并显式将本机配置推为公共配置：[src/views/Setting.vue](../../../src/views/Setting.vue:850)。
 - 表格展示 command、快捷键、when、来源、风险和操作：[src/views/Setting.vue](../../../src/views/Setting.vue:203)
 - 录制式改键弹窗：[src/views/Setting.vue](../../../src/views/Setting.vue:260)
 - When 文本编辑弹窗：[src/views/Setting.vue](../../../src/views/Setting.vue:294)
@@ -255,6 +256,6 @@ when 决定“是否尝试触发”，handler 决定“业务上是否允许执�
 0. ~~**当前主任务**~~：已实现 [260613-shortcut-multi-key-plan.md](../260613-SettingUiModify/260613-shortcut-multi-key-plan.md)。
 1. 更新 [10YG2-zz-audit-快捷键命令系统一致性清单.ad](10YG2-zz-audit-快捷键命令系统一致性清单.ad:28)，把 macro dispatch 状态改为“已接入第一阶段运行时执行”。
 2. 为 `registerCommandFeaturePair()` 增加可选 feature 清理或引用计数，避免 fallback handler 残留。
-3. 做一次 uTools 真实壳验证：首次启动迁移、改键保存、重启后 SQLite override 生效、fallback 分支提示。
+3. 做一次 uTools 真实壳验证：首次启动迁移、改键保存、重启后 SQLite override 生效、fallback 分支提示，以及 `shortcutSync` local/public profile 在多设备间的同步数据形态。
 4. 设计图形化 When 构建器：基于现有 AST 和互斥组，不另起一套字符串拼接逻辑。
 5. 将 macro 快捷键加入设置页冲突预览，统一展示 command binding 与 macro binding 的 key/when 重叠关系。

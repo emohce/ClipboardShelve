@@ -1,3 +1,5 @@
+import { getLayerPriority } from './hotkeyLayers.js'
+
 const LAYER_CONTEXT_KEY_MAP = {
   'clear-dialog': 'clearDialogOpen',
   'clip-drawer': 'drawerOpen',
@@ -43,10 +45,12 @@ export function buildHotkeyContextSnapshot(options = {}) {
   const layers = toLayerSet(currentLayer, activeLayers)
   const settingFocus = currentLayer === 'setting' || layers.has('setting')
   const inputFocus = isEditableHotkeyTarget(target)
+  const mainPriority = getLayerPriority('main')
+  const hasHigherLayer = [...layers].some((l) => l !== 'main' && getLayerPriority(l) > mainPriority)
 
   const context = {
     appFocus: true,
-    mainFocus: !settingFocus,
+    mainFocus: !settingFocus && !hasHigherLayer,
     settingFocus,
     searchActive: mainState === 'search',
     inputFocus,
