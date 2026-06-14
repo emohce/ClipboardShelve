@@ -21,28 +21,14 @@
 ## 3. 误判链路
 
 ### 尝试过的错误方案（已证伪）
-1. 强制刷新 `selectItemList`
-2. 更新 `item.updateTime` 以触发 v-memo 重新渲染
-3. 在 v-memo 中添加 `getItemAlias` 依赖
-4. 从 showList 中重新获取最新的 item 对象替换 selectItemList 中的引用
-5. 强制触发 `activeIndex` 变化
-6. 强制触发 `selectedItemIdSet` 更新
-7. 添加 `isForceRefresh` 标志位到 v-memo
-8. 使用 `listKey` 和 `data-refresh-key` 强制重新渲染
-9. 移除 v-memo
-10. 使用 `instance?.proxy?.$forceUpdate()`
-11. 直接修改 selectItemList 中的 item 对象属性
-12. 同时更新 showList 中对应的 item 对象属性
-13. 通过重新赋值整个对象来触发响应式更新
-14. 不调用 `emit("onDataRemove")`
-15. 使用 Vue 的 `set` 方法
-16. 临时改变 `activeIndex` 来强制触发重新渲染
-17. 添加 `listVersion` 到 v-for 的 key
-18. 添加 `listKey` 到整个列表容器
+1. **强制刷新类**: 修改 `selectItemList`、`activeIndex`、`selectedItemIdSet`、添加 `isForceRefresh` 标志、使用 `listKey`/`data-refresh-key`/`listVersion`、移除 v-memo、调用 `$forceUpdate()` - 假设问题在于 Vue 响应式系统
+2. **对象属性操作类**: 直接修改 `selectItemList` 属性、同时更新 `showList` 属性、重新赋值整个对象、使用 Vue `set` 方法 - 假设修改操作数据源就能触发渲染
+3. **事件控制类**: 不调用 `emit("onDataRemove")` - 假设跳过父组件刷新能解决问题
+4. **触发器操作类**: 临时改变 `activeIndex` 强制重新渲染 - 假设触发索引变化能解决渲染延迟
 
 ### 为什么这些方案失败
-- **根本原因未识别**: 这些方案都假设问题在于 Vue 的响应式系统或组件重新渲染机制，但没有识别到真正的问题在于**数据源不一致**
-- **错误的数据流理解**: 认为修改 `selectItemList` 中的 item 对象就能触发渲染更新，但实际上渲染使用的是 `showList` 中的 item 对象
+- **根本原因未识别**: 所有方案都假设问题在于 Vue 的响应式系统或组件重新渲染机制，但真正问题在于**数据源不一致**
+- **错误的数据流理解**: 认为修改 `selectItemList` 中的 item 对象就能触发渲染更新，但实际渲染使用的是 `showList` 中的 item 对象
 - **函数依赖错误**: `isItemCollected` 和 `getItemAlias` 函数依赖于数据库查询（`props.collectedIds` 和 `getAliasMap()`），而不是 item 对象的属性
 
 ## 4. 已确认通路

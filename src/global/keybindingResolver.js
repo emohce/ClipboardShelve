@@ -50,7 +50,7 @@ function resolveWeight(binding, index, context) {
   )
 }
 
-export function resolveKeybinding(bindings, shortcutId, context = {}) {
+export function resolveKeybinding(bindings, shortcutId, context = {}, layerPriority = []) {
   const candidates = (bindings || [])
     .map((binding, index) => ({ binding, index }))
     .filter(({ binding }) => {
@@ -63,7 +63,16 @@ export function resolveKeybinding(bindings, shortcutId, context = {}) {
         return false
       }
     })
-    .sort((a, b) => resolveWeight(b.binding, b.index, context) - resolveWeight(a.binding, a.index, context))
+    .map(({ binding, index }) => {
+      const layerScore = layerPriority.indexOf(binding?.layer || 'main')
+      const layerWeight = layerScore === -1 ? -1000 : (1000 - layerScore)
+      return { binding, index, layerWeight }
+    })
+    .sort((a, b) => {
+      const layerDiff = b.layerWeight - a.layerWeight
+      if (layerDiff !== 0) return layerDiff
+      return resolveWeight(b.binding, b.index) - resolveWeight(a.binding, a.index)
+    })
 
   return candidates[0]?.binding || null
 }

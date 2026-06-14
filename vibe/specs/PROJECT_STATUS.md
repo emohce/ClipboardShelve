@@ -15,11 +15,11 @@ Detailed requirements, plans, evidence, and implementation notes stay in task di
 
 ## Current Main Line
 
-Time window: 2026-06-11 to 2026-06-13.
+Time window: 2026-06-11 to 2026-06-14.
 
-Current focus: Shortcut command redesign — **command 级多键绑定 + 场景化保留规则 + 改键弹窗重构** completed ([260613-SettingUiModify/260613-shortcut-multi-key-plan.md](260613-SettingUiModify/260613-shortcut-multi-key-plan.md)). Recommended next: uTools production-shell migration verification, macro conflict preview.
+Current focus: Shortcut command redesign — **复核收尾：compact shortcut 固定键边界、权威文档同步、历史文档收敛** ([260613-SettingUiModify/260614-shortcut-compact-semantics.md](260613-SettingUiModify/260614-shortcut-compact-semantics.md)). Recommended next: uTools production-shell migration verification, macro conflict preview.
 
-Current core task: Shortcut command redesign follow-ups (uTools migration verification, macro conflict preview). Multi-key binding authoritative spec: [260613-SettingUiModify/260613-shortcut-multi-key-plan.md](260613-SettingUiModify/260613-shortcut-multi-key-plan.md).
+Current core task: Shortcut command redesign recheck closeout. Multi-key binding authoritative spec: [260613-SettingUiModify/260613-shortcut-multi-key-plan.md](260613-SettingUiModify/260613-shortcut-multi-key-plan.md); compact shortcut semantics implementation and recheck notes: [260613-SettingUiModify/260614-shortcut-compact-semantics.md](260613-SettingUiModify/260614-shortcut-compact-semantics.md).
 
 Completed milestones:
 
@@ -29,12 +29,19 @@ Completed milestones:
 - Command macro: paste-like steps use `macroSettleAfterMs` between steps.
 - Evaluation documentation: Comprehensive evaluation report updated with right-click unification progress.
 - Setting page UI + multi-key binding (2026-06-13): Layout/overlay baseline, command-level `shortcutIds[]`, reservation rules, record dialog refactor — [260613-SettingUiModify/260613-shortcut-multi-key-plan.md](260613-SettingUiModify/260613-shortcut-multi-key-plan.md).
+- Compact shortcut semantics (2026-06-14): default/runtime shortcut ids migrated to `c/s/a` + key-token form, legacy override migration preserved, Tab/Space fixed-key rules added — [260613-SettingUiModify/260614-shortcut-compact-semantics.md](260613-SettingUiModify/260614-shortcut-compact-semantics.md).
+- Recheck closeout (2026-06-14): fixed-key no-context recorder guard covered for command record and macro draft validation path; authoritative docs now point to compact storage semantics.
+
+Open follow-ups:
+
+- uTools production-shell first-run shortcut migration and restart override persistence verification.
+- Macro conflict preview UX: keep conflict confirmation separate from command record hard-block behavior.
 
 ## Task Reference Index
 
 | Task | Status | Read first | Update when |
 |------|--------|------------|-------------|
-| Shortcut command redesign | active / main line | [260610-shortcuts-redesign/12YG2-zz-summary-快捷键重构全景文档.md](260610-shortcuts-redesign/12YG2-zz-summary-快捷键重构全景文档.md), **改键多键** [260613-SettingUiModify/260613-shortcut-multi-key-plan.md](260613-SettingUiModify/260613-shortcut-multi-key-plan.md) | Command, keybinding, when, resolver, SQLite shortcut, macro, record dialog, multi-key, or conflict behavior changes. |
+| Shortcut command redesign | active / recheck closeout | [260610-shortcuts-redesign/12YG2-zz-summary-快捷键重构全景文档.md](260610-shortcuts-redesign/12YG2-zz-summary-快捷键重构全景文档.md), **改键多键** [260613-SettingUiModify/260613-shortcut-multi-key-plan.md](260613-SettingUiModify/260613-shortcut-multi-key-plan.md), **compact 语义** [260613-SettingUiModify/260614-shortcut-compact-semantics.md](260613-SettingUiModify/260614-shortcut-compact-semantics.md) | Command, keybinding, when, resolver, SQLite shortcut, macro, record dialog, multi-key, compact shortcut id, fixed-key guard, or conflict behavior changes. |
 | Right-click unification | completed first stage / reference | [260612-right-click-unification/01-plan.md](260612-right-click-unification/01-plan.md) | Right-click action model, drawer order, numeric execution, settings-page management, verification, or handoff changes. |
 | UI interaction optimization | completed / reference | [260610-ui交互优化/评估报告-2026-06-11.md](260610-ui交互优化/评估报告-2026-06-11.md) | Only when a regression or explicit new UI interaction task reopens the behavior. |
 | Setting page UI modify | completed / reference | [260613-SettingUiModify/260613-zz-raw-settingUiModify.md](260613-SettingUiModify/260613-zz-raw-settingUiModify.md), [260613-SettingUiModify/260613-shortcut-multi-key-plan.md](260613-SettingUiModify/260613-shortcut-multi-key-plan.md) | Layout/overlay baseline; multi-key record dialog + cmd override model implemented. |

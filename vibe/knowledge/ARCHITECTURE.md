@@ -318,7 +318,7 @@ hotkeyRegistry.dispatch(e)
     ↓
   1. 检查 isComposing (IME 保护)
   2. 检查对话框拦截
-  3. 计算 shortcutId (Ctrl+Alt+1)
+  3. 计算 compact shortcutId (c-a-1)
   4. 获取当前层 (getCurrentLayer)
   5. 查找绑定 (findBinding)
     ↓
@@ -343,29 +343,31 @@ hotkeyRegistry.dispatch(e)
 
 ### 4.3 绑定定义 (`src/global/hotkeyBindings.js`)
 
+当前存储与匹配使用 compact shortcutId，语义见 [../specs/260613-SettingUiModify/260614-shortcut-compact-semantics.md](../specs/260613-SettingUiModify/260614-shortcut-compact-semantics.md)。旧式 `ctrl+shift+Delete`、`Enter`、`ArrowLeft` 只作为兼容输入进入归一化，不再作为默认声明或新写入值。
+
 ```javascript
 export const HOTKEY_BINDINGS = [
   // 格式: { layer, shortcutId, state?, features: [] }
   
-  // 设置页（排除 Del/Backspace）
-  { layer: "setting", shortcutId: "ArrowUp", features: ["setting-scroll-up"] },
-  { layer: "setting", shortcutId: "ArrowDown", features: ["setting-scroll-down"] },
-  // ... 无 Delete/Backspace 绑定
+  // 设置页（排除 del/backspace）
+  { layer: "setting", shortcutId: "up", features: ["setting-scroll-up"] },
+  { layer: "setting", shortcutId: "down", features: ["setting-scroll-down"] },
+  // ... 无 del/backspace 绑定
   
   // 主界面列表导航
-  { layer: "main", shortcutId: "ArrowUp", features: ["list-nav-up"] },
-  { layer: "main", shortcutId: "ArrowDown", features: ["list-nav-down"] },
-  { layer: "main", shortcutId: "PageUp", features: ["list-page-up"] },
-  { layer: "main", shortcutId: "PageDown", features: ["list-page-down"] },
+  { layer: "main", shortcutId: "up", features: ["list-nav-up"] },
+  { layer: "main", shortcutId: "down", features: ["list-nav-down"] },
+  { layer: "main", shortcutId: "pageup", features: ["list-page-up"] },
+  { layer: "main", shortcutId: "pagedown", features: ["list-page-down"] },
   
   // 搜索态特殊绑定
-  { layer: "main", state: "search", shortcutId: "Delete", features: ["search-delete-normal"] },
-  { layer: "main", state: "search", shortcutId: "ctrl+Delete", features: ["search-delete-force"] },
-  { layer: "main", state: "search", shortcutId: "Enter", features: ["list-enter"] },
+  { layer: "main", state: "search", shortcutId: "c-del", features: ["search-delete-normal"] },
+  { layer: "main", state: "search", shortcutId: "c-s-del", features: ["search-delete-force"] },
+  { layer: "main", state: "search", shortcutId: "cr", features: ["list-enter"] },
   
   // 抽屉子项选择
-  { layer: "main", shortcutId: "ctrl+alt+1", features: ["list-drawer-sub-1"] },
-  // ... ctrl+alt+2~9
+  { layer: "main", shortcutId: "c-a-1", features: ["list-drawer-sub-1"] },
+  // ... c-a-2~9
 ]
 ```
 
@@ -395,8 +397,8 @@ deactivateLayer('setting')  // 退出层
 1. **检查重复按键** - ignoreRepeat 配置，但方向键/Page 键允许重复
 2. **IME 保护** - `e.isComposing` 时直接返回
 3. **对话框拦截** - `.el-overlay .el-message-box` 存在时拦截
-4. **设置页保护** - setting 层 + (Del/Backspace) 时直接返回
-5. **计算 shortcutId** - 如 `ctrl+alt+1`
+4. **设置页保护** - setting 层 + (`del`/`backspace`) 时直接返回
+5. **计算 shortcutId** - 如 `c-a-1`
 6. **层优先级** - [currentLayer, main]
 7. **查找绑定** - 匹配 layer + state + shortcutId
 8. **执行 feature** - 按顺序执行绑定的 features，直到有返回 true

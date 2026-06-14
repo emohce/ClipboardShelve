@@ -5,6 +5,8 @@
 
 **Note**: This template is filled in by the `/speckit.plan` command. See `.specify/templates/plan-template.md` for the execution workflow.
 
+> Current shortcut storage note: this 2026-04 task uses legacy user-facing shortcut text in historical requirements. Current `shortcutId` storage/config uses compact ids; see [`../../vibe/specs/260613-SettingUiModify/260614-shortcut-compact-semantics.md`](../../vibe/specs/260613-SettingUiModify/260614-shortcut-compact-semantics.md).
+
 ## Summary
 
 在不破坏现有列表交互的前提下，补齐三项能力：`F2` 别名新增/更新（收藏页保留原弹层链路）、`ctrl+alt+num` 抽屉序号执行迁移、`shift+Enter` 在“单文件+别名”场景下的重命名粘贴。技术上采用最小改动路径：复用现有 hotkey feature 注册与抽屉菜单数据源，新增别名持久化与执行分支守卫，确保“展示序号=执行序号”且非目标类型回退原组合粘贴链路。

@@ -37,14 +37,15 @@
   - 功能：主页功能勾选/排序，自定义功能新增/编辑/删除（匹配条件 + 跳转命令）。
 
 ## 快捷键（默认）
-- 主界面：Tab/Shift+Tab 切分页；Ctrl+1~9 切标签；Ctrl+F 搜索；Ctrl+Shift+U 触发/取消“有锁”条件搜索并继续文字检索；Ctrl+Alt+F 搜索收藏标签；Esc 退出；↑/↓/Ctrl+K/J 导航；← 全文预览；→ 操作抽屉；Enter 复制；Ctrl+Enter 复制并锁定；Ctrl+C 复制；Ctrl+S 收藏；Ctrl+U 锁定；Shift+Del/Backspace 开清除框；Del/Backspace 删除；Ctrl+Del/Backspace 强制删锁定；空格多选；Shift 预览图片/文字；Alt+1~9 快速复制；Ctrl+Alt+1~9 抽屉子功能；F2 别名/标签编辑；Shift+F2 查看全文；Ctrl+Alt+S 打开设置；PgUp/PgDn 翻页 @src/global/hotkeyBindings.js#220-342.
-- 搜索态：Ctrl+Del/Backspace 删除，Ctrl+Shift+Del 强删 @src/global/hotkeyBindings.js#200-218.
-- 抽屉：Esc/←/Ctrl+← 关闭；↑/↓ 导航；Enter/Ctrl+Enter 选中；Ctrl+1~9 直选 @src/global/hotkeyBindings.js#112-137.
-- 全文预览：Esc/→ 关闭；↑/↓ 半页滚动 @src/global/hotkeyBindings.js#139-169.
-- 清除对话框：数字 1/2/3/4/5/6 选范围（1小时/5小时/8小时/24小时/7天/全部）；Tab/Shift+Tab 切换；Enter 确认；Esc 关闭 @src/global/hotkeyBindings.js#70-110.
-- 设置层保护：setting 层 Del/Backspace 不拦截，保留输入框行为 @src/global/hotkeyRegistry.js#115-130.
+- 当前配置存储使用 compact shortcutId，例如 `c-f`（Ctrl/Cmd+F）、`c-s-del`（Ctrl/Cmd+Shift+Delete）、`cr`（Enter）、`left`（←）。旧式 `ctrl+` / `ArrowLeft` 仅作为兼容输入归一化。
+- 主界面：`tab`/`s-tab` 切分页；`c-1`~`c-9` 切标签；`c-f` 搜索；`c-s-u` 触发/取消“有锁”条件搜索并继续文字检索；`esc` 退出；`up`/`down`/`c-k`/`c-j` 导航；`left` 全文预览；`right` 操作抽屉；`cr` 复制；`c-cr` 复制并锁定；`c-c` 复制；`c-s` 收藏；`c-u` 锁定；`s-del`/`s-backspace` 开清除框；`del`/`backspace` 删除；`c-del`/`c-backspace` 强制删锁定；`space` 多选；`mod-s` 预览图片/文字；`a-1`~`a-9` 快速复制；`c-a-1`~`c-a-9` 抽屉子功能；`f2` 别名/标签编辑；`s-f2` 查看全文；`c-a-s` 打开设置；`pageup`/`pagedown` 翻页。见 [hotkeyBindings.js](src/global/hotkeyBindings.js:294)。
+- 搜索态：`c-del`/`c-backspace` 删除，`c-s-del` 强删。见 [hotkeyBindings.js](src/global/hotkeyBindings.js:274)。
+- 抽屉：`esc`/`left`/`c-left` 关闭；`up`/`down` 导航；`cr`/`c-cr` 选中；`c-1`~`c-9` 直选。见 [hotkeyBindings.js](src/global/hotkeyBindings.js:163)。
+- 全文预览：`esc`/`right` 关闭；`up`/`down` 半页滚动。见 [hotkeyBindings.js](src/global/hotkeyBindings.js:190)。
+- 清除对话框：数字 1/2/3/4/5/6 选范围（1小时/5小时/8小时/24小时/7天/全部）；`tab`/`s-tab` 切换；`cr` 确认；`esc` 关闭。见 [hotkeyBindings.js](src/global/hotkeyBindings.js:110)。
+- 设置层保护：setting 层 Del/Backspace 不拦截，保留输入框行为。见 [hotkeyRegistry.js](src/global/hotkeyRegistry.js:348)。
 
-> 快捷键可在设置页通过 hotkeyOverrides 覆盖，存储在 utools.dbStorage。
+> 快捷键可在设置页通过 `hotkeyOverrides` 覆盖；当前写入值为 compact shortcutId，并优先进入 SQLite shortcut repository，SQLite 不可用时回退 `utools.dbStorage`。
 
 ## 数据与配置
 - 存储结构：底层 SQLite 存储，含剪贴板历史、收藏、标签等；首次启动自动迁移旧 JSON 数据并备份，路径按设备 ID 区分 @src/global/initPlugin.js#53-190.
