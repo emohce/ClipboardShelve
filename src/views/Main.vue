@@ -1671,9 +1671,9 @@ const handleItemsDelete = (items = [], metadata = {}) => {
 
 const emit = defineEmits(["showSetting"]);
 const multiSelectTooltip = computed(() =>
-    isMultiple.value ? "Esc" : formatShortcutDisplay("Space"),
+    isMultiple.value ? "Esc" : formatShortcutDisplay("space"),
 );
-const settingTooltip = computed(() => formatShortcutDisplay("ctrl+alt+s"));
+const settingTooltip = computed(() => formatShortcutDisplay("c-a-s"));
 const storageStatus = ref(getStorageRuntimeStatus());
 const refreshStorageStatus = (event) => {
     storageStatus.value = event?.detail || getStorageRuntimeStatus();
@@ -1681,11 +1681,11 @@ const refreshStorageStatus = (event) => {
 const clearTooltip = computed(
     () =>
         [
-            formatShortcutDisplay("shift+Delete"),
-            formatShortcutDisplay("shift+Backspace"),
+            formatShortcutDisplay("s-del"),
+            formatShortcutDisplay("s-backspace"),
         ].join(" / "),
 );
-const searchTooltip = computed(() => formatShortcutDisplay("ctrl+f"));
+const searchTooltip = computed(() => formatShortcutDisplay("c-f"));
 
 const MAIN_TAB_STATE_KEY = "ui.main.activeTab";
 const MAIN_COLLECT_SUB_TAB_STATE_KEY = "ui.main.collectSubTab";

@@ -10,6 +10,7 @@ Tool: codex
 - 技术闭环：运行时 dispatch 已由 resolver 命中 command-aware binding；业务组件已通过 command/feature pair 注册；SQLite 快捷键表和 setting fallback 并行；组合命令已接入运行时快捷键执行。
 - UI 闭环：设置页已有 command 表格、搜索、筛选、风险标记、存储来源状态、录制改键、When 图形/文本双模式、组合命令列表、草稿编辑和右键菜单审计入口。
 - **已完成（2026-06-13）**：command 级多键绑定、action 级 enable/disable、场景化保留规则表、改键弹窗重构 — 见 [260613-SettingUiModify/260613-shortcut-multi-key-plan.md](../260613-SettingUiModify/260613-shortcut-multi-key-plan.md)。
+- **已完成（2026-06-14）**：shortcutId 存储迁移为 compact 语义（`c/s/a` + key token），legacy 输入和旧 override key 继续迁移兼容 — 见 [260613-SettingUiModify/260614-shortcut-compact-semantics.md](../260613-SettingUiModify/260614-shortcut-compact-semantics.md)。
 - 剩余非终局项：macro 暂只允许非写入 command；uTools 生产壳首次迁移验证；图形化 When AST 可视化。
 
 == 文档来源
@@ -20,6 +21,7 @@ Tool: codex
 - 一致性清单：[10YG2-zz-audit-快捷键命令系统一致性清单.ad](10YG2-zz-audit-快捷键命令系统一致性清单.ad:1)
 - SQLite 迁移设计：[11YG2-zz-plan-快捷键SQLite迁移设计.ad](11YG2-zz-plan-快捷键SQLite迁移设计.ad:1)
 - **多键绑定与改键弹窗（已完成）**：[260613-SettingUiModify/260613-shortcut-multi-key-plan.md](../260613-SettingUiModify/260613-shortcut-multi-key-plan.md)
+- **Compact shortcut 语义（已完成）**：[260613-SettingUiModify/260614-shortcut-compact-semantics.md](../260613-SettingUiModify/260614-shortcut-compact-semantics.md)
 
 == 原始需求抽象
 
@@ -50,7 +52,7 @@ Tool: codex
 新模型拆成五个层次：
 
 - Command：可执行能力主体，定义在 [src/global/commandDefaults.js](../../../src/global/commandDefaults.js:12)，并通过 [src/global/commandDefaults.js](../../../src/global/commandDefaults.js:110) 生成 `id/title/category/description/risk/source`。
-- Keybinding：快捷键到 command 的绑定，旧 binding 通过 [src/global/commandDefaults.js](../../../src/global/commandDefaults.js:145) 转成 command-aware binding。
+- Keybinding：快捷键到 command 的绑定，旧 binding 通过 [src/global/commandDefaults.js](../../../src/global/commandDefaults.js:145) 转成 command-aware binding；存储层 shortcutId 使用 compact 语义，归一化入口见 [src/global/shortcutKey.js](../../../src/global/shortcutKey.js:211)。
 - When：可求值的上下文表达式，解析与求值在 [src/global/whenExpression.js](../../../src/global/whenExpression.js:1)。
 - Resolver：按 key、when、source、overlay、specificity、weight 选中最终 binding，逻辑在 [src/global/keybindingResolver.js](../../../src/global/keybindingResolver.js:53)。
 - Store：SQLite 优先读写，setting fallback 兜底，入口在 [src/global/shortcutStore.js](../../../src/global/shortcutStore.js:28)。

@@ -2,6 +2,8 @@
 
 **环境**: `pnpm install` 后 `pnpm run serve`，在 uTools 或浏览器宿主中按实际集成方式打开插件（与日常开发一致）。
 
+> Current shortcut storage note: this historical quickstart uses user-visible key labels such as Delete and ArrowUp. Current `shortcutId` storage/config uses compact ids; see [`../../vibe/specs/260613-SettingUiModify/260614-shortcut-compact-semantics.md`](../../vibe/specs/260613-SettingUiModify/260614-shortcut-compact-semantics.md).
+
 ## 1. 删除稳定性（SC-001）
 
 1. 在普通列表选中一条，执行删除（与产品一致：Delete / Backspace / 菜单）。  
@@ -37,7 +39,7 @@
 
 1. 默认宽度与 **≤900px、≤720px** 下切换窗口，观察 **Tab 行 + 按钮行** 下方到 **第一条列表** 之间是否无重叠、无大块无效空白。  
 2. 切换到 **收藏** 并展开子标签（双行顶栏），确认 `.clip-break--with-sub` 下仍无重叠。  
-3. 若调整 [`Main.vue` 中 `.clip-break`](../../src/views/Main.vue) 高度，同步检查 **暂无记录** 占位高度是否合理。
+3. 若调整 [`Main.vue` 中 `.clip-break`](../../src/views/Main.vue:1) 高度，同步检查 **暂无记录** 占位高度是否合理。
 
 ## 附录：基线登记（实现后复测可填）
 

@@ -1,5 +1,5 @@
 import { HOTKEY_BINDINGS, bindingKey, getCommandAwareBindings } from './hotkeyBindings.js'
-import { normalizeShortcutId } from './shortcutKey.js'
+import { compactToLegacyShortcutId, normalizeShortcutId } from './shortcutKey.js'
 
 export const COMMAND_OVERRIDE_PREFIX = 'cmd:'
 
@@ -75,7 +75,13 @@ function buildBindingOverrideKeyMap(bindings = getCommandAwareBindings(HOTKEY_BI
           normalizeShortcutId(binding.shortcutId)
     )
     const commandId = aware?.commands?.[0]
-    if (commandId) map.set(key, commandId)
+    if (commandId) {
+      map.set(key, commandId)
+      const legacyShortcutId = compactToLegacyShortcutId(binding.shortcutId)
+      if (legacyShortcutId && legacyShortcutId !== binding.shortcutId) {
+        map.set(bindingKey({ ...binding, shortcutId: legacyShortcutId }), commandId)
+      }
+    }
   }
   return map
 }

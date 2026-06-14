@@ -1,9 +1,9 @@
 # 快捷键多键绑定与改键弹窗重构
 
 **基线**：2026-06-13  
-**范围**：[`src/global/shortcutReservations.js`](../../../src/global/shortcutReservations.js)、[`src/global/shortcutStore.js`](../../../src/global/shortcutStore.js)、[`src/global/shortcutCommandRows.js`](../../../src/global/shortcutCommandRows.js)、[`src/global/keybindingConflicts.js`](../../../src/global/keybindingConflicts.js)、[`src/storage/shortcutKeybindingRepository.js`](../../../src/storage/shortcutKeybindingRepository.js)、[`src/views/Setting.vue`](../../../src/views/Setting.vue)、[`src/style/index.less`](../../../src/style/index.less)  
-**状态**：已实现（2026-06-13）  
-**权威关系**：本 spec 顶替 [`260613-zz-raw-settingUiModify.md`](260613-zz-raw-settingUiModify.md) 中 **§17 / §21 / §23** 改键弹窗交互描述；与 [`260610-shortcuts-redesign/12YG2-zz-summary-快捷键重构全景文档.md`](../260610-shortcuts-redesign/12YG2-zz-summary-快捷键重构全景文档.md) 数据模型章节联动更新。
+**范围**：[`src/global/shortcutReservations.js`](../../../src/global/shortcutReservations.js:1)、[`src/global/shortcutStore.js`](../../../src/global/shortcutStore.js:1)、[`src/global/shortcutCommandRows.js`](../../../src/global/shortcutCommandRows.js:1)、[`src/global/keybindingConflicts.js`](../../../src/global/keybindingConflicts.js:1)、[`src/storage/shortcutKeybindingRepository.js`](../../../src/storage/shortcutKeybindingRepository.js:1)、[`src/views/Setting.vue`](../../../src/views/Setting.vue:1)、[`src/style/index.less`](../../../src/style/index.less:1)  
+**状态**：已实现（2026-06-13）；compact shortcut 语义已落地（2026-06-14）  
+**权威关系**：本 spec 顶替 [`260613-zz-raw-settingUiModify.md`](260613-zz-raw-settingUiModify.md) 中 **§17 / §21 / §23** 改键弹窗交互描述；compact id 细则见 [`260614-shortcut-compact-semantics.md`](260614-shortcut-compact-semantics.md)；与 [`260610-shortcuts-redesign/12YG2-zz-summary-快捷键重构全景文档.md`](../260610-shortcuts-redesign/12YG2-zz-summary-快捷键重构全景文档.md) 数据模型章节联动更新。
 
 ## 目标摘要
 
@@ -21,13 +21,13 @@
 ```
 ┌─ 固定按键规则表（popover，顶栏） ─────────────────────────────┐
 ├─ Command 行 ─────────────────────────────────────────────────┤
-│  设置页向上滚动  setting.scroll.up    默认: ArrowUp  [恢复默认] │
+│  设置页向上滚动  setting.scroll.up    默认: up  [恢复默认]      │
 ├─ 中部双区 ───────────────────────────────────────────────────┤
 │  当前绑定（左）              │  待绑定（右）                  │
-│  [Delete]  ❌                │  [ctrl+d]  ❌                 │
-│  [Backspace] ❌              │                               │
+│  [del]  ❌                   │  [c-d]  ❌                    │
+│  [backspace] ❌              │                               │
 ├─ 底部录制行 ─────────────────────────────────────────────────┤
-│  按下快捷键…          [最新收录: ctrl+shift+d] ✅              │
+│  按下快捷键…          [最新收录: c-s-d] ✅                    │
 ├─ Footer ─────────────────────────────────────────────────────┤
 │                                    [取消]  [确定]             │
 └──────────────────────────────────────────────────────────────┘
@@ -74,7 +74,7 @@
 
 ## 二、保留规则（场景化）
 
-- 新建 [`shortcutReservations.js`](../../../src/global/shortcutReservations.js)：`{ shortcutId, commandId, when, description }`
+- 新建 [`shortcutReservations.js`](../../../src/global/shortcutReservations.js:1)：`{ shortcutId, commandId, when, description }`
 - 校验：`isShortcutAssignable(shortcutId, { commandId, when })`
 - 提示：popover **表格**（快捷键 / Command ID / When / 说明）
 - 录入时与冲突检测一并执行，**不通过则不可 ✅**
@@ -87,7 +87,7 @@
 
 ```js
 hotkeyOverrides['cmd:list.item.delete'] = {
-  shortcutIds: ['Delete', 'Backspace', 'ctrl+d'],
+  shortcutIds: ['del', 'backspace', 'c-d'],
   when: 'mainFocus && !inputFocus',
   enabled: true   // false = 禁用 action 触发，键仍展示
 }
@@ -100,7 +100,7 @@ hotkeyOverrides['cmd:list.item.delete'] = {
 
 ### 3.3 命令列表
 
-- 一行一 `commandId`；快捷键列 `Delete / Backspace / …`
+- 一行一 `commandId`；快捷键列存储为 `del / backspace / …`，展示层可格式化为 `Delete / Backspace / …`
 
 ---
 
@@ -110,6 +110,7 @@ hotkeyOverrides['cmd:list.item.delete'] = {
 - **硬阻断**：toast 说明冲突 command / when，**不提供「仍然添加」**
 - 同 command 多键、when 互斥不算冲突
 - 已禁用 action 的键仍作为占用方
+- 边界：这里的硬阻断只指改键录入/点 ✅。When 编辑和 macro 草稿仍可使用冲突预览/确认，因为它们调整触发条件或组合命令定义，不直接绕过录入规则。
 
 ---
 

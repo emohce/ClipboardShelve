@@ -133,6 +133,9 @@
 
         <div class="sub-tab-content sub-tab-content--fill" v-show="activeTab === 'shortcut'">
           <div class="setting-card-content-item setting-shortcut-shell">
+            <div class="shortcut-system-notice">
+              部分按键为系统占用，无法更改（悬浮 ⌨ 查看详情）
+            </div>
             <div class="shortcut-strip shortcut-strip--single">
               <el-tooltip :content="currentShortcutScopeLabel" placement="top" :show-after="400">
                 <el-select
@@ -240,9 +243,11 @@
                   <span class="shortcut-col shortcut-col--kbd">
                     <template v-for="(sid, sidIndex) in (row.shortcutIds || [row.shortcutId]).filter(Boolean)" :key="`${row.id}:${sid}`">
                       <span v-if="sidIndex > 0" class="shortcut-kbd-sep"> / </span>
-                      <span class="feature-kbd" :class="{ 'feature-kbd--muted': row.disabled }">
-                        {{ formatShortcutDisplay(sid) }}
-                      </span>
+                      <el-tooltip :content="getShortcutTooltipContent(sid)" placement="top" :show-after="300" :disabled="!getShortcutTooltipContent(sid)">
+                        <span class="feature-kbd" :class="{ 'feature-kbd--muted': row.disabled }">
+                          {{ formatShortcutDisplayCompact(sid) }}
+                        </span>
+                      </el-tooltip>
                     </template>
                   </span>
                   <span class="shortcut-col shortcut-col--when" :title="row.when">{{ row.when || '始终' }}</span>
@@ -348,7 +353,7 @@
                 v-for="defId in shortcutRecordDefaultIds"
                 :key="defId"
                 class="shortcut-record-default-value"
-              >{{ formatShortcutDisplay(defId) }}</span>
+              >{{ formatShortcutDisplayCompact(defId) }}</span>
               <button
                 v-if="showShortcutRecordDefaultRestore"
                 type="button"
@@ -382,7 +387,15 @@
                   :key="`pending:${sid}:${index}`"
                   class="shortcut-record-key-row"
                 >
-                  <span class="feature-kbd">{{ formatShortcutDisplay(sid) }}</span>
+                  <el-input
+                    v-if="shortcutRecordEditingIndex === index"
+                    v-model="shortcutRecordEditingValue"
+                    size="small"
+                    @blur="finishEditingShortcut(index)"
+                    @keyup.enter="finishEditingShortcut(index)"
+                    @keyup.esc="cancelEditingShortcut"
+                  />
+                  <span v-else class="feature-kbd" @click="startEditingShortcut(index, sid)">{{ formatShortcutDisplayCompact(sid) }}</span>
                   <button type="button" class="shortcut-record-key-remove" @click="removeShortcutRecordPendingId(index)">×</button>
                 </div>
               </div>
@@ -397,9 +410,27 @@
           >
             <span class="shortcut-record-capture-hint">按下快捷键录制</span>
             <div v-if="shortcutRecordCapturedId" class="shortcut-record-capture-staging">
-              <span class="feature-kbd">{{ formatShortcutDisplay(shortcutRecordCapturedId) }}</span>
-              <button type="button" class="shortcut-record-capture-confirm" @click="promoteShortcutRecordCaptured">✓</button>
+              <span class="feature-kbd">{{ formatShortcutDisplayCompact(shortcutRecordCapturedId) }}</span>
             </div>
+            <button
+              v-if="shortcutRecordCapturedId"
+              type="button"
+              class="shortcut-record-capture-confirm"
+              @click="promoteShortcutRecordCaptured"
+            >
+              ✓
+            </button>
+          </div>
+          <div class="shortcut-record-direct-input-row">
+            <span class="shortcut-record-capture-hint">或直接录入</span>
+            <el-input
+              v-model="shortcutRecordDirectInput"
+              placeholder="如 s-esc"
+              clearable
+              @keyup.enter="handleDirectInputSubmit"
+              @clear="shortcutRecordDirectInput = ''"
+            />
+            <el-button type="primary" @click="handleDirectInputSubmit">添加</el-button>
           </div>
           <template #footer>
             <el-button @click="requestCloseShortcutRecord">取消</el-button>
@@ -967,7 +998,7 @@
               <el-input v-model="commandMacroDraftForm.title" placeholder="例如 打开设置并切换页签" />
             </el-form-item>
             <el-form-item label="快捷键">
-              <el-input v-model="commandMacroDraftForm.shortcutId" placeholder="例如 ctrl+shift+1" />
+              <el-input v-model="commandMacroDraftForm.shortcutId" placeholder="例如 c-s-1" />
             </el-form-item>
             <el-form-item label="When">
               <el-input v-model="commandMacroDraftForm.when" placeholder="例如 mainFocus" />
@@ -1045,7 +1076,7 @@ import {
   buildContextMenuActionRows,
   getContextMenuActionSummary
 } from '../global/contextMenuActions'
-import { formatShortcutDisplay, normalizeShortcutId } from '../global/shortcutKey'
+import { formatShortcutDisplay, formatShortcutDisplayCompact, normalizeShortcutId } from '../global/shortcutKey'
 import {
   applyShortcutOverrideValue,
   buildShortcutOverrideValue,
@@ -1199,6 +1230,9 @@ const shortcutRecordActiveIds = ref([])
 const shortcutRecordPendingIds = ref([])
 const shortcutRecordCapturedId = ref('')
 const shortcutRecordDefaultIds = ref([])
+const shortcutRecordDirectInput = ref('')
+const shortcutRecordEditingIndex = ref(-1)
+const shortcutRecordEditingValue = ref('')
 const shortcutRecorderRef = ref(null)
 const commandMacroDialogVisible = ref(false)
 const commandMacroDraftDialogVisible = ref(false)
@@ -1224,6 +1258,28 @@ const whenBuilderStates = ref({})
 const whenBuilderDisabledKeys = computed(() =>
   getWhenBuilderDisabledKeys(whenBuilderStates.value, whenBuilderOperator.value)
 )
+const shortcutKeyToCommands = computed(() => {
+  const map = {}
+  shortcutCommandRows.value.forEach(row => {
+    const keys = row.shortcutIds || [row.shortcutId]
+    keys.filter(Boolean).forEach(sid => {
+      if (!map[sid]) {
+        map[sid] = []
+      }
+      map[sid].push({
+        commandId: row.commandId,
+        commandTitle: row.commandTitle,
+        scopeLabel: row.scopeLabel
+      })
+    })
+  })
+  return map
+})
+const getShortcutTooltipContent = (shortcutId) => {
+  const commands = shortcutKeyToCommands.value[shortcutId]
+  if (!commands || commands.length <= 1) return null
+  return commands.map(c => `${c.commandTitle || c.commandId} (${c.scopeLabel})`).join('\n')
+}
 const SETTING_SHORTCUT_RECORD_LAYER = 'setting-shortcut-record'
 const shortcutReservationRows = getShortcutReservationRows()
 const shortcutRecordMergedIds = computed(() =>
@@ -1668,30 +1724,6 @@ function getRecordShortcutConflicts(shortcutId) {
   )
 }
 
-function rejectShortcutCandidate(shortcutId) {
-  const normalized = normalizeShortcutId(shortcutId)
-  if (!normalized) return '无效快捷键'
-  const context = getRecordShortcutContext()
-  if (!isRecordableShortcutId(normalized, context)) {
-    const conflicts = getRecordShortcutConflicts(normalized)
-    if (conflicts.length) {
-      return formatShortcutConflictMessage(conflicts, formatShortcutDisplay)
-    }
-    return '该按键不可绑定'
-  }
-  const existing = dedupeShortcutIds([
-    ...shortcutRecordActiveIds.value,
-    ...shortcutRecordPendingIds.value,
-    shortcutRecordCapturedId.value
-  ])
-  if (existing.includes(normalized)) return '该快捷键已在列表中'
-  const conflicts = getRecordShortcutConflicts(normalized)
-  if (conflicts.length) {
-    return formatShortcutConflictMessage(conflicts, formatShortcutDisplay)
-  }
-  return ''
-}
-
 function getShortcutConflictRowsWithWhen(row, nextShortcutId, nextWhen) {
   return getShortcutCommandRowConflicts(row, shortcutConflictRows.value, {
     shortcutId: nextShortcutId,
@@ -1850,6 +1882,7 @@ function resetShortcutRecorder() {
   shortcutRecordActiveIds.value = []
   shortcutRecordPendingIds.value = []
   shortcutRecordCapturedId.value = ''
+  shortcutRecordDirectInput.value = ''
   shortcutRecordDefaultIds.value = []
 }
 
@@ -1857,6 +1890,9 @@ function restoreShortcutRecordToDefault() {
   shortcutRecordActiveIds.value = [...dedupeShortcutIds(shortcutRecordDefaultIds.value)]
   shortcutRecordPendingIds.value = []
   shortcutRecordCapturedId.value = ''
+  shortcutRecordDirectInput.value = ''
+  shortcutRecordEditingIndex.value = -1
+  shortcutRecordEditingValue.value = ''
   focusShortcutRecorder()
 }
 
@@ -1871,9 +1907,9 @@ function removeShortcutRecordPendingId(index) {
 function promoteShortcutRecordCaptured() {
   const captured = normalizeShortcutId(shortcutRecordCapturedId.value)
   if (!captured) return
-  const message = rejectShortcutCandidate(captured)
-  if (message) {
-    ElMessage.warning(message)
+  const context = getRecordShortcutContext()
+  if (!isRecordableShortcutId(captured, context)) {
+    ElMessage.warning('该快捷键不可绑定')
     return
   }
   if (!shortcutRecordPendingIds.value.includes(captured)) {
@@ -1883,8 +1919,59 @@ function promoteShortcutRecordCaptured() {
   focusShortcutRecorder()
 }
 
+function handleDirectInputSubmit() {
+  const input = shortcutRecordDirectInput.value.trim()
+  if (!input) return
+  const normalized = normalizeShortcutId(input)
+  if (!normalized) {
+    ElMessage.warning('无效的快捷键格式')
+    return
+  }
+  if (!shortcutRecordPendingIds.value.includes(normalized)) {
+    shortcutRecordPendingIds.value = [...shortcutRecordPendingIds.value, normalized]
+  }
+  shortcutRecordDirectInput.value = ''
+}
+
+function startEditingShortcut(index, sid) {
+  shortcutRecordEditingIndex.value = index
+  shortcutRecordEditingValue.value = sid
+}
+
+function finishEditingShortcut(index) {
+  const newValue = shortcutRecordEditingValue.value.trim()
+  if (!newValue) {
+    cancelEditingShortcut()
+    return
+  }
+  const normalized = normalizeShortcutId(newValue)
+  if (!normalized) {
+    ElMessage.warning('无效的快捷键格式')
+    cancelEditingShortcut()
+    return
+  }
+  const context = getRecordShortcutContext()
+  if (!isRecordableShortcutId(normalized, context)) {
+    ElMessage.warning('该快捷键不可绑定')
+    cancelEditingShortcut()
+    return
+  }
+  const updatedList = [...shortcutRecordPendingIds.value]
+  updatedList[index] = normalized
+  shortcutRecordPendingIds.value = updatedList
+  cancelEditingShortcut()
+}
+
+function cancelEditingShortcut() {
+  shortcutRecordEditingIndex.value = -1
+  shortcutRecordEditingValue.value = ''
+}
+
 function isShortcutRecordDirty() {
-  return !shortcutIdsEqual(shortcutRecordMergedIds.value, shortcutRecordBaselineIds.value)
+  const currentIds = shortcutRecordCapturedId.value
+    ? dedupeShortcutIds([...shortcutRecordMergedIds.value, shortcutRecordCapturedId.value])
+    : shortcutRecordMergedIds.value
+  return !shortcutIdsEqual(currentIds, shortcutRecordBaselineIds.value)
 }
 
 function isWhenEditDirty() {
@@ -1998,14 +2085,15 @@ function handleWhenEditBeforeClose(done) {
 }
 
 function handleShortcutRecordKeydown(e) {
-  if (e.key === 'Escape') {
+  if (e.key === 'Escape' && !e.ctrlKey && !e.metaKey && !e.altKey && !e.shiftKey) {
     requestCloseShortcutRecord()
     return
   }
   const nextShortcutId = eventLikeToShortcutId(e)
-  const message = rejectShortcutCandidate(nextShortcutId)
-  if (message) {
-    ElMessage.warning(message)
+  const normalized = normalizeShortcutId(nextShortcutId)
+  if (!normalized) return
+  const context = getRecordShortcutContext()
+  if (!isRecordableShortcutId(normalized, context)) {
     return
   }
   shortcutRecordCapturedId.value = nextShortcutId
@@ -2506,7 +2594,7 @@ const handlePathBtnClick = (param) => {
 
 const keyDownHandler = (e) => {
   if (e.__hotkeyHandled) return
-  if (e.key === 'Escape') {
+  if (e.key === 'Escape' && !e.ctrlKey && !e.metaKey && !e.altKey && !e.shiftKey) {
     if (isSettingMessageBoxOpen()) return
     if (closeTopSettingOverlay()) {
       e.preventDefault()
@@ -3271,6 +3359,19 @@ onUnmounted(() => {
   background: var(--bg-soft-color);
   outline: none;
 }
+.shortcut-record-direct-input-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-top: 12px;
+  padding: 10px 12px;
+  border: 1px solid var(--border-color);
+  border-radius: 10px;
+  background: var(--bg-elevated-color);
+}
+.shortcut-record-direct-input-row .el-input {
+  flex: 1;
+}
 .shortcut-record-capture-hint {
   font-size: 12px;
   color: var(--text-color-lighter);
@@ -4022,7 +4123,7 @@ onUnmounted(() => {
   flex-direction: column;
   gap: 0;
   min-height: 0;
-  padding: 0;
+  padding: 2px;
 }
 .shortcut-strip {
   display: flex;
@@ -4037,6 +4138,15 @@ onUnmounted(() => {
 }
 .shortcut-strip--single {
   flex-wrap: nowrap;
+}
+.shortcut-system-notice {
+  padding: 4px 8px;
+  margin-bottom: 4px;
+  font-size: 11px;
+  color: var(--text-color-lighter);
+  background: rgba(53, 95, 157, 0.06);
+  border-radius: 6px;
+  border: 1px solid rgba(53, 95, 157, 0.10);
 }
 .shortcut-strip-meta {
   display: inline-flex;
@@ -4234,15 +4344,15 @@ onUnmounted(() => {
   grid-row: 1;
   position: absolute;
   left: var(--shortcut-drawer-left, 0);
-  top: 50%;
+  top: 42%;
   z-index: 3;
   display: flex;
   align-items: center;
   gap: 8px;
   width: max-content;
   max-width: var(--shortcut-drawer-max, 100%);
-  height: 24px;
-  margin-top: -12px;
+  height: 26px;
+  transform: translateY(-50%);
   padding: 0 12px 0 16px;
   border-radius: 0 8px 8px 0;
   border: 1px solid rgba(53, 95, 157, 0.14);
@@ -4868,7 +4978,7 @@ onUnmounted(() => {
 }
 .setting :deep(.el-input__inner::placeholder),
 .setting :deep(.el-textarea__inner::placeholder) {
-  color: var(--text-color-lighter);
+  color: #999;
 }
 .setting :deep(.el-card) {
   flex: 1;

@@ -1,4 +1,5 @@
 import { getCommandById } from './commandDefaults.js'
+import { normalizeShortcutId } from './shortcutKey.js'
 
 export const COMMAND_MACRO_MODES = ['sequence']
 export const COMMAND_MACRO_MAX_STEPS = 12
@@ -25,7 +26,7 @@ export function normalizeCommandMacro(macro = {}) {
   return {
     id: typeof macro.id === 'string' ? macro.id.trim() : '',
     title: typeof macro.title === 'string' ? macro.title.trim() : '',
-    shortcutId: typeof macro.shortcutId === 'string' ? macro.shortcutId.trim() : '',
+    shortcutId: typeof macro.shortcutId === 'string' ? normalizeShortcutId(macro.shortcutId) : '',
     when: typeof macro.when === 'string' ? macro.when.trim() : 'mainFocus',
     mode,
     steps: steps.slice(0, COMMAND_MACRO_MAX_STEPS).map(normalizeCommandMacroStep)

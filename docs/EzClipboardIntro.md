@@ -6,6 +6,8 @@
 
 ## 默认操作
 
+> 用户界面可显示 Ctrl/Command 等平台化名称；配置和存储层使用 compact shortcutId，见 [`../vibe/specs/260613-SettingUiModify/260614-shortcut-compact-semantics.md`](../vibe/specs/260613-SettingUiModify/260614-shortcut-compact-semantics.md)。
+
 | 动作 | 快捷键 |
 |------|--------|
 | 列表移动 | `↑` `↓` 或 `Ctrl+K` / `Ctrl+J` |

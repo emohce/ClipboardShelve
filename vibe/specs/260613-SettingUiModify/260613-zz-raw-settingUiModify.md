@@ -1,7 +1,7 @@
 # 设置页布局优化
 
 **基线**：2026-06-13  
-**范围**：[`src/views/Setting.vue`](../../../src/views/Setting.vue)、[`src/style/index.less`](../../../src/style/index.less)、[`src/main.js`](../../../src/main.js)  
+**范围**：[`src/views/Setting.vue`](../../../src/views/Setting.vue:1)、[`src/style/index.less`](../../../src/style/index.less:1)、[`src/main.js`](../../../src/main.js:1)  
 **状态**：布局与弹窗基线已实现（2026-06-13）；**改键弹窗多键交互**已由 [260613-shortcut-multi-key-plan.md](260613-shortcut-multi-key-plan.md) 实现（顶替下文 §17 / §21 / §23）
 
 ## 变更摘要
@@ -41,7 +41,7 @@
    - 开关/按钮缩至 22–26px；说明收入 HelpHint
    - 命令动作行：状态 chip + 命令/组合/菜单/新增 chip 按钮
 13. **命令 Tab UI 优化（快捷键 Tab）**：
-   - 全局遮罩/对话框样式迁移至 [`src/style/index.less`](../../../src/style/index.less)（`html` 同步 CSS 变量），设置页打开时 overlay 不再失效
+   - 全局遮罩/对话框样式迁移至 [`src/style/index.less`](../../../src/style/index.less:1)（`html` 同步 CSS 变量），设置页打开时 overlay 不再失效
    - Esc 分层关闭：`closeTopSettingOverlay()` 优先关改键/When/功能弹窗/MessageBox，无遮罩才退出设置
    - 改键与 When 弹窗互斥；When builder `max-height` 滚动
    - 工具条：`.shortcut-strip-actions` 将范围下拉与帮助靠右；移除 `fit-input-width`；`shortcut-scope-popper` 至少 4 汉字宽，↑↓ 自动扩充
@@ -52,7 +52,7 @@
    - 条件区恢复三列彩色分组（界面层 / 状态 / 弹层），每组内选项带 是/否 渐变按钮
 16. **Esc 与固定按键**：
    - 设置页 Esc 仅关闭弹窗，不退出设置页
-   - `NON_CONFIGURABLE_SHORTCUT_IDS`：Esc / Enter / Ctrl+C / Ctrl+R / ← / → 不可绑定
+   - `NON_CONFIGURABLE_SHORTCUT_IDS`：`esc` / `cr` / `c-c` / `c-r` / `left` / `right` / `tab` / `space` 不可绑定
    - 命令 Tab 工具条 ⌨ 提示 + 改键弹窗悬浮说明
 17. **改键弹窗（录制快捷键）**：
    - 启用 `setting-modal-overlay` 遮罩，`:modal="true"`，背景不透明、带边框
@@ -61,17 +61,17 @@
    - 左栏「当前绑定」内**始终**展示灰色默认值（只读 chip）；仅当当前值/新组合偏离默认时，右侧追加显式「重置」按钮恢复默认
 18. **设置页弹窗统一不透明与 Esc 分层**：
    - When / 功能编辑 / 组合命令 / 右键菜单 / 组合草稿全部使用 `setting-modal-overlay` + `:modal="true"`；移除 `setting-float-overlay` 透明遮罩
-   - [`src/style/index.less`](../../../src/style/index.less) 为 `.feature-dialog` 补实色底板规则；弹窗背景增加 hex fallback（light `#ffffff` / dark `#151b24`）
+   - [`src/style/index.less`](../../../src/style/index.less:1) 为 `.feature-dialog` 补实色底板规则；弹窗背景增加 hex fallback（light `#ffffff` / dark `#151b24`）
    - `keyDownHandler` 将 Esc 处理提前至 `isEditableTarget` 之前：有弹窗时 `closeTopSettingOverlay()`，无弹窗且非输入焦点才 `emit('back')`，避免 textarea 内 Esc 穿透至 uTools 宿主
 19. **When 弹窗视觉与穿透统一（仿改键弹窗）**：
-   - 遮罩不透明度提升至 0.96；[`src/style/index.less`](../../../src/style/index.less) 将 `.command-macro-dialog` 纳入实色强制规则并新增共享类 `.setting-modal-body-shell`
+   - 遮罩不透明度提升至 0.96；[`src/style/index.less`](../../../src/style/index.less:1) 将 `.command-macro-dialog` 纳入实色强制规则并新增共享类 `.setting-modal-body-shell`
    - When 弹窗内容包裹于 `.when-editor-shell` 实色内容壳；`.when-builder-option` 去除 `rgba(255,255,255,*)` 半透明底，改用 `var(--bg-soft-color)` 实色
    - 录制/编辑时激活 `setting-when-edit` 热键层；`keyDownHandler` 在 When/改键/功能/组合草稿弹窗打开时跳过方向键 Tab 切换与 Ctrl+F，避免穿透
    - When 当前值偏离 `defaultWhen` 时，置灰展示默认摘要并可点击恢复（`restoreWhenEditToDefault`）
 20. **弹窗样式全局加载修复（teleport 命中）**：
-   - [`src/main.js`](../../../src/main.js) 顶部静态 `import './style/index.less'`，移除 [`ClipWordBreak.vue`](../../../src/cpns/ClipWordBreak.vue) scoped 块中的 `@import`
+   - [`src/main.js`](../../../src/main.js:1) 顶部静态 `import './style/index.less'`，移除 [`ClipWordBreak.vue`](../../../src/cpns/ClipWordBreak.vue:1) scoped 块中的 `@import`
    - 根因：`el-dialog` teleport 到 `body`，scoped/组件内加载的全局规则无法稳定命中遮罩与内层面板
-   - [`src/style/index.less`](../../../src/style/index.less) 增加 `.el-overlay.setting-modal-overlay` 与改键/When 弹窗内层实色背景全局规则（面板/壳/分组/选项）
+   - [`src/style/index.less`](../../../src/style/index.less:1) 增加 `.el-overlay.setting-modal-overlay` 与改键/When 弹窗内层实色背景全局规则（面板/壳/分组/选项）
 21. **改键弹窗交互收尾**：
    - 「固定按键不可绑定」提示置于弹窗内容最上方
    - 长说明改用 `el-popover`（`placement="top-start"`）+ `.shortcut-record-reserved-popper` 不透明浮层，避免与双栏内容重叠
@@ -92,7 +92,7 @@
    - 存储/功能配置：`.setting-panel`、`.setting-storage-compact`、`.feature-config-row--compact` 间距同步下调
 26. **外边距清零 + 顶栏 text+2px**：
    - 四边红框区域：`el-card` `margin: 0`、`border-radius: 0`；`.setting-card-content` / `.sub-tab-content` / `.setting-header-bar` 全部 `padding: 0`
-   - 全局 [`setting.less`](../../../src/style/cpns/setting.less) 遗留 `.setting-card { margin: 12px }` 与 `&-content { padding: 14px }` 同步置 0
+   - 全局 [`setting.less`](../../../src/style/cpns/setting.less:1) 遗留 `.setting-card { margin: 12px }` 与 `&-content { padding: 14px }` 同步置 0
    - 顶栏变量 `--setting-tab-h: calc(12px + 2px)`，Tab/返回/保存同高；`.sub-tab-nav` 胶囊 `padding: 1px; border-radius: 6px`
    - 功能配置行：去外扩 `box-shadow`，`.feature-config-control--compact` 防 nowrap 溢出；顶栏 `width: 100%` 与内容同宽对齐
 27. **列表区内边距清零（功能/命令/存储/功能配置）**：
@@ -112,13 +112,13 @@
 
 ### 设置页弹窗三层防护
 
-1. **视觉**：`modal-class="setting-modal-overlay"`（约 0.96 不透明）+ `.setting-modal-dialog` 实色壳 + 内层 `.shortcut-record-panel` / `.when-editor-shell` 等实色块（规则须在全局 [`index.less`](../../../src/style/index.less)）。
+1. **视觉**：`modal-class="setting-modal-overlay"`（约 0.96 不透明）+ `.setting-modal-dialog` 实色壳 + 内层 `.shortcut-record-panel` / `.when-editor-shell` 等实色块（规则须在全局 [`index.less`](../../../src/style/index.less:1)）。
 2. **热键层**：改键 `setting-shortcut-record`、When `setting-when-edit`；打开时 `activateLayer`，关闭时 `deactivateLayer`，使设置页 binding 不命中。
-3. **文档级短路**：[`Setting.vue`](../../../src/views/Setting.vue) `keyDownHandler` 在编辑弹窗打开时跳过 ↑↓←→ Tab 切换与 Ctrl+F，Esc 仍走 `closeTopSettingOverlay()`。
+3. **文档级短路**：[`Setting.vue`](../../../src/views/Setting.vue:1) `keyDownHandler` 在编辑弹窗打开时跳过 ↑↓←→ Tab 切换与 `c-f`，Esc 仍走 `closeTopSettingOverlay()`。
 
 ### 全局样式入口
 
-- 权威入口：[`src/main.js`](../../../src/main.js) → `import './style/index.less'`。
+- 权威入口：[`src/main.js`](../../../src/main.js:1) → `import './style/index.less'`。
 - 主题 CSS 变量定义在 `html, #app`；弹窗 teleport 到 `body` 仍可继承变量，但**选择器必须全局**才能命中 teleport 节点。
 - 禁止再将 `index.less` 作为唯一入口挂在某组件 scoped `<style>` 内。
 
@@ -169,7 +169,13 @@
 - [ ] 设置页全部弹窗遮罩不透明（When/改键/功能编辑/组合命令/右键菜单/组合草稿）
 - [ ] When 弹窗：内容壳实色无穿透、三列分组均衡；偏离默认时灰色默认值可点击恢复；打开时 ↑↓←→ 不滚动列表/不切 Tab
 - [x] 改键弹窗：遮罩深色 0.96、实色壳；固定按键说明在顶部 popover；Command 行默认值 + 恢复默认；底部单行录制 → ✅ → 待绑定；确定合并；冲突硬阻断；按键不穿透底层列表（多键 spec 已实现）
-- [ ] Esc/Enter/Ctrl+C/Ctrl+R/←/→ 不可绑定；弹窗内 input/textarea 聚焦时 Esc 仍只关弹窗
+- [ ] `esc`/`cr`/`c-c`/`c-r`/`left`/`right`/`tab`/`space` 不可绑定；弹窗内 input/textarea 聚焦时 Esc 仍只关弹窗
+
+## 2026-06-14 Compact Shortcut 语义补充
+
+- 快捷键配置、默认绑定、override 存储统一使用 compact id，细则见 [`260614-shortcut-compact-semantics.md`](260614-shortcut-compact-semantics.md)。
+- 旧式 `ctrl+shift+Delete`、`Enter`、`ArrowLeft` 仍可作为输入进入 `normalizeShortcutId()`，但新写入值必须是 `c-s-del`、`cr`、`left` 这类 compact id。
+- `tab` / `space` 是固定主键族，`s-tab`、`c-tab`、`c-space` 等均不可由用户改绑。
 - [ ] 命令 Tab 范围下拉：选项不截断，筛选与帮助靠右
 - [ ] 命令 Tab 列表：悬停 ID 抽屉显示命令中文名
 - [ ] 功能配置 Tab：三行紧凑卡片，悬浮预览/全局粘贴/命令动作可用
