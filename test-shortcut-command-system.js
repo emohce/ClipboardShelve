@@ -1,5 +1,4 @@
 const assert = require('assert')
-const fs = require('fs')
 
 async function main() {
   const {
@@ -95,16 +94,25 @@ async function main() {
   const {
     SHORTCUT_STORAGE_MODE_SETTING,
     SHORTCUT_STORAGE_MODE_SQLITE,
+    SHORTCUT_STORAGE_MODE_UTOOLS_SYNC,
+    SHORTCUT_RUNTIME_SOURCE_LOCAL,
+    SHORTCUT_RUNTIME_SOURCE_PUBLIC,
     buildShortcutSettingsPayload,
+    ensureShortcutSyncDocument,
     getEffectiveShortcutOverrides,
     getEffectiveShortcutBindings,
     getEffectiveShortcutCommandRows,
+    getLocalShortcutProfileId,
     getShortcutOverridesFromSetting,
+    getShortcutRuntimeSource,
     getShortcutStorageBackend,
+    promoteLocalShortcutProfileToPublic,
     commandSnapshotRowsToMap,
     keybindingSnapshotRowsToBindings,
     normalizeShortcutOverrides,
-    saveShortcutSettingsPayload
+    saveShortcutSettingsPayload,
+    setShortcutRuntimeSource,
+    updateShortcutDeviceAlias
   } = await import('./src/global/shortcutStore.js')
   const {
     SHORTCUT_KEYBINDING_SCHEMA_SQL,
@@ -1065,15 +1073,11 @@ async function main() {
 
   assert.ok(FEATURE_COMMAND_MAP['drawer-close'], 'existing drawer feature should map to a command')
   assert.ok(FEATURE_COMMAND_MAP['search-delete-normal'], 'existing search feature should map to a command')
-  const hotkeyBindingsSource = fs.readFileSync('src/global/hotkeyBindings.js', 'utf8')
-  const featureIds = new Set()
-  for (const match of hotkeyBindingsSource.matchAll(/features:\s*\[([^\]]+)\]/g)) {
-    for (const stringMatch of match[1].matchAll(/["']([^"']+)["']/g)) {
-      featureIds.add(stringMatch[1])
-    }
-  }
+  const featureIds = new Set(HOTKEY_BINDINGS
+    .filter((binding) => binding.internal !== true)
+    .flatMap((binding) => Array.isArray(binding.features) ? binding.features : [binding.features].filter(Boolean)))
   const missingFeatureMappings = [...featureIds].filter((featureId) => !FEATURE_COMMAND_MAP[featureId])
-  assert.deepStrictEqual(missingFeatureMappings, [], 'all default feature ids should map to command ids')
+  assert.deepStrictEqual(missingFeatureMappings, [], 'all public default feature ids should map to command ids')
 
   const deleteBinding = toCommandAwareBinding({
     layer: 'main',
@@ -1237,6 +1241,11 @@ async function main() {
   assert.ok(
     allShortcutRows.some((row) => row.commandId === 'list.navigate.up'),
     'settings shortcut table should include base list navigation command bindings'
+  )
+  assert.strictEqual(
+    allShortcutRows.some((row) => row.commandId === 'setting.overlay.block' || row.featureId === 'setting-overlay-block'),
+    false,
+    'setting overlay blocker should remain internal and hidden from shortcut command rows'
   )
   assert.ok(
     filterShortcutCommandRows(allShortcutRows, {
@@ -1516,6 +1525,80 @@ async function main() {
       storageMode: SHORTCUT_STORAGE_MODE_SQLITE
     },
     'shortcut store should prefer SQLite backend overrides when available'
+  )
+  const localProfileId = getLocalShortcutProfileId('device-a')
+  const syncedSetting = ensureShortcutSyncDocument(
+    { userConfig: {} },
+    {
+      nativeId: 'device-a',
+      alias: 'MacBook',
+      localOverrides: { 'cmd:list.item.delete': { shortcutIds: ['c-l'], enabled: true } },
+      now: 1000
+    }
+  )
+  assert.strictEqual(getShortcutRuntimeSource(syncedSetting, 'device-a'), SHORTCUT_RUNTIME_SOURCE_LOCAL)
+  assert.deepStrictEqual(
+    syncedSetting.userConfig.shortcutSync.profiles[localProfileId].hotkeyOverrides,
+    { 'cmd:list.item.delete': { shortcutIds: ['c-l'], enabled: true } },
+    'sync document should keep a local profile per nativeId'
+  )
+  assert.deepStrictEqual(
+    syncedSetting.userConfig.shortcutSync.profiles.public.hotkeyOverrides,
+    { 'cmd:list.item.delete': { shortcutIds: ['c-l'], enabled: true } },
+    'first sync document should initialize public profile without switching runtime source'
+  )
+  const publicRuntimeSetting = setShortcutRuntimeSource(syncedSetting, 'device-a', SHORTCUT_RUNTIME_SOURCE_PUBLIC)
+  assert.deepStrictEqual(
+    getEffectiveShortcutOverrides({
+      setting: publicRuntimeSetting,
+      backend: inMemoryShortcutBackend,
+      nativeId: 'device-a',
+      warn: () => {}
+    }),
+    {
+      hotkeyOverrides: { 'cmd:list.item.delete': { shortcutIds: ['c-l'], enabled: true } },
+      storageMode: SHORTCUT_STORAGE_MODE_UTOOLS_SYNC
+    },
+    'public runtime source should use public profile instead of SQLite'
+  )
+  const promotedSetting = promoteLocalShortcutProfileToPublic(
+    ensureShortcutSyncDocument(publicRuntimeSetting, {
+      nativeId: 'device-a',
+      localOverrides: { 'cmd:list.item.delete': { shortcutIds: ['c-new'], enabled: true } },
+      now: 1200
+    }),
+    { nativeId: 'device-a', now: 1300 }
+  )
+  assert.deepStrictEqual(
+    promotedSetting.userConfig.shortcutSync.profiles.public.hotkeyOverrides,
+    { 'cmd:list.item.delete': { shortcutIds: ['c-new'], enabled: true } },
+    'promote should copy local profile to public'
+  )
+  assert.deepStrictEqual(
+    promotedSetting.userConfig.shortcutSync.profiles[localProfileId].hotkeyOverrides,
+    { 'cmd:list.item.delete': { shortcutIds: ['c-new'], enabled: true } },
+    'promote should preserve local profile after copying it'
+  )
+  assert.strictEqual(
+    updateShortcutDeviceAlias(promotedSetting, { nativeId: 'device-a', alias: 'Office Mac', now: 1400 })
+      .userConfig.shortcutSync.devices['device-a'].alias,
+    'Office Mac',
+    'device alias should update only device metadata'
+  )
+  assert.deepStrictEqual(
+    getEffectiveShortcutOverrides({
+      setting: {
+        userConfig: { shortcut: { syncWithUTools: true } },
+        hotkeyOverrides: { 'cmd:list.item.delete': { shortcutIds: ['c-u'], enabled: true } }
+      },
+      backend: inMemoryShortcutBackend,
+      warn: () => {}
+    }),
+    {
+      hotkeyOverrides: { 'cmd:list.item.delete': { shortcutIds: ['c-u'], enabled: true } },
+      storageMode: SHORTCUT_STORAGE_MODE_UTOOLS_SYNC
+    },
+    'shortcut store should use uTools sync overrides when enabled even if SQLite backend is available'
   )
   assert.deepStrictEqual(
     getEffectiveShortcutOverrides({
@@ -1816,6 +1899,89 @@ async function main() {
     }
   ])
   assert.deepStrictEqual(sqliteSaveEvents, ['ezclipboard:hotkey-bindings-updated'])
+  const utoolsSyncSaveEvents = []
+  const utoolsSyncPersistCalls = []
+  inMemoryShortcutBackend.replaces = []
+  const utoolsSyncSaveResult = saveShortcutSettingsPayload(
+    { userConfig: { shortcut: { syncWithUTools: true } }, hotkeyOverrides: inMemoryShortcutBackend.map },
+    {
+      overrides: { 'cmd:list.item.delete': { shortcutIds: ['c-u'], enabled: true } },
+      backend: inMemoryShortcutBackend,
+      saveSetting(payload) {
+        return payload
+      },
+      eventTarget: {
+        dispatchEvent(event) {
+          utoolsSyncSaveEvents.push(event.type)
+        }
+      },
+      storageTarget: {
+        queuePersist() {
+          utoolsSyncPersistCalls.push('save')
+        }
+      }
+    }
+  )
+  assert.strictEqual(utoolsSyncSaveResult.storageMode, SHORTCUT_STORAGE_MODE_UTOOLS_SYNC)
+  assert.strictEqual(utoolsSyncSaveResult.sqliteSaved, false)
+  assert.deepStrictEqual(utoolsSyncPersistCalls, [])
+  assert.deepStrictEqual(inMemoryShortcutBackend.replaces, [])
+  assert.deepStrictEqual(utoolsSyncSaveResult.hotkeyOverrides, {
+    'cmd:list.item.delete': { shortcutIds: ['c-u'], enabled: true }
+  })
+  assert.deepStrictEqual(utoolsSyncSaveEvents, ['ezclipboard:hotkey-bindings-updated'])
+  const publicProfileSaveEvents = []
+  inMemoryShortcutBackend.replaces = []
+  const publicProfileSaveResult = saveShortcutSettingsPayload(
+    setShortcutRuntimeSource(syncedSetting, 'device-a', SHORTCUT_RUNTIME_SOURCE_PUBLIC),
+    {
+      nativeId: 'device-a',
+      overrides: { 'cmd:list.item.delete': { shortcutIds: ['c-public'], enabled: true } },
+      backend: inMemoryShortcutBackend,
+      saveSetting(payload) {
+        return payload
+      },
+      eventTarget: {
+        dispatchEvent(event) {
+          publicProfileSaveEvents.push(event.type)
+        }
+      }
+    }
+  )
+  assert.strictEqual(publicProfileSaveResult.storageMode, SHORTCUT_STORAGE_MODE_UTOOLS_SYNC)
+  assert.strictEqual(publicProfileSaveResult.sqliteSaved, false)
+  assert.deepStrictEqual(inMemoryShortcutBackend.replaces, [])
+  assert.deepStrictEqual(publicProfileSaveResult.setting.userConfig.shortcutSync.profiles.public.hotkeyOverrides, {
+    'cmd:list.item.delete': { shortcutIds: ['c-public'], enabled: true }
+  })
+  assert.deepStrictEqual(publicProfileSaveResult.setting.userConfig.shortcutSync.profiles[localProfileId].hotkeyOverrides, {
+    'cmd:list.item.delete': { shortcutIds: ['c-l'], enabled: true }
+  })
+  assert.deepStrictEqual(publicProfileSaveEvents, ['ezclipboard:hotkey-bindings-updated'])
+  const localProfileSavePersistCalls = []
+  inMemoryShortcutBackend.replaces = []
+  const localProfileSaveResult = saveShortcutSettingsPayload(
+    syncedSetting,
+    {
+      nativeId: 'device-a',
+      overrides: { 'cmd:list.item.delete': { shortcutIds: ['c-v'], enabled: true } },
+      backend: inMemoryShortcutBackend,
+      saveSetting(payload) {
+        return payload
+      },
+      storageTarget: {
+        queuePersist() {
+          localProfileSavePersistCalls.push('save')
+        }
+      }
+    }
+  )
+  assert.strictEqual(localProfileSaveResult.storageMode, SHORTCUT_STORAGE_MODE_SQLITE)
+  assert.strictEqual(localProfileSaveResult.sqliteSaved, true)
+  assert.deepStrictEqual(localProfileSavePersistCalls, ['save'])
+  assert.deepStrictEqual(localProfileSaveResult.setting.userConfig.shortcutSync.profiles[localProfileId].hotkeyOverrides, {
+    'cmd:list.item.delete': { shortcutIds: ['c-v'], enabled: true }
+  })
   const saveSettingThrowEvents = []
   const saveSettingThrowPersistCalls = []
   inMemoryShortcutBackend.upserts = []
@@ -2341,11 +2507,11 @@ async function main() {
     'search.results.delete'
   )
   assert.strictEqual(
-    resolveKeybinding(resolverBindings, 'ctrl+Delete', { mainFocus: true, drawerOpen: true })?.commands?.[0],
+    resolveKeybinding(resolverBindings, 'c-del', { mainFocus: false, drawerOpen: true }, ['clip-drawer', 'main'])?.commands?.[0],
     'drawer.close'
   )
   assert.strictEqual(
-    resolveKeybinding(resolverBindings, 'alt+x', { mainFocus: true, drawerOpen: true })?.commands?.[0],
+    resolveKeybinding(resolverBindings, 'a-x', { mainFocus: false, drawerOpen: true }, ['clip-drawer', 'main'])?.commands?.[0],
     'drawer.blockUnhandled'
   )
   assert.strictEqual(
@@ -2400,12 +2566,12 @@ async function main() {
     activeLayers: ['clip-drawer'],
     mainState: 'normal'
   })
-  assert.strictEqual(drawerContext.mainFocus, true, 'overlay contexts still allow resolver fallback to main bindings')
+  assert.strictEqual(drawerContext.mainFocus, false, 'overlay layer active: mainFocus should be false')
   assert.strictEqual(drawerContext.drawerOpen, true)
   assert.strictEqual(
-    resolveKeybinding(resolverBindings, 'ctrl+Delete', drawerContext)?.commands?.[0],
+    resolveKeybinding(resolverBindings, 'c-del', drawerContext, ['clip-drawer', 'main'])?.commands?.[0],
     'drawer.close',
-    'overlay-specific resolver weight should beat main fallback'
+    'layer priority should select drawer binding over main'
   )
   assert.strictEqual(
     buildHotkeyContextSnapshot({
@@ -2422,6 +2588,80 @@ async function main() {
   assert.strictEqual(isEditableHotkeyTarget({ closest: () => null, isContentEditable: true }), true)
   assert.strictEqual(isEditableHotkeyTarget({ closest: () => null, isContentEditable: false }), false)
 
+  // 层级优先级新增断言
+  const drawerContext2 = buildHotkeyContextSnapshot({ activeLayers: ['clip-drawer'] })
+  assert.strictEqual(drawerContext2.mainFocus, false, 'clip-drawer active: mainFocus=false')
+  assert.strictEqual(drawerContext2.drawerOpen, true)
+
+  const pinGroupContext = buildHotkeyContextSnapshot({ activeLayers: ['pin-group-edit'] })
+  assert.strictEqual(pinGroupContext.mainFocus, false, 'pin-group-edit active: mainFocus=false')
+  assert.strictEqual(pinGroupContext.pinGroupEditOpen, true)
+
+  const auBindings = getCommandAwareBindings([
+    { layer: 'main', shortcutId: 'a-u', features: ['list-page-up'] },
+    { layer: 'pin-group-edit', shortcutId: 'a-u', features: ['pin-group-edit-up'] }
+  ])
+  assert.strictEqual(
+    resolveKeybinding(auBindings, 'a-u', { mainFocus: true }, ['main'])?.commands?.[0],
+    'list.navigate.pageUp',
+    'a-u in main layer should resolve to list-page-up'
+  )
+  assert.strictEqual(
+    resolveKeybinding(auBindings, 'a-u', { mainFocus: false, pinGroupEditOpen: true }, ['pin-group-edit', 'main'])?.commands?.[0],
+    'pin.group.edit.moveUp',
+    'a-u in pin-group-edit layer should resolve to pin-group-edit-up'
+  )
+
+  const nestedBindings = getCommandAwareBindings([
+    { layer: 'clip-drawer', shortcutId: 'esc', features: ['clip-drawer-close'] },
+    { layer: 'tag-edit', shortcutId: 'esc', features: ['tag-edit-close'] }
+  ])
+  assert.strictEqual(
+    resolveKeybinding(nestedBindings, 'esc', { drawerOpen: true, tagEditOpen: true }, ['tag-edit', 'clip-drawer', 'main'])?.commands?.[0],
+    'tag.edit.close',
+    'tag-edit esc should beat clip-drawer esc when both active'
+  )
+
+  const effectiveRuntimeBindings = getEffectiveShortcutBindings({ setting: {} })
+  const settingOverlayBindings = effectiveRuntimeBindings
+    .filter((binding) => binding.features?.includes('setting-overlay-block'))
+    .map((binding) => ({ layer: binding.layer, shortcutId: binding.shortcutId, commands: binding.commands || [] }))
+    .sort((a, b) => a.layer.localeCompare(b.layer))
+  assert.deepStrictEqual(
+    settingOverlayBindings,
+    [
+      { layer: 'setting-shortcut-record', shortcutId: '*', commands: [] },
+      { layer: 'setting-when-edit', shortcutId: '*', commands: [] }
+    ],
+    'both setting overlay blockers should remain feature-only runtime bindings'
+  )
+  const settingOnlyContext = buildHotkeyContextSnapshot({
+    currentLayer: 'setting',
+    activeLayers: ['setting']
+  })
+  assert.strictEqual(
+    resolveKeybinding(effectiveRuntimeBindings, '__unbound_probe__', settingOnlyContext, ['setting', 'main']),
+    null,
+    'inactive setting overlay wildcard should not swallow unbound setting keys'
+  )
+  assert.strictEqual(
+    resolveKeybinding(effectiveRuntimeBindings, 'up', settingOnlyContext, ['setting', 'main'])?.commands?.[0],
+    'setting.scroll.up',
+    'setting layer up should still scroll settings when no child overlay is active'
+  )
+  for (const childLayer of ['setting-shortcut-record', 'setting-when-edit']) {
+    const childContext = buildHotkeyContextSnapshot({
+      currentLayer: childLayer,
+      activeLayers: ['setting', childLayer]
+    })
+    const resolved = resolveKeybinding(effectiveRuntimeBindings, 'up', childContext, [childLayer, 'setting', 'main'])
+    assert.deepStrictEqual(
+      { layer: resolved?.layer, features: resolved?.features || [], commands: resolved?.commands || [] },
+      { layer: childLayer, features: ['setting-overlay-block'], commands: [] },
+      `${childLayer} should block setting layer up shortcut`
+    )
+  }
+
   const legacyBindings = [
     { layer: 'main', state: 'search', shortcutId: 'c-del', features: ['search-delete-normal'] },
     { layer: 'main', shortcutId: 'c-del', features: ['list-force-delete'] },
@@ -2435,6 +2675,15 @@ async function main() {
       bindingList: legacyBindings
     }).binding.features,
     ['search-delete-normal']
+  )
+  assert.deepStrictEqual(
+    resolveLegacyBinding('c-del', {
+      currentLayer: 'clip-drawer',
+      mainState: 'normal',
+      bindingList: legacyBindings
+    }).binding.features,
+    ['drawer-close'],
+    'legacy resolver should honor currentLayer when activeLayers is omitted'
   )
   assert.strictEqual(
     previewKeybindingResolution('c-del', {

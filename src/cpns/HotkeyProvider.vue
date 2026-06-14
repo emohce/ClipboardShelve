@@ -17,7 +17,13 @@ import {
   HOTKEY_BINDINGS_UPDATED_EVENT,
   HOTKEY_BINDINGS_VERSION
 } from '../global/hotkeyBindings'
-import { getEffectiveShortcutBindings } from '../global/shortcutStore'
+import {
+  ensureShortcutSyncDocument,
+  getEffectiveShortcutBindings,
+  getEffectiveShortcutOverrides
+} from '../global/shortcutStore'
+import setting, { saveSetting } from '../global/readSetting'
+import { getNativeId } from '../utils'
 import {
   COMMAND_MACROS_UPDATED_EVENT,
   getEffectiveCommandMacros
@@ -31,6 +37,8 @@ import {
 } from '../global/commandMacroRuntime'
 
 let registeredMacroCommandIds = []
+let shortcutSyncInitialized = false
+const nativeId = getNativeId()
 
 function wait(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms))
@@ -40,7 +48,31 @@ function keydownHandler(e) {
   dispatch(e)
 }
 
+function getEffectiveShortcutOverridesForLocal() {
+  return getEffectiveShortcutOverrides({
+    setting: {
+      ...setting,
+      userConfig: {
+        ...(setting.userConfig || {}),
+        shortcut: {
+          ...(setting.userConfig?.shortcut || {}),
+          syncWithUTools: false
+        }
+      }
+    }
+  })
+}
+
 function refreshBindings() {
+  if (!shortcutSyncInitialized) {
+    shortcutSyncInitialized = true
+    try {
+      const { hotkeyOverrides } = getEffectiveShortcutOverridesForLocal()
+      saveSetting(ensureShortcutSyncDocument(setting, { nativeId, localOverrides: hotkeyOverrides }))
+    } catch (err) {
+      console.warn('[EzClipboard] shortcut sync profile initialization failed', err)
+    }
+  }
   registeredMacroCommandIds.forEach((commandId) => unregisterCommand(commandId))
   registeredMacroCommandIds = []
   const macroBindings = []
@@ -133,7 +165,7 @@ function refreshBindings() {
       weight: 200
     })
   })
-  setBindings([...getEffectiveShortcutBindings(), ...macroBindings], HOTKEY_BINDINGS_VERSION)
+  setBindings([...getEffectiveShortcutBindings({ setting, nativeId }), ...macroBindings], HOTKEY_BINDINGS_VERSION)
 }
 
 onMounted(() => {

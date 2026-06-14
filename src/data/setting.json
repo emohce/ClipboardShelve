@@ -5,6 +5,18 @@
     "maxage": null
   },
   "userConfig": {
+    "shortcut": {
+      "syncWithUTools": false
+    },
+    "shortcutSync": {
+      "version": 1,
+      "profiles": {},
+      "devices": {},
+      "runtimeSourceByDevice": {},
+      "masterProfileId": "public",
+      "updatedAt": 0,
+      "updatedBy": ""
+    },
     "preview": {
       "hover": {
         "enabled": false,

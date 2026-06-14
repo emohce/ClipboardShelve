@@ -2144,10 +2144,6 @@ function registerListHotkeyFeatures() {
         return setKeyboardActiveIndex(nextIdx, { ...STEP_NAV_CENTER_OPTIONS });
     };
     const handleListPageUpCommand = () => {
-        if (isAliasDialogOpen()) return false;
-        if (isFocusInSearch()) return false;
-        if (props.showList.length === 0) return false;
-
         return runPageNavigation("up");
     };
     const handleListPageDownCommand = () => {

@@ -3,6 +3,61 @@
 **排序**：永远把**最新**一轮更新写在**最上面**（新的 `## 日期 — 标题` 区块插在紧接本说明之后，旧区块整体下推）。
 **用户向发布摘要**（须同步维护）：见 [publishLog.md](publishLog.md)；写法与约束见 `vibe/rules/release.md`。
 
+## 2026-06-14 — 设置页 UI 美化 / 快捷键配置体系重构 / 快捷键显示格式统一
+
+### 变更摘要
+
+#### 1. 设置页美化 & 快捷键绑定 UI 改造
+
+- **设置页界面美化**：整体视觉升级，间距、字体、色彩规范统一。
+- **快捷键绑定区 UI 重构**：列表布局、绑定标签、冲突提示样式重新设计，信息层次更清晰，操作更直观。
+
+#### 2. 快捷键配置体系重构 / 层级优先级与穿透拦截优化
+
+- **`LAYER_PRIORITY` 静态优先级表**：`hotkeyLayers.js` 新增全局层级优先级表（main=10 / setting=20 / clip-drawer·clear-dialog·full-data-overlay·tag-search=30~35 / tag-edit·pin-group-edit=40 / setting-shortcut-record·setting-when-edit=50），导出 `getLayerPriority()` 和 `getLayerPriorityStack(layers?)`，作为全局唯一层级判断来源。
+- **`mainFocus` 语义修复**：原先 `mainFocus = !settingFocus`，任意弹层打开时 main 层仍命中。现改为：任意优先级高于 main 的层激活时 `mainFocus=false`，修复弹层打开期间主界面快捷键（`a-u`/`a-e` 等）误触发的问题。
+- **dispatcher / preview / legacy 统一层级来源**：`hotkeyRegistry.js` 中 `dispatch`、`previewKeybindingResolution`、`resolveLegacyBinding` 全部改用 `getLayerPriorityStack(activeLayers)`，嵌套层（如 tag-edit 在 drawer 内）顺序正确。
+- **移除 `overlayScore`**：`keybindingResolver.js` 删除通过字符串匹配 `when` 加权的 `overlayScore()`，层优先级统一由 `layerPriority` 的 `layerWeight` 决定，消除双重计分；非 active 层 binding 直接剔除出候选集。
+- **setting 子层 wildcard 阻断**：`hotkeyBindings.js` 为 `setting-shortcut-record` / `setting-when-edit` 新增 `internal: true` 的 wildcard binding，绑定 `setting-overlay-block` feature；`Setting.vue` 通过 `registerFeature` / `unregisterFeature` 管理 handler，只阻止热键穿透，不破坏弹窗内输入控件默认行为。
+
+#### 3. 快捷键显示格式统一 & 同步
+
+- **简短多系统兼容样式**：快捷键展示统一为紧凑格式（`Ctrl+K` / `⌘K`），跨平台表示一致。
+- **显示与存储同步**：配置页显示格式与底层存储的 shortcutId 格式保持双向同步，避免展示与实际绑定不一致。
+
+### 关键文件
+
+| 路径 | 作用 |
+|------|------|
+| [src/views/Setting.vue](src/views/Setting.vue) | 设置页 UI 美化、`registerFeature` / `unregisterFeature` 管理 `setting-overlay-block` |
+| [src/global/hotkeyLayers.js](src/global/hotkeyLayers.js) | 新增 `LAYER_PRIORITY` 表、`getLayerPriority()`、`getLayerPriorityStack(layers?)` |
+| [src/global/hotkeyContext.js](src/global/hotkeyContext.js) | `mainFocus` 修复：排除所有优先级 > main 的 active layer |
+| [src/global/hotkeyRegistry.js](src/global/hotkeyRegistry.js) | dispatch / preview / legacy 统一使用 `getLayerPriorityStack(activeLayers)` |
+| [src/global/keybindingResolver.js](src/global/keybindingResolver.js) | 删除 `overlayScore`，补充非 active 层过滤 |
+| [src/global/hotkeyBindings.js](src/global/hotkeyBindings.js) | 新增 setting 子弹窗 wildcard 阻断（`internal: true`） |
+| [src/global/commandDefaults.js](src/global/commandDefaults.js) | `setting-overlay-block` feature 不进入公开命令表 |
+| [test-shortcut-command-system.js](test-shortcut-command-system.js) | 修复 4 处旧断言，新增 10+ 个层级优先级 / mainFocus / 穿透阻断回归用例 |
+| [vibe/specs/260610-shortcuts-redesign/14YG2-zz-plan-层级判断统一.md](vibe/specs/260610-shortcuts-redesign/14YG2-zz-plan-层级判断统一.md) | 层级统一设计文档 |
+
+### 风险 / 兼容性影响
+
+- **`mainFocus` 语义变更**：用户自定义 `when: mainFocus` 的宏在任意弹层打开时不再触发，符合"主界面基础层"新定义。
+- **未登记层默认优先级 0**：低于 main（10），不会错误压过主层；新增层需同步更新 `LAYER_PRIORITY` 表。
+- **`overlayScore` 移除**：所有 dispatch / preview 路径已确保传入 `layerPriority`；外部直接调用 `resolveKeybinding` 不传该参数时 overlay binding 不再自动高权。
+- 不改存储结构 / conflict 检测 / when 表达式语法。
+
+### 验证状态
+
+- 已完成：`node test-shortcut-command-system.js` 通过；静态代码检查。
+- 待你本机：主界面无弹层时 `a-u`/`a-e` 翻页；组合编辑器内 `a-u` 只移动不穿透；抽屉/标签编辑打开时主界面快捷键静默；录制弹窗打开时方向键不触发 setting 页滚动。
+
+### 知识沉淀状态
+
+- 命中历史记录：`mainFocus` 根因已通过 spec 文档固化。
+- 新增 Error Memory：无。
+- ADR：无。
+- Glossary：无。
+
 ## 2026-06-10 — 交互优化 / 置顶功能 / 置顶组合 / 热键刷新 / uTools 全局快捷键
 
 ### 变更摘要

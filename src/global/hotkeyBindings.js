@@ -107,6 +107,10 @@ export const HOTKEY_BINDINGS = [
   { layer: "setting", shortcutId: "left", features: ["setting-tab-prev"] },
   { layer: "setting", shortcutId: "right", features: ["setting-tab-next"] },
 
+  // ---- setting 子弹窗：wildcard 阻断，防止方向键/Tab 穿透到 setting 层 ----
+  { layer: "setting-shortcut-record", shortcutId: "*", features: ["setting-overlay-block"], internal: true },
+  { layer: "setting-when-edit", shortcutId: "*", features: ["setting-overlay-block"], internal: true },
+
   // ---- clear-dialog ----
   {
     layer: "clear-dialog",

@@ -17,6 +17,18 @@ export default function restoreSetting() {
   const setting = normalizeDefaultSetting(defaultSetting)
   setting.database.path[nativeId] = defaultPath // 根据不同设备设置不同的默认路径
   setting.hotkeyOverrides = {}
+  if (!setting.userConfig || typeof setting.userConfig !== 'object') setting.userConfig = {}
+  if (!setting.userConfig.shortcut || typeof setting.userConfig.shortcut !== 'object') setting.userConfig.shortcut = {}
+  setting.userConfig.shortcut.syncWithUTools = false
+  setting.userConfig.shortcutSync = {
+    version: 1,
+    profiles: {},
+    devices: {},
+    runtimeSourceByDevice: {},
+    masterProfileId: 'public',
+    updatedAt: 0,
+    updatedBy: ''
+  }
   utools.dbStorage.setItem('setting', setting)
   return setting
 }

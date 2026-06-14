@@ -5,7 +5,7 @@
 
 import { eventToShortcutId } from "./shortcutKey.js";
 import { normalizeShortcutId } from "./shortcutKey.js";
-import { getActiveLayers, getCurrentLayer } from "./hotkeyLayers.js";
+import { getActiveLayers, getCurrentLayer, getLayerPriorityStack } from "./hotkeyLayers.js";
 import { getCommandAwareBindings } from "./hotkeyBindings.js";
 import { buildHotkeyContextSnapshot, isEditableHotkeyTarget } from "./hotkeyContext.js";
 import { resolveKeybinding } from "./keybindingResolver.js";
@@ -155,12 +155,10 @@ function getEffectiveLayer() {
 }
 
 /**
- * Layers to check in priority order: current top layer first, then main.
+ * Layers to check in priority order: derived from static priority table.
  */
-function getLayerPriorityOrder() {
-  const top = getCurrentLayer();
-  if (top && top !== MAIN_LAYER) return [top, MAIN_LAYER];
-  return [MAIN_LAYER];
+function getLayerPriorityOrder(activeLayers) {
+  return getLayerPriorityStack(activeLayers)
 }
 
 /**
@@ -191,11 +189,15 @@ export function resolveLegacyBinding(shortcutId, options = {}) {
     currentLayer = getCurrentLayer(),
     mainState = mainStateRef.current,
     bindingList = bindings,
+    activeLayers,
   } = options;
-  const order =
-    currentLayer && currentLayer !== MAIN_LAYER
-      ? [currentLayer, MAIN_LAYER]
-      : [MAIN_LAYER];
+  const layerSnapshot =
+    activeLayers != null
+      ? activeLayers
+      : currentLayer
+        ? [...getActiveLayers(), currentLayer]
+        : getActiveLayers();
+  const order = getLayerPriorityStack(layerSnapshot);
 
   for (const L of order) {
     for (const b of bindingList || []) {
@@ -292,11 +294,13 @@ export function previewKeybindingResolution(shortcutId, options = {}) {
     currentLayer,
     mainState,
     bindingList,
+    activeLayers,
   });
   const commandBinding = resolveKeybinding(
     getCommandAwareBindings(bindingList),
     shortcutId,
-    context
+    context,
+    getLayerPriorityOrder(activeLayers)
   );
   const legacyFeatures = featureList(legacy.binding);
   const commandFeatures = featureList(commandBinding);
@@ -348,7 +352,7 @@ export function dispatch(e) {
   // 设置页：Del/Backspace 不进入其他层，保留正常文本编辑行为
   if (
     currentLayer === SETTING_LAYER &&
-    (shortcutId === "Delete" || shortcutId === "Backspace")
+    (shortcutId === "del" || shortcutId === "backspace")
   ) {
     return false;
   }
@@ -376,13 +380,14 @@ export function dispatch(e) {
     }
   }
 
+  const activeLayers = getActiveLayers();
   const context = buildHotkeyContextSnapshot({
     currentLayer,
-    activeLayers: getActiveLayers(),
+    activeLayers,
     mainState: state,
     target: e.target,
   });
-  const binding = resolveKeybinding(getCommandAwareBindings(bindings), lookupId, context);
+  const binding = resolveKeybinding(getCommandAwareBindings(bindings), lookupId, context, getLayerPriorityOrder(activeLayers));
   if (!binding) return false;
   if (binding.commandEnabled === false || binding.enabled === false) return false;
 

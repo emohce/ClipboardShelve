@@ -17,7 +17,7 @@ Detailed requirements, plans, evidence, and implementation notes stay in task di
 
 Time window: 2026-06-11 to 2026-06-14.
 
-Current focus: Shortcut command redesign — **复核收尾：compact shortcut 固定键边界、权威文档同步、历史文档收敛** ([260613-SettingUiModify/260614-shortcut-compact-semantics.md](260613-SettingUiModify/260614-shortcut-compact-semantics.md)). Recommended next: uTools production-shell migration verification, macro conflict preview.
+Current focus: Shortcut command redesign — **复核收尾：compact shortcut 固定键边界、层级阻断、权威文档同步、历史文档收敛** ([260613-SettingUiModify/260614-shortcut-compact-semantics.md](260613-SettingUiModify/260614-shortcut-compact-semantics.md), [260610-shortcuts-redesign/14YG2-zz-plan-层级判断统一.md](260610-shortcuts-redesign/14YG2-zz-plan-层级判断统一.md)). Recommended next: uTools production-shell migration verification, macro conflict preview.
 
 Current core task: Shortcut command redesign recheck closeout. Multi-key binding authoritative spec: [260613-SettingUiModify/260613-shortcut-multi-key-plan.md](260613-SettingUiModify/260613-shortcut-multi-key-plan.md); compact shortcut semantics implementation and recheck notes: [260613-SettingUiModify/260614-shortcut-compact-semantics.md](260613-SettingUiModify/260614-shortcut-compact-semantics.md).
 
@@ -31,10 +31,13 @@ Completed milestones:
 - Setting page UI + multi-key binding (2026-06-13): Layout/overlay baseline, command-level `shortcutIds[]`, reservation rules, record dialog refactor — [260613-SettingUiModify/260613-shortcut-multi-key-plan.md](260613-SettingUiModify/260613-shortcut-multi-key-plan.md).
 - Compact shortcut semantics (2026-06-14): default/runtime shortcut ids migrated to `c/s/a` + key-token form, legacy override migration preserved, Tab/Space fixed-key rules added — [260613-SettingUiModify/260614-shortcut-compact-semantics.md](260613-SettingUiModify/260614-shortcut-compact-semantics.md).
 - Recheck closeout (2026-06-14): fixed-key no-context recorder guard covered for command record and macro draft validation path; authoritative docs now point to compact storage semantics.
+- Layer priority blocking (2026-06-14): `mainFocus` and resolver priority use static layer ordering; setting child overlays use internal feature-only wildcard blockers that stay out of command profiles and shortcut settings UI — [260610-shortcuts-redesign/14YG2-zz-plan-层级判断统一.md](260610-shortcuts-redesign/14YG2-zz-plan-层级判断统一.md).
+- Main page navigation recheck (2026-06-14): `a-u` / page-up default chain verified; observed failure was user shortcut override, not mapping, handler, scroll path, or layer penetration. Future triage checks runtime overrides before code paths — [260610-shortcuts-redesign/14YG2-zz-plan-层级判断统一.md](260610-shortcuts-redesign/14YG2-zz-plan-层级判断统一.md#翻页失效排查顺序).
+- Shortcut config management (2026-06-14): feature-config page now manages `shortcutSync` local/public profiles; each device keeps a local profile, can choose public runtime source, and can explicitly promote local config to public — [260610-shortcuts-redesign/12YG2-zz-summary-快捷键重构全景文档.md](260610-shortcuts-redesign/12YG2-zz-summary-快捷键重构全景文档.md).
 
 Open follow-ups:
 
-- uTools production-shell first-run shortcut migration and restart override persistence verification.
+- uTools production-shell first-run shortcut migration, restart override persistence, and `shortcutSync` multi-device local/public data-shape verification.
 - Macro conflict preview UX: keep conflict confirmation separate from command record hard-block behavior.
 
 ## Task Reference Index

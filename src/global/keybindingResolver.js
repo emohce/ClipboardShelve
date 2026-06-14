@@ -1,15 +1,5 @@
 import { evaluateWhenExpression, getWhenLiteralSets } from './whenExpression.js'
 
-const OVERLAY_CONTEXT_KEYS = [
-  'clearDialogOpen',
-  'drawerOpen',
-  'fullDataOpen',
-  'tagSearchOpen',
-  'tagEditOpen',
-  'pinGroupEditOpen',
-  'settingFocus'
-]
-
 const SOURCE_WEIGHT = {
   user: 300,
   system: 100,
@@ -31,17 +21,11 @@ function whenSpecificity(when) {
   }
 }
 
-function overlayScore(binding, context) {
-  if (!binding?.when) return 0
-  return OVERLAY_CONTEXT_KEYS.some((key) => context?.[key] === true && String(binding.when).includes(key)) ? 1000 : 0
-}
-
-function resolveWeight(binding, index, context) {
+function resolveWeight(binding, index) {
   const wildcardPenalty = bindingKey(binding) === '*' ? -500 : 0
   const explicitWeight = Number.isFinite(binding?.weight) ? binding.weight : 100
   const sourceWeight = SOURCE_WEIGHT[binding?.source || 'system'] || 0
   return (
-    overlayScore(binding, context) +
     sourceWeight +
     explicitWeight +
     whenSpecificity(binding?.when) +
@@ -57,6 +41,8 @@ export function resolveKeybinding(bindings, shortcutId, context = {}, layerPrior
       if (!binding || binding.disabled === true || binding.enabled === false) return false
       const key = bindingKey(binding)
       if (key !== shortcutId && key !== '*') return false
+      const layer = binding?.layer || 'main'
+      if (layerPriority.length && layer !== 'main' && !layerPriority.includes(layer)) return false
       try {
         return evaluateWhenExpression(binding.when, context)
       } catch (_) {
