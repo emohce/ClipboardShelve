@@ -121,12 +121,12 @@
     >
         <div
             class="text-preview-panel"
-            :class="{ 'is-single-line': textPreview.isSingleLine }"
+            :class="{ 'is-wrap-text': textPreview.wrapText }"
             :style="textPreview.panelStyle"
         >
             <div
                 class="text-preview-content"
-                :class="{ 'is-single-line': textPreview.isSingleLine }"
+                :class="{ 'is-wrap-text': textPreview.wrapText }"
                 :style="textPreview.contentStyle"
                 ref="textPreviewContentRef"
             >
@@ -179,6 +179,10 @@ import {
     buildDrawerMenuItems,
     getContextMenuActionByIndex,
 } from "../global/contextMenuActions";
+import {
+    computeImagePreviewLayout,
+    getTextPreviewMode,
+} from "../utils/previewLayout.mjs";
 const props = defineProps({
     showList: {
         type: Array,
@@ -355,7 +359,6 @@ const handleImageError = (event) => {
     imagePreview.value.loadFailed = true;
 };
 
-const PREVIEW_MODAL_PADDING = 40;
 const PREVIEW_SCROLL_STEP = 150;
 const IMAGE_PREVIEW_HINT_TEXT = {
     both: "s-\u2195\u2194",
@@ -363,14 +366,18 @@ const IMAGE_PREVIEW_HINT_TEXT = {
     horizontal: "s-\u2194",
 };
 
-const getImagePreviewMetrics = () => {
+const getImagePreviewArea = () => {
     const viewportWidth = window.innerWidth;
     const viewportHeight = window.innerHeight;
-    const availableWidth = Math.max(viewportWidth - PREVIEW_MODAL_PADDING, 0);
-    const availableHeight = Math.max(viewportHeight - PREVIEW_MODAL_PADDING, 0);
+    const mainListWidth = Math.min(520, viewportWidth * 0.15);
+    const gap = 0;
+    const availableWidth = Math.max(viewportWidth - mainListWidth - gap, 0);
+    const availableHeight = Math.max(viewportHeight, 0);
     return {
         viewportWidth,
         viewportHeight,
+        mainListWidth,
+        gap,
         availableWidth,
         availableHeight,
     };
@@ -391,81 +398,31 @@ const buildImagePreviewFooter = (footerText = "", canScrollX = false, canScrollY
 const applyImagePreviewLayout = (naturalWidth, naturalHeight) => {
     if (!naturalWidth || !naturalHeight) return;
 
-    // 获取右侧预览区域的可用尺寸
-    const viewportWidth = window.innerWidth;
-    const viewportHeight = window.innerHeight;
-    const mainListWidth = Math.min(520, viewportWidth * 0.15);
-    const gap = 0;
-    const availableWidth = Math.max(viewportWidth - mainListWidth - gap, 0);
-    const availableHeight = Math.max(viewportHeight, 0);
+    const { availableWidth, availableHeight } = getImagePreviewArea();
+    const layout = computeImagePreviewLayout({
+        naturalWidth,
+        naturalHeight,
+        availableWidth,
+        availableHeight,
+    });
+    if (!layout) return;
 
-    // 计算图片比例
-    const aspectRatio = naturalWidth / naturalHeight;
-    const maxAspectRatio = 3; // 宽高比超过 3:1 认为是非常规图片
-    const minAspectRatio = 1 / maxAspectRatio; // 高宽比超过 3:1 认为是非常规图片
-    const isWideRatio = aspectRatio > maxAspectRatio;
-    const isTallRatio = aspectRatio < minAspectRatio;
-    const isRegularRatio = !isWideRatio && !isTallRatio;
-
-    // 判断是否为小分辨率图片：原始尺寸小于可用区域的 60%
-    const isSmallImage = naturalWidth < availableWidth * 0.6 && naturalHeight < availableHeight * 0.6;
-
-    // 计算等比例缩放
-    const scaleByWidth = availableWidth / naturalWidth;
-    const scaleByHeight = availableHeight / naturalHeight;
-    const fitScale = Math.min(scaleByWidth, scaleByHeight);
-
-    // 计算各种缩放方案下的显示尺寸
-    const fitDisplayWidth = naturalWidth * fitScale;
-    const fitDisplayHeight = naturalHeight * fitScale;
-
-    // 按宽度填满时的尺寸
-    const widthFillScale = scaleByWidth;
-    const widthFillHeight = naturalHeight * widthFillScale;
-    const heightFillScale = scaleByHeight;
-    const heightFillWidth = naturalWidth * heightFillScale;
-
-    let displayWidth, displayHeight, canScrollX, canScrollY, layoutMode;
-
-    // 策略：小分辨率图片或常规比例图片直接居中；大分辨率长图只纵向滚动，宽图只横向滚动。
-    if (isSmallImage || isRegularRatio) {
-        // 小图片或常规比例图片：等比例缩放居中显示
-        displayWidth = fitDisplayWidth;
-        displayHeight = fitDisplayHeight;
-        canScrollX = false;
-        canScrollY = false;
-        layoutMode = "centered";
-    } else if (isTallRatio) {
-        // 长图：按宽度填满，不提供横向滚动
-        displayWidth = availableWidth;
-        displayHeight = widthFillHeight;
-        canScrollX = false;
-        canScrollY = displayHeight > availableHeight;
-        layoutMode = canScrollY ? "fit-width-scroll" : "centered";
-    } else {
-        // 宽图：按高度填满，不提供纵向滚动
-        displayWidth = heightFillWidth;
-        displayHeight = availableHeight;
-        canScrollX = displayWidth > availableWidth;
-        canScrollY = false;
-        layoutMode = canScrollX ? "fit-height-scroll" : "centered";
-    }
-
-    imagePreview.value.layoutMode = layoutMode;
-    imagePreview.value.canScrollX = canScrollX;
-    imagePreview.value.canScrollY = canScrollY;
-    imagePreview.value.hint = getImagePreviewHint(canScrollX, canScrollY);
+    imagePreview.value.layoutMode = layout.layoutMode;
+    imagePreview.value.canScrollX = layout.canScrollX;
+    imagePreview.value.canScrollY = layout.canScrollY;
+    imagePreview.value.isSmallImage = layout.isSmallImage;
+    imagePreview.value.hint = getImagePreviewHint(layout.canScrollX, layout.canScrollY);
     imagePreview.value.contentStyle = {
         minHeight: `${availableHeight}px`,
-        minWidth: canScrollX ? `${displayWidth}px` : "100%",
+        minWidth: layout.canScrollX ? `${layout.displayWidth}px` : "100%",
     };
     imagePreview.value.scrollStyle = {
-        overflowX: canScrollX ? "auto" : "hidden",
-        overflowY: canScrollY ? "auto" : "hidden",
+        overflowX: layout.canScrollX ? "auto" : "hidden",
+        overflowY: layout.canScrollY ? "auto" : "hidden",
     };
     imagePreview.value.imageStyle = {
-        width: `${displayWidth}px`,
-        height: `${displayHeight}px`,
+        width: `${layout.displayWidth}px`,
+        height: `${layout.displayHeight}px`,
         maxWidth: "none",
         maxHeight: "none",
         display: "block",
@@ -600,12 +557,7 @@ const showImagePreview = (event, item, footerText = "") => {
     }
 
     // 计算预览窗口尺寸：右侧区域，预留主列表滚动条空间
-    const viewportWidth = window.innerWidth;
-    const viewportHeight = window.innerHeight;
-    const mainListWidth = Math.min(520, viewportWidth * 0.15); // 主列表区域宽度
-    const gap = 0; // 与主列表的间距
-    const previewWidth = viewportWidth - mainListWidth - gap;
-    const previewHeight = viewportHeight;
+    const { mainListWidth, gap } = getImagePreviewArea();
 
     imagePreview.value.src = src;
     const footerMeta = buildImagePreviewFooter(footerText);
@@ -618,6 +570,7 @@ const showImagePreview = (event, item, footerText = "") => {
     imagePreview.value.canScrollY = false;
     imagePreview.value.contentStyle = {};
     imagePreview.value.scrollStyle = {};
+    imagePreview.value.isSmallImage = false;
 
     // 右侧预览窗口样式（始终填满右侧）
     imagePreview.value.style = {
@@ -1096,7 +1049,7 @@ const clearTextPreviewImmediately = () => {
     }
     textPreview.value.show = false;
     textPreview.value.text = "";
-    textPreview.value.isSingleLine = false;
+    textPreview.value.wrapText = true;
     textPreview.value.panelStyle = {};
     textPreview.value.contentStyle = {};
 };
@@ -1113,31 +1066,22 @@ const showTextPreview = (item) => {
     }
     const maxW = window.innerWidth;
     const text = item.data || "";
-    const isSingleLine = !text.includes("\n");
+    const { wrapText } = getTextPreviewMode(text);
     textPreview.value.text = text;
-    textPreview.value.isSingleLine = isSingleLine;
+    textPreview.value.wrapText = wrapText;
     textPreview.value.show = true;
     textPreview.value.panelStyle = {
         width: `${maxW * 0.9}px`,
         maxWidth: `${maxW * 0.9}px`,
     };
-    textPreview.value.contentStyle = isSingleLine
-        ? {
-              width: "100%",
-              whiteSpace: "nowrap",
-              overflow: "hidden",
-              textOverflow: "ellipsis",
-              fontSize: "15px",
-              letterSpacing: "0.01em",
-              color: "var(--text-color)",
-          }
-        : {
-              width: "100%",
-              overflowY: "auto",
-              whiteSpace: "pre-wrap",
-              wordBreak: "break-word",
-              color: "var(--text-color)",
-          };
+    textPreview.value.contentStyle = {
+        width: "100%",
+        overflowY: "auto",
+        whiteSpace: "pre-wrap",
+        wordBreak: "break-word",
+        color: "var(--text-color)",
+        fontSize: wrapText ? "15px" : "14px",
+    };
 
     nextTick(() => {
         if (textPreviewContentRef.value) {
@@ -1150,7 +1094,7 @@ const hideTextPreview = () => {
     // 移除延时隐藏，文字预览只在Shift键释放时隐藏
     textPreview.value.show = false;
     textPreview.value.text = "";
-    textPreview.value.isSingleLine = false;
+    textPreview.value.wrapText = true;
     textPreview.value.panelStyle = {};
     textPreview.value.contentStyle = {};
 };
@@ -1388,7 +1332,7 @@ const textPreview = ref({
     text: "",
     panelStyle: {},
     contentStyle: {},
-    isSingleLine: false,
+    wrapText: true,
 });
 
 // 图片预览延迟隐藏定时器
@@ -2842,7 +2786,7 @@ onUnmounted(() => {
         line-height: 1.5;
         background: rgba(118, 124, 138, 0.95);
 
-        &.is-single-line {
+        &.is-wrap-text {
             border-radius: 14px;
         }
     }
@@ -2854,18 +2798,9 @@ onUnmounted(() => {
         min-height: 0;
         -webkit-font-smoothing: antialiased;
 
-        &:not(.is-single-line) {
-            flex: 0 1 auto;
-            max-height: calc(80vh - 56px);
-            overflow-y: auto;
-        }
-
-        &.is-single-line {
-            overflow: hidden;
-            white-space: nowrap;
-            text-overflow: ellipsis;
-            flex: none;
-        }
+        flex: 0 1 auto;
+        max-height: calc(80vh - 56px);
+        overflow-y: auto;
     }
 }
 
