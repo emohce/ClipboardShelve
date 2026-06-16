@@ -45,6 +45,24 @@
       max-width: 100%;
       border-radius: 12px;
     }
+
+    &.clip-full-file-content {
+      justify-content: flex-start;
+      gap: 12px;
+      min-height: min(70vh, 680px);
+
+      .file-rich-preview {
+        height: min(68vh, 640px);
+        border: 1px solid @border-color;
+        border-radius: 12px;
+        overflow: hidden;
+        background: fade(@bg-color, 96%);
+      }
+
+      .clip-full-file-list {
+        flex-shrink: 0;
+      }
+    }
   }
   &::-webkit-scrollbar {
     width: 10px;

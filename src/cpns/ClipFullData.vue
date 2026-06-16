@@ -20,7 +20,10 @@
           </div>
         </div>
         <div v-else-if="fullData.type === 'file'">
-          <FileList class="clip-full-content" :data="JSON.parse(fullData.data)"></FileList>
+          <div class="clip-full-content clip-full-file-content">
+            <FileRichPreview ref="fullFilePreviewRef" :item="fullData" mode="full" />
+            <FileList class="clip-full-file-list" :data="fullFileList"></FileList>
+          </div>
         </div>
       </div>
     </Transition>
@@ -30,12 +33,14 @@
 
 <script setup>
 import FileList from './FileList.vue'
+import FileRichPreview from './FileRichPreview.vue'
 import ClipOperate from './ClipOperate.vue'
-import { ref, watch, onMounted, onUnmounted } from 'vue'
+import { computed, ref, watch, onMounted, onUnmounted } from 'vue'
 import { activateLayer, deactivateLayer } from '../global/hotkeyLayers'
 import { registerCommandFeaturePairs } from '../global/hotkeyRegistry'
 
 const wrapperRef = ref(null)
+const fullFilePreviewRef = ref(null)
 
 const props = defineProps({
   isShow: {
@@ -49,6 +54,16 @@ const props = defineProps({
 })
 
 const emit = defineEmits(['onOverlayClick', 'onDataRemove', 'openTagEdit'])
+
+const fullFileList = computed(() => {
+  if (props.fullData.type !== 'file') return []
+  try {
+    const files = JSON.parse(props.fullData.data)
+    return Array.isArray(files) ? files : []
+  } catch (_) {
+    return []
+  }
+})
 
 const onOverlayClick = () => {
   emit('onOverlayClick')
@@ -66,6 +81,11 @@ function handleFullDataCloseCommand() {
 }
 
 function handleFullDataScrollUpCommand() {
+  if (props.fullData.type === 'file' && fullFilePreviewRef.value?.scrollByDelta) {
+    const el = fullFilePreviewRef.value.getScrollElement?.()
+    const step = el ? Math.max(1, Math.round(el.clientHeight / 2)) : 0
+    if (step && fullFilePreviewRef.value.scrollByDelta('up', -step)) return true
+  }
   const el = wrapperRef.value
   if (!el) return false
   const half = el.clientHeight / 2
@@ -74,6 +94,11 @@ function handleFullDataScrollUpCommand() {
 }
 
 function handleFullDataScrollDownCommand() {
+  if (props.fullData.type === 'file' && fullFilePreviewRef.value?.scrollByDelta) {
+    const el = fullFilePreviewRef.value.getScrollElement?.()
+    const step = el ? Math.max(1, Math.round(el.clientHeight / 2)) : 0
+    if (step && fullFilePreviewRef.value.scrollByDelta('down', step)) return true
+  }
   const el = wrapperRef.value
   if (!el) return false
   const half = el.clientHeight / 2

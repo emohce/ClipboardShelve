@@ -112,6 +112,30 @@
         </div>
     </Teleport>
 
+    <!-- Rich File Preview (Shift hold) -->
+    <Teleport to="body">
+        <div
+            v-if="filePreview.show"
+            class="file-preview-modal"
+            :style="filePreview.style"
+            @mouseenter="keepFilePreview"
+            @mouseleave="hideFilePreview"
+            tabindex="0"
+        >
+            <FileRichPreview
+                ref="fileRichPreviewRef"
+                :file="filePreview.file"
+                mode="hover"
+            />
+        </div>
+        <div
+            v-if="filePreview.show && filePreview.hint"
+            class="image-preview-toolbar-hint"
+        >
+            {{ filePreview.hint }}
+        </div>
+    </Teleport>
+
     <!-- Long Text Preview (Shift hold) -->
     <div
         v-if="textPreview.show"
@@ -151,6 +175,7 @@ import { ref, onMounted, onUnmounted, watch, computed, nextTick } from "vue";
 import { ElMessage, ElMessageBox } from "element-plus";
 import ClipItemRow from "./ClipItemRow.vue";
 import ClipDrawerMenu from "./ClipDrawerMenu.vue";
+import FileRichPreview from "./FileRichPreview.vue";
 import {
     isUToolsPlugin,
     copyOnly,
@@ -183,6 +208,14 @@ import {
     computeImagePreviewLayout,
     getTextPreviewMode,
 } from "../utils/previewLayout.mjs";
+import {
+    getPreviewableFile,
+    parseFileItemData,
+} from "../utils/filePreview.mjs";
+import {
+    getPreviewScrollAxis,
+    getPreviewScrollDelta,
+} from "../utils/previewScroll.mjs";
 const props = defineProps({
     showList: {
         type: Array,
@@ -359,7 +392,6 @@ const handleImageError = (event) => {
     imagePreview.value.loadFailed = true;
 };
 
-const PREVIEW_SCROLL_STEP = 150;
 const IMAGE_PREVIEW_HINT_TEXT = {
     both: "s-\u2195\u2194",
     vertical: "s-\u2195",
@@ -461,56 +493,153 @@ const scrollPreviewContainer = (container, axis, delta) => {
     return true;
 };
 
-const handlePreviewScrollShortcut = (direction) => {
+const resetPreviewScrollHold = () => {
+    previewScrollHold.value = {
+        direction: "",
+        startedAt: 0,
+        lastAt: 0,
+    };
+};
+
+const getPreviewScrollHeldMs = (direction, event) => {
+    const now = Date.now();
+    const previous = previewScrollHold.value;
+    const isContinuous =
+        previous.direction === direction &&
+        (event?.repeat === true || now - previous.lastAt <= PREVIEW_SCROLL_CONTINUITY_MS);
+    const startedAt = isContinuous ? previous.startedAt : now;
+    previewScrollHold.value = {
+        direction,
+        startedAt,
+        lastAt: now,
+    };
+    return now - startedAt;
+};
+
+const getActiveFilePreviewHint = (kind = "") => {
+    if (kind === "csv" || kind === "spreadsheet") return IMAGE_PREVIEW_HINT_TEXT.both;
+    return IMAGE_PREVIEW_HINT_TEXT.vertical;
+};
+
+const getPreviewScrollTarget = (direction) => {
+    const axis = getPreviewScrollAxis(direction);
+    if (!axis) return null;
     if (imagePreview.value.show && imagePreviewContentRef.value) {
-        if (direction === "up") {
-            return scrollPreviewContainer(
-                imagePreviewContentRef.value,
-                "y",
-                PREVIEW_SCROLL_STEP,
-            );
-        }
-        if (direction === "down") {
-            return scrollPreviewContainer(
-                imagePreviewContentRef.value,
-                "y",
-                -PREVIEW_SCROLL_STEP,
-            );
-        }
-        if (direction === "left") {
-            return scrollPreviewContainer(
-                imagePreviewContentRef.value,
-                "x",
-                PREVIEW_SCROLL_STEP,
-            );
-        }
-        if (direction === "right") {
-            return scrollPreviewContainer(
-                imagePreviewContentRef.value,
-                "x",
-                -PREVIEW_SCROLL_STEP,
-            );
-        }
+        return {
+            type: "image",
+            element: imagePreviewContentRef.value,
+            axis,
+            invertDelta: true,
+        };
+    }
+
+    if (filePreview.value.show && fileRichPreviewRef.value?.getScrollElement?.()) {
+        return {
+            type: "file",
+            element: fileRichPreviewRef.value.getScrollElement(),
+            axis,
+            invertDelta: false,
+        };
     }
 
     if (textPreview.value.show && textPreviewContentRef.value) {
-        if (direction === "up") {
-            return scrollPreviewContainer(
-                textPreviewContentRef.value,
-                "y",
-                -PREVIEW_SCROLL_STEP,
-            );
-        }
-        if (direction === "down") {
-            return scrollPreviewContainer(
-                textPreviewContentRef.value,
-                "y",
-                PREVIEW_SCROLL_STEP,
-            );
-        }
+        return {
+            type: "text",
+            element: textPreviewContentRef.value,
+            axis,
+            invertDelta: false,
+        };
     }
 
-    return false;
+    return null;
+};
+
+const handlePreviewScrollShortcut = (direction, event = null) => {
+    const target = getPreviewScrollTarget(direction);
+    if (!target?.element) return false;
+    const axisSize = target.axis === "x"
+        ? target.element.clientWidth
+        : target.element.clientHeight;
+    const heldMs = getPreviewScrollHeldMs(direction, event);
+    let delta = getPreviewScrollDelta({
+        direction,
+        axisSize,
+        heldMs,
+    });
+    if (target.invertDelta) delta *= -1;
+    const handled =
+        target.type === "file" && fileRichPreviewRef.value?.scrollByDelta
+            ? fileRichPreviewRef.value.scrollByDelta(direction, delta)
+            : scrollPreviewContainer(target.element, target.axis, delta);
+    if (!handled) resetPreviewScrollHold();
+    return handled;
+};
+
+const hasActiveShiftPreview = () =>
+    imagePreview.value.show || textPreview.value.show || filePreview.value.show;
+
+const clearFilePreviewImmediately = () => {
+    if (filePreviewHideTimer) {
+        clearTimeout(filePreviewHideTimer);
+        filePreviewHideTimer = null;
+    }
+    filePreview.value.show = false;
+    filePreview.value.file = null;
+    filePreview.value.hint = "";
+    resetPreviewScrollHold();
+};
+
+const hideFilePreview = () => {
+    if (filePreviewHideTimer) {
+        clearTimeout(filePreviewHideTimer);
+        filePreviewHideTimer = null;
+    }
+    filePreviewHideTimer = setTimeout(() => {
+        filePreview.value.show = false;
+        filePreview.value.file = null;
+        filePreview.value.hint = "";
+        resetPreviewScrollHold();
+        filePreviewHideTimer = null;
+    }, 200);
+};
+
+const keepFilePreview = () => {
+    if (filePreviewHideTimer) {
+        clearTimeout(filePreviewHideTimer);
+        filePreviewHideTimer = null;
+    }
+};
+
+const showFileRichPreview = (file) => {
+    if (!file?.path) return;
+    stopImagePreview(true);
+    clearTextPreviewImmediately();
+    keepFilePreview();
+    const { mainListWidth, gap } = getImagePreviewArea();
+    filePreview.value.file = file;
+    filePreview.value.hint = getActiveFilePreviewHint(file.kind);
+    filePreview.value.style = {
+        position: "fixed",
+        top: "0",
+        right: "0",
+        left: `${mainListWidth + gap}px`,
+        bottom: "0",
+        zIndex: 9999,
+        backgroundColor: "rgba(15, 19, 27, 0.96)",
+        borderRadius: "0",
+        padding: "0",
+        boxShadow: "-4px 0 24px rgba(0, 0, 0, 0.32)",
+        outline: "1px solid rgba(96, 165, 250, 0.72)",
+        outlineOffset: "-1px",
+        boxSizing: "border-box",
+        display: "flex",
+        overflow: "hidden",
+    };
+    filePreview.value.show = true;
+    resetPreviewScrollHold();
+    nextTick(() => {
+        document.querySelector(".file-preview-modal")?.focus?.();
+    });
 };
 
 // 图片加载成功处理
@@ -547,6 +676,7 @@ const showImagePreview = (event, item, footerText = "") => {
 
     imagePreviewSource.value = event ? "hover" : "keyboard";
     textPreview.value.show = false;
+    clearFilePreviewImmediately();
     if (textPreviewHideTimer) {
         clearTimeout(textPreviewHideTimer);
         textPreviewHideTimer = null;
@@ -625,6 +755,7 @@ const stopImagePreview = (immediate = false) => {
         imagePreview.value.footer = "";
         imagePreview.value.hint = "";
         imagePreview.value.loadFailed = false;
+        resetPreviewScrollHold();
         // 不调用 restorePreviewWindow，保持插件窗口大小不变
         closeExternalPreview();
         return;
@@ -635,6 +766,7 @@ const stopImagePreview = (immediate = false) => {
         imagePreview.value.footer = "";
         imagePreview.value.hint = "";
         imagePreview.value.loadFailed = false;
+        resetPreviewScrollHold();
         // 不调用 restorePreviewWindow，保持插件窗口大小不变
         closeExternalPreview();
         imagePreviewHideTimer = null;
@@ -979,33 +1111,41 @@ const isLongText = (item) => {
 
 const isPreviewableTextItem = (item) => isLongText(item);
 
-/** 根据当前 item 类型执行预览（图片 / 长文本，其余类型暂不处理） */
+/** 根据当前 item 类型执行预览（图片 / 长文本 / 文件富预览） */
 const runPreviewForItem = (item) => {
     if (!item) {
         stopImagePreview(true);
         clearTextPreviewImmediately();
+        clearFilePreviewImmediately();
         return;
     }
     if (item.type === "image" && getItemImageSrc(item)) {
         clearTextPreviewImmediately();
+        clearFilePreviewImmediately();
         showImagePreview(null, item);
         return;
     }
     if (item.type === "text" && isLongText(item)) {
         stopImagePreview(true);
+        clearFilePreviewImmediately();
         showTextPreview(item);
         return;
     }
     if (item.type === "file") {
         clearTextPreviewImmediately();
-        const imageFiles = getImageFiles(item);
-        if (imageFiles.length && imageFiles[0]?.path) {
-            showImageFilePreview(imageFiles[0].path);
+        const previewFile = getPreviewableFile(parseFileItemData(item.data));
+        if (previewFile?.kind === "image") {
+            showImageFilePreview(previewFile.path);
+            return;
+        }
+        if (previewFile?.path) {
+            showFileRichPreview(previewFile);
             return;
         }
     }
     stopImagePreview(true);
     clearTextPreviewImmediately();
+    clearFilePreviewImmediately();
 };
 
 // Shift键长按处理（普通层 100ms 持续即对所在 item 进行预览）
@@ -1032,6 +1172,7 @@ const handleShiftKeyUp = () => {
         hoverTriggeredPreview.value = false;
         stopImagePreview(true);
         hideTextPreview();
+        clearFilePreviewImmediately();
     }
 };
 
@@ -1052,10 +1193,12 @@ const clearTextPreviewImmediately = () => {
     textPreview.value.wrapText = true;
     textPreview.value.panelStyle = {};
     textPreview.value.contentStyle = {};
+    resetPreviewScrollHold();
 };
 
 const showTextPreview = (item) => {
     imagePreview.value.show = false;
+    clearFilePreviewImmediately();
     if (imagePreviewHideTimer) {
         clearTimeout(imagePreviewHideTimer);
         imagePreviewHideTimer = null;
@@ -1097,6 +1240,7 @@ const hideTextPreview = () => {
     textPreview.value.wrapText = true;
     textPreview.value.panelStyle = {};
     textPreview.value.contentStyle = {};
+    resetPreviewScrollHold();
 };
 
 const keepTextPreview = () => {
@@ -1120,6 +1264,7 @@ const resetTransientPreviewState = () => {
     hoverRowIndex.value = null;
     stopImagePreview(true);
     clearTextPreviewImmediately();
+    clearFilePreviewImmediately();
 };
 
 // 检测文件中是否包含图片
@@ -1284,6 +1429,7 @@ const listRootRef = ref(null);
 const scrollParentRef = ref(null);
 const imagePreviewContentRef = ref(null); // 图片预览内容容器引用
 const textPreviewContentRef = ref(null);
+const fileRichPreviewRef = ref(null);
 const lastPointerPosition = ref({ x: null, y: null });
 
 // 列表在 TanStack 虚拟滚动容器内滚动；触底时由本组件 emit loadMore（不再依赖 document 级 scroll 冒泡）
@@ -1334,11 +1480,24 @@ const textPreview = ref({
     contentStyle: {},
     wrapText: true,
 });
+const filePreview = ref({
+    show: false,
+    file: null,
+    style: {},
+    hint: "",
+});
 
 // 图片预览延迟隐藏定时器
 let imagePreviewHideTimer = null;
 // 长文本预览延迟隐藏定时器
 let textPreviewHideTimer = null;
+let filePreviewHideTimer = null;
+const previewScrollHold = ref({
+    direction: "",
+    startedAt: 0,
+    lastAt: 0,
+});
+const PREVIEW_SCROLL_CONTINUITY_MS = 700;
 
 // Shift 键按下时间（区分短按与长按预览）
 let shiftKeyDownTime = 0;
@@ -1930,6 +2089,7 @@ const handleRowMouseLeave = (index) => {
         if (hoverTriggeredPreview.value) {
             desktopPreviewManager.closeAllPreviews();
             stopImagePreview(true);
+            clearFilePreviewImmediately();
             if (textPreviewHideTimer) {
                 clearTimeout(textPreviewHideTimer);
                 textPreviewHideTimer = null;
@@ -1938,6 +2098,7 @@ const handleRowMouseLeave = (index) => {
             hoverTriggeredPreview.value = false;
         } else if (imagePreviewSource.value === "hover") {
             stopImagePreview(true);
+            clearFilePreviewImmediately();
         }
     }
 };
@@ -2101,21 +2262,21 @@ function registerListHotkeyFeatures() {
             forceScroll: true,
         });
     };
-    const handleTextPreviewScrollUpCommand = () => {
+    const handleTextPreviewScrollUpCommand = (e) => {
         if (isAliasDialogOpen()) return false;
-        return handlePreviewScrollShortcut("up");
+        return handlePreviewScrollShortcut("up", e);
     };
-    const handleTextPreviewScrollDownCommand = () => {
+    const handleTextPreviewScrollDownCommand = (e) => {
         if (isAliasDialogOpen()) return false;
-        return handlePreviewScrollShortcut("down");
+        return handlePreviewScrollShortcut("down", e);
     };
-    const handleImagePreviewScrollLeftCommand = () => {
+    const handleImagePreviewScrollLeftCommand = (e) => {
         if (isAliasDialogOpen()) return false;
-        return handlePreviewScrollShortcut("left");
+        return handlePreviewScrollShortcut("left", e);
     };
-    const handleImagePreviewScrollRightCommand = () => {
+    const handleImagePreviewScrollRightCommand = (e) => {
         if (isAliasDialogOpen()) return false;
-        return handlePreviewScrollShortcut("right");
+        return handlePreviewScrollShortcut("right", e);
     };
     const isFocusInSearch = () => {
         const el = document.activeElement;
@@ -2624,8 +2785,8 @@ const unifiedKeyHandler = (e) => {
     };
     const previewDirection = previewDirectionMap[key];
 
-    if (imagePreview.value.show && e.shiftKey && previewDirection) {
-        if (handlePreviewScrollShortcut(previewDirection)) {
+    if (hasActiveShiftPreview() && e.shiftKey && previewDirection) {
+        if (handlePreviewScrollShortcut(previewDirection, e)) {
             e.preventDefault();
             e.stopPropagation();
             e.__hotkeyHandled = true;
@@ -2650,8 +2811,7 @@ const unifiedKeyReleaseHandler = (e) => {
     
     const { key } = e;
     const isShift = key === "Shift";
-    const isArrowUp = key === "ArrowUp";
-    const isArrowDown = key === "ArrowDown";
+    const isArrow = ["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight"].includes(key);
     
     // 使用统一的图片预览逻辑
     if (isShift) {
@@ -2659,7 +2819,8 @@ const unifiedKeyReleaseHandler = (e) => {
         return;
     }
 
-    if (isArrowUp || isArrowDown) {
+    if (isArrow) {
+        resetPreviewScrollHold();
         stopAutoScroll();
     }
 };
@@ -2679,6 +2840,7 @@ const handleWindowBlur = () => {
         hoverTriggeredPreview.value = false;
         stopImagePreview(true);
         hideTextPreview();
+        clearFilePreviewImmediately();
     }
 };
 
