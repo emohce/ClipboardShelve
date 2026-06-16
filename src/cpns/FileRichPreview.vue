@@ -1,0 +1,560 @@
+<template>
+  <div class="file-rich-preview" :class="[`file-rich-preview--${mode}`, `is-${status}`]">
+    <div class="file-rich-preview__header" v-if="activeFile">
+      <span class="file-rich-preview__badge">{{ kindLabel }}</span>
+      <span class="file-rich-preview__name" :title="activeFile.path">{{ activeFile.name }}</span>
+      <span v-if="fileCount > 1" class="file-rich-preview__count">{{ fileCountLabel }}</span>
+    </div>
+    <div
+      ref="contentRef"
+      class="file-rich-preview__content"
+      :class="{
+        'is-table': preview.type === 'table',
+        'is-html': preview.type === 'html',
+        'is-text': preview.type === 'text',
+        'is-pdf': preview.type === 'pdf',
+      }"
+      @scroll="handleContentScroll"
+    >
+      <div v-if="status === 'idle'" class="file-rich-preview__empty">暂无可预览文件</div>
+      <div v-else-if="status === 'loading'" class="file-rich-preview__state">加载中</div>
+      <div v-else-if="status === 'oversize'" class="file-rich-preview__state">
+        文件过大，已跳过内嵌预览
+      </div>
+      <div v-else-if="status === 'error'" class="file-rich-preview__state">
+        {{ errorMessage || '预览失败' }}
+      </div>
+      <template v-else>
+        <img
+          v-if="preview.type === 'image'"
+          class="file-rich-preview__image"
+          :src="preview.src"
+          :alt="activeFile?.name || 'image'"
+        />
+        <pre v-else-if="preview.type === 'text'" class="file-rich-preview__text">{{ preview.text }}</pre>
+        <div v-else-if="preview.type === 'html'" class="file-rich-preview__html" v-html="preview.html"></div>
+        <div v-else-if="preview.type === 'table'" class="file-rich-preview__table-wrap">
+          <div class="file-rich-preview__sheet" v-if="preview.sheetName">{{ preview.sheetName }}</div>
+          <table class="file-rich-preview__table">
+            <tbody>
+              <tr v-for="(row, rowIndex) in preview.rows" :key="rowIndex">
+                <td v-for="(cell, cellIndex) in row" :key="`${rowIndex}-${cellIndex}`">
+                  {{ cell }}
+                </td>
+              </tr>
+            </tbody>
+          </table>
+          <div v-if="preview.truncatedRows || preview.truncatedCols" class="file-rich-preview__note">
+            已截取预览
+          </div>
+        </div>
+        <div v-else-if="preview.type === 'pdf'" class="file-rich-preview__pdf">
+          <div class="file-rich-preview__sheet">PDF · {{ preview.renderedPages }}/{{ preview.pageCount }}</div>
+          <img
+            v-for="page in preview.pages"
+            :key="page.pageNumber"
+            class="file-rich-preview__pdf-page"
+            :src="page.src"
+            :alt="`PDF page ${page.pageNumber}`"
+          />
+          <div v-if="pdfRendering" class="file-rich-preview__state">加载更多页面</div>
+        </div>
+      </template>
+    </div>
+  </div>
+</template>
+
+<script setup>
+import { computed, nextTick, ref, watch } from 'vue'
+import {
+  classifyFilePreview,
+  getFileSizeState,
+  getPreviewableFile,
+  parseFileItemData,
+  sanitizePreviewHtml,
+  sliceTablePreview
+} from '../utils/filePreview.mjs'
+import { getPreviewScrollAxis } from '../utils/previewScroll.mjs'
+
+const props = defineProps({
+  item: { type: Object, default: null },
+  file: { type: Object, default: null },
+  mode: { type: String, default: 'hover' }
+})
+
+const contentRef = ref(null)
+const status = ref('idle')
+const errorMessage = ref('')
+const preview = ref({ type: 'empty' })
+const pdfDocRef = ref(null)
+const pdfRendering = ref(false)
+let loadToken = 0
+
+const files = computed(() => {
+  if (props.file?.path) return [{ path: props.file.path, name: props.file.name }]
+  if (!props.item || props.item.type !== 'file') return []
+  return parseFileItemData(props.item.data)
+})
+
+const activeFile = computed(() => {
+  if (props.file?.path) {
+    const kind = props.file.kind || classifyFilePreview(props.file.path)
+    return { path: props.file.path, name: props.file.name || props.file.path.split(/[/\\]/).pop(), kind }
+  }
+  return getPreviewableFile(files.value)
+})
+
+const fileCount = computed(() => files.value.length)
+const fileCountLabel = computed(() => `${files.value.findIndex((file) => file.path === activeFile.value?.path) + 1}/${fileCount.value}`)
+const kindLabel = computed(() => {
+  const labels = {
+    image: 'IMG',
+    pdf: 'PDF',
+    markdown: 'MD',
+    asciidoc: 'AD',
+    csv: 'CSV',
+    spreadsheet: 'XLS',
+    word: 'DOCX',
+    text: 'TXT'
+  }
+  return labels[activeFile.value?.kind] || 'FILE'
+})
+
+function getFileUrl(path = '') {
+  if (!path) return ''
+  if (/^file:\/\//i.test(path)) return path
+  return `file:///${path.replace(/\\/g, '/').replace(/^\/+/, '')}`
+}
+
+function getRuntimeExports() {
+  return typeof window !== 'undefined' ? window.exports || {} : {}
+}
+
+function getFileSize(path, fallbackBytes = 0) {
+  const runtime = getRuntimeExports()
+  try {
+    const stat = runtime.statSync?.(path)
+    if (stat && Number.isFinite(Number(stat.size))) return Number(stat.size)
+  } catch (_) {}
+  return Math.max(0, Number(fallbackBytes) || 0)
+}
+
+function readTextFile(path) {
+  const runtime = getRuntimeExports()
+  const readFileSync = runtime.readFileSync
+  if (typeof readFileSync !== 'function') throw new Error('当前环境不支持读取文件')
+  return String(readFileSync(path, { encoding: 'utf8' }) || '')
+}
+
+function readBinaryFile(path) {
+  const runtime = getRuntimeExports()
+  const readFileSync = runtime.readFileSync
+  if (typeof readFileSync !== 'function') throw new Error('当前环境不支持读取文件')
+  const raw = readFileSync(path)
+  if (raw instanceof Uint8Array) return raw
+  if (raw instanceof ArrayBuffer) return new Uint8Array(raw)
+  const BufferCtor = runtime.Buffer || globalThis.Buffer
+  if (BufferCtor?.from) return new Uint8Array(BufferCtor.from(raw || ''))
+  return new TextEncoder().encode(String(raw || ''))
+}
+
+function toArrayBuffer(bytes) {
+  return bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength)
+}
+
+function formatTextByFile(path, text) {
+  if (classifyFilePreview(path) !== 'text') return text
+  const ext = path.split('.').pop()?.toLowerCase()
+  if (ext !== 'json') return text
+  try {
+    return JSON.stringify(JSON.parse(text), null, 2)
+  } catch (_) {
+    return text
+  }
+}
+
+async function sanitizeHtml(html) {
+  try {
+    const module = await import('dompurify')
+    const DOMPurify = module.default || module
+    return sanitizePreviewHtml(html, (source) =>
+      DOMPurify.sanitize(source, {
+        USE_PROFILES: { html: true },
+        ADD_ATTR: ['target', 'rel']
+      })
+    )
+  } catch (_) {
+    return sanitizePreviewHtml(html)
+  }
+}
+
+async function loadMarkdown(file) {
+  const text = readTextFile(file.path)
+  const module = await import('markdown-it')
+  const MarkdownIt = module.default || module
+  const markdown = new MarkdownIt({ html: false, linkify: true, breaks: true })
+  return {
+    type: 'html',
+    html: await sanitizeHtml(markdown.render(text))
+  }
+}
+
+async function loadAsciiDoc(file) {
+  const text = readTextFile(file.path)
+  const module = await import('@asciidoctor/core')
+  const Asciidoctor = module.default || module
+  const asciidoctor = Asciidoctor()
+  const html = asciidoctor.convert(text, {
+    safe: 'safe',
+    backend: 'html5',
+    attributes: { showtitle: true }
+  })
+  return {
+    type: 'html',
+    html: await sanitizeHtml(html)
+  }
+}
+
+async function loadTable(file) {
+  let rows = []
+  let sheetName = ''
+  if (file.kind === 'csv') {
+    const module = await import('papaparse')
+    const Papa = module.default || module
+    const parsed = Papa.parse(readTextFile(file.path), {
+      skipEmptyLines: false
+    })
+    rows = Array.isArray(parsed.data) ? parsed.data : []
+    sheetName = 'CSV'
+  } else {
+    const module = await import('read-excel-file/browser')
+    const readXlsxFile = module.default || module.readXlsxFile
+    rows = await readXlsxFile(toArrayBuffer(readBinaryFile(file.path)))
+    sheetName = 'Sheet 1'
+  }
+  return {
+    type: 'table',
+    sheetName,
+    ...sliceTablePreview(rows)
+  }
+}
+
+async function loadWord(file) {
+  const module = await import('mammoth/mammoth.browser')
+  const mammoth = module.default || module
+  const bytes = readBinaryFile(file.path)
+  const result = await mammoth.convertToHtml(
+    { arrayBuffer: toArrayBuffer(bytes) },
+    { externalFileAccess: false }
+  )
+  return {
+    type: 'html',
+    html: await sanitizeHtml(result.value || '')
+  }
+}
+
+async function renderPdfPage(pdf, pageNumber) {
+  const page = await pdf.getPage(pageNumber)
+  const viewport = page.getViewport({ scale: 1.25 })
+  const canvas = document.createElement('canvas')
+  const context = canvas.getContext('2d')
+  canvas.width = Math.ceil(viewport.width)
+  canvas.height = Math.ceil(viewport.height)
+  await page.render({ canvasContext: context, viewport }).promise
+  return {
+    pageNumber,
+    src: canvas.toDataURL('image/png')
+  }
+}
+
+async function renderNextPdfPages(count = 3) {
+  const pdf = pdfDocRef.value
+  if (!pdf || pdfRendering.value) return
+  const current = preview.value?.pages?.length || 0
+  if (current >= pdf.numPages) return
+  pdfRendering.value = true
+  try {
+    const end = Math.min(pdf.numPages, current + count)
+    const pages = []
+    for (let pageNumber = current + 1; pageNumber <= end; pageNumber += 1) {
+      pages.push(await renderPdfPage(pdf, pageNumber))
+    }
+    preview.value = {
+      ...preview.value,
+      type: 'pdf',
+      pageCount: pdf.numPages,
+      renderedPages: end,
+      pages: [...(preview.value.pages || []), ...pages]
+    }
+  } finally {
+    pdfRendering.value = false
+  }
+}
+
+async function loadPdf(file) {
+  const pdfjs = await import('pdfjs-dist/build/pdf.mjs')
+  pdfjs.GlobalWorkerOptions.workerSrc = new URL(
+    'pdfjs-dist/build/pdf.worker.mjs',
+    import.meta.url
+  ).toString()
+  const bytes = readBinaryFile(file.path)
+  const pdf = await pdfjs.getDocument({ data: bytes }).promise
+  pdfDocRef.value = pdf
+  preview.value = {
+    type: 'pdf',
+    pageCount: pdf.numPages,
+    renderedPages: 0,
+    pages: []
+  }
+  await renderNextPdfPages(3)
+  return preview.value
+}
+
+async function loadPreview(file) {
+  if (file.kind === 'image') {
+    return { type: 'image', src: getFileUrl(file.path) }
+  }
+  const size = getFileSize(file.path)
+  const sizeState = getFileSizeState(size, file.kind)
+  if (!sizeState.ok) {
+    status.value = 'oversize'
+    return { type: 'empty' }
+  }
+  if (file.kind === 'text') {
+    const text = readTextFile(file.path)
+    return { type: 'text', text: formatTextByFile(file.path, text) }
+  }
+  if (file.kind === 'markdown') return loadMarkdown(file)
+  if (file.kind === 'asciidoc') return loadAsciiDoc(file)
+  if (file.kind === 'csv' || file.kind === 'spreadsheet') return loadTable(file)
+  if (file.kind === 'word') return loadWord(file)
+  if (file.kind === 'pdf') return loadPdf(file)
+  return { type: 'empty' }
+}
+
+async function refreshPreview() {
+  const file = activeFile.value
+  const token = ++loadToken
+  pdfDocRef.value = null
+  preview.value = { type: 'empty' }
+  errorMessage.value = ''
+  if (!file) {
+    status.value = 'idle'
+    return
+  }
+  status.value = 'loading'
+  try {
+    const result = await loadPreview(file)
+    if (token !== loadToken) return
+    if (status.value !== 'oversize') status.value = 'ready'
+    preview.value = result
+    await nextTick()
+    if (contentRef.value) {
+      contentRef.value.scrollTop = 0
+      contentRef.value.scrollLeft = 0
+    }
+  } catch (error) {
+    if (token !== loadToken) return
+    console.warn('[FileRichPreview] preview failed:', error)
+    status.value = 'error'
+    errorMessage.value = error?.message || '预览失败'
+  }
+}
+
+function handleContentScroll() {
+  const el = contentRef.value
+  if (!el || preview.value.type !== 'pdf') return
+  const nearBottom = el.scrollTop + el.clientHeight + 160 >= el.scrollHeight
+  if (nearBottom) renderNextPdfPages(3)
+}
+
+function scrollByDelta(direction, delta) {
+  const el = contentRef.value
+  const axis = getPreviewScrollAxis(direction)
+  if (!el || !axis || !delta) return false
+  const key = axis === 'x' ? 'scrollLeft' : 'scrollTop'
+  const maxKey = axis === 'x' ? el.scrollWidth - el.clientWidth : el.scrollHeight - el.clientHeight
+  if (maxKey <= 0) return false
+  const nextValue = Math.min(Math.max(0, el[key] + delta), maxKey)
+  if (nextValue === el[key]) return false
+  el[key] = nextValue
+  return true
+}
+
+watch(
+  () => activeFile.value?.path,
+  () => refreshPreview(),
+  { immediate: true }
+)
+
+defineExpose({
+  scrollByDelta,
+  getScrollElement: () => contentRef.value
+})
+</script>
+
+<style lang="less" scoped>
+.file-rich-preview {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  height: 100%;
+  min-width: 0;
+  min-height: 0;
+  color: var(--text-color);
+}
+
+.file-rich-preview__header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 36px;
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--border-color);
+  background: var(--bg-elevated-color);
+}
+
+.file-rich-preview__badge {
+  flex-shrink: 0;
+  min-width: 42px;
+  padding: 2px 7px;
+  border: 1px solid color-mix(in srgb, var(--primary-color) 28%, transparent);
+  border-radius: 6px;
+  color: var(--primary-color);
+  background: color-mix(in srgb, var(--primary-color) 10%, transparent);
+  font-size: 11px;
+  line-height: 1.3;
+  text-align: center;
+}
+
+.file-rich-preview__name {
+  min-width: 0;
+  flex: 1;
+  overflow: hidden;
+  color: var(--text-color);
+  font-size: 12px;
+  line-height: 1.4;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.file-rich-preview__count {
+  flex-shrink: 0;
+  color: var(--text-color-lighter);
+  font-size: 11px;
+}
+
+.file-rich-preview__content {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  padding: 14px;
+  background: var(--bg-color);
+  box-sizing: border-box;
+}
+
+.file-rich-preview__empty,
+.file-rich-preview__state {
+  display: flex;
+  min-height: 180px;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-color-lighter);
+  font-size: 13px;
+  text-align: center;
+}
+
+.file-rich-preview__text {
+  margin: 0;
+  color: var(--text-color);
+  font-size: 13px;
+  line-height: 1.65;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.file-rich-preview__html {
+  color: var(--text-color);
+  font-size: 13px;
+  line-height: 1.65;
+  word-break: break-word;
+
+  :deep(h1),
+  :deep(h2),
+  :deep(h3) {
+    margin: 0.8em 0 0.45em;
+    line-height: 1.25;
+  }
+
+  :deep(p),
+  :deep(ul),
+  :deep(ol),
+  :deep(pre),
+  :deep(blockquote) {
+    margin: 0 0 0.75em;
+  }
+
+  :deep(pre),
+  :deep(code) {
+    background: var(--text-bg-color);
+    border-radius: 6px;
+  }
+
+  :deep(pre) {
+    overflow: auto;
+    padding: 10px;
+  }
+}
+
+.file-rich-preview__table-wrap {
+  min-width: max-content;
+}
+
+.file-rich-preview__sheet,
+.file-rich-preview__note {
+  margin-bottom: 8px;
+  color: var(--text-color-lighter);
+  font-size: 12px;
+}
+
+.file-rich-preview__table {
+  border-collapse: collapse;
+  color: var(--text-color);
+  font-size: 12px;
+  line-height: 1.4;
+
+  td {
+    max-width: 220px;
+    min-width: 72px;
+    padding: 6px 8px;
+    border: 1px solid var(--border-color);
+    background: var(--bg-elevated-color);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+}
+
+.file-rich-preview__image {
+  display: block;
+  max-width: 100%;
+  height: auto;
+  margin: 0 auto;
+}
+
+.file-rich-preview__pdf {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  align-items: center;
+}
+
+.file-rich-preview__pdf-page {
+  display: block;
+  max-width: 100%;
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  background: #fff;
+  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.18);
+}
+</style>

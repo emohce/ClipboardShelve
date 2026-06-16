@@ -6,10 +6,17 @@
     "build": "vite build"
   },
   "dependencies": {
+    "@asciidoctor/core": "3.0.4",
     "@element-plus/icons-vue": "^2.0.9",
     "@tanstack/vue-virtual": "^3.13.12",
+    "dompurify": "3.4.10",
     "element-plus": "^2.2.17",
     "less": "^4.1.3",
+    "mammoth": "1.12.0",
+    "markdown-it": "14.2.0",
+    "papaparse": "5.5.3",
+    "pdfjs-dist": "6.0.227",
+    "read-excel-file": "9.2.0",
     "sql.js": "^1.14.1",
     "vue": "^3.5.13",
     "vuedraggable": "^4.1.0"
