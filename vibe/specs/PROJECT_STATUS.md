@@ -15,11 +15,11 @@ Detailed requirements, plans, evidence, and implementation notes stay in task di
 
 ## Current Main Line
 
-Time window: 2026-06-11 to 2026-06-14.
+Time window: 2026-06-16.
 
-Current focus: Shortcut command redesign — **复核收尾：compact shortcut 固定键边界、层级阻断、权威文档同步、历史文档收敛** ([260613-SettingUiModify/260614-shortcut-compact-semantics.md](260613-SettingUiModify/260614-shortcut-compact-semantics.md), [260610-shortcuts-redesign/14YG2-zz-plan-层级判断统一.md](260610-shortcuts-redesign/14YG2-zz-plan-层级判断统一.md)). Recommended next: uTools production-shell migration verification, macro conflict preview.
+Current focus: Preview optimization — **完成：文本 100 行内自动换行、图片优先完整展示、超宽/超长保留 Shift 移动** ([260616-preview-optimization/01-spec.md](260616-preview-optimization/01-spec.md), [260616-preview-optimization/02-plan.md](260616-preview-optimization/02-plan.md), [260616-preview-optimization/04-verify.md](260616-preview-optimization/04-verify.md), [260616-preview-optimization/05-review.md](260616-preview-optimization/05-review.md)).
 
-Current core task: Shortcut command redesign recheck closeout. Multi-key binding authoritative spec: [260613-SettingUiModify/260613-shortcut-multi-key-plan.md](260613-SettingUiModify/260613-shortcut-multi-key-plan.md); compact shortcut semantics implementation and recheck notes: [260613-SettingUiModify/260614-shortcut-compact-semantics.md](260613-SettingUiModify/260614-shortcut-compact-semantics.md).
+Current core task: 图片与文本悬浮预览优化已完成。Authoritative docs: [260616-preview-optimization/01-spec.md](260616-preview-optimization/01-spec.md), [260616-preview-optimization/02-plan.md](260616-preview-optimization/02-plan.md), [260616-preview-optimization/04-verify.md](260616-preview-optimization/04-verify.md), [260616-preview-optimization/05-review.md](260616-preview-optimization/05-review.md).
 
 Completed milestones:
 
@@ -35,6 +35,7 @@ Completed milestones:
 - Main page navigation recheck (2026-06-14): `a-u` / page-up default chain verified; observed failure was user shortcut override, not mapping, handler, scroll path, or layer penetration. Future triage checks runtime overrides before code paths — [260610-shortcuts-redesign/14YG2-zz-plan-层级判断统一.md](260610-shortcuts-redesign/14YG2-zz-plan-层级判断统一.md#翻页失效排查顺序).
 - Shortcut config management (2026-06-14): feature-config page now manages `shortcutSync` local/public profiles; each device keeps a local profile, can choose public runtime source, and can explicitly promote local config to public — [260610-shortcuts-redesign/12YG2-zz-summary-快捷键重构全景文档.md](260610-shortcuts-redesign/12YG2-zz-summary-快捷键重构全景文档.md).
 - Main list multi-delete recovery (2026-06-14): multi-delete now separates retained item recovery (`preferItemId`) from parent refresh index, removes deleted rows from visible cache, rewinds loaded cursors, and only fills one page instead of rebuilding the first page — [../vibe-doc/ai-error-memory/2026-04-08-clipboard-nav-scroll-search-layout.md](../vibe-doc/ai-error-memory/2026-04-08-clipboard-nav-scroll-search-layout.md).
+- Preview optimization (2026-06-16): completed and reviewed; text preview switches from single-line ellipsis to logical-line wrapping, image preview now tests full-fit / <=2x shrink before extreme-ratio scroll strategy — [260616-preview-optimization/05-review.md](260616-preview-optimization/05-review.md).
 
 Open follow-ups:
 
@@ -45,7 +46,8 @@ Open follow-ups:
 
 | Task | Status | Read first | Update when |
 |------|--------|------------|-------------|
-| Shortcut command redesign | active / recheck closeout | [260610-shortcuts-redesign/12YG2-zz-summary-快捷键重构全景文档.md](260610-shortcuts-redesign/12YG2-zz-summary-快捷键重构全景文档.md), **改键多键** [260613-SettingUiModify/260613-shortcut-multi-key-plan.md](260613-SettingUiModify/260613-shortcut-multi-key-plan.md), **compact 语义** [260613-SettingUiModify/260614-shortcut-compact-semantics.md](260613-SettingUiModify/260614-shortcut-compact-semantics.md) | Command, keybinding, when, resolver, SQLite shortcut, macro, record dialog, multi-key, compact shortcut id, fixed-key guard, or conflict behavior changes. |
+| Preview optimization | completed / reference | [260616-preview-optimization/01-spec.md](260616-preview-optimization/01-spec.md), [260616-preview-optimization/02-plan.md](260616-preview-optimization/02-plan.md), [260616-preview-optimization/04-verify.md](260616-preview-optimization/04-verify.md), [260616-preview-optimization/05-review.md](260616-preview-optimization/05-review.md) | Text preview wrapping, image preview layout, Shift preview movement, or hover preview behavior changes. |
+| Shortcut command redesign | completed / reference | [260610-shortcuts-redesign/12YG2-zz-summary-快捷键重构全景文档.md](260610-shortcuts-redesign/12YG2-zz-summary-快捷键重构全景文档.md), **改键多键** [260613-SettingUiModify/260613-shortcut-multi-key-plan.md](260613-SettingUiModify/260613-shortcut-multi-key-plan.md), **compact 语义** [260613-SettingUiModify/260614-shortcut-compact-semantics.md](260613-SettingUiModify/260614-shortcut-compact-semantics.md) | Command, keybinding, when, resolver, SQLite shortcut, macro, record dialog, multi-key, compact shortcut id, fixed-key guard, or conflict behavior changes. |
 | Right-click unification | completed first stage / reference | [260612-right-click-unification/01-plan.md](260612-right-click-unification/01-plan.md) | Right-click action model, drawer order, numeric execution, settings-page management, verification, or handoff changes. |
 | UI interaction optimization | completed / reference | [260610-ui交互优化/评估报告-2026-06-11.md](260610-ui交互优化/评估报告-2026-06-11.md) | Only when a regression or explicit new UI interaction task reopens the behavior. |
 | Setting page UI modify | completed / reference | [260613-SettingUiModify/260613-zz-raw-settingUiModify.md](260613-SettingUiModify/260613-zz-raw-settingUiModify.md), [260613-SettingUiModify/260613-shortcut-multi-key-plan.md](260613-SettingUiModify/260613-shortcut-multi-key-plan.md) | Layout/overlay baseline; multi-key record dialog + cmd override model implemented. |
