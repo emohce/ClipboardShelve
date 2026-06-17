@@ -3,6 +3,49 @@
 **排序**：永远把**最新**一轮更新写在**最上面**（新的 `## 日期 — 标题` 区块插在紧接本说明之后，旧区块整体下推）。
 **用户向发布摘要**（须同步维护）：见 [publishLog.md](publishLog.md)；写法与约束见 `vibe/rules/release.md`。
 
+## 2026-06-17 — 富文件预览扩展 / PDF 首屏加速 / PPTX 低保真预览
+
+### 变更摘要
+
+- **PDF 首屏极速通道**：uTools 环境优先通过内置 Sharp 渲染 PDF 第 1 页，成功后立即展示首屏；PDF.js 后台获取页数并按需补页。Sharp 不可用或失败时保留 PDF.js 降级。
+- **文档预览异步化**：TXT/MD/ADOC/CSV 改为 preload 异步首段读取，DOCX/XLSX 改为 preload 异步二进制读取，避免渲染进程同步读大文件阻塞首屏。
+- **PPTX/PPSX 低保真预览**：新增 `jszip` 解析 `ppt/slides/slide*.xml` 文本节点，展示幻灯片编号、标题和正文摘要；`.ppt` 二进制格式继续降级为不可富预览。
+- **运行期缓存**：PDF 第 1 页、PDF.js 模块、非 PDF 文档解析结果加入轻量缓存；切换/卸载时保留 object URL 释放、过期 token 防写回和 PDF document 销毁。
+- **性能埋点**：PDF 路径在开发或显式调试开关下输出 `statMs/readMs/firstPageMs/backend/fallbackReason`，便于对比 Sharp 与 PDF.js 首屏耗时。
+
+### 关键文件
+
+| 路径 | 作用 |
+|------|------|
+| [src/cpns/FileRichPreview.vue](src/cpns/FileRichPreview.vue:1) | 富文件预览组件、PDF Sharp 优先路径、异步文档读取、PPTX 文本展示和缓存生命周期 |
+| [src/utils/filePreview.mjs](src/utils/filePreview.mjs:1) | 文件类型识别、大小阈值、PPTX/PPSX 预览类型声明 |
+| [scripts/utools-runtime-assets.mjs](scripts/utools-runtime-assets.mjs:1) | preload 暴露 PDF Sharp 渲染、文本首段读取、二进制读取 API |
+| [test-file-preview.mjs](test-file-preview.mjs:1) | PDF.js 兼容、preload API、异步读取、PPTX 低保真路径回归测试 |
+| [package.json](package.json:1) | 新增 `jszip` 依赖，`pdfjs-dist` 继续固定为 `2.6.347` |
+
+### 风险 / 兼容性影响
+
+- PPTX/PPSX 为低保真文本预览，不还原完整版式、图片、动画或母版样式。
+- `.ppt`、`.doc`、`.xls` 等旧二进制 Office 格式仍不做内嵌预览，避免误判和大文件阻塞。
+- 文本/CSV 首段读取可能截断超大文件内容，目标是快速首屏预览而非完整编辑器。
+- uTools Sharp 缺失、PDF 解码失败或非 uTools 环境会自动回落 PDF.js；PDF.js 仍保留 `isEvalSupported: false` 安全兼容设置。
+- `jszip` 增加一个按需加载 chunk，构建仍保留既有 chunk-size warning。
+
+### 验证状态
+
+- 已完成：`node test-preview-layout.mjs && node test-file-preview.mjs && node test-preview-scroll.mjs` 通过。
+- 已完成：`pnpm run build` 通过，保留既有 PDF.js eval warning 与 chunk-size warning。
+- 已完成：文档链接审计与 `git diff --check`。
+- 待 uTools 手工复测：小 PDF、大 PDF、多页扫描 PDF、PPTX/PPSX、多次 Shift 重复预览、切换/退出后的旧页防写回和 object URL 释放。
+
+### 知识沉淀状态
+
+- 长期技术记忆：更新 [vibe/knowledge/technical-details.md](vibe/knowledge/technical-details.md:1) 与 [vibe/knowledge/MEMORY_INDEX.md](vibe/knowledge/MEMORY_INDEX.md:1)。
+- 过程文档：更新 [vibe/specs/260616-rich-file-preview/01-spec.md](vibe/specs/260616-rich-file-preview/01-spec.md:1)、[vibe/specs/260616-rich-file-preview/02-plan.md](vibe/specs/260616-rich-file-preview/02-plan.md:1)、[vibe/specs/260616-rich-file-preview/04-verify.md](vibe/specs/260616-rich-file-preview/04-verify.md:1) 与 [vibe/specs/PROJECT_STATUS.md](vibe/specs/PROJECT_STATUS.md:1)。
+- 新增 Error Memory：无。
+- ADR：无。
+- Glossary：无。
+
 ## 2026-06-14 — 设置页 UI 美化 / 快捷键配置体系重构 / 快捷键显示格式统一
 
 ### 变更摘要
@@ -29,14 +72,14 @@
 
 | 路径 | 作用 |
 |------|------|
-| [src/views/Setting.vue](src/views/Setting.vue) | 设置页 UI 美化、`registerFeature` / `unregisterFeature` 管理 `setting-overlay-block` |
-| [src/global/hotkeyLayers.js](src/global/hotkeyLayers.js) | 新增 `LAYER_PRIORITY` 表、`getLayerPriority()`、`getLayerPriorityStack(layers?)` |
-| [src/global/hotkeyContext.js](src/global/hotkeyContext.js) | `mainFocus` 修复：排除所有优先级 > main 的 active layer |
-| [src/global/hotkeyRegistry.js](src/global/hotkeyRegistry.js) | dispatch / preview / legacy 统一使用 `getLayerPriorityStack(activeLayers)` |
-| [src/global/keybindingResolver.js](src/global/keybindingResolver.js) | 删除 `overlayScore`，补充非 active 层过滤 |
-| [src/global/hotkeyBindings.js](src/global/hotkeyBindings.js) | 新增 setting 子弹窗 wildcard 阻断（`internal: true`） |
-| [src/global/commandDefaults.js](src/global/commandDefaults.js) | `setting-overlay-block` feature 不进入公开命令表 |
-| [test-shortcut-command-system.js](test-shortcut-command-system.js) | 修复 4 处旧断言，新增 10+ 个层级优先级 / mainFocus / 穿透阻断回归用例 |
+| [src/views/Setting.vue](src/views/Setting.vue:1) | 设置页 UI 美化、`registerFeature` / `unregisterFeature` 管理 `setting-overlay-block` |
+| [src/global/hotkeyLayers.js](src/global/hotkeyLayers.js:1) | 新增 `LAYER_PRIORITY` 表、`getLayerPriority()`、`getLayerPriorityStack(layers?)` |
+| [src/global/hotkeyContext.js](src/global/hotkeyContext.js:1) | `mainFocus` 修复：排除所有优先级 > main 的 active layer |
+| [src/global/hotkeyRegistry.js](src/global/hotkeyRegistry.js:1) | dispatch / preview / legacy 统一使用 `getLayerPriorityStack(activeLayers)` |
+| [src/global/keybindingResolver.js](src/global/keybindingResolver.js:1) | 删除 `overlayScore`，补充非 active 层过滤 |
+| [src/global/hotkeyBindings.js](src/global/hotkeyBindings.js:1) | 新增 setting 子弹窗 wildcard 阻断（`internal: true`） |
+| [src/global/commandDefaults.js](src/global/commandDefaults.js:1) | `setting-overlay-block` feature 不进入公开命令表 |
+| [test-shortcut-command-system.js](test-shortcut-command-system.js:1) | 修复 4 处旧断言，新增 10+ 个层级优先级 / mainFocus / 穿透阻断回归用例 |
 | [vibe/specs/260610-shortcuts-redesign/14YG2-zz-plan-层级判断统一.md](vibe/specs/260610-shortcuts-redesign/14YG2-zz-plan-层级判断统一.md) | 层级统一设计文档 |
 
 ### 风险 / 兼容性影响
@@ -76,22 +119,22 @@
 
 | 路径 | 作用 |
 |------|------|
-| [src/views/Main.vue](src/views/Main.vue) | 删除恢复锚点修正、置顶项展示、组合合成项注入、uTools 指令处理 |
-| [src/cpns/ClipItemList.vue](src/cpns/ClipItemList.vue) | 别名 map 结构化清空标记、置顶操作、组合粘贴 |
-| [src/cpns/ClipItemRow.vue](src/cpns/ClipItemRow.vue) | 置顶图标展示 |
-| [src/cpns/PinGroupEditor.vue](src/cpns/PinGroupEditor.vue) | 组合编辑浮窗、拖拽排序、批量移动 |
-| [src/cpns/TagEditModal.vue](src/cpns/TagEditModal.vue) | Esc 拦截、tag-edit-close feature |
-| [src/cpns/HotkeyProvider.vue](src/cpns/HotkeyProvider.vue) | 热键运行态刷新 |
-| [src/global/hotkeyBindings.js](src/global/hotkeyBindings.js) | 新增快捷键绑定 |
-| [src/global/hotkeyLabels.js](src/global/hotkeyLabels.js) | 新增快捷键文案 |
-| [src/global/hotkeyRegistry.js](src/global/hotkeyRegistry.js) | Element Plus MessageBox Esc 拦截、热键版本记录 |
-| [src/storage/pinnedItems.js](src/storage/pinnedItems.js) | 置顶状态存储、组合存储 |
-| [src/storage/searchIndex.js](src/storage/searchIndex.js) | alias map 结构化值兼容 |
-| [src/storage/clipboardRepository.js](src/storage/clipboardRepository.js) | alias map 结构化值兼容 |
-| [src/utils/index.js](src/utils/index.js) | 别名清空标记、置顶操作 |
-| [src/views/Setting.vue](src/views/Setting.vue) | 热键刷新触发、uTools 指令配置入口 |
-| [scripts/utools-runtime-assets.mjs](scripts/utools-runtime-assets.mjs) | uTools 功能指令注册 |
-| [src/style/cpns/clip-item-list.less](src/style/cpns/clip-item-list.less) | 置顶图标样式 |
+| [src/views/Main.vue](src/views/Main.vue:1) | 删除恢复锚点修正、置顶项展示、组合合成项注入、uTools 指令处理 |
+| [src/cpns/ClipItemList.vue](src/cpns/ClipItemList.vue:1) | 别名 map 结构化清空标记、置顶操作、组合粘贴 |
+| [src/cpns/ClipItemRow.vue](src/cpns/ClipItemRow.vue:1) | 置顶图标展示 |
+| [src/cpns/PinGroupEditor.vue](src/cpns/PinGroupEditor.vue:1) | 组合编辑浮窗、拖拽排序、批量移动 |
+| [src/cpns/TagEditModal.vue](src/cpns/TagEditModal.vue:1) | Esc 拦截、tag-edit-close feature |
+| [src/cpns/HotkeyProvider.vue](src/cpns/HotkeyProvider.vue:1) | 热键运行态刷新 |
+| [src/global/hotkeyBindings.js](src/global/hotkeyBindings.js:1) | 新增快捷键绑定 |
+| [src/global/hotkeyLabels.js](src/global/hotkeyLabels.js:1) | 新增快捷键文案 |
+| [src/global/hotkeyRegistry.js](src/global/hotkeyRegistry.js:1) | Element Plus MessageBox Esc 拦截、热键版本记录 |
+| [src/storage/pinnedItems.js](src/storage/pinnedItems.js:1) | 置顶状态存储、组合存储 |
+| [src/storage/searchIndex.js](src/storage/searchIndex.js:1) | alias map 结构化值兼容 |
+| [src/storage/clipboardRepository.js](src/storage/clipboardRepository.js:1) | alias map 结构化值兼容 |
+| [src/utils/index.js](src/utils/index.js:1) | 别名清空标记、置顶操作 |
+| [src/views/Setting.vue](src/views/Setting.vue:1) | 热键刷新触发、uTools 指令配置入口 |
+| [scripts/utools-runtime-assets.mjs](scripts/utools-runtime-assets.mjs:1) | uTools 功能指令注册 |
+| [src/style/cpns/clip-item-list.less](src/style/cpns/clip-item-list.less:1) | 置顶图标样式 |
 
 ### 风险 / 兼容性影响
 
@@ -127,9 +170,9 @@
 
 | 路径 | 作用 |
 |------|------|https://kal8gqdp2wn.feishu.cn/wiki/E6yGwydgpixvjAk4VNUcgPYLnee
-| [src/views/Main.vue](src/views/Main.vue) | 搜索匹配逻辑升级；收藏与全部 tab 的图片搜索参与规则调整；搜索占位文案更新 |
-| [src/utils/index.js](src/utils/index.js) | 新增别名解析与“正文+别名+标签”统一匹配 helper |
-| [src/cpns/ClipItemList.vue](src/cpns/ClipItemList.vue) | `list-enter` / `list-ctrl-enter` / `list-save-by-alias` 去除搜索焦点短路 |
+| [src/views/Main.vue](src/views/Main.vue:1) | 搜索匹配逻辑升级；收藏与全部 tab 的图片搜索参与规则调整；搜索占位文案更新 |
+| [src/utils/index.js](src/utils/index.js:1) | 新增别名解析与“正文+别名+标签”统一匹配 helper |
+| [src/cpns/ClipItemList.vue](src/cpns/ClipItemList.vue:1) | `list-enter` / `list-ctrl-enter` / `list-save-by-alias` 去除搜索焦点短路 |
 | `vibe/knowledge/adr/2026-04-14-search-preference-and-enter-filter-rule.md` | 新增长期决策记录 |
 https://kal8gqdp2wn.feishu.cn/wiki/E6yGwydgpixvjAk4VNUcgPYLnee
 ### 风险 / 兼容性影响
@@ -163,9 +206,9 @@ https://kal8gqdp2wn.feishu.cn/wiki/E6yGwydgpixvjAk4VNUcgPYLnee
 
 | 路径 | 作用 |
 |------|------|
-| [src/cpns/ClipItemList.vue](src/cpns/ClipItemList.vue) | 图片预览布局策略、滚动方向映射、工具栏提示 |
-| [src/global/hotkeyRegistry.js](src/global/hotkeyRegistry.js) | 快捷键分发逻辑调整 |
-| [src/style/cpns/clip-item-list.less](src/style/cpns/clip-item-list.less) | 滚动条样式优化 |
+| [src/cpns/ClipItemList.vue](src/cpns/ClipItemList.vue:1) | 图片预览布局策略、滚动方向映射、工具栏提示 |
+| [src/global/hotkeyRegistry.js](src/global/hotkeyRegistry.js:1) | 快捷键分发逻辑调整 |
+| [src/style/cpns/clip-item-list.less](src/style/cpns/clip-item-list.less:1) | 滚动条样式优化 |
 
 ### 风险 / 兼容性影响 (重复标题: 2026-04-10 — 图片预览布局优化 / 滚动方向修复 #2)
 
@@ -197,13 +240,13 @@ https://kal8gqdp2wn.feishu.cn/wiki/E6yGwydgpixvjAk4VNUcgPYLnee
 
 | 路径 | 作用 |
 |------|------|
-| [src/cpns/ClipItemList.vue](src/cpns/ClipItemList.vue) | `isItemCollected`/`getItemAlias`函数优化、操作后直接修改showList |
-| [src/utils/index.js](src/utils/index.js) | 别名写盘校验、孤儿文件清理 |
-| [src/global/hotkeyRegistry.js](src/global/hotkeyRegistry.js) | 弹窗态快捷键隔离 |
-| [scripts/utools-runtime-assets.mjs](scripts/utools-runtime-assets.mjs) | uTools运行时资产统一生成 |
-| [scripts/prepare-utools-runtime.mjs](scripts/prepare-utools-runtime.mjs) | 开发启动前置生成入口 |
-| [vite.config.js](vite.config.js) | closeBundle阶段生成运行时资产 |
-| [package.json](package.json) | serve前置执行prepare:utools |
+| [src/cpns/ClipItemList.vue](src/cpns/ClipItemList.vue:1) | `isItemCollected`/`getItemAlias`函数优化、操作后直接修改showList |
+| [src/utils/index.js](src/utils/index.js:1) | 别名写盘校验、孤儿文件清理 |
+| [src/global/hotkeyRegistry.js](src/global/hotkeyRegistry.js:1) | 弹窗态快捷键隔离 |
+| [scripts/utools-runtime-assets.mjs](scripts/utools-runtime-assets.mjs:1) | uTools运行时资产统一生成 |
+| [scripts/prepare-utools-runtime.mjs](scripts/prepare-utools-runtime.mjs:1) | 开发启动前置生成入口 |
+| [vite.config.js](vite.config.js:1) | closeBundle阶段生成运行时资产 |
+| [package.json](package.json:1) | serve前置执行prepare:utools |
 
 ### 风险 / 兼容性影响 (重复标题: 2026-04-10 — 选中项渲染延迟修复 / 别名粘贴防重复 / uTools运行时资产生成 #3)
 
@@ -242,11 +285,11 @@ https://kal8gqdp2wn.feishu.cn/wiki/E6yGwydgpixvjAk4VNUcgPYLnee
 
 | 路径 | 作用 |
 |------|------|
-| [src/utils/index.js](src/utils/index.js) | 别名文件持久化、内容指纹、写盘校验、图片双轨粘贴 |
-| [src/cpns/ClipItemList.vue](src/cpns/ClipItemList.vue) | 别名粘贴调用、改别名/删条目清理逻辑 |
-| [src/global/initPlugin.js](src/global/initPlugin.js) | `userData` 目录初始化 |
-| [src/cpns/HotkeyTreeViewShortcut.vue](src/cpns/HotkeyTreeViewShortcut.vue) | 1-9 快捷键家族识别 |
-| [src/global/hotkeyLabels.js](src/global/hotkeyLabels.js) | range-summary 标签文案 |
+| [src/utils/index.js](src/utils/index.js:1) | 别名文件持久化、内容指纹、写盘校验、图片双轨粘贴 |
+| [src/cpns/ClipItemList.vue](src/cpns/ClipItemList.vue:1) | 别名粘贴调用、改别名/删条目清理逻辑 |
+| [src/global/initPlugin.js](src/global/initPlugin.js:1) | `userData` 目录初始化 |
+| [src/cpns/HotkeyTreeViewShortcut.vue](src/cpns/HotkeyTreeViewShortcut.vue:1) | 1-9 快捷键家族识别 |
+| [src/global/hotkeyLabels.js](src/global/hotkeyLabels.js:1) | range-summary 标签文案 |
 | [docs/用户简明说明.md](docs/用户简明说明.md) | 用户快捷键说明重构 |
 | `vibe/knowledge/glossary.md` | F2 双分支术语 |
 | `vibe/knowledge/error-memory/2026-04-10-alias-material-lifecycle.md` | 别名材料生命周期复盘 |
@@ -283,11 +326,11 @@ https://kal8gqdp2wn.feishu.cn/wiki/E6yGwydgpixvjAk4VNUcgPYLnee
 
 | 路径 | 作用 |
 |------|------|
-| [src/cpns/ClipItemList.vue](src/cpns/ClipItemList.vue) | `F2` 别名逻辑、`list-save-by-alias`、抽屉序号越界保护 |
-| [src/global/hotkeyBindings.js](src/global/hotkeyBindings.js) | 新增 `shift+Enter`，迁移 `ctrl+alt+1..9` |
-| [src/global/hotkeyLabels.js](src/global/hotkeyLabels.js) | 别名与新快捷键展示文案 |
-| [src/utils/index.js](src/utils/index.js) | 单文件按别名重命名后粘贴能力 |
-| [src/hooks/useClipOperate.js](src/hooks/useClipOperate.js) | 别名统一判定 helper |
+| [src/cpns/ClipItemList.vue](src/cpns/ClipItemList.vue:1) | `F2` 别名逻辑、`list-save-by-alias`、抽屉序号越界保护 |
+| [src/global/hotkeyBindings.js](src/global/hotkeyBindings.js:1) | 新增 `shift+Enter`，迁移 `ctrl+alt+1..9` |
+| [src/global/hotkeyLabels.js](src/global/hotkeyLabels.js:1) | 别名与新快捷键展示文案 |
+| [src/utils/index.js](src/utils/index.js:1) | 单文件按别名重命名后粘贴能力 |
+| [src/hooks/useClipOperate.js](src/hooks/useClipOperate.js:1) | 别名统一判定 helper |
 | [docs/用户简明说明.md](docs/用户简明说明.md) | 用户可见快捷键说明更新 |
 
 ### 风险 / 兼容性影响 (重复标题: 2026-04-09 — 003-quick-item-operation（单条目别名 / 抽屉序号键迁移 / 别名保存触发） #5)
@@ -315,19 +358,19 @@ https://kal8gqdp2wn.feishu.cn/wiki/E6yGwydgpixvjAk4VNUcgPYLnee
 - **多选删除高亮**：`preferItemId` 仅在未删除的保留项中选取邻近 id，避免锚到待删项导致恢复异常。
 - **搜索与 IME**：`Main.vue` 搜索已展开且在 `.clip-search` 内输入时不再 `window.focus()`；`ClipSearch` 组合输入与 `onEmpty` / reveal-guard 协调；`hotkeyRegistry` 在 `isComposing` 时不分发快捷键；`list-enter` / `list-ctrl-enter` 在搜索框聚焦或 `Process` 时短路。
 - **列表键盘滚动**：近顶上移用小索引 `edge-align` + `end`；首项顶对齐配合 **`scrollTop = 0`**（避免 WebView 下 `scrollIntoView(block:start)` 误滚祖先导致首条「消失」）；`center-preferred` 对首尾索引优先 `start`/`end`。
-- **主界面布局**：收紧 [`Main.vue`](src/views/Main.vue) `.clip-break` / `.clip-break--with-sub`（收藏 + 子标签）及空状态 `min-height`，减少固定顶栏与列表间无效大块空白。
+- **主界面布局**：收紧 [`Main.vue`](src/views/Main.vue:1) `.clip-break` / `.clip-break--with-sub`（收藏 + 子标签）及空状态 `min-height`，减少固定顶栏与列表间无效大块空白。
 - **知识库**：新增 `EM-2026-04-08-clipboard-nav-scroll-search-layout` (`vibe/knowledge/error-memory/2026-04-08-clipboard-nav-scroll-search-layout.md`)，更新 [vibe/knowledge/error-memory/README.md](vibe/knowledge/error-memory/README.md) 索引；`spec` / `research` / `plan` / `quickstart` 同步本轮约定与验证说明。
 
 ### 关键文件 (重复标题: 2026-04-08 — 001-delete-search-nav-ux（删除 / 搜索 / IME / 列表导航 / 顶栏间距） #6)
 
 | 路径 | 作用 |
 |------|------|
-| [src/global/initPlugin.js](src/global/initPlugin.js) | 删除后立即落盘 |
-| [src/global/hotkeyRegistry.js](src/global/hotkeyRegistry.js) | `isComposing` 早退 |
-| [src/views/Main.vue](src/views/Main.vue) | 搜索 `keydown` 焦点；`.clip-break` 高度 |
-| [src/cpns/ClipSearch.vue](src/cpns/ClipSearch.vue) | IME / `onEmpty` / `compositionend` |
-| [src/cpns/ClipItemList.vue](src/cpns/ClipItemList.vue) | 删除 anchor、`list-nav-up/down`、`list-enter` |
-| [src/hooks/useVirtualListScroll.js](src/hooks/useVirtualListScroll.js) | 首项 `scrollTop=0`；首尾 `center-preferred` 分支 |
+| [src/global/initPlugin.js](src/global/initPlugin.js:1) | 删除后立即落盘 |
+| [src/global/hotkeyRegistry.js](src/global/hotkeyRegistry.js:1) | `isComposing` 早退 |
+| [src/views/Main.vue](src/views/Main.vue:1) | 搜索 `keydown` 焦点；`.clip-break` 高度 |
+| [src/cpns/ClipSearch.vue](src/cpns/ClipSearch.vue:1) | IME / `onEmpty` / `compositionend` |
+| [src/cpns/ClipItemList.vue](src/cpns/ClipItemList.vue:1) | 删除 anchor、`list-nav-up/down`、`list-enter` |
+| [src/hooks/useVirtualListScroll.js](src/hooks/useVirtualListScroll.js:1) | 首项 `scrollTop=0`；首尾 `center-preferred` 分支 |
 | [specs/001-delete-search-nav-ux/](specs/001-delete-search-nav-ux/) | 规格、计划、任务与验证 |
 | `vibe/knowledge/error-memory/2026-04-08-clipboard-nav-scroll-search-layout.md` | 本轮交互与布局复盘 |
 | [vibe/knowledge/error-memory/README.md](vibe/knowledge/error-memory/README.md) | EM 索引 |
@@ -337,7 +380,7 @@ https://kal8gqdp2wn.feishu.cn/wiki/E6yGwydgpixvjAk4VNUcgPYLnee
 - **删除立即写盘**：单次删除 IO 略增；批量删除仍为多次 `immediate`，极端大数据量时可再评估批量策略。
 - **composition 全局短路**：组字期间不按热键，需符合中文输入预期。
 - **`.clip-break` 高度**：若收藏子标签极多、窄窗多行折行，可能出现顶栏与列表轻度重叠或仍偏大缝，需按实机微调像素。
-- **构建验证**：部分环境未跑通 `pnpm run build`，合并前建议在本地执行 [`pnpm run build`](package.json) 与 [`specs/001-delete-search-nav-ux/quickstart.md`](specs/001-delete-search-nav-ux/quickstart.md) 手工用例。
+- **构建验证**：部分环境未跑通 `pnpm run build`，合并前建议在本地执行 [`pnpm run build`](package.json:1) 与 [`specs/001-delete-search-nav-ux/quickstart.md`](specs/001-delete-search-nav-ux/quickstart.md) 手工用例。
 
 ### 验证状态 (重复标题: 2026-04-08 — 001-delete-search-nav-ux（删除 / 搜索 / IME / 列表导航 / 顶栏间距） #6)
 

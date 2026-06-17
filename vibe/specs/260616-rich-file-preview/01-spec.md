@@ -3,7 +3,7 @@
 Tool: codex
 
 ## 1. 目标
-- 扩展 `file` 类型预览，支持 PDF、Markdown、AsciiDoc、CSV、Excel xlsx/xlsm、Word docx、常见文本文件。
+- 扩展 `file` 类型预览，支持 PDF、Markdown、AsciiDoc、CSV、Excel xlsx/xlsm、Word docx、PowerPoint pptx/ppsx、常见文本文件。
 - 保持图片文件继续走既有图片预览策略和 Shift+方向键移动。
 - 统一预览滚动命令，默认 `s-up/down/left/right`，保留 command 可改键。
 
@@ -36,6 +36,6 @@ Tool: codex
 - memory routing: task-local process docs only; no reusable memory promotion yet.
 
 ## 6. 非目标
-- 不解析 `.doc`、`.xls`、`.ods`、`.ppt`、`.pptx`。
+- 不解析 `.doc`、`.xls`、`.ods`、`.ppt`；PPTX/PPSX 仅做低保真文本提取预览，不还原完整幻灯片版式。
 - 不把文件正文写入剪贴板搜索索引。
 - 不做 Office 完整版式还原或 PDF 标注能力。
