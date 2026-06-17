@@ -50,12 +50,141 @@ const {
   unlinkSync,
   rmdirSync
 } = require('fs')
+const fsPromises = require('fs').promises
 const crypto = require('crypto')
 const listener = require('./listener')
 const { clipboard, nativeImage } = require('electron')
 const time = require('./time')
 
 const sep = path.sep
+
+async function readTextPreviewFile(fullPath, options = {}) {
+  const startedAt = Date.now()
+  let handle = null
+  try {
+    if (!fullPath || typeof fullPath !== 'string') {
+      return { ok: false, error: 'invalid-path', backend: 'fs-async-text' }
+    }
+    const stat = await fsPromises.stat(fullPath)
+    const maxBytes = Math.max(1, Number(options.maxBytes) || 1024 * 1024)
+    const byteLength = Math.min(Number(stat.size) || 0, maxBytes)
+    const buffer = Buffer.alloc(byteLength)
+    handle = await fsPromises.open(fullPath, 'r')
+    const result = await handle.read(buffer, 0, byteLength, 0)
+    const text = buffer.subarray(0, result.bytesRead).toString(options.encoding || 'utf8')
+    return {
+      ok: true,
+      text,
+      size: Number(stat.size) || 0,
+      bytesRead: result.bytesRead,
+      truncated: Number(stat.size) > result.bytesRead,
+      backend: 'fs-async-text',
+      elapsedMs: Date.now() - startedAt
+    }
+  } catch (error) {
+    return {
+      ok: false,
+      error: error && error.message ? error.message : String(error || 'read-text-failed'),
+      backend: 'fs-async-text',
+      elapsedMs: Date.now() - startedAt
+    }
+  } finally {
+    try {
+      await handle?.close?.()
+    } catch (_) {}
+  }
+}
+
+async function readBinaryPreviewFile(fullPath, options = {}) {
+  const startedAt = Date.now()
+  try {
+    if (!fullPath || typeof fullPath !== 'string') {
+      return { ok: false, error: 'invalid-path', backend: 'fs-async-binary' }
+    }
+    const stat = await fsPromises.stat(fullPath)
+    const maxBytes = Math.max(1, Number(options.maxBytes) || Number(stat.size) || 1)
+    if (Number(stat.size) > maxBytes) {
+      return {
+        ok: false,
+        error: 'file-too-large',
+        size: Number(stat.size) || 0,
+        limit: maxBytes,
+        backend: 'fs-async-binary',
+        elapsedMs: Date.now() - startedAt
+      }
+    }
+    const data = await fsPromises.readFile(fullPath)
+    return {
+      ok: true,
+      data,
+      size: Number(stat.size) || 0,
+      bytesRead: data.length,
+      truncated: false,
+      backend: 'fs-async-binary',
+      elapsedMs: Date.now() - startedAt
+    }
+  } catch (error) {
+    return {
+      ok: false,
+      error: error && error.message ? error.message : String(error || 'read-binary-failed'),
+      backend: 'fs-async-binary',
+      elapsedMs: Date.now() - startedAt
+    }
+  }
+}
+
+async function renderPdfFirstPagePreview(fullPath, options = {}) {
+  const startedAt = Date.now()
+  try {
+    if (!fullPath || typeof fullPath !== 'string') {
+      return { ok: false, error: 'invalid-path', backend: 'utools-sharp' }
+    }
+    if (!utools || typeof utools.sharp !== 'function') {
+      return { ok: false, error: 'sharp-unavailable', backend: 'utools-sharp' }
+    }
+    if (!existsSync(fullPath)) {
+      return { ok: false, error: 'file-not-found', backend: 'utools-sharp' }
+    }
+
+    const density = Number.isFinite(Number(options.density)) ? Number(options.density) : 96
+    const maxWidth = Number.isFinite(Number(options.maxWidth)) ? Number(options.maxWidth) : 960
+    let image = utools.sharp(fullPath, {
+      density,
+      page: 0,
+      pages: 1,
+      failOn: 'none'
+    })
+    if (maxWidth > 0) {
+      image = image.resize({
+        width: Math.max(240, Math.round(maxWidth)),
+        fit: 'inside',
+        withoutEnlargement: true
+      })
+    }
+    const result = await image.png().toBuffer({ resolveWithObject: true })
+    const data = result && result.data ? result.data : result
+    const info = result && result.info ? result.info : {}
+    const buffer = Buffer.isBuffer(data) ? data : Buffer.from(data || '')
+    if (!buffer.length) {
+      return { ok: false, error: 'empty-render-result', backend: 'utools-sharp' }
+    }
+    return {
+      ok: true,
+      src: 'data:image/png;base64,' + buffer.toString('base64'),
+      width: Number(info.width) || 0,
+      height: Number(info.height) || 0,
+      backend: 'utools-sharp',
+      elapsedMs: Date.now() - startedAt
+    }
+  } catch (error) {
+    return {
+      ok: false,
+      error: error && error.message ? error.message : String(error || 'render-failed'),
+      backend: 'utools-sharp',
+      elapsedMs: Date.now() - startedAt
+    }
+  }
+}
 
 window.exports = {
   utools,
@@ -77,6 +206,9 @@ window.exports = {
   clipboard,
   nativeImage,
   time,
+  readTextPreviewFile,
+  readBinaryPreviewFile,
+  renderPdfFirstPagePreview,
   Buffer
 }
 `,

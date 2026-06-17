@@ -15,9 +15,9 @@ Detailed requirements, plans, evidence, and implementation notes stay in task di
 
 ## Current Main Line
 
-Time window: 2026-06-16.
+Time window: 2026-06-17.
 
-Current focus: Rich file preview — **进行中：扩展 PDF、MD、AsciiDoc、CSV、Excel、DOCX、文本文件预览，并统一 Shift 预览滚动加速** ([260616-rich-file-preview/01-spec.md](260616-rich-file-preview/01-spec.md), [260616-rich-file-preview/02-plan.md](260616-rich-file-preview/02-plan.md), [260616-rich-file-preview/04-verify.md](260616-rich-file-preview/04-verify.md)).
+Current focus: Rich file preview — **代码、测试、发布记录和项目记忆已完成；PDF 走 uTools Sharp 第 1 页快路径 + PDF.js 后台补页；TXT/MD/ADOC/CSV 异步首段读取，DOCX/XLSX 异步二进制读取，PPTX/PPSX 低保真文本预览，非 PDF 解析结果运行期缓存；待 uTools 真实文件复测确认** ([260616-rich-file-preview/01-spec.md](260616-rich-file-preview/01-spec.md), [260616-rich-file-preview/02-plan.md](260616-rich-file-preview/02-plan.md), [260616-rich-file-preview/04-verify.md](260616-rich-file-preview/04-verify.md)).
 
 Current core task: 常见文件富预览扩展。Authoritative docs: [260616-rich-file-preview/01-spec.md](260616-rich-file-preview/01-spec.md), [260616-rich-file-preview/02-plan.md](260616-rich-file-preview/02-plan.md), [260616-rich-file-preview/04-verify.md](260616-rich-file-preview/04-verify.md).
 
@@ -36,7 +36,7 @@ Completed milestones:
 - Shortcut config management (2026-06-14): feature-config page now manages `shortcutSync` local/public profiles; each device keeps a local profile, can choose public runtime source, and can explicitly promote local config to public — [260610-shortcuts-redesign/12YG2-zz-summary-快捷键重构全景文档.md](260610-shortcuts-redesign/12YG2-zz-summary-快捷键重构全景文档.md).
 - Main list multi-delete recovery (2026-06-14): multi-delete now separates retained item recovery (`preferItemId`) from parent refresh index, removes deleted rows from visible cache, rewinds loaded cursors, and only fills one page instead of rebuilding the first page — [../vibe-doc/ai-error-memory/2026-04-08-clipboard-nav-scroll-search-layout.md](../vibe-doc/ai-error-memory/2026-04-08-clipboard-nav-scroll-search-layout.md).
 - Preview optimization (2026-06-16): completed and reviewed; text preview switches from single-line ellipsis to logical-line wrapping, image preview now tests full-fit / <=2x shrink before extreme-ratio scroll strategy — [260616-preview-optimization/05-review.md](260616-preview-optimization/05-review.md).
-- Rich file preview (2026-06-16): in progress; file records now route to a rich preview model for PDF/MD/AsciiDoc/CSV/Excel/DOCX/text, with command-compatible accelerated preview scrolling — [260616-rich-file-preview/01-spec.md](260616-rich-file-preview/01-spec.md).
+- Rich file preview (2026-06-17): implemented and optimized; file records now route to a rich preview model for PDF/MD/AsciiDoc/CSV/Excel/DOCX/PPTX/text, with command-compatible accelerated preview scrolling, safer PDF lifecycle handling, `pdfjs-dist@2.6.347` es5 runtime compatibility, uTools Sharp PDF first-page fast path, async document preview reads, low-fidelity PPTX text preview, non-PDF preview cache, and PDF.js fallback/page-fill behavior — [260616-rich-file-preview/01-spec.md](260616-rich-file-preview/01-spec.md).
 
 Open follow-ups:
 
@@ -47,7 +47,7 @@ Open follow-ups:
 
 | Task | Status | Read first | Update when |
 |------|--------|------------|-------------|
-| Rich file preview | active | [260616-rich-file-preview/01-spec.md](260616-rich-file-preview/01-spec.md), [260616-rich-file-preview/02-plan.md](260616-rich-file-preview/02-plan.md), [260616-rich-file-preview/04-verify.md](260616-rich-file-preview/04-verify.md) | File rich preview types, file preview parser dependencies, Shift preview scroll acceleration, or preview command labels change. |
+| Rich file preview | completed / pending uTools real-file verification | [260616-rich-file-preview/01-spec.md](260616-rich-file-preview/01-spec.md), [260616-rich-file-preview/02-plan.md](260616-rich-file-preview/02-plan.md), [260616-rich-file-preview/04-verify.md](260616-rich-file-preview/04-verify.md) | File rich preview types, file preview parser dependencies, Shift preview scroll acceleration, or preview command labels change. |
 | Preview optimization | completed / reference | [260616-preview-optimization/01-spec.md](260616-preview-optimization/01-spec.md), [260616-preview-optimization/02-plan.md](260616-preview-optimization/02-plan.md), [260616-preview-optimization/04-verify.md](260616-preview-optimization/04-verify.md), [260616-preview-optimization/05-review.md](260616-preview-optimization/05-review.md) | Text preview wrapping, image preview layout, Shift preview movement, or hover preview behavior changes. |
 | Shortcut command redesign | completed / reference | [260610-shortcuts-redesign/12YG2-zz-summary-快捷键重构全景文档.md](260610-shortcuts-redesign/12YG2-zz-summary-快捷键重构全景文档.md), **改键多键** [260613-SettingUiModify/260613-shortcut-multi-key-plan.md](260613-SettingUiModify/260613-shortcut-multi-key-plan.md), **compact 语义** [260613-SettingUiModify/260614-shortcut-compact-semantics.md](260613-SettingUiModify/260614-shortcut-compact-semantics.md) | Command, keybinding, when, resolver, SQLite shortcut, macro, record dialog, multi-key, compact shortcut id, fixed-key guard, or conflict behavior changes. |
 | Right-click unification | completed first stage / reference | [260612-right-click-unification/01-plan.md](260612-right-click-unification/01-plan.md) | Right-click action model, drawer order, numeric execution, settings-page management, verification, or handoff changes. |

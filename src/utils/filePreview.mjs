@@ -5,6 +5,7 @@ export const FILE_PREVIEW_LIMITS = {
   csv: 5 * 1024 * 1024,
   spreadsheet: 20 * 1024 * 1024,
   word: 20 * 1024 * 1024,
+  presentation: 30 * 1024 * 1024,
   pdf: 50 * 1024 * 1024,
   image: 50 * 1024 * 1024,
   unsupported: 0
@@ -26,6 +27,8 @@ const EXTENSION_KIND_MAP = new Map([
   ['xlsx', 'spreadsheet'],
   ['xlsm', 'spreadsheet'],
   ['docx', 'word'],
+  ['pptx', 'presentation'],
+  ['ppsx', 'presentation'],
   ['txt', 'text'],
   ['log', 'text'],
   ['json', 'text'],
