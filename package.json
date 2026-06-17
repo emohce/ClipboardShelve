@@ -20,7 +20,8 @@
     "read-excel-file": "9.2.0",
     "sql.js": "^1.14.1",
     "vue": "^3.5.13",
-    "vuedraggable": "^4.1.0"
+    "vuedraggable": "^4.1.0",
+    "yaml": "^2.9.0"
   },
   "devDependencies": {
     "@vitejs/plugin-vue": "^5.2.4",

@@ -9,33 +9,41 @@
 
 - **PDF 首屏极速通道**：uTools 环境优先通过内置 Sharp 渲染 PDF 第 1 页，成功后立即展示首屏；PDF.js 后台获取页数并按需补页。Sharp 不可用或失败时保留 PDF.js 降级。
 - **文档预览异步化**：TXT/MD/ADOC/CSV 改为 preload 异步首段读取，DOCX/XLSX 改为 preload 异步二进制读取，避免渲染进程同步读大文件阻塞首屏。
+- **内容级文本识别**：`.json/.jsonc/.yaml/.yml` 进入结构化树预览；`.txt` / 无扩展名和普通文本条目按内容保守识别 JSON/YAML/CSV/AsciiDoc/Markdown，不再按 tab 固定纯文本。
+- **普通文本特殊预览**：普通剪贴板文本在全部、文字、收藏等 tab 下共享同一套内容识别；CSV 渲染为表格，JSON/YAML 渲染为层级树，Markdown/AsciiDoc 渲染为清洗后的 HTML。
+- **识别规则补齐**：多级数字大纲配合缩进列表识别为 Markdown；`- [ ]` / `* [ ]` / `+ [ ]` checklist 识别为 AsciiDoc；普通短句、单标题、逗号散文保持纯文本。
 - **PPTX/PPSX 低保真预览**：新增 `jszip` 解析 `ppt/slides/slide*.xml` 文本节点，展示幻灯片编号、标题和正文摘要；`.ppt` 二进制格式继续降级为不可富预览。
 - **运行期缓存**：PDF 第 1 页、PDF.js 模块、非 PDF 文档解析结果加入轻量缓存；切换/卸载时保留 object URL 释放、过期 token 防写回和 PDF document 销毁。
 - **性能埋点**：PDF 路径在开发或显式调试开关下输出 `statMs/readMs/firstPageMs/backend/fallbackReason`，便于对比 Sharp 与 PDF.js 首屏耗时。
+- **提交前优化**：文件富预览复用普通文本预览工具的结构化树节点生成与截断规则，无扩展名文件不再被 `unsupported` 提前跳过。
 
 ### 关键文件
 
 | 路径 | 作用 |
 |------|------|
 | [src/cpns/FileRichPreview.vue](src/cpns/FileRichPreview.vue:1) | 富文件预览组件、PDF Sharp 优先路径、异步文档读取、PPTX 文本展示和缓存生命周期 |
-| [src/utils/filePreview.mjs](src/utils/filePreview.mjs:1) | 文件类型识别、大小阈值、PPTX/PPSX 预览类型声明 |
+| [src/cpns/ClipItemList.vue](src/cpns/ClipItemList.vue:1) | 普通文本 Shift 预览接入内容级识别，跨 tab 显示表格、结构化树或 HTML |
+| [src/utils/filePreview.mjs](src/utils/filePreview.mjs:1) | 文件类型识别、大小阈值、文本内容自动识别、PPTX/PPSX 预览类型声明 |
+| [src/utils/textDocumentPreview.mjs](src/utils/textDocumentPreview.mjs:1) | 普通文本内容级预览构建、CSV 表格、JSON/YAML 结构化树、MD/AD HTML 渲染 |
 | [scripts/utools-runtime-assets.mjs](scripts/utools-runtime-assets.mjs:1) | preload 暴露 PDF Sharp 渲染、文本首段读取、二进制读取 API |
 | [test-file-preview.mjs](test-file-preview.mjs:1) | PDF.js 兼容、preload API、异步读取、PPTX 低保真路径回归测试 |
-| [package.json](package.json:1) | 新增 `jszip` 依赖，`pdfjs-dist` 继续固定为 `2.6.347` |
+| [package.json](package.json:1) | 新增 `jszip`、`yaml` 依赖，`pdfjs-dist` 继续固定为 `2.6.347` |
 
 ### 风险 / 兼容性影响
 
 - PPTX/PPSX 为低保真文本预览，不还原完整版式、图片、动画或母版样式。
 - `.ppt`、`.doc`、`.xls` 等旧二进制 Office 格式仍不做内嵌预览，避免误判和大文件阻塞。
 - 文本/CSV 首段读取可能截断超大文件内容，目标是快速首屏预览而非完整编辑器。
+- `.txt` / 无扩展名自动识别采用保守策略，弱格式内容可能保持纯文本；优先避免普通文本被误渲染。
 - uTools Sharp 缺失、PDF 解码失败或非 uTools 环境会自动回落 PDF.js；PDF.js 仍保留 `isEvalSupported: false` 安全兼容设置。
-- `jszip` 增加一个按需加载 chunk，构建仍保留既有 chunk-size warning。
+- `jszip`、`yaml` 增加按需加载 chunk，构建仍保留既有 chunk-size warning。
 
 ### 验证状态
 
 - 已完成：`node test-preview-layout.mjs && node test-file-preview.mjs && node test-preview-scroll.mjs` 通过。
 - 已完成：`pnpm run build` 通过，保留既有 PDF.js eval warning 与 chunk-size warning。
 - 已完成：文档链接审计与 `git diff --check`。
+- 已覆盖：JSONC 注释/尾逗号解析、YAML/CSV/Markdown/AsciiDoc 自动识别、普通文本误判保护、无扩展名文件入口、结构化树截断规则、普通文本跨 tab 特殊预览路径。
 - 待 uTools 手工复测：小 PDF、大 PDF、多页扫描 PDF、PPTX/PPSX、多次 Shift 重复预览、切换/退出后的旧页防写回和 object URL 释放。
 
 ### 知识沉淀状态

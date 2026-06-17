@@ -53,13 +53,16 @@ importers:
       vuedraggable:
         specifier: ^4.1.0
         version: 4.1.0(vue@3.5.27)
+      yaml:
+        specifier: ^2.9.0
+        version: 2.9.0
     devDependencies:
       '@vitejs/plugin-vue':
         specifier: ^5.2.4
-        version: 5.2.4(vite@6.4.1(@types/node@25.0.10)(less@4.5.1)(terser@5.46.0))(vue@3.5.27)
+        version: 5.2.4(vite@6.4.1(@types/node@25.0.10)(less@4.5.1)(terser@5.46.0)(yaml@2.9.0))(vue@3.5.27)
       vite:
         specifier: ^6.3.5
-        version: 6.4.1(@types/node@25.0.10)(less@4.5.1)(terser@5.46.0)
+        version: 6.4.1(@types/node@25.0.10)(less@4.5.1)(terser@5.46.0)(yaml@2.9.0)
 
 packages:
 
@@ -917,6 +920,11 @@ packages:
     resolution: {integrity: sha512-OyzrcFLL/nb6fMGHbiRDuPup9ljBycsdCypwuyg5AAHvyWzGfChJpCXMG88AGTIMFhGZ9RccFN1e6lhg3hkwKg==}
     engines: {node: '>=4.0'}
 
+  yaml@2.9.0:
+    resolution: {integrity: sha512-2AvhNX3mb8zd6Zy7INTtSpl1F15HW6Wnqj0srWlkKLcpYl/gMIMJiyuGq2KeI2YFxUPjdlB+3Lc10seMLtL4cA==}
+    engines: {node: '>= 14.6'}
+    hasBin: true
+
 snapshots:
 
   '@asciidoctor/core@3.0.4':
@@ -1162,9 +1170,9 @@ snapshots:
 
   '@types/web-bluetooth@0.0.20': {}
 
-  '@vitejs/plugin-vue@5.2.4(vite@6.4.1(@types/node@25.0.10)(less@4.5.1)(terser@5.46.0))(vue@3.5.27)':
+  '@vitejs/plugin-vue@5.2.4(vite@6.4.1(@types/node@25.0.10)(less@4.5.1)(terser@5.46.0)(yaml@2.9.0))(vue@3.5.27)':
     dependencies:
-      vite: 6.4.1(@types/node@25.0.10)(less@4.5.1)(terser@5.46.0)
+      vite: 6.4.1(@types/node@25.0.10)(less@4.5.1)(terser@5.46.0)(yaml@2.9.0)
       vue: 3.5.27
 
   '@vue/compiler-core@3.5.27':
@@ -1647,7 +1655,7 @@ snapshots:
 
   util-deprecate@1.0.2: {}
 
-  vite@6.4.1(@types/node@25.0.10)(less@4.5.1)(terser@5.46.0):
+  vite@6.4.1(@types/node@25.0.10)(less@4.5.1)(terser@5.46.0)(yaml@2.9.0):
     dependencies:
       esbuild: 0.25.12
       fdir: 6.5.0(picomatch@4.0.4)
@@ -1660,6 +1668,7 @@ snapshots:
       fsevents: 2.3.3
       less: 4.5.1
       terser: 5.46.0
+      yaml: 2.9.0
 
   vue-demi@0.14.10(vue@3.5.27):
     dependencies:
@@ -1681,3 +1690,5 @@ snapshots:
   wrappy@1.0.2: {}
 
   xmlbuilder@10.1.1: {}
+
+  yaml@2.9.0: {}
