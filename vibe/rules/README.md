@@ -6,6 +6,7 @@ Tool: codex
 
 - CodeNote master: [../../../CzzProj/CodeNote/AiRef/VibePractice/Vibe_Rules/VibeAi.md](../../../CzzProj/CodeNote/AiRef/VibePractice/Vibe_Rules/VibeAi.md)
 - CodeNote rule index: [../../../CzzProj/CodeNote/AiRef/VibePractice/Vibe_Rules/README.md](../../../CzzProj/CodeNote/AiRef/VibePractice/Vibe_Rules/README.md)
+- Project developer soul: [../knowledge/developer-soul.md](../knowledge/developer-soul.md)
 - Project rules: [project.md](project.md)
 - Workflow rules: [workflow.md](workflow.md)
 - Knowledge routing: [knowledge.md](knowledge.md)
@@ -19,6 +20,7 @@ Tool: codex
 - Legacy AI rules are preserved under `vibe/knowledge/legacy/` when replaced by this structure.
 - Tool-specific adapters are discovery surfaces only; the authoritative rule tree remains this directory plus CodeNote.
 - Documentation layering is defined in [documentation.md](documentation.md); keep task details in `vibe/specs/` instead of adapters.
+- For medium or larger architecture, UI, interaction, configuration, storage, performance, and AI-rule tasks, read [../knowledge/developer-soul.md](../knowledge/developer-soul.md) before proposing changes.
 - Knowledge hygiene: see [documentation.md#Knowledge-Hygiene](documentation.md#knowledge-hygiene权威文档原则).
 
 ## Task Closeout
