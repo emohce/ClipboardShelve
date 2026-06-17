@@ -37,6 +37,7 @@ Completed milestones:
 - Main list multi-delete recovery (2026-06-14): multi-delete now separates retained item recovery (`preferItemId`) from parent refresh index, removes deleted rows from visible cache, rewinds loaded cursors, and only fills one page instead of rebuilding the first page — [../vibe-doc/ai-error-memory/2026-04-08-clipboard-nav-scroll-search-layout.md](../vibe-doc/ai-error-memory/2026-04-08-clipboard-nav-scroll-search-layout.md).
 - Preview optimization (2026-06-16): completed and reviewed; text preview switches from single-line ellipsis to logical-line wrapping, image preview now tests full-fit / <=2x shrink before extreme-ratio scroll strategy — [260616-preview-optimization/05-review.md](260616-preview-optimization/05-review.md).
 - Rich file preview (2026-06-17): implemented and optimized; file records now route to a rich preview model for PDF/MD/AsciiDoc/CSV/Excel/DOCX/PPTX/text, with command-compatible accelerated preview scrolling, safer PDF lifecycle handling, `pdfjs-dist@2.6.347` es5 runtime compatibility, uTools Sharp PDF first-page fast path, async document preview reads, low-fidelity PPTX text preview, non-PDF preview cache, and PDF.js fallback/page-fill behavior — [260616-rich-file-preview/01-spec.md](260616-rich-file-preview/01-spec.md).
+- Developer soul / AI rule refinement (2026-06-17): project-level engineering taste and CodeNote master taste rules added; future medium+ architecture, UI, interaction, configuration, storage, performance, and AI-rule work should load [../knowledge/developer-soul.md](../knowledge/developer-soul.md) through the project rule router.
 
 Open follow-ups:
 
@@ -54,6 +55,7 @@ Open follow-ups:
 | UI interaction optimization | completed / reference | [260610-ui交互优化/评估报告-2026-06-11.md](260610-ui交互优化/评估报告-2026-06-11.md) | Only when a regression or explicit new UI interaction task reopens the behavior. |
 | Setting page UI modify | completed / reference | [260613-SettingUiModify/260613-zz-raw-settingUiModify.md](260613-SettingUiModify/260613-zz-raw-settingUiModify.md), [260613-SettingUiModify/260613-shortcut-multi-key-plan.md](260613-SettingUiModify/260613-shortcut-multi-key-plan.md) | Layout/overlay baseline; multi-key record dialog + cmd override model implemented. |
 | Documentation and memory governance | active / infrastructure | [../knowledge/MEMORY_INDEX.md](../knowledge/MEMORY_INDEX.md), [0000-template/README.md](0000-template/README.md) | Process rules, task templates, memory routing, or active task status changes. |
+| Developer soul / AI taste rules | active / infrastructure | [../knowledge/developer-soul.md](../knowledge/developer-soul.md), [../knowledge/MEMORY_INDEX.md](../knowledge/MEMORY_INDEX.md) | Project engineering taste, UI/product judgment, configuration philosophy, performance view, or AI-rule routing changes. |
 | Storage performance rewrite | reference / risk area | [260609-performance-rewrite/README.md](260609-performance-rewrite/README.md) | Storage, migration, repeat-import, SQLite fallback, or repository facade behavior changes. |
 
 ## Required Workflow

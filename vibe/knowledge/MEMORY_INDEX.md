@@ -12,6 +12,7 @@ This index is the project-level entry for reusable memories. Tasks should link t
 |-------|----------|----------|
 | Cross-project rules | [../../../CzzProj/CodeNote/AiRef/VibePractice/Vibe_Rules/VibeAi.md](../../../CzzProj/CodeNote/AiRef/VibePractice/Vibe_Rules/VibeAi.md) | General AI workflow, process, testing, memory, safety, and documentation rules. |
 | Project rules | [../rules/README.md](../rules/README.md) | EzClipboard-specific constraints, task loading, verification, and high-risk areas. |
+| Developer soul | [developer-soul.md](developer-soul.md) | High-level EzClipboard engineering taste, UI/product judgment, configuration philosophy, performance view, and AI collaboration defaults. |
 | Project architecture | [ARCHITECTURE.md](ARCHITECTURE.md) | Stable architecture, module boundaries, runtime assumptions, and business behavior. |
 | Quick paste runtime (top + group) | [quick-paste-runtime.md](quick-paste-runtime.md) | **Read first** when modifying `quick-paste-top`, `quick-paste-pin-group`, silent paste API, bootstrap pending, or product selection rules. |
 | Quick paste pin group cache | [quick-paste-pin-group-cache.md](quick-paste-pin-group-cache.md) | Pin-group runtime cache shape, update timing, and hot-path id-resolution limits (subsection of quick paste runtime). |

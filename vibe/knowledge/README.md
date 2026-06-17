@@ -10,6 +10,7 @@ Tool: codex
 ## Authoritative Locations
 
 - Memory reference index: [MEMORY_INDEX.md](MEMORY_INDEX.md)
+- Developer soul: [developer-soul.md](developer-soul.md)
 - Technical details: [technical-details.md](technical-details.md)
 - Error memory: [error-memory/README.md](error-memory/README.md)
 - ADR: [adr/README.md](adr/README.md)
