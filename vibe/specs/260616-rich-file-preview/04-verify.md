@@ -9,7 +9,11 @@ Tool: codex
 - `pnpm run build`
 
 ## Manual Checklist
-- Shift 预览：PDF、MD、ADOC、CSV、XLSX、DOCX、TXT、图片、多文件混合项。
+- Shift 预览：PDF、MD、ADOC、CSV、JSON/JSONC、YAML、XLSX、DOCX、TXT、图片、多文件混合项。
+- TXT / 无扩展名自动识别：JSON、YAML、CSV、AsciiDoc、Markdown 可自动渲染；普通文本、短标题、日志句子不误渲染。
+- 普通文本条目：长文本 JSON/YAML/CSV/AsciiDoc/Markdown 在所有 tab 的 Shift 预览中按内容显示结构化树、表格或 HTML；编号大纲 + 缩进列表应渲染为 Markdown，而不是按 tab 或 item.type 固定纯文本。
+- AD checklist：`- [ ] ...` 单行或多行 checklist 应识别为 AsciiDoc 预览。
+- 结构化预览：JSON/YAML 显示层级树、类型色彩和截断提示；非法 JSON/YAML 回退原文预览。
 - PPTX/PPSX：低保真展示 slide 编号、标题和正文文本；`.ppt` 降级为不可富预览。
 - `s-up/down`：短按单步，持续 500ms 后逐档加速，松开后重置。
 - `s-left/right`：CSV/Excel 宽表格可横向移动；宽 PDF/HTML 内容实际溢出时可移动。
@@ -25,6 +29,11 @@ Tool: codex
 - PDF 首屏性能优化已完成：初始渲染从 3 页缩减为 1 页，后续页通过空闲调度逐页补齐；页面图片从 base64 data URL 改为 object URL；PDF.js 模块和第 1 页 Blob 增加运行期缓存；渲染 scale 改为按容器宽度限幅；切换/卸载/过期渲染会释放 object URL。
 - PDF 极速首屏路径已完成：preload 暴露 `renderPdfFirstPagePreview`，uTools 外壳优先用内置 Sharp 渲染 PDF 第 1 页；组件在 Sharp 成功后先显示首屏，再后台初始化 PDF.js 获取页数和补页。Sharp 缺失/失败、浏览器 dev 或 PDF.js 首屏失败时保留原 PDF.js 降级；性能日志仅在 dev/调试开关输出 `statMs/readMs/firstPageMs/backend/fallbackReason`。
 - 其他文档首屏优化已完成：preload 暴露 `readTextPreviewFile` / `readBinaryPreviewFile`；TXT/MD/ADOC/CSV 使用异步首段读取，DOCX/XLSX 使用异步完整二进制读取并沿用大小阈值；组件增加 12 项非 PDF 解析结果缓存，重复预览同一文件不重复解析。
+- 文本文档自动识别已完成：`.json/.jsonc/.yaml/.yml` 走结构化树；`.txt` / 无扩展名保守识别 JSON/YAML/CSV/AsciiDoc/Markdown，误判保护和解析失败回退已由 `test-file-preview.mjs` 覆盖。
+- 普通文本内容级预览已完成：`ClipItemList` 的长文本 Shift 预览改用 `buildDetectedTextDocumentPreview`，JSON/YAML/CSV/AsciiDoc/Markdown 内容在所有 tab 下得到一致特殊预览；`test-file-preview.mjs` 覆盖该组件路径和预览构建器。
+- 提交前复核优化已完成：[../../../src/cpns/FileRichPreview.vue](../../../src/cpns/FileRichPreview.vue:1) 复用 [../../../src/utils/textDocumentPreview.mjs](../../../src/utils/textDocumentPreview.mjs:1) 的结构化树渲染与截断规则；[../../../src/utils/filePreview.mjs](../../../src/utils/filePreview.mjs:1) 将无扩展名文件纳入文本预览入口，避免自动识别链路被 `unsupported` 提前跳过。
+- Markdown 大纲识别已补充：多级数字标题配合缩进列表会识别为 Markdown；单个标题、短列表仍保持纯文本，降低误判。
+- AsciiDoc checklist 识别已补充：`- [ ]` / `* [ ]` / `+ [ ]` 形式的 checklist 会走 AD 预览。
 - PPTX/PPSX 低保真预览已完成：新增 `jszip@3.10.1`，解析 `ppt/slides/slide*.xml` 文本节点，最多展示前 20 张、每张前 20 行；`.ppt` 继续不支持，避免误判二进制格式。
 - `pnpm audit --prod`：当前返回 6 个 advisory，其中新增 `pdfjs-dist<=4.1.392` CVE；本修复按 GitHub advisory workaround 在 `getDocument` 显式设置 `isEvalSupported: false`，其余仍为既有依赖链 advisory（`element-plus` -> `lodash/lodash-es`，`vue` compiler -> `postcss`）。
 - in-app browser 干净标签打开新 Vite 进程 `http://127.0.0.1:8103/`：`#app` 与 `.clip-item-list` 存在，无 Vite error overlay，控制台 error 为空；验证后已清理临时进程。

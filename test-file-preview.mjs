@@ -5,12 +5,17 @@ import packageJson from './package.json' with { type: 'json' }
 import {
   FILE_PREVIEW_LIMITS,
   classifyFilePreview,
+  detectTextDocumentKind,
   getFileSizeState,
   getPreviewableFile,
   parseFileItemData,
   sanitizePreviewHtml,
   sliceTablePreview
 } from './src/utils/filePreview.mjs'
+import {
+  buildDetectedTextDocumentPreview,
+  createEmptyTextDocumentPreview
+} from './src/utils/textDocumentPreview.mjs'
 
 function testClassifiesCommonPreviewTypes() {
   assert.equal(classifyFilePreview('/tmp/report.pdf'), 'pdf')
@@ -23,7 +28,13 @@ function testClassifiesCommonPreviewTypes() {
   assert.equal(classifyFilePreview('/tmp/slides.pptx'), 'presentation')
   assert.equal(classifyFilePreview('/tmp/show.ppsx'), 'presentation')
   assert.equal(classifyFilePreview('/tmp/legacy.ppt'), 'unsupported')
-  assert.equal(classifyFilePreview('/tmp/notes.json'), 'text')
+  assert.equal(classifyFilePreview('/tmp/notes.json'), 'structured-json')
+  assert.equal(classifyFilePreview('/tmp/notes.jsonc'), 'structured-json')
+  assert.equal(classifyFilePreview('/tmp/config.yaml'), 'structured-yaml')
+  assert.equal(classifyFilePreview('/tmp/config.yml'), 'structured-yaml')
+  assert.equal(classifyFilePreview('/tmp/app.log'), 'text')
+  assert.equal(classifyFilePreview('/tmp/README'), 'text')
+  assert.equal(classifyFilePreview('/tmp/.env'), 'text')
   assert.equal(classifyFilePreview('/tmp/legacy.doc'), 'unsupported')
 }
 
@@ -44,6 +55,11 @@ function testSelectsFirstPreviewableFile() {
     path: '/tmp/readme.md',
     name: 'readme.md',
     kind: 'markdown'
+  })
+  assert.deepEqual(getPreviewableFile([{ path: '/tmp/config', name: 'config' }]), {
+    path: '/tmp/config',
+    name: 'config',
+    kind: 'text'
   })
 }
 
@@ -71,6 +87,49 @@ function testSlicesTablePreview() {
   assert.equal(preview.rows[0].length, 30)
   assert.equal(preview.truncatedRows, true)
   assert.equal(preview.truncatedCols, true)
+}
+
+function testDetectsTextDocumentKindsConservatively() {
+  assert.equal(detectTextDocumentKind('{"name":"EzClipboard","items":[1,2]}').kind, 'structured-json')
+  assert.equal(
+    detectTextDocumentKind('// config\n{\n  "name": "EzClipboard",\n  "enabled": true,\n}').kind,
+    'structured-json'
+  )
+  assert.equal(
+    detectTextDocumentKind('title: EzClipboard\nitems:\n  - preview\n  - search\nenabled: true').kind,
+    'structured-yaml'
+  )
+  assert.equal(detectTextDocumentKind('name,score\nalpha,1\nbeta,2').kind, 'csv')
+  assert.equal(detectTextDocumentKind('= Title\n:toc:\n\n== Section\nNOTE: Done').kind, 'asciidoc')
+  assert.equal(detectTextDocumentKind('# Title\n\n- one\n- two\n\n[site](https://example.com)').kind, 'markdown')
+  assert.equal(detectTextDocumentKind('plain text without document structure').kind, 'text')
+  assert.equal(detectTextDocumentKind('# Just one heading').kind, 'text')
+  assert.equal(detectTextDocumentKind('hello: world').kind, 'text')
+  assert.equal(detectTextDocumentKind('one, two, maybe').kind, 'text')
+  assert.equal(detectTextDocumentKind('- just\n- scalar\n- list').kind, 'text')
+}
+
+function testDetectsNumberedOutlineAsMarkdown() {
+  const outline = [
+    '1.  全局-操作/UI说明',
+    '1.1 开发目标',
+    '  - 实现一个支持全键盘操作, 支持VIM模式的 TODO 助手',
+    '  - 功能有严格模块设计, 要进行组件优先设计',
+    '1.4 全局交互思想',
+    '1.4.1 通用交互思维',
+    '  - 00-base-mind : 底层固定交互逻辑',
+    '    - Esc推出',
+    '      - 推出当前 层|弹窗|遮罩 或 某些状态',
+    '3. UI 架构设计 - 抽象UI组件 -- 快速复用',
+    '3.1 核心底座: VIM模式',
+    '  - 所有的操作如交互点击, 删除, 上下移动等页面触发的行为'
+  ].join('\n')
+  assert.equal(detectTextDocumentKind(outline).kind, 'markdown')
+}
+
+function testDetectsChecklistLineAsAsciiDoc() {
+  const checklist = '- [ ] 多 file root 未展开：↓ 跳到下一 root, 然后可正常左右键折叠展开, 可正常上下跳转, 不要混用上下和左右的功能'
+  assert.equal(detectTextDocumentKind(checklist).kind, 'asciidoc')
 }
 
 function testPdfPreviewUsesLegacyBuild() {
@@ -135,6 +194,77 @@ function testDocumentPreviewUsesAsyncReadAndCache() {
   assert.match(source, /readBinaryFilePreview/)
 }
 
+function testStructuredDocumentPreviewPathExists() {
+  const source = readFileSync(new URL('./src/cpns/FileRichPreview.vue', import.meta.url), 'utf8')
+  const utilitySource = readFileSync(new URL('./src/utils/textDocumentPreview.mjs', import.meta.url), 'utf8')
+  assert.match(source, /preview\.type === 'structured'/)
+  assert.match(source, /loadStructuredJson/)
+  assert.match(source, /loadStructuredYaml/)
+  assert.match(source, /renderStructuredTextDocumentPreview/)
+  assert.match(source, /createStructuredFilePreview/)
+  assert.match(source, /detectedKind/)
+  assert.match(utilitySource, /TEXT_DOCUMENT_PREVIEW_MAX_DEPTH\s*=\s*6/)
+  assert.match(utilitySource, /TEXT_DOCUMENT_PREVIEW_MAX_NODES\s*=\s*300/)
+  assert.match(utilitySource, /TEXT_DOCUMENT_PREVIEW_MAX_STRING_LENGTH\s*=\s*300/)
+  assert.match(source, /import\('yaml'\)/)
+  assert.match(source, /file-rich-preview__structured/)
+}
+
+function testPlainTextPreviewCanRenderDetectedCsv() {
+  const source = readFileSync(new URL('./src/cpns/ClipItemList.vue', import.meta.url), 'utf8')
+  assert.match(source, /buildDetectedTextDocumentPreview/)
+  assert.match(source, /textPreview\.value\.preview/)
+  assert.match(source, /text-preview-table/)
+  assert.match(source, /textPreview\.preview\.kind === ['"]csv['"]/)
+  assert.match(source, /textPreview\.preview\.kind === ['"]structured['"]/)
+  assert.match(source, /textPreview\.preview\.kind === ['"]html['"]/)
+}
+
+async function testBuildsDetectedTextDocumentPreviews() {
+  const empty = createEmptyTextDocumentPreview()
+  assert.equal(empty.kind, 'text')
+  assert.equal(empty.table.rows.length, 0)
+
+  const csv = await buildDetectedTextDocumentPreview('id,name\n1,alpha\n2,beta')
+  assert.equal(csv.kind, 'csv')
+  assert.deepEqual(csv.table.rows[0], ['id', 'name'])
+  assert.deepEqual(csv.table.rows[1], ['1', 'alpha'])
+
+  const json = await buildDetectedTextDocumentPreview('{"name":"EzClipboard","items":[1,2]}')
+  assert.equal(json.kind, 'structured')
+  assert.equal(json.format, 'JSON')
+  assert.equal(json.detectedKind, 'structured-json')
+  assert.ok(json.structured.nodes.some((node) => node.key === 'name'))
+
+  const yaml = await buildDetectedTextDocumentPreview('title: EzClipboard\nitems:\n  - preview\n  - search\nenabled: true')
+  assert.equal(yaml.kind, 'structured')
+  assert.equal(yaml.format, 'YAML')
+  assert.equal(yaml.detectedKind, 'structured-yaml')
+
+  const markdown = await buildDetectedTextDocumentPreview('# Title\n\n- one\n- two')
+  assert.equal(markdown.kind, 'html')
+  assert.equal(markdown.detectedKind, 'markdown')
+  assert.match(markdown.html, /<h1>Title<\/h1>/)
+
+  const outline = await buildDetectedTextDocumentPreview([
+    '1.  全局-操作/UI说明',
+    '1.1 开发目标',
+    '  - 实现一个支持全键盘操作, 支持VIM模式的 TODO 助手',
+    '  - 功能有严格模块设计, 要进行组件优先设计',
+    '1.4 全局交互思想',
+    '  - 00-base-mind : 底层固定交互逻辑',
+    '    - Esc推出'
+  ].join('\n'))
+  assert.equal(outline.kind, 'html')
+  assert.equal(outline.detectedKind, 'markdown')
+
+  const checklist = await buildDetectedTextDocumentPreview(
+    '- [ ] 多 file root 未展开：↓ 跳到下一 root, 然后可正常左右键折叠展开, 可正常上下跳转, 不要混用上下和左右的功能'
+  )
+  assert.equal(checklist.kind, 'html')
+  assert.equal(checklist.detectedKind, 'asciidoc')
+}
+
 function testPresentationPreviewUsesLowFidelityPptxPath() {
   const source = readFileSync(new URL('./src/cpns/FileRichPreview.vue', import.meta.url), 'utf8')
   assert.equal(packageJson.dependencies.jszip, '3.10.1')
@@ -171,11 +301,17 @@ testSelectsFirstPreviewableFile()
 testSizeLimitsByKind()
 testSanitizesPreviewHtmlFallback()
 testSlicesTablePreview()
+testDetectsTextDocumentKindsConservatively()
+testDetectsNumberedOutlineAsMarkdown()
+testDetectsChecklistLineAsAsciiDoc()
 testPdfPreviewUsesLegacyBuild()
 testPdfPreviewUsesFastFirstPagePath()
 testPreloadExposesSharpPdfFirstPageRenderer()
 testPreloadExposesAsyncDocumentPreviewReaders()
 testDocumentPreviewUsesAsyncReadAndCache()
+testStructuredDocumentPreviewPathExists()
+testPlainTextPreviewCanRenderDetectedCsv()
+await testBuildsDetectedTextDocumentPreviews()
 testPresentationPreviewUsesLowFidelityPptxPath()
 testPdfJsBundleAvoidsModernRuntimePrimitives()
 

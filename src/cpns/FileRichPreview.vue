@@ -12,6 +12,7 @@
         'is-table': preview.type === 'table',
         'is-html': preview.type === 'html',
         'is-text': preview.type === 'text',
+        'is-structured': preview.type === 'structured',
         'is-pdf': preview.type === 'pdf',
         'is-slides': preview.type === 'slides',
       }"
@@ -33,6 +34,26 @@
           :alt="activeFile?.name || 'image'"
         />
         <pre v-else-if="preview.type === 'text'" class="file-rich-preview__text">{{ preview.text }}</pre>
+        <div v-else-if="preview.type === 'structured'" class="file-rich-preview__structured">
+          <div class="file-rich-preview__sheet">
+            {{ preview.format }}
+            <span v-if="preview.nodeCount"> · {{ preview.nodeCount }} nodes</span>
+          </div>
+          <div class="file-rich-preview__structured-tree">
+            <div
+              v-for="node in preview.nodes"
+              :key="node.id"
+              class="file-rich-preview__structured-row"
+              :class="[`is-${node.type}`, { 'is-container': node.isContainer }]"
+              :style="{ '--depth': node.depth }"
+            >
+              <span v-if="node.key" class="file-rich-preview__structured-key">{{ node.key }}</span>
+              <span v-if="node.key" class="file-rich-preview__structured-colon">:</span>
+              <span class="file-rich-preview__structured-value">{{ node.value }}</span>
+            </div>
+          </div>
+          <div v-if="preview.truncated" class="file-rich-preview__note">已截取预览</div>
+        </div>
         <div v-else-if="preview.type === 'html'" class="file-rich-preview__html" v-html="preview.html"></div>
         <div v-else-if="preview.type === 'table'" class="file-rich-preview__table-wrap">
           <div class="file-rich-preview__sheet" v-if="preview.sheetName">{{ preview.sheetName }}</div>
@@ -88,6 +109,8 @@
 import { computed, nextTick, onUnmounted, ref, watch } from 'vue'
 import {
   classifyFilePreview,
+  detectTextDocumentKind,
+  getFileExtension,
   getFileSizeLimit,
   getFileSizeState,
   getPreviewableFile,
@@ -95,6 +118,10 @@ import {
   sanitizePreviewHtml,
   sliceTablePreview
 } from '../utils/filePreview.mjs'
+import {
+  parseJsonPreviewText,
+  renderStructuredTextDocumentPreview
+} from '../utils/textDocumentPreview.mjs'
 import { getPreviewScrollAxis } from '../utils/previewScroll.mjs'
 
 const props = defineProps({
@@ -125,6 +152,7 @@ const PDF_CONTENT_HORIZONTAL_PADDING = 28
 const PDF_SHARP_DENSITY = 96
 const PDF_SHARP_RENDER_WIDTH = 960
 const DOCUMENT_PREVIEW_CACHE_LIMIT = 12
+const DOCUMENT_AUTO_DETECT_VERSION = 'text-detect-v1'
 const DOCUMENT_TEXT_PREVIEW_BYTES = 1024 * 1024
 const DOCUMENT_CSV_PREVIEW_BYTES = 512 * 1024
 const PRESENTATION_PREVIEW_MAX_SLIDES = 20
@@ -252,9 +280,11 @@ const kindLabel = computed(() => {
     spreadsheet: 'XLS',
     word: 'DOCX',
     presentation: 'PPTX',
+    'structured-json': 'JSON',
+    'structured-yaml': 'YAML',
     text: 'TXT'
   }
-  return labels[activeFile.value?.kind] || 'FILE'
+  return labels[preview.value?.detectedKind] || labels[activeFile.value?.kind] || 'FILE'
 })
 
 function getFileUrl(path = '') {
@@ -351,7 +381,8 @@ function toArrayBuffer(bytes) {
 
 function getDocumentPreviewCacheKey(file) {
   const stat = getFileStatInfo(file.path)
-  return `${file.kind}:${file.path}:${stat.size}:${stat.mtimeMs}:${props.mode}`
+  const autoDetectVersion = file.kind === 'text' ? `:${DOCUMENT_AUTO_DETECT_VERSION}` : ''
+  return `${file.kind}:${file.path}:${stat.size}:${stat.mtimeMs}:${props.mode}${autoDetectVersion}`
 }
 
 function getCachedDocumentPreview(cacheKey) {
@@ -375,7 +406,17 @@ function setCachedDocumentPreview(cacheKey, entry) {
 }
 
 function canCacheDocumentPreview(file) {
-  return ['text', 'markdown', 'asciidoc', 'csv', 'spreadsheet', 'word', 'presentation'].includes(file?.kind)
+  return [
+    'text',
+    'structured-json',
+    'structured-yaml',
+    'markdown',
+    'asciidoc',
+    'csv',
+    'spreadsheet',
+    'word',
+    'presentation'
+  ].includes(file?.kind)
 }
 
 function getTextPreviewByteLimit(kind) {
@@ -385,7 +426,7 @@ function getTextPreviewByteLimit(kind) {
 
 function formatTextByFile(path, text) {
   if (classifyFilePreview(path) !== 'text') return text
-  const ext = path.split('.').pop()?.toLowerCase()
+  const ext = getFileExtension(path)
   if (ext !== 'json') return text
   try {
     return JSON.stringify(JSON.parse(text), null, 2)
@@ -409,23 +450,80 @@ async function sanitizeHtml(html) {
   }
 }
 
-async function loadMarkdown(file) {
-  const { text } = await readTextFilePreview(file.path, {
-    maxBytes: getTextPreviewByteLimit(file.kind)
-  })
+function createPlainTextPreview(file, text, detectedKind = 'text') {
+  return {
+    type: 'text',
+    detectedKind,
+    text: formatTextByFile(file.path, text)
+  }
+}
+
+function createStructuredFilePreview(value, options = {}) {
+  const structuredPreview = renderStructuredTextDocumentPreview(value, options)
+  return {
+    type: 'structured',
+    format: structuredPreview.format,
+    detectedKind: structuredPreview.detectedKind,
+    nodes: structuredPreview.structured.nodes,
+    nodeCount: structuredPreview.structured.nodeCount,
+    truncated: structuredPreview.structured.truncated
+  }
+}
+
+async function loadStructuredJson(file, sourceText = null) {
+  const text = sourceText == null
+    ? (await readTextFilePreview(file.path, { maxBytes: getTextPreviewByteLimit(file.kind) })).text
+    : String(sourceText || '')
+  try {
+    const value = parseJsonPreviewText(text)
+    if (value == null || typeof value !== 'object') return createPlainTextPreview(file, text, 'structured-json')
+    return createStructuredFilePreview(value, {
+      text,
+      format: 'JSON',
+      detectedKind: 'structured-json'
+    })
+  } catch (_) {
+    return createPlainTextPreview(file, text, 'structured-json')
+  }
+}
+
+async function loadStructuredYaml(file, sourceText = null) {
+  const text = sourceText == null
+    ? (await readTextFilePreview(file.path, { maxBytes: getTextPreviewByteLimit(file.kind) })).text
+    : String(sourceText || '')
+  try {
+    const module = await import('yaml')
+    const YAML = module.default || module
+    const value = YAML.parse(text)
+    if (value == null || typeof value !== 'object') return createPlainTextPreview(file, text, 'structured-yaml')
+    return createStructuredFilePreview(value, {
+      text,
+      format: 'YAML',
+      detectedKind: 'structured-yaml'
+    })
+  } catch (_) {
+    return createPlainTextPreview(file, text, 'structured-yaml')
+  }
+}
+
+async function loadMarkdown(file, sourceText = null) {
+  const text = sourceText == null
+    ? (await readTextFilePreview(file.path, { maxBytes: getTextPreviewByteLimit(file.kind) })).text
+    : String(sourceText || '')
   const module = await import('markdown-it')
   const MarkdownIt = module.default || module
   const markdown = new MarkdownIt({ html: false, linkify: true, breaks: true })
   return {
     type: 'html',
+    detectedKind: file.kind === 'text' ? 'markdown' : file.kind,
     html: await sanitizeHtml(markdown.render(text))
   }
 }
 
-async function loadAsciiDoc(file) {
-  const { text } = await readTextFilePreview(file.path, {
-    maxBytes: getTextPreviewByteLimit(file.kind)
-  })
+async function loadAsciiDoc(file, sourceText = null) {
+  const text = sourceText == null
+    ? (await readTextFilePreview(file.path, { maxBytes: getTextPreviewByteLimit(file.kind) })).text
+    : String(sourceText || '')
   const module = await import('@asciidoctor/core')
   const Asciidoctor = module.default || module
   const asciidoctor = Asciidoctor()
@@ -436,20 +534,21 @@ async function loadAsciiDoc(file) {
   })
   return {
     type: 'html',
+    detectedKind: file.kind === 'text' ? 'asciidoc' : file.kind,
     html: await sanitizeHtml(html)
   }
 }
 
-async function loadTable(file) {
+async function loadTable(file, sourceText = null, sourceTruncated = false) {
   let rows = []
   let sheetName = ''
   if (file.kind === 'csv') {
     const module = await import('papaparse')
     const Papa = module.default || module
-    const { text, truncated } = await readTextFilePreview(file.path, {
-      maxBytes: getTextPreviewByteLimit(file.kind)
-    })
-    const parsed = Papa.parse(text, {
+    const readResult = sourceText == null
+      ? await readTextFilePreview(file.path, { maxBytes: getTextPreviewByteLimit(file.kind) })
+      : { text: String(sourceText || ''), truncated: sourceTruncated }
+    const parsed = Papa.parse(readResult.text, {
       skipEmptyLines: false
     })
     rows = Array.isArray(parsed.data) ? parsed.data : []
@@ -457,9 +556,10 @@ async function loadTable(file) {
     const preview = sliceTablePreview(rows)
     return {
       type: 'table',
+      detectedKind: file.kind === 'text' ? 'csv' : file.kind,
       sheetName,
       ...preview,
-      truncatedRows: preview.truncatedRows || truncated
+      truncatedRows: preview.truncatedRows || readResult.truncated
     }
   } else {
     const module = await import('read-excel-file/universal')
@@ -549,6 +649,33 @@ async function loadPresentation(file) {
     slides,
     truncatedSlides: slideFiles.length > PRESENTATION_PREVIEW_MAX_SLIDES
   }
+}
+
+async function loadTextDocument(file) {
+  const { text, truncated } = await readTextFilePreview(file.path, {
+    maxBytes: getTextPreviewByteLimit(file.kind)
+  })
+  const detected = detectTextDocumentKind(text, { path: file.path })
+  try {
+    if (detected.kind === 'structured-json') {
+      return await loadStructuredJson({ ...file, kind: 'structured-json' }, text)
+    }
+    if (detected.kind === 'structured-yaml') {
+      return await loadStructuredYaml({ ...file, kind: 'structured-yaml' }, text)
+    }
+    if (detected.kind === 'csv') {
+      return await loadTable({ ...file, kind: 'csv' }, text, truncated)
+    }
+    if (detected.kind === 'asciidoc') {
+      return await loadAsciiDoc(file, text)
+    }
+    if (detected.kind === 'markdown') {
+      return await loadMarkdown(file, text)
+    }
+  } catch (_) {
+    return createPlainTextPreview(file, text)
+  }
+  return createPlainTextPreview(file, text)
 }
 
 function getPdfRenderScale(baseViewport) {
@@ -859,10 +986,11 @@ async function loadPreview(file, token = loadToken) {
   if (cachedDocumentPreview) return cachedDocumentPreview
   let result = { type: 'empty' }
   if (file.kind === 'text') {
-    const { text } = await readTextFilePreview(file.path, {
-      maxBytes: getTextPreviewByteLimit(file.kind)
-    })
-    result = { type: 'text', text: formatTextByFile(file.path, text) }
+    result = await loadTextDocument(file)
+  } else if (file.kind === 'structured-json') {
+    result = await loadStructuredJson(file)
+  } else if (file.kind === 'structured-yaml') {
+    result = await loadStructuredYaml(file)
   } else if (file.kind === 'markdown') {
     result = await loadMarkdown(file)
   } else if (file.kind === 'asciidoc') {
@@ -1090,6 +1218,70 @@ defineExpose({
     text-overflow: ellipsis;
     white-space: nowrap;
   }
+}
+
+.file-rich-preview__structured {
+  min-width: min(100%, 520px);
+}
+
+.file-rich-preview__structured-tree {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 8px 0;
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  background: var(--bg-elevated-color);
+}
+
+.file-rich-preview__structured-row {
+  display: flex;
+  min-width: 0;
+  align-items: baseline;
+  gap: 5px;
+  padding: 3px 10px 3px calc(10px + var(--depth, 0) * 14px);
+  color: var(--text-color);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+  font-size: 12px;
+  line-height: 1.5;
+  word-break: break-word;
+
+  &.is-container {
+    color: var(--text-color-secondary);
+    font-weight: 600;
+  }
+
+  &.is-string .file-rich-preview__structured-value {
+    color: #1f7a4d;
+  }
+
+  &.is-number .file-rich-preview__structured-value {
+    color: #9a5a00;
+  }
+
+  &.is-boolean .file-rich-preview__structured-value {
+    color: #2468c9;
+  }
+
+  &.is-null .file-rich-preview__structured-value {
+    color: var(--text-color-lighter);
+    font-style: italic;
+  }
+}
+
+.file-rich-preview__structured-key {
+  flex-shrink: 0;
+  color: var(--primary-color);
+  font-weight: 600;
+}
+
+.file-rich-preview__structured-colon {
+  flex-shrink: 0;
+  color: var(--text-color-lighter);
+}
+
+.file-rich-preview__structured-value {
+  min-width: 0;
 }
 
 .file-rich-preview__slides {

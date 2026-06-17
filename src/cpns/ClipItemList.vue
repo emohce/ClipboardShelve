@@ -150,11 +150,66 @@
         >
             <div
                 class="text-preview-content"
-                :class="{ 'is-wrap-text': textPreview.wrapText }"
+                :class="{
+                    'is-wrap-text': textPreview.wrapText,
+                    'is-table': textPreview.preview.kind === 'csv',
+                    'is-structured': textPreview.preview.kind === 'structured',
+                    'is-html': textPreview.preview.kind === 'html',
+                }"
                 :style="textPreview.contentStyle"
                 ref="textPreviewContentRef"
             >
-                {{ textPreview.text }}
+                <template v-if="textPreview.preview.kind === 'csv'">
+                    <div class="text-preview-sheet">CSV · {{ textPreview.preview.table.totalRows }} rows</div>
+                    <table class="text-preview-table">
+                        <tbody>
+                            <tr v-for="(row, rowIndex) in textPreview.preview.table.rows" :key="rowIndex">
+                                <td v-for="(cell, cellIndex) in row" :key="`${rowIndex}-${cellIndex}`">
+                                    {{ cell }}
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                    <div
+                        v-if="textPreview.preview.table.truncatedRows || textPreview.preview.table.truncatedCols"
+                        class="text-preview-note"
+                    >
+                        已截取预览
+                    </div>
+                </template>
+                <template v-else-if="textPreview.preview.kind === 'structured'">
+                    <div class="text-preview-sheet">
+                        {{ textPreview.preview.format }}
+                        <span v-if="textPreview.preview.structured.nodeCount">
+                            · {{ textPreview.preview.structured.nodeCount }} nodes
+                        </span>
+                    </div>
+                    <div class="text-preview-structured-tree">
+                        <div
+                            v-for="node in textPreview.preview.structured.nodes"
+                            :key="node.id"
+                            class="text-preview-structured-row"
+                            :class="[`is-${node.type}`, { 'is-container': node.isContainer }]"
+                            :style="{ '--depth': node.depth }"
+                        >
+                            <span v-if="node.key" class="text-preview-structured-key">{{ node.key }}</span>
+                            <span v-if="node.key" class="text-preview-structured-colon">:</span>
+                            <span class="text-preview-structured-value">{{ node.value }}</span>
+                        </div>
+                    </div>
+                    <div
+                        v-if="textPreview.preview.structured.truncated"
+                        class="text-preview-note"
+                    >
+                        已截取预览
+                    </div>
+                </template>
+                <div
+                    v-else-if="textPreview.preview.kind === 'html'"
+                    class="text-preview-html"
+                    v-html="textPreview.preview.html"
+                ></div>
+                <template v-else>{{ textPreview.text }}</template>
             </div>
         </div>
     </div>
@@ -212,6 +267,10 @@ import {
     getPreviewableFile,
     parseFileItemData,
 } from "../utils/filePreview.mjs";
+import {
+    buildDetectedTextDocumentPreview,
+    createEmptyTextDocumentPreview,
+} from "../utils/textDocumentPreview.mjs";
 import {
     getPreviewScrollAxis,
     getPreviewScrollDelta,
@@ -1184,19 +1243,46 @@ const triggerKeyboardPreview = () => {
 };
 
 const clearTextPreviewImmediately = () => {
+    textPreviewLoadToken += 1;
     if (textPreviewHideTimer) {
         clearTimeout(textPreviewHideTimer);
         textPreviewHideTimer = null;
     }
     textPreview.value.show = false;
     textPreview.value.text = "";
+    textPreview.value.preview = createEmptyTextDocumentPreview();
     textPreview.value.wrapText = true;
     textPreview.value.panelStyle = {};
     textPreview.value.contentStyle = {};
     resetPreviewScrollHold();
 };
 
-const showTextPreview = (item) => {
+const getTextPreviewContentStyle = (preview, wrapText) => {
+    const kind = preview?.kind || "text";
+    const isTable = kind === "csv";
+    const isRich = kind === "structured" || kind === "html";
+    return {
+        width: "100%",
+        overflowX: isTable || isRich ? "auto" : "hidden",
+        overflowY: "auto",
+        whiteSpace: isTable || isRich ? "normal" : "pre-wrap",
+        wordBreak: isTable || isRich ? "normal" : "break-word",
+        color: "var(--text-color)",
+        fontSize: isTable ? "12px" : wrapText ? "15px" : "14px",
+    };
+};
+
+const applyTextPreviewResult = (text, preview) => {
+    const nextPreview = preview || createEmptyTextDocumentPreview(text);
+    const { wrapText } = nextPreview.kind === "text" ? getTextPreviewMode(text) : { wrapText: false };
+    textPreview.value.text = text;
+    textPreview.value.preview = nextPreview;
+    textPreview.value.wrapText = wrapText;
+    textPreview.value.contentStyle = getTextPreviewContentStyle(nextPreview, wrapText);
+};
+
+const showTextPreview = async (item) => {
+    const token = ++textPreviewLoadToken;
     imagePreview.value.show = false;
     clearFilePreviewImmediately();
     if (imagePreviewHideTimer) {
@@ -1209,22 +1295,16 @@ const showTextPreview = (item) => {
     }
     const maxW = window.innerWidth;
     const text = item.data || "";
-    const { wrapText } = getTextPreviewMode(text);
-    textPreview.value.text = text;
-    textPreview.value.wrapText = wrapText;
     textPreview.value.show = true;
     textPreview.value.panelStyle = {
         width: `${maxW * 0.9}px`,
         maxWidth: `${maxW * 0.9}px`,
     };
-    textPreview.value.contentStyle = {
-        width: "100%",
-        overflowY: "auto",
-        whiteSpace: "pre-wrap",
-        wordBreak: "break-word",
-        color: "var(--text-color)",
-        fontSize: wrapText ? "15px" : "14px",
-    };
+    applyTextPreviewResult(text, createEmptyTextDocumentPreview(text));
+
+    const richPreview = await buildDetectedTextDocumentPreview(text);
+    if (token !== textPreviewLoadToken || !textPreview.value.show) return;
+    applyTextPreviewResult(text, richPreview);
 
     nextTick(() => {
         if (textPreviewContentRef.value) {
@@ -1234,9 +1314,11 @@ const showTextPreview = (item) => {
 };
 
 const hideTextPreview = () => {
+    textPreviewLoadToken += 1;
     // 移除延时隐藏，文字预览只在Shift键释放时隐藏
     textPreview.value.show = false;
     textPreview.value.text = "";
+    textPreview.value.preview = createEmptyTextDocumentPreview();
     textPreview.value.wrapText = true;
     textPreview.value.panelStyle = {};
     textPreview.value.contentStyle = {};
@@ -1476,6 +1558,7 @@ const handleVirtualScroll = () => {
 const textPreview = ref({
     show: false,
     text: "",
+    preview: createEmptyTextDocumentPreview(),
     panelStyle: {},
     contentStyle: {},
     wrapText: true,
@@ -1491,6 +1574,7 @@ const filePreview = ref({
 let imagePreviewHideTimer = null;
 // 长文本预览延迟隐藏定时器
 let textPreviewHideTimer = null;
+let textPreviewLoadToken = 0;
 let filePreviewHideTimer = null;
 const previewScrollHold = ref({
     direction: "",
@@ -2963,6 +3047,141 @@ onUnmounted(() => {
         flex: 0 1 auto;
         max-height: calc(80vh - 56px);
         overflow-y: auto;
+
+        &.is-table {
+            white-space: normal;
+            word-break: normal;
+            overflow-x: auto;
+        }
+
+        &.is-structured,
+        &.is-html {
+            white-space: normal;
+            word-break: break-word;
+            overflow-x: auto;
+        }
+    }
+
+    .text-preview-sheet,
+    .text-preview-note {
+        margin-bottom: 8px;
+        color: rgba(255, 255, 255, 0.78);
+        font-size: 12px;
+        line-height: 1.4;
+    }
+
+    .text-preview-note {
+        margin-top: 8px;
+        margin-bottom: 0;
+    }
+
+    .text-preview-table {
+        min-width: max-content;
+        border-collapse: collapse;
+        color: #f8fafc;
+        font-size: 12px;
+        line-height: 1.35;
+
+        td {
+            max-width: 220px;
+            min-width: 76px;
+            padding: 6px 8px;
+            border: 1px solid rgba(255, 255, 255, 0.18);
+            background: rgba(255, 255, 255, 0.08);
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+    }
+
+    .text-preview-structured-tree {
+        min-width: min(100%, 520px);
+        padding: 8px 0;
+        border: 1px solid rgba(255, 255, 255, 0.18);
+        border-radius: 8px;
+        background: rgba(255, 255, 255, 0.08);
+    }
+
+    .text-preview-structured-row {
+        display: flex;
+        min-width: 0;
+        align-items: baseline;
+        gap: 5px;
+        padding: 3px 10px 3px calc(10px + var(--depth, 0) * 14px);
+        color: #f8fafc;
+        font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+        font-size: 12px;
+        line-height: 1.5;
+        word-break: break-word;
+
+        &.is-container {
+            color: rgba(226, 232, 240, 0.9);
+            font-weight: 600;
+        }
+
+        &.is-string .text-preview-structured-value {
+            color: #86efac;
+        }
+
+        &.is-number .text-preview-structured-value {
+            color: #fdba74;
+        }
+
+        &.is-boolean .text-preview-structured-value {
+            color: #93c5fd;
+        }
+
+        &.is-null .text-preview-structured-value {
+            color: rgba(226, 232, 240, 0.62);
+            font-style: italic;
+        }
+    }
+
+    .text-preview-structured-key {
+        flex-shrink: 0;
+        color: #bfdbfe;
+        font-weight: 600;
+    }
+
+    .text-preview-structured-colon {
+        flex-shrink: 0;
+        color: rgba(226, 232, 240, 0.62);
+    }
+
+    .text-preview-structured-value {
+        min-width: 0;
+    }
+
+    .text-preview-html {
+        color: #f8fafc;
+        font-size: 14px;
+        line-height: 1.65;
+
+        :deep(h1),
+        :deep(h2),
+        :deep(h3) {
+            margin: 0.8em 0 0.45em;
+            line-height: 1.25;
+        }
+
+        :deep(p),
+        :deep(ul),
+        :deep(ol),
+        :deep(pre),
+        :deep(blockquote) {
+            margin: 0 0 0.75em;
+        }
+
+        :deep(pre),
+        :deep(code) {
+            border-radius: 6px;
+            background: rgba(255, 255, 255, 0.1);
+        }
+
+        :deep(pre) {
+            overflow: auto;
+            padding: 10px;
+        }
     }
 }
 
