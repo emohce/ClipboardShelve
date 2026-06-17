@@ -5,14 +5,9 @@
 
 ## 2026-06-17
 
-* 新增: 文件记录富预览扩展，支持 PDF、Markdown、AsciiDoc、CSV、JSON/YAML、Excel、DOCX、常见文本文件和图片预览
-* 新增: JSON/JSONC/YAML 文件支持结构化树预览，长内容会自动截断，解析失败时回退原文显示
-* 新增: `.txt` / 无扩展名文件可按内容自动识别 JSON、YAML、CSV、AsciiDoc、Markdown 并渲染
-* 优化: 普通文本 Shift 预览在全部、文字、收藏等 tab 下都按内容识别；CSV 显示表格，编号大纲显示 Markdown，`- [ ]` checklist 显示 AsciiDoc 预览
-* 新增: PPTX/PPSX 低保真幻灯片文字预览，可快速查看前几页标题和正文摘要
-* 优化: PDF 首屏预览明显提速，uTools 环境优先使用内置 Sharp 生成第一页，失败时自动回退原 PDF.js 预览
-* 优化: 文档类文件改为异步读取和运行期缓存，多次 Shift 预览更快，减少大文件阻塞
-* 兼容: `.ppt` 等旧二进制 Office 格式暂不做内嵌预览；PPTX 预览不还原图片、动画或完整版式
+* 新增: 文件预览大幅增强，支持 PDF、Office、Markdown、JSON/YAML、CSV 等多种格式
+* 新增: 文本文件自动识别内容类型并智能渲染，JSON/YAML 显示结构化树状视图
+* 新增: PPTX 幻灯片可快速预览文字内容
 
 ## 2026-06-14
 
