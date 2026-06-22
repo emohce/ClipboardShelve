@@ -352,7 +352,7 @@ const handleOverlayClick = () => {
 .tag-edit-modal-overlay {
     position: fixed;
     inset: 0;
-    background: rgba(22, 27, 45, 0.45);
+    background: var(--modal-overlay-opaque);
     backdrop-filter: blur(2px);
     z-index: 200;
     display: flex;
@@ -361,9 +361,10 @@ const handleOverlayClick = () => {
 }
 
 .tag-edit-modal {
-    background: #fff;
+    background: var(--bg-elevated-color);
     border-radius: 16px;
-    box-shadow: 0 30px 80px rgba(25, 34, 68, 0.18);
+    border: 1px solid var(--border-color);
+    box-shadow: 0 30px 80px var(--shadow-color);
     width: 480px;
     max-width: 90vw;
     max-height: 80vh;
@@ -376,13 +377,13 @@ const handleOverlayClick = () => {
     align-items: center;
     justify-content: space-between;
     padding: 20px 24px 16px;
-    border-bottom: 1px solid #e5e7eb;
+    border-bottom: 1px solid var(--border-color);
 
     h3 {
         margin: 0;
         font-size: 18px;
         font-weight: 600;
-        color: #1f2937;
+        color: var(--text-color);
     }
 }
 
@@ -390,14 +391,14 @@ const handleOverlayClick = () => {
     background: none;
     border: none;
     font-size: 18px;
-    color: #6b7280;
+    color: var(--text-color-lighter);
     cursor: pointer;
     padding: 4px;
     border-radius: 4px;
 
     &:hover {
-        background: #f3f4f6;
-        color: #374151;
+        background: var(--nav-hover-bg-color);
+        color: var(--text-color);
     }
 }
 
@@ -414,7 +415,7 @@ const handleOverlayClick = () => {
         display: block;
         margin-bottom: 8px;
         font-weight: 500;
-        color: #374151;
+        color: var(--text-color);
         font-size: 14px;
     }
 }
@@ -425,38 +426,40 @@ const handleOverlayClick = () => {
 
 .tag-help-text {
     font-size: 12px;
-    color: #6b7280;
+    color: var(--text-color-lighter);
     margin-top: 4px;
 }
 
 .remark-textarea {
     width: 100%;
     padding: 8px 12px;
-    border: 1px solid #d1d5db;
+    border: 1px solid var(--border-color);
     border-radius: 6px;
     font-size: 14px;
     resize: vertical;
     font-family: inherit;
+    background: var(--bg-elevated-color);
+    color: var(--text-color);
 
     &:focus {
         outline: none;
-        border-color: #3b82f6;
-        box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+        border-color: var(--primary-color);
+        box-shadow: 0 0 0 3px color-mix(in srgb, var(--primary-color) 12%, transparent);
     }
 
     &::placeholder {
-        color: #9ca3af;
+        color: var(--text-color-lighter);
     }
 }
 
 .content-preview {
-    background: #f9fafb;
-    border: 1px solid #e5e7eb;
+    background: var(--bg-soft-color);
+    border: 1px solid var(--border-color);
     border-radius: 6px;
     padding: 12px;
     min-height: 60px;
     font-size: 13px;
-    color: #4b5563;
+    color: var(--text-color);
 }
 
 .text-preview {
@@ -477,7 +480,7 @@ const handleOverlayClick = () => {
 .file-preview {
     .file-item {
         padding: 4px 0;
-        border-bottom: 1px solid #e5e7eb;
+        border-bottom: 1px solid var(--border-color);
 
         &:last-child {
             border-bottom: none;
@@ -489,7 +492,7 @@ const handleOverlayClick = () => {
     display: flex;
     gap: 12px;
     padding: 16px 24px 20px;
-    border-top: 1px solid #e5e7eb;
+    border-top: 1px solid var(--border-color);
 
     button {
         padding: 8px 16px;
@@ -508,29 +511,29 @@ const handleOverlayClick = () => {
 }
 
 .btn-cancel {
-    background: #f3f4f6;
-    color: #374151;
+    background: var(--bg-soft-color);
+    color: var(--text-color);
 
     &:hover:not(:disabled) {
-        background: #e5e7eb;
+        background: var(--nav-hover-bg-color);
     }
 }
 
 .btn-uncollect {
-    background: #fef2f2;
-    color: #dc2626;
+    background: var(--danger-bg);
+    color: var(--danger-color);
 
     &:hover:not(:disabled) {
-        background: #fee2e2;
+        background: color-mix(in srgb, var(--danger-color) 14%, var(--danger-bg));
     }
 }
 
 .btn-save {
-    background: #3b82f6;
-    color: white;
+    background: var(--primary-color);
+    color: #fff;
 
     &:hover:not(:disabled) {
-        background: #2563eb;
+        background: var(--primary-color-lighter);
     }
 }
 </style>

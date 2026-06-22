@@ -1,5 +1,6 @@
 import defaultSetting from '../data/setting.json'
 import { pointToObj, getNativeId } from '../utils'
+import { normalizeThemePreference, THEME_LIGHT } from './theme'
 const { utools } = window.exports
 
 const defaultPath = `${utools.isMacOs() ? utools.getPath('userData') : utools.getPath('home')}${window.exports.sep
@@ -18,6 +19,12 @@ export default function restoreSetting() {
   setting.database.path[nativeId] = defaultPath // 根据不同设备设置不同的默认路径
   setting.hotkeyOverrides = {}
   if (!setting.userConfig || typeof setting.userConfig !== 'object') setting.userConfig = {}
+  if (!setting.userConfig.appearance || typeof setting.userConfig.appearance !== 'object') {
+    setting.userConfig.appearance = {}
+  }
+  setting.userConfig.appearance.theme = normalizeThemePreference(
+    setting.userConfig.appearance.theme || THEME_LIGHT
+  )
   if (!setting.userConfig.shortcut || typeof setting.userConfig.shortcut !== 'object') setting.userConfig.shortcut = {}
   setting.userConfig.shortcut.syncWithUTools = false
   setting.userConfig.shortcutSync = {

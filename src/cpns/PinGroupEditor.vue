@@ -269,7 +269,7 @@ onUnmounted(() => {
     align-items: center;
     justify-content: center;
     padding: 22px;
-    background: rgba(15, 23, 42, 0.32);
+    background: var(--modal-overlay-opaque);
 }
 .pin-group-editor {
     width: min(560px, 92vw);
@@ -277,8 +277,8 @@ onUnmounted(() => {
     display: flex;
     flex-direction: column;
     border-radius: 18px;
-    background: #fff;
-    border: 1px solid rgba(53, 95, 157, 0.16);
+    background: var(--bg-elevated-color);
+    border: 1px solid var(--border-color-strong);
     box-shadow: 0 28px 70px rgba(15, 23, 42, 0.22);
     overflow: hidden;
 }
@@ -288,7 +288,7 @@ onUnmounted(() => {
     justify-content: space-between;
     gap: 16px;
     padding: 18px 20px 14px;
-    border-bottom: 1px solid rgba(53, 95, 157, 0.12);
+    border-bottom: 1px solid var(--border-color);
 }
 .pin-group-editor-header h3 {
     margin: 0;
@@ -297,13 +297,13 @@ onUnmounted(() => {
 .pin-group-editor-header span {
     display: block;
     margin-top: 6px;
-    color: #6b7280;
+    color: var(--text-color-lighter);
     font-size: 12px;
 }
 .pin-group-editor-close {
     border: 0;
     background: transparent;
-    color: #64748b;
+    color: var(--text-color-lighter);
     font-size: 22px;
     cursor: pointer;
 }
@@ -319,35 +319,35 @@ onUnmounted(() => {
     min-height: 42px;
     margin-bottom: 8px;
     padding: 8px 10px;
-    border: 1px solid rgba(53, 95, 157, 0.12);
+    border: 1px solid var(--border-color);
     border-radius: 12px;
-    background: #f8fafc;
-    color: #1f2937;
+    background: var(--bg-soft-color);
+    color: var(--text-color);
     cursor: pointer;
     transition: border-color 0.12s ease, background 0.12s ease, box-shadow 0.12s ease;
 }
 .pin-group-item.active {
     border-color: rgba(53, 95, 157, 0.36);
-    background: #eef4fb;
+    background: var(--primary-soft-bg);
     box-shadow: 0 0 0 1px rgba(53, 95, 157, 0.12);
 }
 .pin-group-item.selected {
-    border-color: rgba(53, 95, 157, 0.3);
-    background: rgba(53, 95, 157, 0.08);
-    box-shadow: inset 3px 0 0 #355f9d;
+    border-color: color-mix(in srgb, var(--primary-color) 30%, transparent);
+    background: color-mix(in srgb, var(--primary-color) 8%, transparent);
+    box-shadow: inset 3px 0 0 var(--primary-color);
 }
 .pin-group-item.active.selected {
-    border-color: rgba(53, 95, 157, 0.46);
-    background: rgba(53, 95, 157, 0.12);
+    border-color: color-mix(in srgb, var(--primary-color) 46%, transparent);
+    background: color-mix(in srgb, var(--primary-color) 12%, transparent);
     box-shadow:
-        inset 3px 0 0 #355f9d,
+        inset 3px 0 0 var(--primary-color),
         0 0 0 1px rgba(53, 95, 157, 0.16);
 }
 .pin-group-item-ghost {
     opacity: 0.5;
 }
 .pin-group-drag {
-    color: #94a3b8;
+    color: var(--text-color-lighter);
     cursor: grab;
 }
 .pin-group-check {
@@ -358,15 +358,15 @@ onUnmounted(() => {
     justify-content: center;
     border: 1px solid rgba(53, 95, 157, 0.24);
     border-radius: 5px;
-    color: #355f9d;
-    background: rgba(255, 255, 255, 0.72);
+    color: var(--primary-color);
+    background: var(--surface-glass);
     font-size: 12px;
     font-weight: 800;
     line-height: 1;
 }
 .pin-group-index,
 .pin-group-type {
-    color: #64748b;
+    color: var(--text-color-lighter);
     font-size: 12px;
 }
 .pin-group-text {
@@ -381,7 +381,7 @@ onUnmounted(() => {
     justify-content: flex-end;
     gap: 12px;
     padding: 14px 16px;
-    border-top: 1px solid rgba(53, 95, 157, 0.12);
+    border-top: 1px solid var(--border-color);
 }
 .pin-group-editor-actions {
     display: inline-flex;
@@ -392,7 +392,7 @@ onUnmounted(() => {
     min-height: 34px;
     padding: 0 14px;
     border-radius: 10px;
-    border: 1px solid rgba(53, 95, 157, 0.18);
+    border: 1px solid var(--border-color);
     cursor: pointer;
     display: inline-flex;
     flex-direction: column;
@@ -407,11 +407,11 @@ onUnmounted(() => {
     opacity: 0.68;
 }
 .pin-group-primary {
-    background: #355f9d;
+    background: var(--primary-color);
     color: #fff;
 }
 .pin-group-secondary {
-    background: #fff;
-    color: #334155;
+    background: var(--button-surface-gradient);
+    color: var(--text-color);
 }
 </style>

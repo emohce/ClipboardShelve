@@ -817,6 +817,30 @@
               </div>
               <div class="feature-config-row feature-config-row--compact">
                 <div class="feature-config-title-row">
+                  <strong>外观主题</strong>
+                  <HelpHint
+                    marker="?"
+                    button-class="setting-help-btn setting-help-btn--compact"
+                    aria-label="查看外观主题说明"
+                    content="默认亮色；选择跟随系统后会随操作系统深浅色变化。保存路径 userConfig.appearance.theme"
+                  />
+                </div>
+                <div class="feature-config-control feature-config-control--compact theme-mode-segmented">
+                  <button
+                    v-for="option in themeOptions"
+                    :key="option.value"
+                    type="button"
+                    class="feature-config-chip theme-mode-chip"
+                    :class="{ 'is-active': themePreference === option.value }"
+                    :aria-pressed="themePreference === option.value"
+                    @click="setThemePreference(option.value)"
+                  >
+                    {{ option.label }}
+                  </button>
+                </div>
+              </div>
+              <div class="feature-config-row feature-config-row--compact">
+                <div class="feature-config-title-row">
                   <strong>全局粘贴</strong>
                   <HelpHint
                     marker="?"
@@ -1241,6 +1265,13 @@ import { LINE_JOIN_DEFAULT_SEPARATOR, normalizeLineJoinSeparator } from '../util
 import SettingPagedTable from '../cpns/SettingPagedTable.vue'
 import HelpHint from '../cpns/HelpHint.vue'
 import {
+  THEME_DARK,
+  THEME_LIGHT,
+  THEME_SYSTEM,
+  applyThemePreference,
+  normalizeThemePreference
+} from '../global/theme'
+import {
   STORAGE_STATUS_EVENT,
   getStorageRuntimeStatus,
   markStorageNoticeRead
@@ -1308,6 +1339,12 @@ const initialHoverPreviewConfig = getHoverPreviewConfig(setting)
 const hoverPreviewEnabled = ref(initialHoverPreviewConfig.enabled)
 const hoverPreviewDelay = ref(initialHoverPreviewConfig.delay)
 const lineJoinSeparator = ref(getLineJoinConfig(setting).separator)
+const themePreference = ref(normalizeThemePreference(setting?.userConfig?.appearance?.theme))
+const themeOptions = [
+  { value: THEME_LIGHT, label: '亮色' },
+  { value: THEME_DARK, label: '暗色' },
+  { value: THEME_SYSTEM, label: '跟随系统' }
+]
 
 const settingTabs = ['basic', 'shortcut', 'feature', 'feature-config']
 const SETTING_TAB_STATE_KEY = 'ui.setting.activeTab'
@@ -2522,6 +2559,25 @@ function toggleHoverPreview() {
   hoverPreviewEnabled.value = !hoverPreviewEnabled.value
 }
 
+function setThemePreference(nextTheme) {
+  const theme = normalizeThemePreference(nextTheme)
+  themePreference.value = theme
+  const saved = saveSetting({
+    ...setting,
+    userConfig: {
+      ...(setting.userConfig || {}),
+      appearance: {
+        ...(setting.userConfig?.appearance || {}),
+        theme
+      }
+    }
+  })
+  themePreference.value = normalizeThemePreference(saved?.userConfig?.appearance?.theme)
+  applyThemePreference(themePreference.value)
+  const label = themeOptions.find((option) => option.value === themePreference.value)?.label || '亮色'
+  ElMessage.success(`已切换为${label}`)
+}
+
 function buildShortcutSyncSetting(nextSetting = setting, nextDoc = shortcutSyncDocument.value) {
   return {
     ...nextSetting,
@@ -2820,26 +2876,30 @@ const handleSaveBtnClick = () => {
       order: featureOrder.value,
       drawerOrder: contextMenuDrawerOrder.value
     },
-    hotkeyOverrides: hotkeyOverrides.value,
-    userConfig: {
-      ...(setting.userConfig || {}),
-      shortcut: {
-        syncWithUTools: false
-      },
-      shortcutSync: shortcutSyncDocument.value,
-      preview: {
-        ...(setting.userConfig?.preview || {}),
-        hover: {
-          enabled: hoverPreviewEnabled.value,
-          delay: hoverPreviewEnabled.value ? normalizeHoverPreviewDelay() : normalizeHoverPreviewDelay()
+      hotkeyOverrides: hotkeyOverrides.value,
+      userConfig: {
+        ...(setting.userConfig || {}),
+        shortcut: {
+          syncWithUTools: false
+        },
+        shortcutSync: shortcutSyncDocument.value,
+        preview: {
+          ...(setting.userConfig?.preview || {}),
+          hover: {
+            enabled: hoverPreviewEnabled.value,
+            delay: hoverPreviewEnabled.value ? normalizeHoverPreviewDelay() : normalizeHoverPreviewDelay()
+          }
+        },
+        lineJoin: {
+          ...(setting.userConfig?.lineJoin || {}),
+          separator: normalizeLineJoinSeparator(lineJoinSeparator.value)
+        },
+        appearance: {
+          ...(setting.userConfig?.appearance || {}),
+          theme: normalizeThemePreference(themePreference.value)
         }
-      },
-      lineJoin: {
-        ...(setting.userConfig?.lineJoin || {}),
-        separator: normalizeLineJoinSeparator(lineJoinSeparator.value)
       }
     }
-  }
   const shortcutSaveResult = saveShortcutSettingsPayload(payload, {
     overrides: hotkeyOverrides.value,
     nativeId,
@@ -2983,8 +3043,8 @@ onUnmounted(() => {
   color: var(--text-color);
   outline: none;
   background:
-    radial-gradient(circle at top left, rgba(53, 95, 157, 0.08), transparent 280px),
-    linear-gradient(180deg, #f7fafe 0%, var(--bg-color) 100%);
+    radial-gradient(circle at top left, var(--primary-soft-bg), transparent 280px),
+    linear-gradient(180deg, var(--text-bg-color-lighter) 0%, var(--bg-color) 100%);
 }
 
 .setting-card-content {
@@ -3008,7 +3068,7 @@ onUnmounted(() => {
   box-sizing: border-box;
   margin: 0;
   padding: 0;
-  background: rgba(247, 250, 254, 0.98);
+  background: var(--surface-glass-strong);
 }
 .setting-header-actions {
   display: flex;
@@ -3022,12 +3082,12 @@ onUnmounted(() => {
   flex-wrap: nowrap;
   gap: 2px;
   padding: 1px;
-  border: 1px solid rgba(53, 95, 157, 0.14);
+  border: 1px solid var(--border-color);
   border-radius: 6px;
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0.96), rgba(236, 242, 249, 0.9));
+  background: var(--button-surface-gradient);
   box-shadow:
     0 4px 14px rgba(15, 23, 42, 0.05),
-    inset 0 1px 0 rgba(255, 255, 255, 0.98);
+    inset 0 1px 0 var(--inset-highlight);
   overflow-x: auto;
   overflow-y: hidden;
   flex: 0 0 auto;
@@ -3052,12 +3112,12 @@ onUnmounted(() => {
   border-radius: 8px;
   box-shadow: none;
   &.is-current {
-    border-color: rgba(53, 95, 157, 0.35);
-    background: linear-gradient(180deg, #ffffff 0%, #e8f0f8 100%);
+    border-color: color-mix(in srgb, var(--primary-color) 35%, transparent);
+    background: var(--surface-active-gradient);
     color: var(--primary-color);
     box-shadow:
-      0 4px 12px rgba(53, 95, 157, 0.15),
-      0 0 0 1px rgba(53, 95, 157, 0.12) inset;
+      0 4px 12px color-mix(in srgb, var(--primary-color) 15%, transparent),
+      0 0 0 1px color-mix(in srgb, var(--primary-color) 12%, transparent) inset;
   }
   &.is-current::after {
     content: '';
@@ -3117,9 +3177,9 @@ onUnmounted(() => {
   margin-top: 8px;
   padding: 0 10px;
   border-radius: 999px;
-  border: 1px solid rgba(28, 113, 82, 0.18);
-  background: rgba(28, 113, 82, 0.08);
-  color: #16684a;
+  border: 1px solid var(--success-border);
+  background: var(--success-bg);
+  color: var(--success-color);
   font-size: 12px;
   font-weight: 600;
   &.fallback {
@@ -3210,7 +3270,7 @@ onUnmounted(() => {
   }
   &.active {
     color: var(--primary-color);
-    border-color: rgba(53, 95, 157, 0.26);
+    border-color: color-mix(in srgb, var(--primary-color) 26%, transparent);
     background: var(--bg-soft-color);
     font-weight: 600;
   }
@@ -3253,9 +3313,9 @@ onUnmounted(() => {
   white-space: nowrap;
 }
 .setting-static-value--danger {
-  color: #b42318;
-  border-color: rgba(180, 35, 24, 0.28);
-  background: rgba(255, 241, 240, 0.88);
+  color: var(--danger-color);
+  border-color: var(--danger-border);
+  background: var(--danger-bg);
 }
 .storage-progress {
   flex: 1;
@@ -3277,11 +3337,11 @@ onUnmounted(() => {
   border: 1px solid var(--border-color);
 }
 .setting-panel--config {
-  background: rgba(255, 255, 255, 0.82);
+  background: var(--surface-glass);
 }
 .setting-panel--status {
-  background: rgba(239, 246, 252, 0.92);
-  border-color: rgba(53, 95, 157, 0.14);
+  background: var(--surface-row-gradient);
+  border-color: var(--border-color);
 }
 .setting-row--compact {
   margin: 0;
@@ -3313,21 +3373,21 @@ onUnmounted(() => {
   min-height: 24px;
   padding: 0 10px;
   border-radius: 999px;
-  border: 1px solid rgba(28, 113, 82, 0.18);
-  background: rgba(28, 113, 82, 0.08);
-  color: #16684a;
+  border: 1px solid var(--success-border);
+  background: var(--success-bg);
+  color: var(--success-color);
   font-size: 11px;
   font-weight: 600;
   white-space: nowrap;
   &.is-fallback {
-    color: #b42318;
-    border-color: rgba(180, 35, 24, 0.28);
-    background: rgba(255, 241, 240, 0.88);
+    color: var(--danger-color);
+    border-color: var(--danger-border);
+    background: var(--danger-bg);
   }
   &.is-danger {
-    color: #b42318;
-    border-color: rgba(180, 35, 24, 0.28);
-    background: rgba(255, 241, 240, 0.88);
+    color: var(--danger-color);
+    border-color: var(--danger-border);
+    background: var(--danger-bg);
   }
 }
 .setting-status-time {
@@ -3360,8 +3420,8 @@ onUnmounted(() => {
   min-height: 24px;
   padding: 2px 8px;
   border-radius: 8px;
-  background: rgba(255, 255, 255, 0.72);
-  border: 1px solid rgba(53, 95, 157, 0.10);
+  background: var(--surface-glass);
+  border: 1px solid var(--border-color);
   font-size: 11px;
   line-height: 20px;
   color: var(--text-color-lighter);
@@ -3510,9 +3570,9 @@ onUnmounted(() => {
   white-space: nowrap;
 }
 .shortcut-risk-tag {
-  color: #b42318;
-  background: rgba(255, 241, 240, 0.88);
-  border: 1px solid rgba(180, 35, 24, 0.22);
+  color: var(--danger-color);
+  background: var(--danger-bg);
+  border: 1px solid var(--danger-border);
 }
 .shortcut-source-tag {
   color: var(--text-color-lighter);
@@ -3520,8 +3580,8 @@ onUnmounted(() => {
   border: 1px solid var(--border-color);
   &.user {
     color: var(--primary-color);
-    border-color: rgba(53, 95, 157, 0.26);
-    background: rgba(53, 95, 157, 0.08);
+    border-color: color-mix(in srgb, var(--primary-color) 26%, transparent);
+    background: var(--primary-soft-bg);
   }
 }
 .shortcut-when-cell {
@@ -3613,8 +3673,8 @@ onUnmounted(() => {
   height: 22px;
   border: none;
   border-radius: 999px;
-  background: rgba(180, 35, 24, 0.1);
-  color: #b42318;
+  background: color-mix(in srgb, var(--danger-color) 10%, transparent);
+  color: var(--danger-color);
   font-size: 14px;
   line-height: 1;
   cursor: pointer;
@@ -3855,9 +3915,9 @@ onUnmounted(() => {
   background: rgba(28, 113, 82, 0.08);
   border: 1px solid rgba(28, 113, 82, 0.14);
   &.error {
-    color: #b42318;
-    background: rgba(255, 241, 240, 0.82);
-    border-color: rgba(180, 35, 24, 0.2);
+    color: var(--danger-color);
+    background: var(--danger-bg);
+    border-color: var(--danger-border);
   }
 }
 .when-editor-presets {
@@ -4095,19 +4155,17 @@ onUnmounted(() => {
     grid-template-columns: minmax(0, 1fr);
   }
 }
-@media (prefers-color-scheme: dark) {
-  .when-builder-option {
-    background: var(--bg-soft-color);
-  }
-  .when-builder-group--surface {
-    background: linear-gradient(160deg, rgba(107, 143, 214, 0.16), var(--bg-elevated-color));
-  }
-  .when-builder-group--state {
-    background: linear-gradient(160deg, rgba(31, 154, 114, 0.14), var(--bg-elevated-color));
-  }
-  .when-builder-group--overlay {
-    background: linear-gradient(160deg, rgba(217, 119, 6, 0.14), var(--bg-elevated-color));
-  }
+:global(html[data-theme='dark']) .when-builder-option {
+  background: var(--bg-soft-color);
+}
+:global(html[data-theme='dark']) .when-builder-group--surface {
+  background: linear-gradient(160deg, rgba(107, 143, 214, 0.16), var(--bg-elevated-color));
+}
+:global(html[data-theme='dark']) .when-builder-group--state {
+  background: linear-gradient(160deg, rgba(31, 154, 114, 0.14), var(--bg-elevated-color));
+}
+:global(html[data-theme='dark']) .when-builder-group--overlay {
+  background: linear-gradient(160deg, rgba(217, 119, 6, 0.14), var(--bg-elevated-color));
 }
 .drag-handle {
   cursor: grab;
@@ -4138,9 +4196,9 @@ onUnmounted(() => {
   padding: 0;
   border-radius: 0;
   margin-bottom: -1px;
-  background: linear-gradient(90deg, rgba(239, 246, 252, 0.95), rgba(255, 255, 255, 0.88));
-  border: 1px solid rgba(53, 95, 157, 0.12);
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.85);
+  background: var(--surface-row-gradient);
+  border: 1px solid var(--border-color);
+  box-shadow: inset 0 1px 0 var(--inset-highlight);
 }
 .feature-strip--single {
   flex-wrap: nowrap;
@@ -4153,7 +4211,7 @@ onUnmounted(() => {
   padding: 0 8px;
   border: 1px solid transparent;
   border-radius: 999px;
-  background: rgba(255, 255, 255, 0.78);
+  background: var(--surface-glass);
   font-size: 11px;
   font-weight: 600;
   color: var(--text-color-lighter);
@@ -4167,16 +4225,16 @@ onUnmounted(() => {
   cursor: pointer;
 }
 .feature-strip-chip--filter {
-  border-color: rgba(153, 99, 20, 0.24);
-  background: rgba(153, 99, 20, 0.10);
-  color: #8a5a12;
+  border-color: var(--warning-border);
+  background: var(--warning-bg);
+  color: var(--warning-color);
 }
 .feature-strip-chip--add {
   width: 24px;
   min-width: 24px;
   padding: 0;
   border-color: rgba(53, 95, 157, 0.28);
-  background: linear-gradient(180deg, #ffffff 0%, #eef4fb 100%);
+  background: var(--button-surface-gradient);
   color: var(--primary-color);
   font-size: 16px;
   line-height: 1;
@@ -4210,10 +4268,8 @@ onUnmounted(() => {
   padding: 0;
   border-radius: 0;
   border-top: none;
-  background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.55), rgba(247, 250, 254, 0.35)),
-    rgba(255, 255, 255, 0.72);
-  border: 1px solid rgba(53, 95, 157, 0.10);
+  background: var(--surface-panel-gradient);
+  border: 1px solid var(--border-color);
   scrollbar-width: thin;
 }
 .feature-list {
@@ -4230,11 +4286,11 @@ onUnmounted(() => {
   padding: 0;
   border-radius: 0;
   border: 1px solid transparent;
-  background: rgba(255, 255, 255, 0.62);
+  background: var(--surface-glass);
   transition: border-color 0.16s ease, background-color 0.16s ease, box-shadow 0.16s ease;
   &:hover {
     border-color: rgba(53, 95, 157, 0.16);
-    background: rgba(255, 255, 255, 0.94);
+    background: var(--surface-glass-strong);
     box-shadow: 0 6px 16px rgba(53, 95, 157, 0.08);
   }
   &.custom {
@@ -4310,7 +4366,7 @@ onUnmounted(() => {
   font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
   font-size: 10px;
   font-weight: 600;
-  color: #334155;
+  color: var(--text-color);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -4350,13 +4406,13 @@ onUnmounted(() => {
   cursor: pointer;
 }
 .feature-list-op:hover {
-  background: rgba(53, 95, 157, 0.10);
+  background: color-mix(in srgb, var(--primary-color) 10%, transparent);
 }
 .feature-list-op--danger {
-  color: #b42318;
+  color: var(--danger-color);
 }
 .feature-list-op--danger:hover {
-  background: rgba(180, 35, 24, 0.10);
+  background: color-mix(in srgb, var(--danger-color) 10%, transparent);
 }
 .feature-list-empty {
   display: flex;
@@ -4410,9 +4466,9 @@ onUnmounted(() => {
   padding: 0;
   border-radius: 0;
   margin-bottom: -3px;
-  background: linear-gradient(90deg, rgba(239, 246, 252, 0.95), rgba(255, 255, 255, 0.88));
-  border: 2px solid rgba(53, 95, 157, 0.15);
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.85);
+  background: var(--surface-row-gradient);
+  border: 2px solid var(--border-color);
+  box-shadow: inset 0 1px 0 var(--inset-highlight);
 }
 .shortcut-strip--single {
   flex-wrap: nowrap;
@@ -4441,14 +4497,14 @@ onUnmounted(() => {
     border-color: rgba(153, 99, 20, 0.24);
     background: rgba(153, 99, 20, 0.10);
     .shortcut-strip-meta-label {
-      color: #8a5a12;
+      color: var(--warning-color);
     }
   }
 }
 .shortcut-strip-meta-label {
   font-size: 10px;
   font-weight: 700;
-  color: #16684a;
+  color: var(--success-color);
   letter-spacing: 0.02em;
 }
 .shortcut-strip-meta-count {
@@ -4522,10 +4578,8 @@ onUnmounted(() => {
   padding: 0;
   border-radius: 0;
   border-top: none;
-  background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.55), rgba(247, 250, 254, 0.35)),
-    rgba(255, 255, 255, 0.72);
-  border: 1px solid rgba(53, 95, 157, 0.10);
+  background: var(--surface-panel-gradient);
+  border: 1px solid var(--border-color);
   scrollbar-width: thin;
 }
 .shortcut-list {
@@ -4551,7 +4605,7 @@ onUnmounted(() => {
   padding: 0;
   margin-bottom: 0;
   border-bottom: 1px solid rgba(53, 95, 157, 0.10);
-  background: rgba(247, 250, 254, 0.96);
+  background: var(--bg-soft-color);
   font-size: 10px;
   font-weight: 700;
   color: var(--text-color-lighter);
@@ -4564,18 +4618,18 @@ onUnmounted(() => {
   padding: 0;
   border-radius: 0;
   border: 1px solid transparent;
-  background: rgba(255, 255, 255, 0.62);
+  background: var(--surface-glass);
   transition: border-color 0.16s ease, background-color 0.16s ease, box-shadow 0.16s ease;
   &:hover {
-    border-color: rgba(53, 95, 157, 0.16);
-    background: rgba(255, 255, 255, 0.94);
-    box-shadow: 0 6px 16px rgba(53, 95, 157, 0.08);
+    border-color: color-mix(in srgb, var(--primary-color) 16%, transparent);
+    background: var(--surface-glass-strong);
+    box-shadow: 0 6px 16px color-mix(in srgb, var(--primary-color) 8%, transparent);
   }
   &.is-disabled {
     opacity: 0.55;
   }
   &.is-risk {
-    border-left: 2px solid rgba(180, 35, 24, 0.35);
+    border-left: 2px solid color-mix(in srgb, var(--danger-color) 35%, transparent);
   }
   &:has(.shortcut-id-cell:hover) {
     z-index: 2;
@@ -4634,9 +4688,7 @@ onUnmounted(() => {
   padding: 0 12px 0 16px;
   border-radius: 0 8px 8px 0;
   border: 1px solid rgba(53, 95, 157, 0.14);
-  background:
-    linear-gradient(90deg, rgba(247, 250, 254, 0.35) 0%, rgba(255, 255, 255, 0.98) 18%),
-    rgba(255, 255, 255, 0.97);
+  background: var(--surface-glass-strong);
   box-shadow: 4px 0 18px rgba(53, 95, 157, 0.10);
   overflow: hidden;
   opacity: 0;
@@ -4723,9 +4775,9 @@ onUnmounted(() => {
   white-space: nowrap;
 }
 .shortcut-list-badge--risk {
-  color: #b42318;
-  border-color: rgba(180, 35, 24, 0.22);
-  background: rgba(255, 241, 240, 0.88);
+  color: var(--danger-color);
+  border-color: var(--danger-border);
+  background: var(--danger-bg);
 }
 .shortcut-list-ops {
   display: inline-flex;
@@ -4745,13 +4797,13 @@ onUnmounted(() => {
   cursor: pointer;
 }
 .shortcut-list-op:hover {
-  background: rgba(53, 95, 157, 0.10);
+  background: color-mix(in srgb, var(--primary-color) 10%, transparent);
 }
 .shortcut-list-op--danger {
-  color: #b42318;
+  color: var(--danger-color);
 }
 .shortcut-list-op--danger:hover {
-  background: rgba(180, 35, 24, 0.10);
+  background: color-mix(in srgb, var(--danger-color) 10%, transparent);
 }
 .shortcut-list-empty {
   display: flex;
@@ -4803,11 +4855,10 @@ onUnmounted(() => {
   padding: 18px 20px;
   border: 1px solid var(--border-color-strong);
   border-radius: 20px;
-  background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.98), rgba(245, 249, 253, 0.98));
+  background: var(--surface-panel-gradient);
   box-shadow:
     0 18px 36px rgba(15, 23, 42, 0.08),
-    inset 0 1px 0 rgba(255, 255, 255, 0.96);
+    inset 0 1px 0 var(--inset-highlight);
   transition: border-color 0.18s ease, box-shadow 0.18s ease, background-color 0.18s ease;
   &:hover {
     border-color: var(--border-color-strong);
@@ -4820,11 +4871,11 @@ onUnmounted(() => {
   max-width: 100%;
   box-sizing: border-box;
   border-radius: 10px;
-  border-color: rgba(53, 95, 157, 0.12);
-  background: linear-gradient(90deg, rgba(255, 255, 255, 0.94), rgba(247, 250, 254, 0.88));
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.9);
+  border-color: var(--border-color);
+  background: var(--surface-row-gradient);
+  box-shadow: inset 0 1px 0 var(--inset-highlight);
   &:hover {
-    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.9);
+    box-shadow: inset 0 1px 0 var(--inset-highlight);
   }
 }
 .feature-config-meta-inline {
@@ -4857,9 +4908,9 @@ onUnmounted(() => {
   justify-content: center;
   min-height: 22px;
   padding: 0 9px;
-  border: 1px solid rgba(53, 95, 157, 0.16);
+  border: 1px solid var(--border-color);
   border-radius: 999px;
-  background: rgba(255, 255, 255, 0.78);
+  background: var(--surface-glass);
   color: var(--text-color-lighter);
   font-size: 10px;
   font-weight: 600;
@@ -4867,15 +4918,21 @@ onUnmounted(() => {
   cursor: pointer;
   transition: all 0.14s ease;
   &:hover {
-    border-color: rgba(53, 95, 157, 0.28);
+    border-color: color-mix(in srgb, var(--primary-color) 28%, transparent);
     color: var(--primary-color);
-    background: rgba(53, 95, 157, 0.08);
+    background: var(--primary-soft-bg);
   }
 }
 .feature-config-chip--primary {
-  border-color: rgba(53, 95, 157, 0.24);
+  border-color: color-mix(in srgb, var(--primary-color) 24%, transparent);
   color: var(--primary-color);
-  background: rgba(53, 95, 157, 0.08);
+  background: var(--primary-soft-bg);
+}
+.theme-mode-chip.is-active {
+  border-color: color-mix(in srgb, var(--primary-color) 38%, transparent);
+  color: var(--primary-color);
+  background: var(--primary-soft-bg-strong);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--primary-color) 18%, transparent);
 }
 .feature-config-status-mini {
   display: inline-flex;
@@ -4883,16 +4940,16 @@ onUnmounted(() => {
   min-height: 18px;
   padding: 0 6px;
   border-radius: 999px;
-  border: 1px solid rgba(28, 113, 82, 0.18);
-  background: rgba(28, 113, 82, 0.08);
-  color: #16684a;
+  border: 1px solid var(--success-border);
+  background: var(--success-bg);
+  color: var(--success-color);
   font-size: 9px;
   font-weight: 700;
   white-space: nowrap;
   &.fallback {
-    border-color: rgba(153, 99, 20, 0.24);
-    background: rgba(153, 99, 20, 0.10);
-    color: #8a5a12;
+    border-color: var(--warning-border);
+    background: var(--warning-bg);
+    color: var(--warning-color);
   }
 }
 .shortcut-sync-dialog {
@@ -4918,9 +4975,9 @@ onUnmounted(() => {
 }
 .shortcut-sync-profile,
 .shortcut-sync-device-row {
-  border: 1px solid rgba(53, 95, 157, 0.14);
+  border: 1px solid var(--border-color);
   border-radius: 10px;
-  background: rgba(247, 250, 254, 0.9);
+  background: var(--bg-soft-color);
 }
 .shortcut-sync-profile {
   display: flex;
@@ -5034,16 +5091,16 @@ onUnmounted(() => {
   min-width: 72px;
   min-height: 30px;
   padding: 0 10px;
-  border: 1px solid rgba(28, 113, 82, 0.18);
+  border: 1px solid var(--success-border);
   border-radius: 999px;
-  background: rgba(28, 113, 82, 0.08);
-  color: #16684a;
+  background: var(--success-bg);
+  color: var(--success-color);
   font-size: 12px;
   font-weight: 700;
   &.fallback {
-    border-color: rgba(153, 99, 20, 0.24);
-    background: rgba(153, 99, 20, 0.10);
-    color: #8a5a12;
+    border-color: var(--warning-border);
+    background: var(--warning-bg);
+    color: var(--warning-color);
   }
 }
 .command-macro-dialog :deep(.el-dialog__body) {
@@ -5168,7 +5225,7 @@ onUnmounted(() => {
   gap: 5px;
   padding: 0 7px 0 6px;
   font-size: 11px;
-  box-shadow: 0 4px 10px rgba(15, 23, 42, 0.12), inset 0 1px 0 rgba(255, 255, 255, 0.18);
+  box-shadow: 0 4px 10px var(--shadow-color), inset 0 1px 0 var(--inset-highlight);
   &:hover {
     transform: none;
   }
@@ -5246,9 +5303,9 @@ onUnmounted(() => {
     padding: 7px 10px 7px 12px;
     border: 1px solid var(--border-color-strong);
     border-radius: 14px;
-    background: linear-gradient(180deg, #f5f9fd 0%, #edf3f9 100%);
+    background: var(--button-surface-gradient);
     box-shadow:
-      inset 0 1px 0 rgba(255, 255, 255, 0.96),
+      inset 0 1px 0 var(--inset-highlight),
       0 10px 18px rgba(15, 23, 42, 0.04);
   }
   &.is-hidden {
@@ -5275,18 +5332,18 @@ onUnmounted(() => {
   padding: 0 8px;
   border: 1px solid var(--border-color-strong);
   border-radius: 12px;
-  background: #fff;
+  background: var(--bg-elevated-color);
   color: var(--text-color);
   font-size: 13px;
   font-weight: 600;
   outline: none;
   transition: border-color 0.18s ease, box-shadow 0.18s ease;
   &:hover {
-    border-color: rgba(53, 95, 157, 0.24);
+    border-color: color-mix(in srgb, var(--primary-color) 24%, transparent);
   }
   &:focus {
     border-color: var(--primary-color);
-    box-shadow: 0 0 0 3px rgba(53, 95, 157, 0.12);
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--primary-color) 12%, transparent);
   }
 }
 .table-action-empty {
@@ -5314,10 +5371,10 @@ onUnmounted(() => {
 .setting :deep(.el-select__wrapper),
 .setting :deep(.el-textarea__inner),
 .setting :deep(.el-input-number) {
-  background: #fff;
+  background: var(--bg-elevated-color);
   box-shadow:
     0 0 0 1px var(--border-color-strong) inset,
-    0 2px 4px rgba(15, 23, 42, 0.04);
+    0 2px 4px var(--shadow-color);
   border-radius: 14px;
   transition: box-shadow 0.18s ease, background-color 0.18s ease;
 }
@@ -5326,8 +5383,8 @@ onUnmounted(() => {
 .setting :deep(.el-textarea__inner:hover),
 .setting :deep(.el-input-number:hover) {
   box-shadow:
-    0 0 0 1px rgba(53, 95, 157, 0.24) inset,
-    0 4px 10px rgba(53, 95, 157, 0.06);
+    0 0 0 1px color-mix(in srgb, var(--primary-color) 24%, transparent) inset,
+    0 4px 10px color-mix(in srgb, var(--primary-color) 6%, transparent);
 }
 .setting :deep(.el-input__wrapper.is-focus),
 .setting :deep(.el-select__wrapper.is-focused),
@@ -5335,7 +5392,7 @@ onUnmounted(() => {
 .setting :deep(.el-input-number.is-controls-right .el-input__wrapper.is-focus) {
   box-shadow:
     0 0 0 1px var(--primary-color) inset,
-    0 0 0 4px rgba(53, 95, 157, 0.10);
+    0 0 0 4px color-mix(in srgb, var(--primary-color) 10%, transparent);
 }
 .setting :deep(.el-input__inner),
 .setting :deep(.el-textarea__inner),
@@ -5345,7 +5402,7 @@ onUnmounted(() => {
 }
 .setting :deep(.el-input__inner::placeholder),
 .setting :deep(.el-textarea__inner::placeholder) {
-  color: #999;
+  color: var(--text-color-lighter);
 }
 .setting :deep(.el-card) {
   flex: 1;
@@ -5354,10 +5411,10 @@ onUnmounted(() => {
   min-height: 0;
   margin: 0;
   overflow: hidden;
-  background: rgba(255, 255, 255, 0.94);
+  background: var(--surface-glass-strong);
   border-color: var(--border-color-strong);
   border-radius: 0;
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.96);
+  box-shadow: inset 0 1px 0 var(--inset-highlight);
 }
 .setting-card {
   flex: 1;
@@ -5390,7 +5447,7 @@ onUnmounted(() => {
   padding: 0 18px;
   border-radius: 14px;
   border-color: var(--border-color-strong);
-  background: linear-gradient(180deg, #ffffff 0%, #f6f9fc 100%);
+  background: var(--button-surface-gradient);
   color: var(--text-color);
   transition: all 0.18s ease;
 }
@@ -5400,13 +5457,13 @@ onUnmounted(() => {
   color: var(--text-color);
 }
 .setting :deep(.el-button.is-plain) {
-  background: #fff;
+  background: var(--bg-elevated-color);
 }
 .setting :deep(.el-button--primary) {
   border-color: var(--primary-color);
   background: linear-gradient(180deg, var(--primary-color-lighter) 0%, var(--primary-color) 100%);
   color: #fff;
-  box-shadow: 0 12px 24px rgba(53, 95, 157, 0.18);
+  box-shadow: 0 12px 24px color-mix(in srgb, var(--primary-color) 18%, transparent);
 }
 .setting :deep(.el-button--primary:hover) {
   border-color: var(--primary-color-lighter);

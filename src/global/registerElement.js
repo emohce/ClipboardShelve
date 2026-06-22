@@ -58,8 +58,6 @@ const components = [
   ElPagination
 ]
 
-document.querySelector('html').className = utools.isDarkColors() ? 'dark' : ''
-
 export default function registerElement(app) {
   components.forEach((c) => {
     let name = transferCamel(c.name)

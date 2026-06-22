@@ -3,6 +3,7 @@ import { defaultPath } from './restoreSetting'
 import { getNativeId } from '../utils'
 import defaultSetting from '../data/setting.json'
 import { LINE_JOIN_DEFAULT_SEPARATOR, normalizeLineJoinSeparator } from '../utils/lineJoin.mjs'
+import { normalizeThemePreference, THEME_LIGHT } from './theme'
 
 export const SETTING_UPDATED_EVENT = 'ezclipboard:setting-updated'
 
@@ -18,6 +19,14 @@ if (!setting.hotkeyOverrides || typeof setting.hotkeyOverrides !== 'object') {
 if (!setting.userConfig || typeof setting.userConfig !== 'object') {
   setting.userConfig = {}
 }
+
+if (!setting.userConfig.appearance || typeof setting.userConfig.appearance !== 'object') {
+  setting.userConfig.appearance = {}
+}
+
+setting.userConfig.appearance.theme = normalizeThemePreference(
+  setting.userConfig.appearance.theme || THEME_LIGHT
+)
 
 if (!setting.database || typeof setting.database !== 'object') {
   setting.database = {}
@@ -55,6 +64,10 @@ if (!setting.userConfig.preview.hover || typeof setting.userConfig.preview.hover
   setting.userConfig.preview.hover = {}
 }
 
+setting.userConfig.lineJoin.separator = normalizeLineJoinSeparator(
+  setting.userConfig.lineJoin.separator ?? LINE_JOIN_DEFAULT_SEPARATOR
+)
+
 if (!setting.operation || typeof setting.operation !== 'object') {
   setting.operation = {}
 }
@@ -89,10 +102,6 @@ if (!Number.isFinite(hoverDelay) || hoverDelay < 0) {
 } else {
   setting.userConfig.preview.hover.delay = Math.round(hoverDelay)
 }
-
-setting.userConfig.lineJoin.separator = normalizeLineJoinSeparator(
-  setting.userConfig.lineJoin.separator ?? LINE_JOIN_DEFAULT_SEPARATOR
-)
 
 // 迁移：确保操作列表包含编辑标签功能
 if (Array.isArray(setting.operation?.shown) && !setting.operation.shown.includes('edit-tags')) {

@@ -15,16 +15,18 @@ Detailed requirements, plans, evidence, and implementation notes stay in task di
 
 ## Current Main Line
 
-Time window: 2026-06-17.
+Time window: 2026-06-22.
 
-Current focus: Rich file preview — **代码、测试、发布记录和项目记忆已完成；PDF 走 uTools Sharp 第 1 页快路径 + PDF.js 后台补页；TXT/MD/ADOC/CSV/JSON/YAML 异步首段读取，`.txt` / 无扩展名保守自动识别 JSON/YAML/CSV/AsciiDoc/Markdown，普通文本 Shift 预览在所有 tab 下按内容显示结构化树、表格或 HTML，DOCX/XLSX 异步二进制读取，PPTX/PPSX 低保真文本预览，非 PDF 解析结果运行期缓存；待 uTools 真实文件复测确认** ([260616-rich-file-preview/01-spec.md](260616-rich-file-preview/01-spec.md), [260616-rich-file-preview/02-plan.md](260616-rich-file-preview/02-plan.md), [260616-rich-file-preview/04-verify.md](260616-rich-file-preview/04-verify.md)).
+Current focus: Dark theme switch — **已实现并通过主题单测、构建、浏览器亮/暗/system 验证；默认亮色，自有 UI 与 Element Plus 通过同一主题运行时同步；待 uTools 真实 shell 人工复测** ([260622/1021-theme-switch/01-spec.md](260622/1021-theme-switch/01-spec.md), [260622/1021-theme-switch/02-plan.md](260622/1021-theme-switch/02-plan.md), [260622/1021-theme-switch/04-verify.md](260622/1021-theme-switch/04-verify.md)).
 
-Current core task: 常见文件富预览扩展。Authoritative docs: [260616-rich-file-preview/01-spec.md](260616-rich-file-preview/01-spec.md), [260616-rich-file-preview/02-plan.md](260616-rich-file-preview/02-plan.md), [260616-rich-file-preview/04-verify.md](260616-rich-file-preview/04-verify.md).
+Current core task: 暗色主题与切换。Authoritative docs: [260622/1021-theme-switch/01-spec.md](260622/1021-theme-switch/01-spec.md), [260622/1021-theme-switch/02-plan.md](260622/1021-theme-switch/02-plan.md), [260622/1021-theme-switch/04-verify.md](260622/1021-theme-switch/04-verify.md).
 
 Completed milestones:
 
 - UI interaction optimization (v1.2.1): All 9 requirements implemented including pin/group features, page scroll shortcuts, cache navigation, uTools global commands, and hotkey runtime refresh.
+- Dark theme switch (2026-06-22): implemented and browser-verified; default light theme, `light / dark / system` preference, root theme runtime, setting-page switch, tokenized self UI and Element Plus alignment — [260622/1021-theme-switch/01-spec.md](260622/1021-theme-switch/01-spec.md), [260622/1021-theme-switch/02-plan.md](260622/1021-theme-switch/02-plan.md), [260622/1021-theme-switch/04-verify.md](260622/1021-theme-switch/04-verify.md).
 - Right-click unification first-stage: Menu model unified, entry and execution aligned, settings-page management added, automated and browser verification completed.
+- Quick line join (2026-06-22): multi-line text items now expose `line-join` in right-click/drawer menus and command `list.item.joinLines` with default `c-s-,`; separator saves to `userConfig.lineJoin.separator`, automated shortcut/build verification completed — [260622/1031-line-join/spec.md](260622/1031-line-join/spec.md), [260622/1031-line-join/verify.md](260622/1031-line-join/verify.md).
 - Quick paste: global silent runtime for `quick-paste-top` / `quick-paste-pin-group` — [../knowledge/quick-paste-runtime.md](../knowledge/quick-paste-runtime.md).
 - Command macro: paste-like steps use `macroSettleAfterMs` between steps.
 - Evaluation documentation: Comprehensive evaluation report updated with right-click unification progress.
@@ -48,10 +50,12 @@ Open follow-ups:
 
 | Task | Status | Read first | Update when |
 |------|--------|------------|-------------|
+| Dark theme switch | completed / pending uTools real-shell verification | [260622/1021-theme-switch/01-spec.md](260622/1021-theme-switch/01-spec.md), [260622/1021-theme-switch/02-plan.md](260622/1021-theme-switch/02-plan.md), [260622/1021-theme-switch/04-verify.md](260622/1021-theme-switch/04-verify.md) | Theme runtime, `userConfig.appearance`, root theme attributes, Element Plus theme sync, or dark-mode style tokens change. |
 | Rich file preview | completed / pending uTools real-file verification | [260616-rich-file-preview/01-spec.md](260616-rich-file-preview/01-spec.md), [260616-rich-file-preview/02-plan.md](260616-rich-file-preview/02-plan.md), [260616-rich-file-preview/04-verify.md](260616-rich-file-preview/04-verify.md) | File rich preview types, file preview parser dependencies, Shift preview scroll acceleration, or preview command labels change. |
 | Preview optimization | completed / reference | [260616-preview-optimization/01-spec.md](260616-preview-optimization/01-spec.md), [260616-preview-optimization/02-plan.md](260616-preview-optimization/02-plan.md), [260616-preview-optimization/04-verify.md](260616-preview-optimization/04-verify.md), [260616-preview-optimization/05-review.md](260616-preview-optimization/05-review.md) | Text preview wrapping, image preview layout, Shift preview movement, or hover preview behavior changes. |
 | Shortcut command redesign | completed / reference | [260610-shortcuts-redesign/12YG2-zz-summary-快捷键重构全景文档.md](260610-shortcuts-redesign/12YG2-zz-summary-快捷键重构全景文档.md), **改键多键** [260613-SettingUiModify/260613-shortcut-multi-key-plan.md](260613-SettingUiModify/260613-shortcut-multi-key-plan.md), **compact 语义** [260613-SettingUiModify/260614-shortcut-compact-semantics.md](260613-SettingUiModify/260614-shortcut-compact-semantics.md) | Command, keybinding, when, resolver, SQLite shortcut, macro, record dialog, multi-key, compact shortcut id, fixed-key guard, or conflict behavior changes. |
 | Right-click unification | completed first stage / reference | [260612-right-click-unification/01-plan.md](260612-right-click-unification/01-plan.md) | Right-click action model, drawer order, numeric execution, settings-page management, verification, or handoff changes. |
+| Quick line join | completed / pending uTools manual verification | [260622/1031-line-join/spec.md](260622/1031-line-join/spec.md), [260622/1031-line-join/verify.md](260622/1031-line-join/verify.md) | `line-join`, `list.item.joinLines`, separator config, right-click visibility, or no-history-write behavior changes. |
 | UI interaction optimization | completed / reference | [260610-ui交互优化/评估报告-2026-06-11.md](260610-ui交互优化/评估报告-2026-06-11.md) | Only when a regression or explicit new UI interaction task reopens the behavior. |
 | Setting page UI modify | completed / reference | [260613-SettingUiModify/260613-zz-raw-settingUiModify.md](260613-SettingUiModify/260613-zz-raw-settingUiModify.md), [260613-SettingUiModify/260613-shortcut-multi-key-plan.md](260613-SettingUiModify/260613-shortcut-multi-key-plan.md) | Layout/overlay baseline; multi-key record dialog + cmd override model implemented. |
 | Documentation and memory governance | active / infrastructure | [../knowledge/MEMORY_INDEX.md](../knowledge/MEMORY_INDEX.md), [0000-template/README.md](0000-template/README.md) | Process rules, task templates, memory routing, or active task status changes. |

@@ -228,16 +228,16 @@ onUnmounted(() => {
   align-items: center;
   gap: 6px;
   padding: 8px;
-  border: 1px solid #d1d5db;
+  border: 1px solid var(--border-color);
   border-radius: 6px;
-  background: white;
+  background: var(--bg-elevated-color);
   min-height: 40px;
   cursor: text;
   
   &:focus-within {
     outline: none;
-    border-color: #3b82f6;
-    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+    border-color: var(--primary-color);
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--primary-color) 12%, transparent);
   }
 }
 
@@ -246,8 +246,8 @@ onUnmounted(() => {
   align-items: center;
   gap: 4px;
   padding: 4px 8px;
-  background: #eff6ff;
-  color: #1d4ed8;
+  background: var(--primary-soft-bg);
+  color: var(--primary-color);
   border-radius: 4px;
   font-size: 13px;
   font-weight: 500;
@@ -268,7 +268,7 @@ onUnmounted(() => {
 .tag-remove {
   background: none;
   border: none;
-  color: #1d4ed8;
+  color: var(--primary-color);
   cursor: pointer;
   padding: 2px;
   border-radius: 2px;
@@ -279,7 +279,7 @@ onUnmounted(() => {
   
   &:hover {
     opacity: 1;
-    background: rgba(30, 64, 175, 0.1);
+    background: color-mix(in srgb, var(--primary-color) 10%, transparent);
   }
 }
 
@@ -287,13 +287,14 @@ onUnmounted(() => {
   border: none;
   outline: none;
   background: transparent;
+  color: var(--text-color);
   padding: 4px;
   font-size: 14px;
   flex: 1;
   min-width: 120px;
   
   &::placeholder {
-    color: #9ca3af;
+    color: var(--text-color-lighter);
   }
 }
 
@@ -302,11 +303,11 @@ onUnmounted(() => {
   top: 100%;
   left: 0;
   right: 0;
-  background: white;
-  border: 1px solid #d1d5db;
+  background: var(--bg-elevated-color);
+  border: 1px solid var(--border-color);
   border-top: none;
   border-radius: 0 0 6px 6px;
-  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+  box-shadow: 0 12px 28px var(--shadow-color);
   max-height: 200px;
   overflow-y: auto;
   z-index: 10;
@@ -316,8 +317,8 @@ onUnmounted(() => {
   padding: 8px 12px;
   cursor: pointer;
   font-size: 14px;
-  color: #374151;
-  border-bottom: 1px solid #f3f4f6;
+  color: var(--text-color);
+  border-bottom: 1px solid var(--border-color);
   
   &:last-child {
     border-bottom: none;
@@ -325,13 +326,13 @@ onUnmounted(() => {
   
   &:hover,
   &.active {
-    background: #f3f4f6;
-    color: #1f2937;
+    background: var(--nav-hover-bg-color);
+    color: var(--text-color);
   }
   
   &.active {
-    background: #eff6ff;
-    color: #1d4ed8;
+    background: var(--primary-soft-bg);
+    color: var(--primary-color);
   }
 }
 </style>
