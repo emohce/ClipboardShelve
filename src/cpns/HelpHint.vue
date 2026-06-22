@@ -51,9 +51,9 @@ defineProps({
 .setting-help-btn {
   width: 24px;
   height: 24px;
-  border: 1px solid rgba(22, 32, 51, 0.18);
-  background: linear-gradient(180deg, #ffffff 0%, #eef4fb 100%);
-  color: #355f9d;
+  border: 1px solid var(--border-color-strong);
+  background: var(--button-surface-gradient);
+  color: var(--primary-color);
   font-size: 12px;
   font-weight: 700;
 }
@@ -61,28 +61,28 @@ defineProps({
 .setting-inline-help {
   width: 20px;
   height: 20px;
-  border: 1px solid rgba(22, 32, 51, 0.18);
-  background: rgba(255, 255, 255, 0.96);
-  color: #5e6b7d;
+  border: 1px solid var(--border-color-strong);
+  background: var(--surface-glass-strong);
+  color: var(--text-color-lighter);
   font-size: 11px;
   font-weight: 700;
 }
 
 .setting-help-btn:hover,
 .setting-inline-help:hover {
-  border-color: rgba(53, 95, 157, 0.32);
-  color: #355f9d;
-  background: #fff;
+  border-color: color-mix(in srgb, var(--primary-color) 32%, transparent);
+  color: var(--primary-color);
+  background: var(--bg-elevated-color);
 }
 
 :global(.setting-help-tooltip) {
   max-width: min(420px, calc(100vw - 32px));
   padding: 8px 10px;
-  border: 1px solid rgba(22, 32, 51, 0.12);
+  border: 1px solid var(--border-color);
   border-radius: 10px;
-  background: rgba(255, 255, 255, 0.98);
-  box-shadow: 0 14px 28px rgba(15, 23, 42, 0.16);
-  color: #162033;
+  background: var(--bg-elevated-color);
+  box-shadow: 0 14px 28px var(--shadow-color);
+  color: var(--text-color);
   font-size: 12px;
   line-height: 1.45;
   white-space: normal;

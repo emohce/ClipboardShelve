@@ -5,6 +5,9 @@
     "maxage": null
   },
   "userConfig": {
+    "appearance": {
+      "theme": "light"
+    },
     "shortcut": {
       "syncWithUTools": false
     },

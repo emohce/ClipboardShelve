@@ -3197,12 +3197,10 @@ onUnmounted(() => {
     }
 }
 
-@media (prefers-color-scheme: dark) {
-    .text-preview-modal .text-preview-panel {
-        background: rgba(48, 54, 68, 0.95);
-        border-color: rgba(200, 210, 230, 0.28);
-        box-shadow: 0 14px 40px rgba(0, 0, 0, 0.45);
-    }
+:global(html[data-theme='dark']) .text-preview-modal .text-preview-panel {
+    background: rgba(48, 54, 68, 0.95);
+    border-color: rgba(200, 210, 230, 0.28);
+    box-shadow: 0 14px 40px rgba(0, 0, 0, 0.45);
 }
 
 .image-preview-modal {

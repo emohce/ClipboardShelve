@@ -199,10 +199,11 @@ onUnmounted(() => {
 .clip-drawer-menu {
   position: fixed;
   z-index: 300;
-  background: rgba(30, 30, 30, 0.92);
-  color: #fff;
+  background: color-mix(in srgb, var(--bg-elevated-color) 92%, transparent);
+  color: var(--text-color);
+  border: 1px solid var(--border-color);
   border-radius: 8px;
-  box-shadow: 0 6px 24px rgba(0, 0, 0, 0.2);
+  box-shadow: 0 6px 24px var(--shadow-color);
   min-width: 180px;
   padding: 6px 0;
   backdrop-filter: blur(8px);
@@ -221,7 +222,7 @@ onUnmounted(() => {
 }
 .drawer-item.active,
 .drawer-item:hover {
-  background: rgba(255, 255, 255, 0.12);
+  background: var(--nav-hover-bg-color);
 }
 .drawer-index {
   font-weight: 600;

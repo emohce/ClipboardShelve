@@ -1345,7 +1345,7 @@ defineExpose({
   max-width: 100%;
   border: 1px solid var(--border-color);
   border-radius: 6px;
-  background: #fff;
+  background: var(--bg-elevated-color);
   box-shadow: 0 10px 24px rgba(0, 0, 0, 0.18);
 }
 </style>
