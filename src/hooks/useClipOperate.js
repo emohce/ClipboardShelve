@@ -1,6 +1,10 @@
 import { ElMessage } from "element-plus";
 import { copyAndPasteAndExit, copyOnly } from "../utils";
-import setting from "../global/readSetting";
+import setting, { getLineJoinConfig } from "../global/readSetting";
+import { canJoinTextLines, joinTextLines } from "../utils/lineJoin.mjs";
+
+const LINE_JOIN_SUPPRESS_CLIPBOARD_RECORD_KEY = "__ezClipboardLineJoinSuppressRecord";
+const LINE_JOIN_SUPPRESS_CLIPBOARD_RECORD_MS = 3000;
 
 export default function useClipOperate({ emit, currentActiveTab }) {
   const resolveItemAlias = (item) => {
@@ -21,12 +25,20 @@ export default function useClipOperate({ emit, currentActiveTab }) {
         : []
     return list.filter(Boolean)
   }
+  const suppressNextLineJoinClipboardRecord = (data) => {
+    if (typeof window === "undefined" || typeof data !== "string") return;
+    window[LINE_JOIN_SUPPRESS_CLIPBOARD_RECORD_KEY] = {
+      data,
+      expiresAt: Date.now() + LINE_JOIN_SUPPRESS_CLIPBOARD_RECORD_MS,
+    };
+  };
 
   return {
     resolveItemAlias,
     canEditItemAlias,
     handleOperateClick: (operation, item, meta = {}) => {
       const { id } = operation;
+      let handled = true;
       const typeMap = {
         text: "text",
         file: "files",
@@ -48,6 +60,26 @@ export default function useClipOperate({ emit, currentActiveTab }) {
         }
       } else if (id === "view") {
         emit("onDataChange", item);
+      } else if (id === "line-join") {
+        if (item?.type !== "text" || !canJoinTextLines(item.data)) {
+          ElMessage({
+            message: "当前文本不足两行，无法拼接",
+            type: "info",
+          });
+          handled = false;
+        } else {
+          const joined = joinTextLines(item.data, getLineJoinConfig(setting).separator);
+          suppressNextLineJoinClipboardRecord(joined);
+          const ok = copyAndPasteAndExit(
+            { ...item, type: "text", data: joined },
+            { respectImageCopyGuard: true },
+          );
+          ElMessage({
+            message: ok ? "已拼接并粘贴" : "行拼接粘贴失败",
+            type: ok ? "success" : "warning",
+          });
+          handled = ok;
+        }
       } else if (id === "open-folder") {
         const { data } = item;
         const fl = JSON.parse(data);
@@ -135,6 +167,7 @@ export default function useClipOperate({ emit, currentActiveTab }) {
         }
       }
       emit("onOperateExecute");
+      return handled;
     },
     filterOperate: (operation, item, isFullData, context) => {
       const { id } = operation;
@@ -143,7 +176,7 @@ export default function useClipOperate({ emit, currentActiveTab }) {
       }
       if (!isFullData) {
         // 在非预览页 只展示setting.operation.shown中的功能按钮
-        const allowInDrawer = context === "drawer" && (id === "open-source" || id === "open-folder")
+        const allowInDrawer = context === "drawer" && (id === "open-source" || id === "open-folder" || id === "line-join")
         if (!setting.operation.shown.includes(id) && !allowInDrawer) {
           return false;
         }
@@ -152,6 +185,8 @@ export default function useClipOperate({ emit, currentActiveTab }) {
         return true;
       } else if (id === "view") {
         return !isFullData;
+      } else if (id === "line-join") {
+        return item.type === "text" && canJoinTextLines(item.data);
       } else if (id === "open-folder") {
         return item.type === "file";
       } else if (id === "open-source") {

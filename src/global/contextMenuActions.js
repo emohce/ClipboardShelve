@@ -20,6 +20,7 @@ const OPERATION_COMMAND_MAP = {
   collect: 'list.item.collectToggle',
   'un-collect': 'list.item.collectToggle',
   'edit-tags': 'list.item.editTagOrAlias',
+  'line-join': 'list.item.joinLines',
   remove: 'list.item.delete'
 }
 

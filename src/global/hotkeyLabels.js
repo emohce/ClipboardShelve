@@ -106,6 +106,7 @@ export const FEATURE_LABELS = {
   'list-ctrl-enter': '复制并锁定选中的内容',
   'list-save-by-alias': '别名保存触发（单文件重命名粘贴）',
   'list-copy': '复制选中项',
+  'list-line-join': '行拼接并粘贴',
   'list-pin-toggle': '置顶/取消置顶选中项',
   'pin-group-open': '编辑多选置顶组合',
   'list-collect': '收藏/取消收藏选中项目',

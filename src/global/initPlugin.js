@@ -1334,6 +1334,7 @@ export default async function initPlugin() {
   let lastRestoredItemId = null
   let lastRestoredItemHash = null
   let restoreCount = 0
+  const LINE_JOIN_SUPPRESS_CLIPBOARD_RECORD_KEY = '__ezClipboardLineJoinSuppressRecord'
   const RESTORE_GUARD_TIMEOUT = 500 // 增加到 500ms 防护窗口
   const MAX_RESTORE_COUNT = 3 // 最大连续恢复次数，超过则暂停
 
@@ -1398,6 +1399,20 @@ export default async function initPlugin() {
     }
 
     if (!item) {
+      return
+    }
+
+    const lineJoinSuppressRecord = window?.[LINE_JOIN_SUPPRESS_CLIPBOARD_RECORD_KEY]
+    if (lineJoinSuppressRecord?.expiresAt && Date.now() > lineJoinSuppressRecord.expiresAt) {
+      delete window[LINE_JOIN_SUPPRESS_CLIPBOARD_RECORD_KEY]
+    } else if (
+      lineJoinSuppressRecord &&
+      item.type === 'text' &&
+      typeof item.data === 'string' &&
+      item.data === lineJoinSuppressRecord.data
+    ) {
+      delete window[LINE_JOIN_SUPPRESS_CLIPBOARD_RECORD_KEY]
+      console.log('[handleClipboardChange] 跳过行拼接粘贴触发的剪贴板记录')
       return
     }
 

@@ -91,6 +91,7 @@ const COMMAND_DEFINITIONS = [
   ['list.item.copyPasteAndLock', 'list-ctrl-enter', 'list', 'Copy, paste, and lock selected item', 'data-write', { macroSettleAfterMs: PASTE_COMMAND_SETTLE_AFTER_MS }],
   ['list.item.aliasPaste', 'list-save-by-alias', 'list', 'Paste selected item using alias', 'normal', { macroSettleAfterMs: PASTE_COMMAND_SETTLE_AFTER_MS }],
   ['list.item.copyOnly', 'list-copy', 'list', 'Copy selected item'],
+  ['list.item.joinLines', 'list-line-join', 'list', 'Join selected text item lines', 'normal', { macroSettleAfterMs: PASTE_COMMAND_SETTLE_AFTER_MS }],
   ['list.item.pinToggle', 'list-pin-toggle', 'list', 'Toggle selected item pin', 'data-write'],
   ['list.item.collectToggle', 'list-collect', 'list', 'Toggle selected item collection', 'data-write'],
   ['list.item.lockToggle', 'list-lock', 'list', 'Toggle selected item lock', 'data-write'],
