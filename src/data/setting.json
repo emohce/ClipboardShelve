@@ -22,6 +22,9 @@
         "enabled": false,
         "delay": 500
       }
+    },
+    "lineJoin": {
+      "separator": ","
     }
   },
   "operation": {

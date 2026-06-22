@@ -2,6 +2,7 @@ import restoreSetting from './restoreSetting'
 import { defaultPath } from './restoreSetting'
 import { getNativeId } from '../utils'
 import defaultSetting from '../data/setting.json'
+import { LINE_JOIN_DEFAULT_SEPARATOR, normalizeLineJoinSeparator } from '../utils/lineJoin.mjs'
 
 export const SETTING_UPDATED_EVENT = 'ezclipboard:setting-updated'
 
@@ -24,6 +25,10 @@ if (!setting.database || typeof setting.database !== 'object') {
 
 if (!setting.userConfig.preview || typeof setting.userConfig.preview !== 'object') {
   setting.userConfig.preview = {}
+}
+
+if (!setting.userConfig.lineJoin || typeof setting.userConfig.lineJoin !== 'object') {
+  setting.userConfig.lineJoin = {}
 }
 
 if (!setting.userConfig.shortcut || typeof setting.userConfig.shortcut !== 'object') {
@@ -85,6 +90,10 @@ if (!Number.isFinite(hoverDelay) || hoverDelay < 0) {
   setting.userConfig.preview.hover.delay = Math.round(hoverDelay)
 }
 
+setting.userConfig.lineJoin.separator = normalizeLineJoinSeparator(
+  setting.userConfig.lineJoin.separator ?? LINE_JOIN_DEFAULT_SEPARATOR
+)
+
 // 迁移：确保操作列表包含编辑标签功能
 if (Array.isArray(setting.operation?.shown) && !setting.operation.shown.includes('edit-tags')) {
   setting.operation.shown.splice(setting.operation.shown.indexOf('un-collect') + 1 || setting.operation.shown.length, 0, 'edit-tags')
@@ -145,6 +154,12 @@ export function getHoverPreviewConfig(source = setting) {
   return {
     enabled,
     delay
+  }
+}
+
+export function getLineJoinConfig(source = setting) {
+  return {
+    separator: normalizeLineJoinSeparator(source?.userConfig?.lineJoin?.separator)
   }
 }
 

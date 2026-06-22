@@ -31,6 +31,7 @@ export const OPERATION_SHORTCUT_COMMANDS = {
   collect: ['list.item.collectToggle'],
   'un-collect': ['list.item.collectToggle'],
   'edit-tags': ['list.item.editTagOrAlias'],
+  'line-join': ['list.item.joinLines'],
   remove: ['list.item.delete']
 }
 

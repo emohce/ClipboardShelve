@@ -794,6 +794,29 @@
               </div>
               <div class="feature-config-row feature-config-row--compact">
                 <div class="feature-config-title-row">
+                  <strong>行拼接</strong>
+                  <HelpHint
+                    marker="?"
+                    button-class="setting-help-btn setting-help-btn--compact"
+                    aria-label="查看行拼接说明"
+                    content="多行文本 item 的行拼接菜单和快捷键使用此分隔符；默认 ,，保存路径 userConfig.lineJoin.separator"
+                  />
+                </div>
+                <div class="feature-config-control feature-config-control--compact">
+                  <div class="feature-config-input inline feature-config-input--line-join">
+                    <span class="feature-config-inline-label">分隔</span>
+                    <input
+                      v-model="lineJoinSeparator"
+                      class="feature-config-native-input feature-config-native-input--text"
+                      type="text"
+                      :placeholder="LINE_JOIN_DEFAULT_SEPARATOR"
+                      maxlength="32"
+                    >
+                  </div>
+                </div>
+              </div>
+              <div class="feature-config-row feature-config-row--compact">
+                <div class="feature-config-title-row">
                   <strong>全局粘贴</strong>
                   <HelpHint
                     marker="?"
@@ -1152,7 +1175,7 @@
 import { ref, computed, onMounted, onUnmounted, watch, nextTick } from 'vue'
 import draggable from 'vuedraggable'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import setting, { saveSetting, getHoverPreviewConfig } from '../global/readSetting'
+import setting, { saveSetting, getHoverPreviewConfig, getLineJoinConfig } from '../global/readSetting'
 import defaultOperation from '../data/operation.json'
 import { activateLayer, deactivateLayer } from '../global/hotkeyLayers'
 import { getFeatureLabel } from '../global/hotkeyLabels'
@@ -1214,6 +1237,7 @@ import {
   requestCancelCommandMacroRun
 } from '../global/commandMacroRuntime'
 import { getNativeId } from '../utils'
+import { LINE_JOIN_DEFAULT_SEPARATOR, normalizeLineJoinSeparator } from '../utils/lineJoin.mjs'
 import SettingPagedTable from '../cpns/SettingPagedTable.vue'
 import HelpHint from '../cpns/HelpHint.vue'
 import {
@@ -1283,6 +1307,7 @@ const commandMacroStorageMode = ref(initialCommandMacroStorage.storageMode)
 const initialHoverPreviewConfig = getHoverPreviewConfig(setting)
 const hoverPreviewEnabled = ref(initialHoverPreviewConfig.enabled)
 const hoverPreviewDelay = ref(initialHoverPreviewConfig.delay)
+const lineJoinSeparator = ref(getLineJoinConfig(setting).separator)
 
 const settingTabs = ['basic', 'shortcut', 'feature', 'feature-config']
 const SETTING_TAB_STATE_KEY = 'ui.setting.activeTab'
@@ -2733,13 +2758,15 @@ function validateCustom() {
 }
 
 function validateFeatureConfig() {
-  if (!hoverPreviewEnabled.value) return true
-  const delay = Number(hoverPreviewDelay.value)
-  if (!Number.isFinite(delay) || delay < 0) {
-    ElMessage.error('预览触发时间需为不小于 0 的数字')
-    return false
+  if (hoverPreviewEnabled.value) {
+    const delay = Number(hoverPreviewDelay.value)
+    if (!Number.isFinite(delay) || delay < 0) {
+      ElMessage.error('预览触发时间需为不小于 0 的数字')
+      return false
+    }
+    hoverPreviewDelay.value = Math.round(delay)
   }
-  hoverPreviewDelay.value = Math.round(delay)
+  lineJoinSeparator.value = normalizeLineJoinSeparator(lineJoinSeparator.value)
   return true
 }
 
@@ -2795,15 +2822,21 @@ const handleSaveBtnClick = () => {
     },
     hotkeyOverrides: hotkeyOverrides.value,
     userConfig: {
+      ...(setting.userConfig || {}),
       shortcut: {
         syncWithUTools: false
       },
       shortcutSync: shortcutSyncDocument.value,
       preview: {
+        ...(setting.userConfig?.preview || {}),
         hover: {
           enabled: hoverPreviewEnabled.value,
           delay: hoverPreviewEnabled.value ? normalizeHoverPreviewDelay() : normalizeHoverPreviewDelay()
         }
+      },
+      lineJoin: {
+        ...(setting.userConfig?.lineJoin || {}),
+        separator: normalizeLineJoinSeparator(lineJoinSeparator.value)
       }
     }
   }
@@ -2815,6 +2848,7 @@ const handleSaveBtnClick = () => {
   shortcutStorageMode.value = shortcutSaveResult.storageMode
   hotkeyOverrides.value = shortcutSaveResult.hotkeyOverrides
   shortcutSyncDocument.value = normalizeShortcutSyncDocument(shortcutSaveResult.setting?.userConfig?.shortcutSync)
+  lineJoinSeparator.value = getLineJoinConfig(shortcutSaveResult.setting).separator
   showShortcutSaveMessage(shortcutSaveResult, '保存')
 }
 
@@ -5121,6 +5155,9 @@ onUnmounted(() => {
 .feature-config-row--compact .feature-config-native-input {
   width: 44px;
   font-size: 11px;
+}
+.feature-config-row--compact .feature-config-input--line-join .feature-config-native-input {
+  width: 72px;
 }
 .feature-config-row--compact .feature-config-unit {
   font-size: 10px;
