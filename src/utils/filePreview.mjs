@@ -40,6 +40,28 @@ const EXTENSION_KIND_MAP = new Map([
   ['yml', 'structured-yaml'],
   ['ini', 'text'],
   ['conf', 'text'],
+  ['cfg', 'text'],
+  ['config', 'text'],
+  ['cnf', 'text'],
+  ['toml', 'text'],
+  ['properties', 'text'],
+  ['props', 'text'],
+  ['env', 'text'],
+  ['dotenv', 'text'],
+  ['rc', 'text'],
+  ['service', 'text'],
+  ['timer', 'text'],
+  ['socket', 'text'],
+  ['mount', 'text'],
+  ['target', 'text'],
+  ['path', 'text'],
+  ['rules', 'text'],
+  ['list', 'text'],
+  ['desktop', 'text'],
+  ['reg', 'text'],
+  ['hcl', 'text'],
+  ['tf', 'text'],
+  ['tfvars', 'text'],
   ['jpg', 'image'],
   ['jpeg', 'image'],
   ['png', 'image'],
@@ -50,6 +72,53 @@ const EXTENSION_KIND_MAP = new Map([
   ['ico', 'image'],
   ['heic', 'image']
 ])
+
+const CONFIG_TEXT_EXTENSIONS = new Set([
+  'conf',
+  'cfg',
+  'config',
+  'cnf',
+  'ini',
+  'toml',
+  'properties',
+  'props',
+  'env',
+  'dotenv',
+  'rc',
+  'service',
+  'timer',
+  'socket',
+  'mount',
+  'target',
+  'path',
+  'rules',
+  'list',
+  'desktop',
+  'reg',
+  'hcl',
+  'tf',
+  'tfvars'
+])
+
+const CONFIG_TEXT_FILE_NAMES = new Set([
+  '.npmrc',
+  '.yarnrc',
+  '.pnpmrc',
+  '.editorconfig',
+  '.gitignore',
+  '.gitattributes',
+  '.gitconfig',
+  '.dockerignore',
+  '.prettierrc',
+  '.eslintrc',
+  '.babelrc',
+  '.browserslistrc'
+])
+
+function isConfigTextFileName(path = '') {
+  const name = getFileNameFromPath(path).toLowerCase()
+  return CONFIG_TEXT_FILE_NAMES.has(name) || /^\.env(?:\.|$)/.test(name)
+}
 
 export function getFileNameFromPath(path = '') {
   const value = String(path || '')
@@ -65,6 +134,7 @@ export function getFileExtension(path = '') {
 
 export function classifyFilePreview(path = '') {
   const ext = getFileExtension(path)
+  if (isConfigTextFileName(path)) return 'text'
   if (!ext) return 'text'
   return EXTENSION_KIND_MAP.get(ext) || 'unsupported'
 }
@@ -236,7 +306,7 @@ function detectMarkdownLike(text = '') {
 export function detectTextDocumentKind(text = '', options = {}) {
   const source = String(text || '')
   const ext = getFileExtension(options.path || '')
-  const canAutoDetect = !ext || ext === 'txt'
+  const canAutoDetect = !ext || ext === 'txt' || CONFIG_TEXT_EXTENSIONS.has(ext) || isConfigTextFileName(options.path)
   if (!canAutoDetect) return { kind: 'text', confidence: 0, reason: 'extension-not-auto-detected' }
   const jsonValue = parseJsonLike(source)
   if (isStructuredValue(jsonValue)) {
