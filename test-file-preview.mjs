@@ -38,6 +38,54 @@ function testClassifiesCommonPreviewTypes() {
   assert.equal(classifyFilePreview('/tmp/legacy.doc'), 'unsupported')
 }
 
+function testClassifiesConfigPreviewTypes() {
+  for (const ext of [
+    'cfg',
+    'config',
+    'cnf',
+    'toml',
+    'properties',
+    'props',
+    'env',
+    'dotenv',
+    'rc',
+    'service',
+    'timer',
+    'socket',
+    'mount',
+    'target',
+    'path',
+    'rules',
+    'list',
+    'desktop',
+    'reg',
+    'hcl',
+    'tf',
+    'tfvars'
+  ]) {
+    assert.equal(classifyFilePreview(`/tmp/app.${ext}`), 'text')
+  }
+  for (const name of [
+    '.env.local',
+    '.env.production',
+    '.npmrc',
+    '.yarnrc',
+    '.pnpmrc',
+    '.editorconfig',
+    '.gitignore',
+    '.gitattributes',
+    '.gitconfig',
+    '.dockerignore',
+    '.prettierrc',
+    '.eslintrc',
+    '.babelrc',
+    '.browserslistrc'
+  ]) {
+    assert.equal(classifyFilePreview(`/tmp/${name}`), 'text')
+  }
+  assert.equal(classifyFilePreview('/tmp/settings.plist'), 'unsupported')
+}
+
 function testParsesClipboardFileDataSafely() {
   assert.deepEqual(parseFileItemData('not-json'), [])
   assert.deepEqual(parseFileItemData(JSON.stringify([{ path: '/tmp/a.md' }, { name: 'missing' }])), [
@@ -59,6 +107,11 @@ function testSelectsFirstPreviewableFile() {
   assert.deepEqual(getPreviewableFile([{ path: '/tmp/config', name: 'config' }]), {
     path: '/tmp/config',
     name: 'config',
+    kind: 'text'
+  })
+  assert.deepEqual(getPreviewableFile([{ path: '/tmp/archive.zip' }, { path: '/tmp/app.properties' }]), {
+    path: '/tmp/app.properties',
+    name: 'app.properties',
     kind: 'text'
   })
 }
@@ -107,6 +160,26 @@ function testDetectsTextDocumentKindsConservatively() {
   assert.equal(detectTextDocumentKind('hello: world').kind, 'text')
   assert.equal(detectTextDocumentKind('one, two, maybe').kind, 'text')
   assert.equal(detectTextDocumentKind('- just\n- scalar\n- list').kind, 'text')
+}
+
+function testDetectsConfigTextDocumentsConservatively() {
+  assert.equal(
+    detectTextDocumentKind('{"name":"EzClipboard","enabled":true}', { path: '/tmp/app.conf' }).kind,
+    'structured-json'
+  )
+  assert.equal(
+    detectTextDocumentKind('server:\n  port: 8080\n  host: localhost', { path: '/tmp/app.cfg' }).kind,
+    'structured-yaml'
+  )
+  assert.equal(
+    detectTextDocumentKind('name,score\nalpha,1\nbeta,2', { path: '/tmp/app.properties' }).kind,
+    'csv'
+  )
+  assert.equal(
+    detectTextDocumentKind('# Title\n\n- one\n- two\n\n[site](https://example.com)', { path: '/tmp/.editorconfig' }).kind,
+    'markdown'
+  )
+  assert.equal(detectTextDocumentKind('host=localhost\nport=8080', { path: '/tmp/app.toml' }).kind, 'text')
 }
 
 function testDetectsNumberedOutlineAsMarkdown() {
@@ -263,6 +336,20 @@ async function testBuildsDetectedTextDocumentPreviews() {
   )
   assert.equal(checklist.kind, 'html')
   assert.equal(checklist.detectedKind, 'asciidoc')
+
+  const configJson = await buildDetectedTextDocumentPreview(
+    '{"name":"EzClipboard","items":[1,2]}',
+    { path: '/tmp/app.conf' }
+  )
+  assert.equal(configJson.kind, 'structured')
+  assert.equal(configJson.detectedKind, 'structured-json')
+
+  const configToml = await buildDetectedTextDocumentPreview(
+    'host = "localhost"\nport = 8080',
+    { path: '/tmp/app.toml' }
+  )
+  assert.equal(configToml.kind, 'text')
+  assert.equal(configToml.detectedKind, 'text')
 }
 
 function testPresentationPreviewUsesLowFidelityPptxPath() {
@@ -296,12 +383,14 @@ function testPdfJsBundleAvoidsModernRuntimePrimitives() {
 }
 
 testClassifiesCommonPreviewTypes()
+testClassifiesConfigPreviewTypes()
 testParsesClipboardFileDataSafely()
 testSelectsFirstPreviewableFile()
 testSizeLimitsByKind()
 testSanitizesPreviewHtmlFallback()
 testSlicesTablePreview()
 testDetectsTextDocumentKindsConservatively()
+testDetectsConfigTextDocumentsConservatively()
 testDetectsNumberedOutlineAsMarkdown()
 testDetectsChecklistLineAsAsciiDoc()
 testPdfPreviewUsesLegacyBuild()
