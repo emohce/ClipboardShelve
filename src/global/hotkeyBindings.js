@@ -344,6 +344,8 @@ export const HOTKEY_BINDINGS = [
   { layer: "main", shortcutId: "s-cr", features: ["list-save-by-alias"] },
   { layer: "main", shortcutId: "c-c", features: ["list-copy"] },
   { layer: "main", shortcutId: "c-s-,", features: ["list-line-join"], when: "mainFocus && !inputFocus" },
+  { layer: "main", shortcutId: "c-s-.", features: ["list-line-surround-join"], when: "mainFocus && !inputFocus" },
+  { layer: "main", shortcutId: "c-s-a-.", features: ["list-line-surround"], when: "mainFocus && !inputFocus" },
   { layer: "main", shortcutId: "a-p", features: ["list-pin-toggle"] },
   { layer: "main", shortcutId: "a-g", features: ["pin-group-open"] },
   { layer: "main", shortcutId: "c-s", features: ["list-collect"] },

@@ -19,6 +19,6 @@ Use this directory for new process docs: `spec.md`, `plan.md`, `tasks.md`, `veri
 
 ## Rules
 
-- New tasks use `vibe/specs/<task-id>/` unless project rules define a stricter path.
+- New task layout is not redefined here; follow [CodeNote process rules](../../../CzzProj/CodeNote/AiRef/VibePractice/Vibe_Rules/process/rules.md#3-project-location).
 - Business changes must link before/after documents and identify authoritative current behavior.
 - Run link validation for documentation-heavy changes.

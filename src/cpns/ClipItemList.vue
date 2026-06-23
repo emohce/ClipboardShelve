@@ -2433,16 +2433,25 @@ function registerListHotkeyFeatures() {
         }
         return false;
     };
-    const handleListLineJoinCommand = (e) => {
+    const handleListTextLineOperationCommand = (e, operation) => {
         if (isAliasDialogOpen()) return false;
         if (isFocusInSearch()) return false;
         if (e && (e.isComposing || e.key === "Process")) return false;
         const item = props.showList[activeIndex.value];
         if (!item) {
-            ElMessage({ type: "info", message: "当前无可拼接条目" });
+            ElMessage({ type: "info", message: "当前无可处理条目" });
             return false;
         }
-        return handleOperateClick({ id: "line-join", title: "行拼接" }, item, { fromShortcut: true }) !== false;
+        return handleOperateClick(operation, item, { fromShortcut: true }) !== false;
+    };
+    const handleListLineJoinCommand = (e) => {
+        return handleListTextLineOperationCommand(e, { id: "line-join", title: "行拼接" });
+    };
+    const handleListLineSurroundJoinCommand = (e) => {
+        return handleListTextLineOperationCommand(e, { id: "line-surround-join", title: "包围再拼接" });
+    };
+    const handleListLineSurroundCommand = (e) => {
+        return handleListTextLineOperationCommand(e, { id: "line-surround", title: "只包围" });
     };
     const handleListCopyPasteCommand = (e) => {
         if (isAliasDialogOpen()) return false;
@@ -2730,6 +2739,8 @@ function registerListHotkeyFeatures() {
         { featureId: "list-space", commandId: "list.multi.toggleCurrent", handler: handleListMultiToggleCurrentCommand },
         { featureId: "list-copy", commandId: "list.item.copyOnly", handler: handleListCopyOnlyCommand },
         { featureId: "list-line-join", commandId: "list.item.joinLines", handler: handleListLineJoinCommand },
+        { featureId: "list-line-surround-join", commandId: "list.item.surroundJoinLines", handler: handleListLineSurroundJoinCommand },
+        { featureId: "list-line-surround", commandId: "list.item.surroundLines", handler: handleListLineSurroundCommand },
         { featureId: "list-enter", commandId: "list.item.copyPaste", handler: handleListCopyPasteCommand },
         { featureId: "list-save-by-alias", commandId: "list.item.aliasPaste", handler: handleListAliasPasteCommand },
         { featureId: "list-tag-edit", commandId: "list.item.editTagOrAlias", handler: handleListTagEditCommand },

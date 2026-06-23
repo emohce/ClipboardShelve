@@ -11,6 +11,7 @@ Define EzClipboard-specific documentation routing. Cross-project principles stay
 | Layer | Location | Role |
 |---|---|---|
 | Global master | [../../../CzzProj/CodeNote/AiRef/VibePractice/Vibe_Rules/VibeAi.md](../../../CzzProj/CodeNote/AiRef/VibePractice/Vibe_Rules/VibeAi.md) | Cross-project AI workflow, safety, memory, verification, and documentation rules. |
+| DB governance | [../../../CzzProj/CodeNote/DevelopRef/调试工具/db/governance/README.md](../../../CzzProj/CodeNote/DevelopRef/调试工具/db/governance/README.md#5-workspace-shape-and-naming) | AI-DB workspace shape, storage routing, and naming authority. |
 | Project adapters | [../../AGENTS.md](../../AGENTS.md), [context-loading.md](context-loading.md), [../../.agents/skills/ezclipboard-rules/SKILL.md](../../.agents/skills/ezclipboard-rules/SKILL.md) | Route tools to the authoritative rule tree without copying master rules. |
 | Project rules | [README.md](README.md), [project.md](project.md), [workflow.md](workflow.md), [knowledge.md](knowledge.md), [documentation.md](documentation.md) | EzClipboard stack, risk boundaries, commands, verification, and documentation governance. |
 | Process hub | [../specs/PROJECT_STATUS.md](../specs/PROJECT_STATUS.md) | Current main line, active task index, authoritative task docs, and closeout requirements. |
@@ -22,9 +23,10 @@ Define EzClipboard-specific documentation routing. Cross-project principles stay
 - Keep project-specific facts in this repository; keep reusable cross-project rules in CodeNote.
 - Use [../specs/PROJECT_STATUS.md](../specs/PROJECT_STATUS.md) as the routing surface for current work, not as a detailed implementation log.
 - Put detailed scope, implementation notes, verification, and handoff in task directories under [../specs/](../specs/).
+- Task/archive folder date grouping and flat-folder repair are not redefined here; follow [CodeNote process rules](../../../CzzProj/CodeNote/AiRef/VibePractice/Vibe_Rules/process/rules.md#3-project-location).
 - Promote only reusable, verified, safe knowledge through [../knowledge/MEMORY_INDEX.md](../knowledge/MEMORY_INDEX.md).
 - Write Markdown links relative to the document location and include line suffixes for implementation evidence **in task docs citing current code**; authoritative knowledge and error memories prefer file-level links without stale line numbers.
-- Do not create new DB documentation workspaces unless project rules explicitly introduce `vibe/ai-db/`.
+- Do not create an empty DB documentation workspace; if DB/data work becomes active, initialize `vibe/ai-db/` through the DB governance authority above.
 
 ## Knowledge Hygiene（权威文档原则）
 
