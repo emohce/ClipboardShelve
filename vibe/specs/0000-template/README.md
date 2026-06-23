@@ -4,7 +4,7 @@ Tool: codex
 
 ## 用途
 - 作为新需求目录的起始模板。
-- 复制 `spec-template` 后重命名为 `specs/<feature-id>/` 使用。
+- 复制模板到当前任务目录使用；目录规则见 [CodeNote process rules](../../../../CzzProj/CodeNote/AiRef/VibePractice/Vibe_Rules/process/rules.md#3-project-location)。
 - 中大型任务必须补齐知识上下文、范围边界、进度状态和记忆路由，防止实现跑偏。
 
 ## 包含文件

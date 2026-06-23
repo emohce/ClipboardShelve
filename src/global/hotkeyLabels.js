@@ -107,6 +107,8 @@ export const FEATURE_LABELS = {
   'list-save-by-alias': '别名保存触发（单文件重命名粘贴）',
   'list-copy': '复制选中项',
   'list-line-join': '行拼接并粘贴',
+  'list-line-surround-join': '包围再拼接并粘贴',
+  'list-line-surround': '只包围并粘贴',
   'list-pin-toggle': '置顶/取消置顶选中项',
   'pin-group-open': '编辑多选置顶组合',
   'list-collect': '收藏/取消收藏选中项目',

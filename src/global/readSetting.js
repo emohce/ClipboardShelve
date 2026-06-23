@@ -2,7 +2,12 @@ import restoreSetting from './restoreSetting'
 import { defaultPath } from './restoreSetting'
 import { getNativeId } from '../utils'
 import defaultSetting from '../data/setting.json'
-import { LINE_JOIN_DEFAULT_SEPARATOR, normalizeLineJoinSeparator } from '../utils/lineJoin.mjs'
+import {
+  LINE_JOIN_DEFAULT_SEPARATOR,
+  LINE_JOIN_DEFAULT_SURROUND,
+  normalizeLineJoinSeparator,
+  normalizeLineJoinSurround
+} from '../utils/lineJoin.mjs'
 import { normalizeThemePreference, THEME_LIGHT } from './theme'
 
 export const SETTING_UPDATED_EVENT = 'ezclipboard:setting-updated'
@@ -66,6 +71,9 @@ if (!setting.userConfig.preview.hover || typeof setting.userConfig.preview.hover
 
 setting.userConfig.lineJoin.separator = normalizeLineJoinSeparator(
   setting.userConfig.lineJoin.separator ?? LINE_JOIN_DEFAULT_SEPARATOR
+)
+setting.userConfig.lineJoin.surround = normalizeLineJoinSurround(
+  setting.userConfig.lineJoin.surround ?? LINE_JOIN_DEFAULT_SURROUND
 )
 
 if (!setting.operation || typeof setting.operation !== 'object') {
@@ -168,7 +176,8 @@ export function getHoverPreviewConfig(source = setting) {
 
 export function getLineJoinConfig(source = setting) {
   return {
-    separator: normalizeLineJoinSeparator(source?.userConfig?.lineJoin?.separator)
+    separator: normalizeLineJoinSeparator(source?.userConfig?.lineJoin?.separator),
+    surround: normalizeLineJoinSurround(source?.userConfig?.lineJoin?.surround)
   }
 }
 

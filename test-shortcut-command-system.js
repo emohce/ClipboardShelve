@@ -150,15 +150,21 @@ async function main() {
   }
   const {
     LINE_JOIN_DEFAULT_SEPARATOR,
+    LINE_JOIN_DEFAULT_SURROUND,
     canJoinTextLines,
     joinTextLines,
-    normalizeLineJoinSeparator
+    joinTextLinesWithSurround,
+    normalizeLineJoinSeparator,
+    normalizeLineJoinSurround,
+    resolveLineJoinSurroundPair,
+    surroundTextLines
   } = lineJoinModule
 
   assert.strictEqual(normalizeShortcutId('f2'), 'f2')
   assert.strictEqual(normalizeShortcutId('shift+F2'), 's-f2')
   assert.strictEqual(normalizeShortcutId('ctrl+shift+Delete'), 'c-s-del')
   assert.strictEqual(normalizeShortcutId('ctrl+shift+,'), 'c-s-,')
+  assert.strictEqual(normalizeShortcutId('ctrl+shift+alt+.'), 'c-s-a-.')
   assert.strictEqual(normalizeShortcutId('cr'), 'cr')
   assert.strictEqual(normalizeShortcutId('c-r'), 'c-r')
   assert.strictEqual(normalizeShortcutId('left'), 'left')
@@ -185,12 +191,22 @@ async function main() {
   assert.strictEqual(isShortcutIdFixedNonConfigurable('space'), true)
   assert.strictEqual(isShortcutIdFixedNonConfigurable('c-space'), true)
   assert.strictEqual(LINE_JOIN_DEFAULT_SEPARATOR, ',')
+  assert.strictEqual(LINE_JOIN_DEFAULT_SURROUND, '"')
   assert.strictEqual(normalizeLineJoinSeparator(''), ',')
   assert.strictEqual(normalizeLineJoinSeparator('\n;\r'), ';')
+  assert.strictEqual(normalizeLineJoinSurround(''), '"')
+  assert.strictEqual(normalizeLineJoinSurround('\n{\r'), '{')
+  assert.deepStrictEqual(resolveLineJoinSurroundPair('{'), { open: '{', close: '}' })
+  assert.deepStrictEqual(resolveLineJoinSurroundPair('}'), { open: '{', close: '}' })
+  assert.deepStrictEqual(resolveLineJoinSurroundPair('"'), { open: '"', close: '"' })
   assert.strictEqual(canJoinTextLines(' one \n\n two '), true)
   assert.strictEqual(canJoinTextLines(' one \n  '), false)
   assert.strictEqual(joinTextLines(' one \r\n two \n \r three ', ' | '), 'one | two | three')
   assert.strictEqual(joinTextLines(' one \r two ', ''), 'one,two')
+  assert.strictEqual(surroundTextLines(' one \n\n two ', '{'), '{one}\n{two}')
+  assert.strictEqual(joinTextLinesWithSurround(' one \n two ', ',', '{'), '{one},{two}')
+  assert.strictEqual(joinTextLinesWithSurround(' one \n two ', ',', '"'), '"one","two"')
+  assert.strictEqual(joinTextLinesWithSurround(' one \n two ', ',', ''), '"one","two"')
 
   let pluginEnterCallback = null
   globalThis.utools = {
@@ -372,6 +388,10 @@ async function main() {
   assert.strictEqual(getCommandIdForFeature('list-copy'), 'list.item.copyOnly')
   assert.strictEqual(getCommandIdForFeature('list-line-join'), 'list.item.joinLines')
   assert.strictEqual(getCommandById('list.item.joinLines').risk, 'normal')
+  assert.strictEqual(getCommandIdForFeature('list-line-surround-join'), 'list.item.surroundJoinLines')
+  assert.strictEqual(getCommandById('list.item.surroundJoinLines').risk, 'normal')
+  assert.strictEqual(getCommandIdForFeature('list-line-surround'), 'list.item.surroundLines')
+  assert.strictEqual(getCommandById('list.item.surroundLines').risk, 'normal')
   assert.strictEqual(getCommandIdForFeature('list-enter'), 'list.item.copyPaste')
   assert.strictEqual(getCommandIdForFeature('list-save-by-alias'), 'list.item.aliasPaste')
   assert.strictEqual(getCommandIdForFeature('list-tag-edit'), 'list.item.editTagOrAlias')
@@ -1305,6 +1325,16 @@ async function main() {
   const lineJoinShortcutSummary = getOperationShortcutSummary('line-join', allShortcutRows, (shortcutId) => shortcutId)
   assert.strictEqual(lineJoinShortcutSummary.query, 'list.item.joinLines')
   assert.strictEqual(lineJoinShortcutSummary.label, 'c-s-,')
+  const lineSurroundJoinShortcutSummary = getOperationShortcutSummary('line-surround-join', allShortcutRows, (shortcutId) => shortcutId)
+  assert.strictEqual(lineSurroundJoinShortcutSummary.query, 'list.item.surroundJoinLines')
+  assert.strictEqual(lineSurroundJoinShortcutSummary.label, 'c-s-.')
+  const lineSurroundShortcutSummary = getOperationShortcutSummary('line-surround', allShortcutRows, (shortcutId) => shortcutId)
+  assert.strictEqual(lineSurroundShortcutSummary.query, 'list.item.surroundLines')
+  assert.strictEqual(lineSurroundShortcutSummary.label, 'c-s-a-.')
+  assert.ok(
+    allShortcutRows.some((row) => row.commandId === 'list.item.surroundLines' && row.shortcutIds.includes('c-s-a-.')),
+    'line surround command should expose ctrl/shift/alt period as its default shortcut'
+  )
   assert.deepStrictEqual(
     getOperationShortcutSummary('word-break', allShortcutRows, (shortcutId) => shortcutId),
     {
@@ -1343,6 +1373,8 @@ async function main() {
     { id: 'copy', title: '复制', icon: 'C' },
     { id: 'collect', title: '收藏', icon: 'S' },
     { id: 'line-join', title: '行拼接', icon: 'J' },
+    { id: 'line-surround-join', title: '包围再拼接', icon: 'Q' },
+    { id: 'line-surround', title: '只包围', icon: 'B' },
     { id: 'remove', title: '删除', icon: 'D' }
   ]
   const visibleContextMenuItems = buildDrawerMenuItems({
@@ -1353,7 +1385,7 @@ async function main() {
   })
   assert.deepStrictEqual(
     visibleContextMenuItems.map((item) => item.id),
-    ['collect', 'edit-alias', 'copy', 'line-join'],
+    ['collect', 'edit-alias', 'copy', 'line-join', 'line-surround-join', 'line-surround'],
     'drawer menu should keep user order, filter invisible operations and insert alias action at position 2'
   )
   assert.strictEqual(visibleContextMenuItems[1].commandId, 'list.item.editTagOrAlias')
@@ -1364,8 +1396,8 @@ async function main() {
     'context menu model should resolve one-based number selection to the same action object'
   )
   assert.deepStrictEqual(
-    getContextMenuActionByIndex(visibleContextMenuItems, 5),
-    { ok: false, action: null, index: 4, number: 5, reason: 'out-of-range' },
+    getContextMenuActionByIndex(visibleContextMenuItems, 7),
+    { ok: false, action: null, index: 6, number: 7, reason: 'out-of-range' },
     'context menu model should report out-of-range number selection consistently'
   )
   assert.deepStrictEqual(
@@ -1381,13 +1413,15 @@ async function main() {
   })
   assert.deepStrictEqual(
     contextMenuActionRows.map((row) => `${row.currentIndex}:${row.id}`),
-    ['1:collect', '2:edit-alias', '3:copy', '4:line-join', '5:remove'],
+    ['1:collect', '2:edit-alias', '3:copy', '4:line-join', '5:line-surround-join', '6:line-surround', '7:remove'],
     'context menu setting rows should expose the same ordered action model as the drawer'
   )
   assert.strictEqual(contextMenuActionRows.find((row) => row.id === 'remove').risk, 'data-write')
   assert.strictEqual(contextMenuActionRows.find((row) => row.id === 'line-join').shortcutSummary.query, 'list.item.joinLines')
+  assert.strictEqual(contextMenuActionRows.find((row) => row.id === 'line-surround-join').shortcutSummary.query, 'list.item.surroundJoinLines')
+  assert.strictEqual(contextMenuActionRows.find((row) => row.id === 'line-surround').shortcutSummary.query, 'list.item.surroundLines')
   assert.strictEqual(contextMenuActionRows.find((row) => row.id === 'edit-alias').shortcutSummary.query, 'list.item.editTagOrAlias')
-  assert.strictEqual(getContextMenuActionSummary(contextMenuActionRows), '右键菜单 5 项，5 项可直接跳转到 command 快捷键。')
+  assert.strictEqual(getContextMenuActionSummary(contextMenuActionRows), '右键菜单 7 项，7 项可直接跳转到 command 快捷键。')
   assert.deepStrictEqual(
     buildContextMenuDrawerOrderFromRows([
       { id: 'remove', orderable: true },

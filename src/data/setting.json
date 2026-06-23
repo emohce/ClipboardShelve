@@ -27,7 +27,8 @@
       }
     },
     "lineJoin": {
-      "separator": ","
+      "separator": ",",
+      "surround": "\""
     }
   },
   "operation": {

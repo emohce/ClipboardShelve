@@ -21,6 +21,8 @@ const OPERATION_COMMAND_MAP = {
   'un-collect': 'list.item.collectToggle',
   'edit-tags': 'list.item.editTagOrAlias',
   'line-join': 'list.item.joinLines',
+  'line-surround-join': 'list.item.surroundJoinLines',
+  'line-surround': 'list.item.surroundLines',
   remove: 'list.item.delete'
 }
 

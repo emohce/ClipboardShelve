@@ -1,7 +1,12 @@
 import { ElMessage } from "element-plus";
 import { copyAndPasteAndExit, copyOnly } from "../utils";
 import setting, { getLineJoinConfig } from "../global/readSetting";
-import { canJoinTextLines, joinTextLines } from "../utils/lineJoin.mjs";
+import {
+  canJoinTextLines,
+  joinTextLines,
+  joinTextLinesWithSurround,
+  surroundTextLines,
+} from "../utils/lineJoin.mjs";
 
 const LINE_JOIN_SUPPRESS_CLIPBOARD_RECORD_KEY = "__ezClipboardLineJoinSuppressRecord";
 const LINE_JOIN_SUPPRESS_CLIPBOARD_RECORD_MS = 3000;
@@ -76,6 +81,29 @@ export default function useClipOperate({ emit, currentActiveTab }) {
           );
           ElMessage({
             message: ok ? "已拼接并粘贴" : "行拼接粘贴失败",
+            type: ok ? "success" : "warning",
+          });
+          handled = ok;
+        }
+      } else if (id === "line-surround-join" || id === "line-surround") {
+        if (item?.type !== "text" || !canJoinTextLines(item.data)) {
+          ElMessage({
+            message: "当前文本不足两行，无法包围",
+            type: "info",
+          });
+          handled = false;
+        } else {
+          const config = getLineJoinConfig(setting);
+          const output = id === "line-surround-join"
+            ? joinTextLinesWithSurround(item.data, config.separator, config.surround)
+            : surroundTextLines(item.data, config.surround);
+          suppressNextLineJoinClipboardRecord(output);
+          const ok = copyAndPasteAndExit(
+            { ...item, type: "text", data: output },
+            { respectImageCopyGuard: true },
+          );
+          ElMessage({
+            message: ok ? (id === "line-surround-join" ? "已包围拼接并粘贴" : "已包围并粘贴") : "包围粘贴失败",
             type: ok ? "success" : "warning",
           });
           handled = ok;
@@ -176,7 +204,13 @@ export default function useClipOperate({ emit, currentActiveTab }) {
       }
       if (!isFullData) {
         // 在非预览页 只展示setting.operation.shown中的功能按钮
-        const allowInDrawer = context === "drawer" && (id === "open-source" || id === "open-folder" || id === "line-join")
+        const allowInDrawer = context === "drawer" && (
+          id === "open-source" ||
+          id === "open-folder" ||
+          id === "line-join" ||
+          id === "line-surround-join" ||
+          id === "line-surround"
+        )
         if (!setting.operation.shown.includes(id) && !allowInDrawer) {
           return false;
         }
@@ -186,6 +220,8 @@ export default function useClipOperate({ emit, currentActiveTab }) {
       } else if (id === "view") {
         return !isFullData;
       } else if (id === "line-join") {
+        return item.type === "text" && canJoinTextLines(item.data);
+      } else if (id === "line-surround-join" || id === "line-surround") {
         return item.type === "text" && canJoinTextLines(item.data);
       } else if (id === "open-folder") {
         return item.type === "file";

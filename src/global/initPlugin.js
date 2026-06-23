@@ -1412,7 +1412,7 @@ export default async function initPlugin() {
       item.data === lineJoinSuppressRecord.data
     ) {
       delete window[LINE_JOIN_SUPPRESS_CLIPBOARD_RECORD_KEY]
-      console.log('[handleClipboardChange] 跳过行拼接粘贴触发的剪贴板记录')
+      console.log('[handleClipboardChange] 跳过行处理粘贴触发的剪贴板记录')
       return
     }
 

@@ -799,10 +799,10 @@
                     marker="?"
                     button-class="setting-help-btn setting-help-btn--compact"
                     aria-label="查看行拼接说明"
-                    content="多行文本 item 的行拼接菜单和快捷键使用此分隔符；默认 ,，保存路径 userConfig.lineJoin.separator"
+                    content="多行文本 item 的行拼接、包围再拼接和只包围共用此配置；输入 { 会自动匹配 }，输入引号或反引号会作为对称的一对。"
                   />
                 </div>
-                <div class="feature-config-control feature-config-control--compact">
+                <div class="feature-config-control feature-config-control--compact feature-config-control--line-join">
                   <div class="feature-config-input inline feature-config-input--line-join">
                     <span class="feature-config-inline-label">分隔</span>
                     <input
@@ -813,6 +813,17 @@
                       maxlength="32"
                     >
                   </div>
+                  <div class="feature-config-input inline feature-config-input--line-surround">
+                    <span class="feature-config-inline-label">包围</span>
+                    <input
+                      v-model="lineJoinSurround"
+                      class="feature-config-native-input feature-config-native-input--text"
+                      type="text"
+                      :placeholder="LINE_JOIN_DEFAULT_SURROUND"
+                      maxlength="4"
+                    >
+                  </div>
+                  <span class="line-surround-preview" :title="lineJoinSurroundHint">{{ lineJoinSurroundPreview }}</span>
                 </div>
               </div>
               <div class="feature-config-row feature-config-row--compact">
@@ -1261,7 +1272,13 @@ import {
   requestCancelCommandMacroRun
 } from '../global/commandMacroRuntime'
 import { getNativeId } from '../utils'
-import { LINE_JOIN_DEFAULT_SEPARATOR, normalizeLineJoinSeparator } from '../utils/lineJoin.mjs'
+import {
+  LINE_JOIN_DEFAULT_SEPARATOR,
+  LINE_JOIN_DEFAULT_SURROUND,
+  normalizeLineJoinSeparator,
+  normalizeLineJoinSurround,
+  resolveLineJoinSurroundPair
+} from '../utils/lineJoin.mjs'
 import SettingPagedTable from '../cpns/SettingPagedTable.vue'
 import HelpHint from '../cpns/HelpHint.vue'
 import {
@@ -1338,7 +1355,20 @@ const commandMacroStorageMode = ref(initialCommandMacroStorage.storageMode)
 const initialHoverPreviewConfig = getHoverPreviewConfig(setting)
 const hoverPreviewEnabled = ref(initialHoverPreviewConfig.enabled)
 const hoverPreviewDelay = ref(initialHoverPreviewConfig.delay)
-const lineJoinSeparator = ref(getLineJoinConfig(setting).separator)
+const initialLineJoinConfig = getLineJoinConfig(setting)
+const lineJoinSeparator = ref(initialLineJoinConfig.separator)
+const lineJoinSurround = ref(initialLineJoinConfig.surround)
+const lineJoinSurroundPair = computed(() => resolveLineJoinSurroundPair(lineJoinSurround.value))
+const lineJoinSurroundPreview = computed(() => {
+  const pair = lineJoinSurroundPair.value
+  return `${pair.open}文本${pair.close}`
+})
+const lineJoinSurroundHint = computed(() => {
+  const pair = lineJoinSurroundPair.value
+  return pair.open === pair.close
+    ? `${pair.open} 作为一对对称包围符使用`
+    : `自动匹配为 ${pair.open} ... ${pair.close}`
+})
 const themePreference = ref(normalizeThemePreference(setting?.userConfig?.appearance?.theme))
 const themeOptions = [
   { value: THEME_LIGHT, label: '亮色' },
@@ -2823,6 +2853,7 @@ function validateFeatureConfig() {
     hoverPreviewDelay.value = Math.round(delay)
   }
   lineJoinSeparator.value = normalizeLineJoinSeparator(lineJoinSeparator.value)
+  lineJoinSurround.value = normalizeLineJoinSurround(lineJoinSurround.value)
   return true
 }
 
@@ -2892,7 +2923,8 @@ const handleSaveBtnClick = () => {
         },
         lineJoin: {
           ...(setting.userConfig?.lineJoin || {}),
-          separator: normalizeLineJoinSeparator(lineJoinSeparator.value)
+          separator: normalizeLineJoinSeparator(lineJoinSeparator.value),
+          surround: normalizeLineJoinSurround(lineJoinSurround.value)
         },
         appearance: {
           ...(setting.userConfig?.appearance || {}),
@@ -2908,7 +2940,9 @@ const handleSaveBtnClick = () => {
   shortcutStorageMode.value = shortcutSaveResult.storageMode
   hotkeyOverrides.value = shortcutSaveResult.hotkeyOverrides
   shortcutSyncDocument.value = normalizeShortcutSyncDocument(shortcutSaveResult.setting?.userConfig?.shortcutSync)
-  lineJoinSeparator.value = getLineJoinConfig(shortcutSaveResult.setting).separator
+  const savedLineJoinConfig = getLineJoinConfig(shortcutSaveResult.setting)
+  lineJoinSeparator.value = savedLineJoinConfig.separator
+  lineJoinSurround.value = savedLineJoinConfig.surround
   showShortcutSaveMessage(shortcutSaveResult, '保存')
 }
 
@@ -4898,6 +4932,11 @@ onUnmounted(() => {
   flex-shrink: 1;
   overflow: hidden;
 }
+.feature-config-control--line-join {
+  flex-wrap: wrap;
+  row-gap: 5px;
+  overflow: visible;
+}
 .feature-config-row--compact .feature-config-title-row strong {
   font-size: 12px;
   font-weight: 600;
@@ -5215,6 +5254,21 @@ onUnmounted(() => {
 }
 .feature-config-row--compact .feature-config-input--line-join .feature-config-native-input {
   width: 72px;
+}
+.feature-config-row--compact .feature-config-input--line-surround .feature-config-native-input {
+  width: 36px;
+  text-align: center;
+}
+.line-surround-preview {
+  flex: 0 1 auto;
+  max-width: 126px;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--text-color-lighter);
+  font-size: 10px;
+  line-height: 18px;
 }
 .feature-config-row--compact .feature-config-unit {
   font-size: 10px;

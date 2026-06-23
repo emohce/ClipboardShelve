@@ -32,6 +32,8 @@ export const OPERATION_SHORTCUT_COMMANDS = {
   'un-collect': ['list.item.collectToggle'],
   'edit-tags': ['list.item.editTagOrAlias'],
   'line-join': ['list.item.joinLines'],
+  'line-surround-join': ['list.item.surroundJoinLines'],
+  'line-surround': ['list.item.surroundLines'],
   remove: ['list.item.delete']
 }
 
@@ -183,7 +185,7 @@ export function getOperationShortcutSummary(operationId, shortcutRows, formatSho
   return {
     count: rows.length,
     activeCount: visibleRows.length,
-    label: labels.slice(0, 3).join(' / ') || '已禁用',
+    label: labels.slice(0, 3).join(' / ') || (visibleRows.length ? '无直接快捷键' : '已禁用'),
     query: rows[0].commandId,
     hint: '点击查看或修改对应 command 快捷键'
   }
