@@ -30,6 +30,7 @@ export function ensureDevRuntimeStub() {
       hideMainWindowPasteText: () => true,
       hideMainWindowPasteImage: () => true,
       hideMainWindowPasteFile: () => true,
+      hideMainWindowTypeString: () => true,
       getCurrentWindow: () => ({ setSize: () => {}, getSize: () => [0, 0] }),
       shellExec: () => ({ stdout: '', stderr: '' })
     }

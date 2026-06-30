@@ -1,229 +1,364 @@
-import { registerPluginEnterHandler, consumePendingPluginEnterAction } from './pluginEnterHandlers'
-import {
-  getLastActiveContext,
-  getPinGroup,
-  getPinnedMap,
-  savePinGroup,
-  sortPinnedItems
-} from '../storage/pinnedItems'
-import {
-  buildPinGroupRuntimeCache,
-  resolvePinGroupCacheCursorEntry,
-  resolvePinGroupItemsById,
-  resolveQuickPastePinnedItem
-} from './quickPasteSelection'
-import { copyAndPasteAndExit, itemMatchesBodyKeyword } from '../utils'
-
-const QUICK_PASTE_TOP_CODE = 'quick-paste-top'
-const QUICK_PASTE_GROUP_CODE = 'quick-paste-pin-group'
-const PIN_GROUP_CACHE_ENTRY_TYPE = 'clipboard-item'
-const PASTEABLE_CLIPBOARD_ITEM_TYPES = new Set(['text', 'image', 'file'])
-const QUICK_PASTE_OPTIONS = {
-  respectImageCopyGuard: true,
-  useHideMainWindowPaste: true,
-  skipResetPluginUiState: true,
-  markExitingPlugin: true
-}
-
-let quickPasteInFlight = false
-let disposeQuickPasteEnterHandler = null
-let pinGroupRuntimeCache = null
-
-export const isQuickPasteEnterAction = (action) =>
-  action?.code === QUICK_PASTE_TOP_CODE || action?.code === QUICK_PASTE_GROUP_CODE
-
-const hideQuickPasteWindow = () => {
-  if (typeof utools !== 'undefined' && typeof utools.hideMainWindow === 'function') {
-    utools.hideMainWindow()
-  }
-}
-
-const parseStarFilter = (raw) => {
-  const value = raw ?? ''
-  if (!value || value[0] !== '*') return { isStar: false, tagKeyword: '', bodyKeyword: '' }
-  const afterStar = value.slice(1)
-  const firstNonSpace = afterStar.search(/\S/)
-  if (firstNonSpace === -1) return { isStar: true, tagKeyword: '', bodyKeyword: '' }
-  const rest = afterStar.slice(firstNonSpace)
-  const spaceIndex = rest.indexOf(' ')
-  return {
-    isStar: true,
-    tagKeyword: spaceIndex === -1 ? rest : rest.slice(0, spaceIndex),
-    bodyKeyword: spaceIndex === -1 ? '' : rest.slice(spaceIndex + 1).trim()
-  }
-}
-
-const tagMatch = (item, tagKeyword) => {
-  if (!tagKeyword) return true
-  const keyword = String(tagKeyword).toLowerCase()
-  const tags = Array.isArray(item?.tags) ? item.tags : []
-  return tags.some((tag) => String(tag).toLowerCase().includes(keyword))
-}
-
-const matchSearchableItemType = (item, keyword = '', tab = 'all') => {
-  if (!item) return false
-  if (tab === 'text') return item.type === 'text'
-  if (tab === 'image') return item.type === 'image'
-  if (tab === 'file') return item.type === 'file'
-  if (tab === 'collect') return true
-  if (keyword && item.type === 'image') return itemMatchesBodyKeyword(item, keyword)
-  return keyword ? item.type !== 'image' : true
-}
-
-const itemMatchesContext = (item, context = getLastActiveContext(), db = window.db) => {
-  if (!item) return false
-  const keyword = typeof context.keyword === 'string' ? context.keyword.trim() : ''
-  const parsed = parseStarFilter(context.keyword)
-  const isCollected = Boolean(item?.id && db?.isCollected?.(item.id))
-
-  if (context.tab === 'collect') {
-    if (!isCollected) return false
-    if (context.collectTag && context.collectTag !== '*全部*' && !tagMatch(item, context.collectTag)) return false
-    if (context.lockFilter === 'locked' && item.locked !== true) return false
-    if (parsed.isStar) return tagMatch(item, parsed.tagKeyword) && itemMatchesBodyKeyword(item, parsed.bodyKeyword)
-    return matchSearchableItemType(item, keyword, 'collect') && itemMatchesBodyKeyword(item, keyword)
-  }
-
-  if (isCollected) return false
-  if (parsed.isStar) {
-    return matchSearchableItemType(item, context.keyword, context.tab) &&
-      (context.lockFilter !== 'locked' || item.locked === true) &&
-      itemMatchesBodyKeyword(item, parsed.bodyKeyword)
-  }
-  return matchSearchableItemType(item, keyword, context.tab) &&
-    (context.lockFilter !== 'locked' || item.locked === true) &&
-    itemMatchesBodyKeyword(item, keyword)
-}
-
-const getItemById = (id, db = window.db) =>
-  db?.getById?.(id) || db?.filterDataBaseViaId?.(id)?.[0] || null
-
-const getKnownItems = (db = window.db) => [
-  ...(db?.dataBase?.data || []),
-  ...(db?.dataBase?.collectData || [])
-]
-
-const buildCacheFromGroup = (group, db = window.db) =>
-  buildPinGroupRuntimeCache(group.itemIds, {
-    cursor: group.cursor,
-    updatedAt: group.updatedAt,
-    knownItems: getKnownItems(db),
-    getItemById: (id) => getItemById(id, db)
-  })
-
-export function setQuickPastePinGroupCache(items = [], options = {}) {
-  const list = (Array.isArray(items) ? items : []).filter(
-    (item) => item?.id && !item.__pinGroup && PASTEABLE_CLIPBOARD_ITEM_TYPES.has(item.type)
-  )
-  const itemIds = Array.isArray(options.itemIds) && options.itemIds.length
-    ? options.itemIds.filter((id) => id && id !== '__ez_pin_group__')
-    : list.map((item) => item.id)
-  const byId = new Map(list.map((item) => [item.id, item]))
-  pinGroupRuntimeCache = {
-    itemIds,
-    entries: itemIds
-      .map((id, sourceIndex) => ({
-        type: PIN_GROUP_CACHE_ENTRY_TYPE,
-        value: byId.get(id) || null,
-        sourceIndex
-      }))
-      .filter((entry) => entry.value),
-    cursor: Math.max(0, Number(options.cursor) || 0),
-    updatedAt: Number(options.updatedAt) || Date.now()
-  }
-  return pinGroupRuntimeCache
-}
-
-export function clearQuickPastePinGroupCache() {
-  pinGroupRuntimeCache = null
-}
-
-export function refreshQuickPastePinGroupCache(options = {}) {
-  const db = options.db || window.db
-  const group = options.group || getPinGroup()
-  pinGroupRuntimeCache = buildCacheFromGroup(group, db)
-  return pinGroupRuntimeCache
-}
-
-function getQuickPastePinGroupCache(db = window.db) {
-  if (pinGroupRuntimeCache) return pinGroupRuntimeCache
-  return refreshQuickPastePinGroupCache({ db })
-}
-
-const getPinnedItemsForContext = (context = getLastActiveContext(), db = window.db) => {
-  const map = getPinnedMap()
-  const ids = Object.keys(map).filter(Boolean)
-  if (!ids.length) return []
-  const items = resolvePinGroupItemsById(ids, {
-    knownItems: getKnownItems(db),
-    getItemById: (id) => getItemById(id, db)
-  })
-  return sortPinnedItems(
-    items.filter((item) => itemMatchesContext(item, context, db)),
-    map
-  )
-}
-
-export function runQuickPasteAction(action, options = {}) {
-  const db = window.db || options.db
-  const code = typeof action === 'string' ? action : action?.code
-  if (code !== QUICK_PASTE_TOP_CODE && code !== QUICK_PASTE_GROUP_CODE) return false
-  if (quickPasteInFlight) return true
-
-  quickPasteInFlight = true
-  try {
-    if (code === QUICK_PASTE_TOP_CODE) {
-      const item = resolveQuickPastePinnedItem(getPinnedItemsForContext(getLastActiveContext(), db))
-      if (!item) {
-        hideQuickPasteWindow()
-        return false
-      }
-      return copyAndPasteAndExit(item, QUICK_PASTE_OPTIONS)
-    }
-
-    const cache = getQuickPastePinGroupCache(db)
-    const { item, nextIndex } = resolvePinGroupCacheCursorEntry(cache, { cursor: cache.cursor })
-    if (!item) {
-      hideQuickPasteWindow()
-      return false
-    }
-    const ok = copyAndPasteAndExit(item, QUICK_PASTE_OPTIONS)
-    if (ok) {
-      const saved = savePinGroup(cache.itemIds, { cursor: nextIndex })
-      cache.cursor = saved.cursor
-      cache.updatedAt = saved.updatedAt
-    } else {
-      hideQuickPasteWindow()
-    }
-    return ok
-  } catch (err) {
-    console.warn('[quickPasteRuntime] runQuickPasteAction failed:', err)
-    hideQuickPasteWindow()
-    return false
-  } finally {
-    quickPasteInFlight = false
-  }
-}
-
-export function flushPendingQuickPasteActions(options = {}) {
-  let pending = consumePendingPluginEnterAction(isQuickPasteEnterAction, {
-    maxAgeMs: options.pendingMaxAgeMs || 5000
-  })
-  while (pending) {
-    runQuickPasteAction(pending, options)
-    pending = consumePendingPluginEnterAction(isQuickPasteEnterAction, {
-      maxAgeMs: options.pendingMaxAgeMs || 5000
-    })
-  }
-}
-
-export function registerQuickPasteRuntime(options = {}) {
-  if (disposeQuickPasteEnterHandler) return disposeQuickPasteEnterHandler
-  const run = (action) => {
-    if (!isQuickPasteEnterAction(action)) return false
-    return runQuickPasteAction(action, options)
-  }
-  disposeQuickPasteEnterHandler = registerPluginEnterHandler(run)
-
-  return disposeQuickPasteEnterHandler
-}
+import { registerPluginEnterHandler, consumePendingPluginEnterAction } from './pluginEnterHandlers'
+import {
+  getLastActiveContext,
+  getPinGroup,
+  getPinnedMap,
+  savePinGroup,
+  sortPinnedItems
+} from '../storage/pinnedItems'
+import {
+  buildPinGroupRuntimeCache,
+  resolvePinGroupCacheCursorEntry,
+  resolvePinGroupItemsById,
+  resolveQuickPastePinnedItem
+} from './quickPasteSelection'
+import { copyAndPasteAndExit, itemMatchesBodyKeyword } from '../utils'
+
+const QUICK_PASTE_TOP_CODE = 'quick-paste-top'
+const QUICK_PASTE_GROUP_CODE = 'quick-paste-pin-group'
+const PIN_GROUP_CACHE_ENTRY_TYPE = 'clipboard-item'
+const PASTEABLE_CLIPBOARD_ITEM_TYPES = new Set(['text', 'image', 'file'])
+const QUICK_PASTE_OPTIONS = {
+  respectImageCopyGuard: true,
+  useHideMainWindowPaste: true,
+  skipResetPluginUiState: true,
+  markExitingPlugin: true
+}
+
+/** Win 全局快捷键：修饰键 release 后再粘贴（仅 hotkey 路径） */
+export const QUICK_PASTE_HOTKEY_SETTLE_MS = 120
+
+let quickPasteInFlight = false
+let quickPasteSettlePending = false
+const quickPasteQueue = []
+let disposeQuickPasteEnterHandler = null
+let pinGroupRuntimeCache = null
+let pinTopRuntimeCache = null
+
+export const isQuickPasteEnterAction = (action) =>
+  action?.code === QUICK_PASTE_TOP_CODE || action?.code === QUICK_PASTE_GROUP_CODE
+
+const hideQuickPasteWindow = () => {
+  if (typeof utools !== 'undefined' && typeof utools.hideMainWindow === 'function') {
+    utools.hideMainWindow()
+  }
+}
+
+const parseStarFilter = (raw) => {
+  const value = raw ?? ''
+  if (!value || value[0] !== '*') return { isStar: false, tagKeyword: '', bodyKeyword: '' }
+  const afterStar = value.slice(1)
+  const firstNonSpace = afterStar.search(/\S/)
+  if (firstNonSpace === -1) return { isStar: true, tagKeyword: '', bodyKeyword: '' }
+  const rest = afterStar.slice(firstNonSpace)
+  const spaceIndex = rest.indexOf(' ')
+  return {
+    isStar: true,
+    tagKeyword: spaceIndex === -1 ? rest : rest.slice(0, spaceIndex),
+    bodyKeyword: spaceIndex === -1 ? '' : rest.slice(spaceIndex + 1).trim()
+  }
+}
+
+const tagMatch = (item, tagKeyword) => {
+  if (!tagKeyword) return true
+  const keyword = String(tagKeyword).toLowerCase()
+  const tags = Array.isArray(item?.tags) ? item.tags : []
+  return tags.some((tag) => String(tag).toLowerCase().includes(keyword))
+}
+
+const matchSearchableItemType = (item, keyword = '', tab = 'all') => {
+  if (!item) return false
+  if (tab === 'text') return item.type === 'text'
+  if (tab === 'image') return item.type === 'image'
+  if (tab === 'file') return item.type === 'file'
+  if (tab === 'collect') return true
+  if (keyword && item.type === 'image') return itemMatchesBodyKeyword(item, keyword)
+  return keyword ? item.type !== 'image' : true
+}
+
+const itemMatchesContext = (item, context = getLastActiveContext(), db = window.db) => {
+  if (!item) return false
+  const keyword = typeof context.keyword === 'string' ? context.keyword.trim() : ''
+  const parsed = parseStarFilter(context.keyword)
+  const isCollected = Boolean(item?.id && db?.isCollected?.(item.id))
+
+  if (context.tab === 'collect') {
+    if (!isCollected) return false
+    if (context.collectTag && context.collectTag !== '*全部*' && !tagMatch(item, context.collectTag)) return false
+    if (context.lockFilter === 'locked' && item.locked !== true) return false
+    if (parsed.isStar) return tagMatch(item, parsed.tagKeyword) && itemMatchesBodyKeyword(item, parsed.bodyKeyword)
+    return matchSearchableItemType(item, keyword, 'collect') && itemMatchesBodyKeyword(item, keyword)
+  }
+
+  if (isCollected) return false
+  if (parsed.isStar) {
+    return matchSearchableItemType(item, context.keyword, context.tab) &&
+      (context.lockFilter !== 'locked' || item.locked === true) &&
+      itemMatchesBodyKeyword(item, parsed.bodyKeyword)
+  }
+  return matchSearchableItemType(item, keyword, context.tab) &&
+    (context.lockFilter !== 'locked' || item.locked === true) &&
+    itemMatchesBodyKeyword(item, keyword)
+}
+
+const getItemById = (id, db = window.db) =>
+  db?.getById?.(id) || db?.filterDataBaseViaId?.(id)?.[0] || null
+
+const getKnownItems = (db = window.db) => [
+  ...(db?.dataBase?.data || []),
+  ...(db?.dataBase?.collectData || [])
+]
+
+const getCachedItemSnapshotById = () => {
+  const map = new Map()
+  ;(pinGroupRuntimeCache?.entries || []).forEach((entry) => {
+    if (entry?.value?.id) map.set(entry.value.id, entry.value)
+  })
+  ;(pinTopRuntimeCache?.items || []).forEach((item) => {
+    if (item?.id) map.set(item.id, item)
+  })
+  return map
+}
+
+const buildCacheFromGroup = (group, db = window.db) => {
+  const snapshotById = getCachedItemSnapshotById()
+  return buildPinGroupRuntimeCache(group.itemIds, {
+    cursor: group.cursor,
+    updatedAt: group.updatedAt,
+    knownItems: getKnownItems(db),
+    getItemById: (id) => getItemById(id, db) || snapshotById.get(id) || null
+  })
+}
+
+export function setQuickPasteTopCache(items = [], options = {}) {
+  const list = (Array.isArray(items) ? items : []).filter(
+    (item) => item?.id && !item.__pinGroup && PASTEABLE_CLIPBOARD_ITEM_TYPES.has(item.type)
+  )
+  pinTopRuntimeCache = {
+    items: list,
+    context: options.context || getLastActiveContext(),
+    updatedAt: Number(options.updatedAt) || Date.now()
+  }
+  return pinTopRuntimeCache
+}
+
+export function clearQuickPasteTopCache() {
+  pinTopRuntimeCache = null
+}
+
+export function setQuickPastePinGroupCache(items = [], options = {}) {
+  const list = (Array.isArray(items) ? items : []).filter(
+    (item) => item?.id && !item.__pinGroup && PASTEABLE_CLIPBOARD_ITEM_TYPES.has(item.type)
+  )
+  const itemIds = Array.isArray(options.itemIds) && options.itemIds.length
+    ? options.itemIds.filter((id) => id && id !== '__ez_pin_group__')
+    : list.map((item) => item.id)
+  const byId = new Map(list.map((item) => [item.id, item]))
+  const snapshotById = getCachedItemSnapshotById()
+  pinGroupRuntimeCache = {
+    itemIds,
+    entries: itemIds
+      .map((id, sourceIndex) => ({
+        type: PIN_GROUP_CACHE_ENTRY_TYPE,
+        value: byId.get(id) || snapshotById.get(id) || null,
+        sourceIndex
+      }))
+      .filter((entry) => entry.value),
+    cursor: Math.max(0, Number(options.cursor) || 0),
+    updatedAt: Number(options.updatedAt) || Date.now()
+  }
+  return pinGroupRuntimeCache
+}
+
+export function clearQuickPastePinGroupCache() {
+  pinGroupRuntimeCache = null
+}
+
+export function refreshQuickPastePinGroupCache(options = {}) {
+  const db = options.db || window.db
+  const group = options.group || getPinGroup()
+  if (!group?.itemIds?.length) {
+    pinGroupRuntimeCache = null
+    return null
+  }
+  const next = buildCacheFromGroup(group, db)
+  if (pinGroupRuntimeCache?.entries?.length && next.entries.length) {
+    const prevById = new Map(
+      pinGroupRuntimeCache.entries
+        .filter((entry) => entry?.value?.id)
+        .map((entry) => [entry.value.id, entry.value])
+    )
+    next.entries = next.entries.map((entry) => ({
+      ...entry,
+      value: entry.value || prevById.get(entry.value?.id) || null
+    })).filter((entry) => entry.value)
+  }
+  pinGroupRuntimeCache = next
+  return pinGroupRuntimeCache
+}
+
+function getQuickPastePinGroupCache(db = window.db) {
+  if (pinGroupRuntimeCache?.entries?.length) return pinGroupRuntimeCache
+  return refreshQuickPastePinGroupCache({ db })
+}
+
+const getPinnedItemsForContext = (context = getLastActiveContext(), db = window.db) => {
+  const map = getPinnedMap()
+  const ids = Object.keys(map).filter(Boolean)
+  if (!ids.length) return []
+  const snapshotById = getCachedItemSnapshotById()
+  const items = resolvePinGroupItemsById(ids, {
+    knownItems: getKnownItems(db),
+    getItemById: (id) => getItemById(id, db) || snapshotById.get(id) || null
+  })
+  return sortPinnedItems(
+    items.filter((item) => itemMatchesContext(item, context, db)),
+    map
+  )
+}
+
+const contextSnapshotKey = (context = {}) =>
+  [context.tab || 'all', context.collectTag || '', context.keyword || '', context.lockFilter || 'all'].join('\u0001')
+
+const getQuickPasteTopItem = (db = window.db) => {
+  const context = getLastActiveContext()
+  const liveItems = getPinnedItemsForContext(context, db)
+  if (liveItems.length) {
+    if (!pinTopRuntimeCache || contextSnapshotKey(pinTopRuntimeCache.context) !== contextSnapshotKey(context)) {
+      setQuickPasteTopCache(liveItems, { context })
+    }
+    return resolveQuickPastePinnedItem(liveItems)
+  }
+  if (pinTopRuntimeCache?.items?.length &&
+    contextSnapshotKey(pinTopRuntimeCache.context) === contextSnapshotKey(context)) {
+    return resolveQuickPastePinnedItem(pinTopRuntimeCache.items)
+  }
+  return null
+}
+
+const logQuickPasteDebug = (message, detail = {}) => {
+  if (typeof window === 'undefined' || !window.__EZ_QUICK_PASTE_DEBUG) return
+  console.log('[quick-paste]', message, detail)
+}
+
+const isHotkeyPluginEnter = (enterFrom) => enterFrom === 'hotkey'
+
+const resolveHotkeySettleMs = () => {
+  if (typeof utools !== 'undefined' && typeof utools.isMacOs === 'function' && !utools.isMacOs()) {
+    return QUICK_PASTE_HOTKEY_SETTLE_MS
+  }
+  return 32
+}
+
+const afterHotkeySettle = (callback, options = {}) => {
+  if (options.immediate === true || !isHotkeyPluginEnter(options.enterFrom)) {
+    callback()
+    return
+  }
+  setTimeout(callback, resolveHotkeySettleMs())
+}
+
+const resolveQuickPasteEnterFrom = (action) =>
+  typeof action === 'object' && action ? action.from : undefined
+
+function executeQuickPasteActionSync(action, options = {}) {
+  const db = window.db || options.db
+  const code = typeof action === 'string' ? action : action?.code
+  const enterFrom = options.enterFrom ?? resolveQuickPasteEnterFrom(action)
+  const pasteOptions = { ...QUICK_PASTE_OPTIONS, enterFrom }
+  if (code !== QUICK_PASTE_TOP_CODE && code !== QUICK_PASTE_GROUP_CODE) return false
+
+  try {
+    if (code === QUICK_PASTE_TOP_CODE) {
+      const item = getQuickPasteTopItem(db)
+      logQuickPasteDebug('quick-paste-top', { itemId: item?.id, type: item?.type, enterFrom })
+      if (!item) {
+        hideQuickPasteWindow()
+        return false
+      }
+      return copyAndPasteAndExit(item, pasteOptions)
+    }
+
+    const cache = getQuickPastePinGroupCache(db)
+    const { item, nextIndex } = resolvePinGroupCacheCursorEntry(cache, { cursor: cache.cursor })
+    logQuickPasteDebug('quick-paste-pin-group', { itemId: item?.id, type: item?.type, enterFrom, cursor: cache.cursor })
+    if (!item) {
+      hideQuickPasteWindow()
+      return false
+    }
+    const ok = copyAndPasteAndExit(item, pasteOptions)
+    if (ok) {
+      const saved = savePinGroup(cache.itemIds, { cursor: nextIndex })
+      cache.cursor = saved.cursor
+      cache.updatedAt = saved.updatedAt
+    } else {
+      hideQuickPasteWindow()
+    }
+    return ok
+  } catch (err) {
+    console.warn('[quickPasteRuntime] executeQuickPasteActionSync failed:', err)
+    hideQuickPasteWindow()
+    return false
+  }
+}
+
+const processNextQueuedQuickPaste = (options = {}) => {
+  if (quickPasteInFlight || quickPasteSettlePending || !quickPasteQueue.length) return
+  const entry = quickPasteQueue.shift()
+  quickPasteSettlePending = true
+  afterHotkeySettle(() => {
+    quickPasteSettlePending = false
+    quickPasteInFlight = true
+    try {
+      executeQuickPasteActionSync(entry.action, { ...options, ...(entry.options || {}) })
+    } finally {
+      quickPasteInFlight = false
+      processNextQueuedQuickPaste(options)
+    }
+  }, { ...options, ...(entry.options || {}) })
+}
+
+export function runQuickPasteAction(action, options = {}) {
+  const code = typeof action === 'string' ? action : action?.code
+  if (code !== QUICK_PASTE_TOP_CODE && code !== QUICK_PASTE_GROUP_CODE) return false
+
+  const enterFrom = options.enterFrom ?? resolveQuickPasteEnterFrom(action)
+  const runOptions = { ...options, enterFrom }
+
+  if (options.immediate === true || !isHotkeyPluginEnter(enterFrom)) {
+    quickPasteInFlight = true
+    try {
+      return executeQuickPasteActionSync(action, runOptions)
+    } finally {
+      quickPasteInFlight = false
+    }
+  }
+
+  quickPasteQueue.push({ action, options: runOptions })
+  processNextQueuedQuickPaste(runOptions)
+  return true
+}
+
+export function flushPendingQuickPasteActions(options = {}) {
+  let pending = consumePendingPluginEnterAction(isQuickPasteEnterAction, {
+    maxAgeMs: options.pendingMaxAgeMs || 5000
+  })
+  while (pending) {
+    runQuickPasteAction(pending, options)
+    pending = consumePendingPluginEnterAction(isQuickPasteEnterAction, {
+      maxAgeMs: options.pendingMaxAgeMs || 5000
+    })
+  }
+}
+
+export function registerQuickPasteRuntime(options = {}) {
+  if (disposeQuickPasteEnterHandler) return disposeQuickPasteEnterHandler
+  const run = (action) => {
+    if (!isQuickPasteEnterAction(action)) return false
+    return runQuickPasteAction(action, options)
+  }
+  disposeQuickPasteEnterHandler = registerPluginEnterHandler(run)
+
+  return disposeQuickPasteEnterHandler
+}
+

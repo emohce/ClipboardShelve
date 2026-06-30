@@ -293,6 +293,58 @@ async function main() {
   )
   assert.deepStrictEqual(nativePasteCalls, [['text', 'pinned-top']])
 
+  const tapCalls = []
+  let hideMainWindowCalls = 0
+  globalThis.window.exports = {
+    utools: {
+      simulateKeyboardTap: (...args) => {
+        tapCalls.push(args)
+      },
+      hideMainWindow: () => {
+        hideMainWindowCalls += 1
+      },
+      isMacOs: () => false
+    },
+    existsSync: () => false,
+    sep: '/',
+    Buffer: { from: (value) => value }
+  }
+  const { copyAndPasteAndExit: copyAndPasteWithoutNativeApi } = await import(`./src/utils/index.js?noNativePaste=${Date.now()}`)
+  assert.strictEqual(
+    copyAndPasteWithoutNativeApi({ type: 'text', data: 'pinned-top' }, { useHideMainWindowPaste: true }),
+    false,
+    'silent paste should abort when hideMainWindowPaste* is unavailable'
+  )
+  assert.strictEqual(tapCalls.length, 0, 'silent paste must not fallback to simulateKeyboardTap')
+  assert.strictEqual(hideMainWindowCalls, 1, 'silent paste should hide window when native API is missing')
+
+  const typeStringCalls = []
+  globalThis.window.exports = {
+    utools: {
+      hideMainWindowPasteText: (text) => {
+        nativePasteCalls.push(['pasteText', text])
+        return true
+      },
+      hideMainWindowTypeString: (text) => {
+        typeStringCalls.push(text)
+        return true
+      },
+      isMacOs: () => false
+    },
+    existsSync: () => false,
+    sep: '/',
+    Buffer: { from: (value) => value }
+  }
+  nativePasteCalls.length = 0
+  const { copyAndPasteAndExit: copyAndPasteHotkeyWin } = await import(`./src/utils/index.js?hotkeyTypeString=${Date.now()}`)
+  assert.strictEqual(
+    copyAndPasteHotkeyWin({ type: 'text', data: 'pinned-hotkey' }, { useHideMainWindowPaste: true, enterFrom: 'hotkey' }),
+    true,
+    'Win hotkey text paste should use hideMainWindowTypeString'
+  )
+  assert.deepStrictEqual(typeStringCalls, ['pinned-hotkey'])
+  assert.strictEqual(nativePasteCalls.length, 0, 'Win hotkey text paste should not use hideMainWindowPasteText')
+
   let earlyMultiplexerCallback = null
   globalThis.utools = {
     onPluginEnter: (callback) => {
