@@ -34,6 +34,14 @@ Tool: codex
 
 **宏命令步骤间** `macroSettleAfterMs`（[commandDefaults.js](../../src/global/commandDefaults.js)）仅用于多步宏，与静默快捷粘贴无关。
 
+**Win 全局快捷键**：`action.from === 'hotkey'` 时延迟 `QUICK_PASTE_HOTKEY_SETTLE_MS`（120ms）后单次粘贴；点击仍同步。hotkey 串行队列，消费只推进组合 cursor，**不清空**置顶/组合运行时 cache。
+
+**Win hotkey 文本**：仅用 `hideMainWindowTypeString`（不模拟 Ctrl+V，避免只出 `v`）。点击与其它平台仍用 `hideMainWindowPasteText`。图片/文件用 `hideMainWindowPaste*`。
+
+**全局 cache**：`setQuickPasteTopCache` / `setQuickPastePinGroupCache` 在 Main 同步；热路径优先读内存 snapshot，db 暂不可用时仍可用已缓存条目。
+
+**静默 fallback 禁止**：`hideMainWindowPaste*` 不可用时不得回退到 `simulateKeyboardTap`（避免外部只出现 `v`）；见 [EM-2026-06-13](error-memory/2026-06-13-quick-paste-simulateKeyboardTap-only-v.md)。
+
 ## 冷启动
 
 1. `installPluginEnterMultiplexer()` 在 `initPlugin` 之前。

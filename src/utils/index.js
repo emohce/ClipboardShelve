@@ -282,9 +282,15 @@ const paste = () => {
 }
 
 const tryHideMainWindowPasteItem = (item, options = {}) => {
-  const { respectImageCopyGuard = true } = options
+  const { respectImageCopyGuard = true, enterFrom } = options
   if (!item?.type) return false
   if (item.type === 'text') {
+    const isWinHotkey = enterFrom === 'hotkey' &&
+      typeof utools.isMacOs === 'function' &&
+      !utools.isMacOs()
+    if (isWinHotkey && typeof utools.hideMainWindowTypeString === 'function') {
+      return Boolean(utools.hideMainWindowTypeString(item.data))
+    }
     if (typeof utools.hideMainWindowPasteText !== 'function') return null
     return Boolean(utools.hideMainWindowPasteText(item.data))
   }
@@ -352,7 +358,8 @@ const copyAndPasteAndExit = (item, options = {}) => {
     respectImageCopyGuard = true,
     markExitingPlugin = false,
     skipResetPluginUiState = false,
-    useHideMainWindowPaste = false
+    useHideMainWindowPaste = false,
+    enterFrom
   } = options
 
   if (item.type === 'image') {
@@ -365,7 +372,10 @@ const copyAndPasteAndExit = (item, options = {}) => {
 
   if (shouldPaste && useHideMainWindowPaste) {
     if (markExitingPlugin) setExitingPluginFlag(true)
-    const nativeResult = tryHideMainWindowPasteItem(item, { respectImageCopyGuard })
+    const nativeResult = tryHideMainWindowPasteItem(item, { respectImageCopyGuard, enterFrom })
+    if (typeof window !== 'undefined' && window.__EZ_QUICK_PASTE_DEBUG) {
+      console.log('[quick-paste] native paste', { type: item?.type, itemId: item?.id, enterFrom, nativeResult })
+    }
     if (nativeResult !== null) {
       if (markExitingPlugin) {
         setTimeout(() => setExitingPluginFlag(false), 80)
@@ -373,6 +383,11 @@ const copyAndPasteAndExit = (item, options = {}) => {
       return nativeResult
     }
     if (markExitingPlugin) setExitingPluginFlag(false)
+    console.warn('[copyAndPasteAndExit] hideMainWindowPaste* unavailable, silent paste aborted')
+    if (typeof utools !== 'undefined' && typeof utools.hideMainWindow === 'function') {
+      utools.hideMainWindow()
+    }
+    return false
   }
 
   if (!shouldPaste) {

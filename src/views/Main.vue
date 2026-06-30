@@ -291,7 +291,9 @@ import {
 } from "../global/quickPasteSelection";
 import {
     clearQuickPastePinGroupCache,
+    clearQuickPasteTopCache,
     setQuickPastePinGroupCache,
+    setQuickPasteTopCache,
 } from "../global/quickPasteRuntime";
 import { rewindLoadedCursorAfterDelete } from "../utils/listRefresh.mjs";
 
@@ -1225,10 +1227,21 @@ const pinGroupListItem = computed(() => {
     };
 });
 
+const syncQuickPasteTopCache = () => {
+    const context = getLastActiveContext();
+    const items = getPinnedItemsForContext(context);
+    if (!items.length) {
+        clearQuickPasteTopCache();
+        return;
+    }
+    setQuickPasteTopCache(items, { context });
+};
+
 const syncQuickPastePinGroupCache = () => {
     const group = pinGroup.value;
     if (!group?.itemIds?.length) {
         clearQuickPastePinGroupCache();
+        syncQuickPasteTopCache();
         return;
     }
     setQuickPastePinGroupCache(pinGroupItems.value, {
@@ -1236,6 +1249,7 @@ const syncQuickPastePinGroupCache = () => {
         cursor: group.cursor,
         updatedAt: group.updatedAt,
     });
+    syncQuickPasteTopCache();
 };
 
 const getDbVersion = () =>
@@ -1256,6 +1270,7 @@ const removeVisibleItemsByIds = (ids = []) => {
 const handleTogglePin = (item) => {
     const result = togglePinnedItem(item);
     pinnedMap.value = result.map;
+    syncQuickPasteTopCache();
     ElMessage({
         type: "success",
         message: result.pinned ? "已置顶选中项" : "已取消置顶",
