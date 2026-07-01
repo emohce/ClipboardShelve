@@ -1,4 +1,5 @@
 const assert = require('assert')
+const fs = require('fs')
 
 async function main() {
   const {
@@ -190,6 +191,21 @@ async function main() {
   assert.strictEqual(getShortcutMainKeyToken('c-s-tab'), 'tab')
   assert.strictEqual(isShortcutIdFixedNonConfigurable('space'), true)
   assert.strictEqual(isShortcutIdFixedNonConfigurable('c-space'), true)
+  const mainVueSource = fs.readFileSync('./src/views/Main.vue', 'utf8')
+  const quickPasteTopCacheSyncSource = mainVueSource.match(/const syncQuickPasteTopCache = \(\) => \{[\s\S]*?\n\};/)?.[0] || ''
+  assert.ok(
+    quickPasteTopCacheSyncSource.includes('getCurrentFilterContext()'),
+    'quick paste top cache sync should use the live main filter context'
+  )
+  assert.ok(
+    !quickPasteTopCacheSyncSource.includes('getLastActiveContext'),
+    'quick paste top cache sync must not reference missing storage helpers before main hotkey registration'
+  )
+  const quickPasteRuntimeSource = fs.readFileSync('./src/global/quickPasteRuntime.js', 'utf8')
+  assert.ok(
+    !/return\s+32\b/.test(quickPasteRuntimeSource),
+    'non-Windows quick paste hotkey should keep the previous immediate path without fallback settle delay'
+  )
   assert.strictEqual(LINE_JOIN_DEFAULT_SEPARATOR, ',')
   assert.strictEqual(LINE_JOIN_DEFAULT_SURROUND, '"')
   assert.strictEqual(normalizeLineJoinSeparator(''), ',')
@@ -345,6 +361,31 @@ async function main() {
   assert.deepStrictEqual(typeStringCalls, ['pinned-hotkey'])
   assert.strictEqual(nativePasteCalls.length, 0, 'Win hotkey text paste should not use hideMainWindowPasteText')
 
+  const macPasteCalls = []
+  globalThis.window.exports = {
+    utools: {
+      hideMainWindowPasteText: (text) => {
+        macPasteCalls.push(['pasteText', text])
+        return true
+      },
+      hideMainWindowTypeString: (text) => {
+        macPasteCalls.push(['typeString', text])
+        return true
+      },
+      isMacOs: () => true
+    },
+    existsSync: () => false,
+    sep: '/',
+    Buffer: { from: (value) => value }
+  }
+  const { copyAndPasteAndExit: copyAndPasteHotkeyMac } = await import(`./src/utils/index.js?macHotkeyPasteText=${Date.now()}`)
+  assert.strictEqual(
+    copyAndPasteHotkeyMac({ type: 'text', data: 'mac-hotkey' }, { useHideMainWindowPaste: true, enterFrom: 'hotkey' }),
+    true,
+    'Mac hotkey text paste should use the previous hideMainWindowPasteText path'
+  )
+  assert.deepStrictEqual(macPasteCalls, [['pasteText', 'mac-hotkey']])
+
   let earlyMultiplexerCallback = null
   globalThis.utools = {
     onPluginEnter: (callback) => {
@@ -422,6 +463,23 @@ async function main() {
   assert.strictEqual(getCommandIdForFeature('open-clear-dialog'), 'dialog.clear.open')
   assert.strictEqual(getCommandIdForFeature('tag-search'), 'tag.search.open')
   assert.strictEqual(getCommandIdForFeature('pin-group-open'), 'pin.group.open')
+  const mainTabShortcutBindings = getCommandAwareBindings(HOTKEY_BINDINGS)
+  const mainTabContext = { mainFocus: true, inputFocus: false, searchActive: false }
+  assert.strictEqual(
+    resolveKeybinding(mainTabShortcutBindings, 'left', mainTabContext, ['main'])?.commands?.[0],
+    'main.tab.prev',
+    'main left arrow should resolve to previous main tab command'
+  )
+  assert.strictEqual(
+    resolveKeybinding(mainTabShortcutBindings, 'right', mainTabContext, ['main'])?.commands?.[0],
+    'main.tab.nextExplicit',
+    'main right arrow should resolve to next main tab command'
+  )
+  assert.strictEqual(
+    resolveKeybinding(mainTabShortcutBindings, 'c-1', mainTabContext, ['main'])?.commands?.[0],
+    'main.tab.1',
+    'main ctrl+number should resolve to numbered main tab command'
+  )
   assert.strictEqual(getCommandIdForFeature('list-nav-up'), 'list.navigate.up')
   assert.strictEqual(getCommandIdForFeature('list-nav-down'), 'list.navigate.down')
   assert.strictEqual(getCommandIdForFeature('list-page-up'), 'list.navigate.pageUp')

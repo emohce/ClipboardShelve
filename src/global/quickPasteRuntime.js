@@ -241,22 +241,23 @@ const logQuickPasteDebug = (message, detail = {}) => {
   console.log('[quick-paste]', message, detail)
 }
 
-const isHotkeyPluginEnter = (enterFrom) => enterFrom === 'hotkey'
-
-const resolveHotkeySettleMs = () => {
-  if (typeof utools !== 'undefined' && typeof utools.isMacOs === 'function' && !utools.isMacOs()) {
-    return QUICK_PASTE_HOTKEY_SETTLE_MS
-  }
-  return 32
-}
-
-const afterHotkeySettle = (callback, options = {}) => {
-  if (options.immediate === true || !isHotkeyPluginEnter(options.enterFrom)) {
-    callback()
-    return
-  }
-  setTimeout(callback, resolveHotkeySettleMs())
-}
+const isHotkeyPluginEnter = (enterFrom) => enterFrom === 'hotkey'
+
+const isWindowsRuntime = () =>
+  typeof utools !== 'undefined' &&
+  typeof utools.isMacOs === 'function' &&
+  !utools.isMacOs()
+
+const shouldSettleHotkeyPaste = (enterFrom) =>
+  isHotkeyPluginEnter(enterFrom) && isWindowsRuntime()
+
+const afterHotkeySettle = (callback, options = {}) => {
+  if (options.immediate === true || !shouldSettleHotkeyPaste(options.enterFrom)) {
+    callback()
+    return
+  }
+  setTimeout(callback, QUICK_PASTE_HOTKEY_SETTLE_MS)
+}
 
 const resolveQuickPasteEnterFrom = (action) =>
   typeof action === 'object' && action ? action.from : undefined
@@ -325,10 +326,10 @@ export function runQuickPasteAction(action, options = {}) {
   const enterFrom = options.enterFrom ?? resolveQuickPasteEnterFrom(action)
   const runOptions = { ...options, enterFrom }
 
-  if (options.immediate === true || !isHotkeyPluginEnter(enterFrom)) {
-    quickPasteInFlight = true
-    try {
-      return executeQuickPasteActionSync(action, runOptions)
+  if (options.immediate === true || !shouldSettleHotkeyPaste(enterFrom)) {
+    quickPasteInFlight = true
+    try {
+      return executeQuickPasteActionSync(action, runOptions)
     } finally {
       quickPasteInFlight = false
     }
@@ -360,5 +361,4 @@ export function registerQuickPasteRuntime(options = {}) {
   disposeQuickPasteEnterHandler = registerPluginEnterHandler(run)
 
   return disposeQuickPasteEnterHandler
-}
-
+}

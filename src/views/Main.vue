@@ -1228,7 +1228,7 @@ const pinGroupListItem = computed(() => {
 });
 
 const syncQuickPasteTopCache = () => {
-    const context = getLastActiveContext();
+    const context = getCurrentFilterContext();
     const items = getPinnedItemsForContext(context);
     if (!items.length) {
         clearQuickPasteTopCache();
