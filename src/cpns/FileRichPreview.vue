@@ -3,7 +3,7 @@
     <div class="file-rich-preview__header" v-if="activeFile">
       <span class="file-rich-preview__badge">{{ kindLabel }}</span>
       <span class="file-rich-preview__name" :title="activeFile.path">{{ activeFile.name }}</span>
-      <span v-if="fileCount > 1" class="file-rich-preview__count">{{ fileCountLabel }}</span>
+      <span v-if="headerMetaLabel" class="file-rich-preview__meta">{{ headerMetaLabel }}</span>
     </div>
     <div
       ref="contentRef"
@@ -90,7 +90,6 @@
           </div>
         </div>
         <div v-else-if="preview.type === 'pdf'" class="file-rich-preview__pdf">
-          <div class="file-rich-preview__sheet">PDF · {{ preview.renderedPages }}/{{ preview.pageCount }}</div>
           <img
             v-for="page in preview.pages"
             :key="page.pageNumber"
@@ -270,6 +269,16 @@ const activeFile = computed(() => {
 
 const fileCount = computed(() => files.value.length)
 const fileCountLabel = computed(() => `${files.value.findIndex((file) => file.path === activeFile.value?.path) + 1}/${fileCount.value}`)
+const headerMetaLabel = computed(() => {
+  const labels = []
+  if (fileCount.value > 1) labels.push(fileCountLabel.value)
+  if (preview.value?.type === 'pdf') {
+    const renderedPages = Number(preview.value.renderedPages) || preview.value.pages?.length || 0
+    const pageCount = Number(preview.value.pageCount) || renderedPages
+    if (pageCount > 0) labels.push(`${Math.max(1, renderedPages)}/${pageCount}`)
+  }
+  return labels.join(' · ')
+})
 const kindLabel = computed(() => {
   const labels = {
     image: 'IMG',
@@ -1092,23 +1101,24 @@ defineExpose({
 .file-rich-preview__header {
   display: flex;
   align-items: center;
-  gap: 8px;
-  min-height: 36px;
-  padding: 8px 10px;
+  gap: 6px;
+  min-height: 26px;
+  padding: 3px 8px;
   border-bottom: 1px solid var(--border-color);
   background: var(--bg-elevated-color);
+  box-sizing: border-box;
 }
 
 .file-rich-preview__badge {
   flex-shrink: 0;
-  min-width: 42px;
-  padding: 2px 7px;
+  min-width: 32px;
+  padding: 1px 5px;
   border: 1px solid color-mix(in srgb, var(--primary-color) 28%, transparent);
-  border-radius: 6px;
+  border-radius: 5px;
   color: var(--primary-color);
   background: color-mix(in srgb, var(--primary-color) 10%, transparent);
-  font-size: 11px;
-  line-height: 1.3;
+  font-size: 10px;
+  line-height: 1.35;
   text-align: center;
 }
 
@@ -1118,22 +1128,23 @@ defineExpose({
   overflow: hidden;
   color: var(--text-color);
   font-size: 12px;
-  line-height: 1.4;
+  line-height: 1.25;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.file-rich-preview__count {
+.file-rich-preview__meta {
   flex-shrink: 0;
   color: var(--text-color-lighter);
   font-size: 11px;
+  line-height: 1.25;
 }
 
 .file-rich-preview__content {
   flex: 1;
   min-height: 0;
   overflow: auto;
-  padding: 14px;
+  padding: 10px 12px 12px;
   background: var(--bg-color);
   box-sizing: border-box;
 }
@@ -1336,7 +1347,7 @@ defineExpose({
 .file-rich-preview__pdf {
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 8px;
   align-items: center;
 }
 
