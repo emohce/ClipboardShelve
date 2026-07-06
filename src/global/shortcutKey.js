@@ -96,6 +96,11 @@ const CODE_ALIAS = {
   Digit9: '9'
 }
 
+const WINDOWS_SHIFTED_PUNCTUATION_CODE_ALIAS = {
+  Comma: ',',
+  Period: '.'
+}
+
 const MODIFIER_KEYS = new Set(['Shift', 'Control', 'Alt', 'Meta'])
 const FIXED_MAIN_KEY_TOKENS = new Set(['tab', 'space'])
 const INTERNAL_MODIFIER_EVENT_IDS = new Set(['mod-c', 'mod-s', 'mod-a'])
@@ -112,6 +117,30 @@ function keyFromCode(code) {
   if (/^Key[A-Z]$/.test(code)) return code.slice(3).toLowerCase()
   if (/^F\d{1,2}$/.test(code)) return code.toLowerCase()
   return null
+}
+
+function keyFromWindowsShiftedPunctuationCode(code) {
+  if (!code) return null
+  return WINDOWS_SHIFTED_PUNCTUATION_CODE_ALIAS[code] ?? null
+}
+
+function isWindowsPlatform() {
+  try {
+    const osPlatform = typeof window !== 'undefined' ? window.exports?.os?.platform?.() : ''
+    if (osPlatform) return osPlatform === 'win32'
+  } catch (_) {}
+  try {
+    if (typeof navigator !== 'undefined' && /Win/i.test(navigator.platform || '')) return true
+  } catch (_) {}
+  try {
+    if (typeof process !== 'undefined' && process.platform) return process.platform === 'win32'
+  } catch (_) {}
+  return false
+}
+
+function shouldUseWindowsShiftedPunctuationKey(e, key, codeKey) {
+  if (!codeKey || !e?.shiftKey || !isWindowsPlatform()) return false
+  return normalizeKeyToken(key) !== codeKey
 }
 
 function normalizeKeyToken(token) {
@@ -182,6 +211,9 @@ export function eventToShortcutId(e) {
 
   let key = e?.key || ''
   if (key && MODIFIER_KEYS.has(key)) return MODIFIER_EVENT_ID_BY_KEY[key] || ''
+
+  const shiftedPunctuationKey = keyFromWindowsShiftedPunctuationCode(e?.code)
+  if (shouldUseWindowsShiftedPunctuationKey(e, key, shiftedPunctuationKey)) key = shiftedPunctuationKey
 
   const codeKey = keyFromCode(e?.code)
   if (codeKey != null && (e?.altKey || key.length !== 1 || key === ' ')) key = codeKey
