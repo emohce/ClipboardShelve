@@ -143,6 +143,26 @@ async function main() {
   } = await import('./src/global/hotkeyRegistry.js')
   const { clearLayers } = await import('./src/global/hotkeyLayers.js')
   const initSqlJs = (await import('sql.js')).default
+  const withRuntimePlatform = (platform, fn) => {
+    const previousWindow = globalThis.window
+    globalThis.window = {
+      ...(previousWindow || {}),
+      exports: {
+        ...(previousWindow?.exports || {}),
+        os: { platform: () => platform },
+        utools: {
+          ...(previousWindow?.exports?.utools || {}),
+          isMacOs: () => platform === 'darwin'
+        }
+      }
+    }
+    try {
+      return fn()
+    } finally {
+      if (previousWindow === undefined) delete globalThis.window
+      else globalThis.window = previousWindow
+    }
+  }
   let lineJoinModule = null
   try {
     lineJoinModule = await import('./src/utils/lineJoin.mjs')
@@ -186,6 +206,16 @@ async function main() {
   })
   assert.strictEqual(eventToShortcutId({ ctrlKey: true, key: 'cr' }), 'c-cr')
   assert.strictEqual(eventToShortcutId({ ctrlKey: true, shiftKey: true, key: ',', code: 'Comma' }), 'c-s-,')
+  withRuntimePlatform('win32', () => {
+    assert.strictEqual(eventToShortcutId({ ctrlKey: true, shiftKey: true, key: '<', code: 'Comma' }), 'c-s-,')
+    assert.strictEqual(eventToShortcutId({ ctrlKey: true, shiftKey: true, key: '>', code: 'Period' }), 'c-s-.')
+    assert.strictEqual(eventToShortcutId({ ctrlKey: true, shiftKey: true, altKey: true, key: '>', code: 'Period' }), 'c-s-a-.')
+    assert.strictEqual(eventToShortcutId({ shiftKey: true, altKey: true, key: 'P', code: 'KeyP' }), 's-a-p')
+    assert.strictEqual(eventToShortcutId({ shiftKey: true, altKey: true, key: 'V', code: 'KeyV' }), 's-a-v')
+  })
+  withRuntimePlatform('darwin', () => {
+    assert.strictEqual(eventToShortcutId({ altKey: true, key: '≥', code: 'Period' }), 'a-≥')
+  })
   assert.strictEqual(eventToShortcutId({ shiftKey: true, key: 'f2' }), 's-f2')
   assert.match(formatShortcutDisplay('c-s-del'), /^(Ctrl|Command)\+Shift\+Delete$/)
   assert.strictEqual(getShortcutMainKeyToken('c-s-tab'), 'tab')
@@ -360,6 +390,60 @@ async function main() {
   )
   assert.deepStrictEqual(typeStringCalls, ['pinned-hotkey'])
   assert.strictEqual(nativePasteCalls.length, 0, 'Win hotkey text paste should not use hideMainWindowPasteText')
+
+  const quickPasteMissingFromTypeStringCalls = []
+  const quickPasteMissingFromPasteTextCalls = []
+  const quickPasteMissingFromStorage = new Map([
+    ['pin.item.map', { 'qp-missing-from': { pinnedAt: 1 } }],
+    ['pin.lastActiveContext', { tab: 'all', collectTag: '*全部*', keyword: '', lockFilter: 'all' }]
+  ])
+  const quickPasteMissingFromItem = { id: 'qp-missing-from', type: 'text', data: 'quick-paste-missing-from' }
+  const quickPasteMissingFromUTools = {
+    hideMainWindowTypeString: (text) => {
+      quickPasteMissingFromTypeStringCalls.push(text)
+      return true
+    },
+    hideMainWindowPasteText: (text) => {
+      quickPasteMissingFromPasteTextCalls.push(text)
+      return true
+    },
+    hideMainWindow: () => {},
+    isMacOs: () => false,
+    dbStorage: {
+      getItem: (key) => quickPasteMissingFromStorage.get(key),
+      setItem: (key, value) => quickPasteMissingFromStorage.set(key, value)
+    }
+  }
+  globalThis.utools = quickPasteMissingFromUTools
+  globalThis.window = {
+    exports: {
+      utools: quickPasteMissingFromUTools,
+      os: { platform: () => 'win32' },
+      existsSync: () => false,
+      sep: '/',
+      Buffer: { from: (value) => value }
+    },
+    db: {
+      dataBase: { data: [quickPasteMissingFromItem], collectData: [] },
+      getById: (id) => (id === quickPasteMissingFromItem.id ? quickPasteMissingFromItem : null),
+      filterDataBaseViaId: (id) => (id === quickPasteMissingFromItem.id ? [quickPasteMissingFromItem] : []),
+      isCollected: () => false
+    }
+  }
+  const { runQuickPasteAction: runQuickPasteActionMissingFrom } = await import(
+    `./src/global/quickPasteRuntime.js?missingFromWinHotkey=${Date.now()}`
+  )
+  assert.strictEqual(
+    runQuickPasteActionMissingFrom({ code: 'quick-paste-top' }, { immediate: true }),
+    true,
+    'Windows quick-paste action without from should still use hotkey-safe paste path'
+  )
+  assert.deepStrictEqual(quickPasteMissingFromTypeStringCalls, ['quick-paste-missing-from'])
+  assert.strictEqual(
+    quickPasteMissingFromPasteTextCalls.length,
+    0,
+    'Windows quick-paste action without from should not use hideMainWindowPasteText for text'
+  )
 
   const macPasteCalls = []
   globalThis.window.exports = {

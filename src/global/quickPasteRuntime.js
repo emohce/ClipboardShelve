@@ -1,18 +1,18 @@
-import { registerPluginEnterHandler, consumePendingPluginEnterAction } from './pluginEnterHandlers'
-import {
-  getLastActiveContext,
-  getPinGroup,
-  getPinnedMap,
-  savePinGroup,
-  sortPinnedItems
-} from '../storage/pinnedItems'
-import {
-  buildPinGroupRuntimeCache,
-  resolvePinGroupCacheCursorEntry,
-  resolvePinGroupItemsById,
-  resolveQuickPastePinnedItem
-} from './quickPasteSelection'
-import { copyAndPasteAndExit, itemMatchesBodyKeyword } from '../utils'
+import { registerPluginEnterHandler, consumePendingPluginEnterAction } from './pluginEnterHandlers.js'
+import {
+  getLastActiveContext,
+  getPinGroup,
+  getPinnedMap,
+  savePinGroup,
+  sortPinnedItems
+} from '../storage/pinnedItems.js'
+import {
+  buildPinGroupRuntimeCache,
+  resolvePinGroupCacheCursorEntry,
+  resolvePinGroupItemsById,
+  resolveQuickPastePinnedItem
+} from './quickPasteSelection.js'
+import { copyAndPasteAndExit, itemMatchesBodyKeyword } from '../utils/index.js'
 
 const QUICK_PASTE_TOP_CODE = 'quick-paste-top'
 const QUICK_PASTE_GROUP_CODE = 'quick-paste-pin-group'
@@ -243,10 +243,22 @@ const logQuickPasteDebug = (message, detail = {}) => {
 
 const isHotkeyPluginEnter = (enterFrom) => enterFrom === 'hotkey'
 
+const getRuntimePlatform = () => {
+  try {
+    const osPlatform = typeof window !== 'undefined' ? window.exports?.os?.platform?.() : ''
+    if (osPlatform) return osPlatform
+  } catch (_) {}
+  try {
+    if (typeof navigator !== 'undefined' && /Win/i.test(navigator.platform || '')) return 'win32'
+  } catch (_) {}
+  try {
+    if (typeof process !== 'undefined' && process.platform) return process.platform
+  } catch (_) {}
+  return ''
+}
+
 const isWindowsRuntime = () =>
-  typeof utools !== 'undefined' &&
-  typeof utools.isMacOs === 'function' &&
-  !utools.isMacOs()
+  getRuntimePlatform() === 'win32'
 
 const shouldSettleHotkeyPaste = (enterFrom) =>
   isHotkeyPluginEnter(enterFrom) && isWindowsRuntime()
@@ -259,8 +271,12 @@ const afterHotkeySettle = (callback, options = {}) => {
   setTimeout(callback, QUICK_PASTE_HOTKEY_SETTLE_MS)
 }
 
-const resolveQuickPasteEnterFrom = (action) =>
-  typeof action === 'object' && action ? action.from : undefined
+const resolveQuickPasteEnterFrom = (action) => {
+  const from = typeof action === 'object' && action ? action.from : undefined
+  if (from) return from
+  if (isQuickPasteEnterAction(action) && isWindowsRuntime()) return 'hotkey'
+  return undefined
+}
 
 function executeQuickPasteActionSync(action, options = {}) {
   const db = window.db || options.db
