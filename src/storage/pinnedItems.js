@@ -1,6 +1,10 @@
 export const PINNED_ITEM_MAP_KEY = "pin.item.map";
 export const PIN_LAST_ACTIVE_CONTEXT_KEY = "pin.lastActiveContext";
 export const PIN_GROUP_KEY = "pin.group";
+export const PIN_GROUP_STATE_VERSION = 2;
+export const PIN_GROUP_TYPES = ["collect", "all", "text", "image", "file"];
+export const DEFAULT_PIN_GROUP_TYPE = "all";
+export const PIN_GROUP_OPERATION = "pin-group";
 
 const readStorageObject = (key) => {
     try {
@@ -83,22 +87,99 @@ export const setLastActiveContext = (context = {}) => {
     });
 };
 
-export const getPinGroup = () => {
-    const group = readStorageObject(PIN_GROUP_KEY);
-    const itemIds = Array.isArray(group.itemIds)
-        ? group.itemIds.filter(Boolean)
-        : [];
+export const normalizePinGroupType = (type) =>
+    PIN_GROUP_TYPES.includes(type) ? type : DEFAULT_PIN_GROUP_TYPE;
+
+const uniqueItemIds = (itemIds = []) => [
+    ...new Set(
+        (Array.isArray(itemIds) ? itemIds : [])
+            .filter((id) => id && id !== "__ez_pin_group__"),
+    ),
+];
+
+const normalizePinGroup = (group = {}, type = DEFAULT_PIN_GROUP_TYPE) => {
+    const itemIds = uniqueItemIds(group.itemIds);
     return {
+        type: normalizePinGroupType(group.type || type),
+        operation: group.operation || PIN_GROUP_OPERATION,
         itemIds,
-        cursor: Math.max(0, Number(group.cursor) || 0),
+        cursor: Math.min(
+            Math.max(0, Number(group.cursor) || 0),
+            Math.max(0, itemIds.length - 1),
+        ),
         updatedAt: Number(group.updatedAt) || 0,
     };
 };
 
+const createEmptyPinGroup = (type = DEFAULT_PIN_GROUP_TYPE, updatedAt = 0) => ({
+    type: normalizePinGroupType(type),
+    operation: PIN_GROUP_OPERATION,
+    itemIds: [],
+    cursor: 0,
+    updatedAt: Number(updatedAt) || 0,
+});
+
+const createEmptyPinGroupState = (currentType = DEFAULT_PIN_GROUP_TYPE) => {
+    const groups = {};
+    PIN_GROUP_TYPES.forEach((type) => {
+        groups[type] = createEmptyPinGroup(type);
+    });
+    return {
+        version: PIN_GROUP_STATE_VERSION,
+        currentType: normalizePinGroupType(currentType),
+        groups,
+        updatedAt: 0,
+    };
+};
+
+const normalizePinGroupState = (raw = {}) => {
+    if (Array.isArray(raw.itemIds)) {
+        const state = createEmptyPinGroupState(DEFAULT_PIN_GROUP_TYPE);
+        const group = normalizePinGroup(raw, DEFAULT_PIN_GROUP_TYPE);
+        state.groups[DEFAULT_PIN_GROUP_TYPE] = group;
+        state.currentType = DEFAULT_PIN_GROUP_TYPE;
+        state.updatedAt = group.updatedAt;
+        return state;
+    }
+
+    const state = createEmptyPinGroupState(raw.currentType || raw.type);
+    const rawGroups =
+        raw.groups && typeof raw.groups === "object" && !Array.isArray(raw.groups)
+            ? raw.groups
+            : {};
+    PIN_GROUP_TYPES.forEach((type) => {
+        state.groups[type] = normalizePinGroup(rawGroups[type], type);
+    });
+    state.updatedAt = Number(raw.updatedAt) || Math.max(
+        0,
+        ...Object.values(state.groups).map((group) => Number(group.updatedAt) || 0),
+    );
+    return state;
+};
+
+const writePinGroupState = (state) => {
+    const normalized = normalizePinGroupState(state);
+    writeStorageObject(PIN_GROUP_KEY, normalized);
+    return normalized;
+};
+
+export const getPinGroupState = () =>
+    normalizePinGroupState(readStorageObject(PIN_GROUP_KEY));
+
+export const getPinGroup = (type) => {
+    const state = getPinGroupState();
+    const targetType = normalizePinGroupType(type || state.currentType);
+    return state.groups[targetType] || createEmptyPinGroup(targetType);
+};
+
 export const savePinGroup = (itemIds = [], options = {}) => {
-    const ids = [...new Set(itemIds.filter(Boolean))];
-    const prev = getPinGroup();
+    const state = getPinGroupState();
+    const type = normalizePinGroupType(options.type || state.currentType);
+    const ids = uniqueItemIds(itemIds);
+    const prev = state.groups[type] || createEmptyPinGroup(type);
     const group = {
+        type,
+        operation: PIN_GROUP_OPERATION,
         itemIds: ids,
         cursor: Math.min(
             Math.max(0, Number(options.cursor ?? prev.cursor) || 0),
@@ -106,29 +187,60 @@ export const savePinGroup = (itemIds = [], options = {}) => {
         ),
         updatedAt: Date.now(),
     };
-    writeStorageObject(PIN_GROUP_KEY, group);
+    state.groups[type] = group;
+    state.currentType = type;
+    state.updatedAt = group.updatedAt;
+    writePinGroupState(state);
     return group;
 };
 
-export const clearPinGroup = () => {
-    const group = { itemIds: [], cursor: 0, updatedAt: Date.now() };
-    writeStorageObject(PIN_GROUP_KEY, group);
+export const clearPinGroup = (typeOrOptions) => {
+    const state = getPinGroupState();
+    const type = normalizePinGroupType(
+        typeof typeOrOptions === "string"
+            ? typeOrOptions
+            : typeOrOptions?.type || state.currentType,
+    );
+    const group = createEmptyPinGroup(type, Date.now());
+    state.groups[type] = group;
+    state.currentType = type;
+    state.updatedAt = group.updatedAt;
+    writePinGroupState(state);
     return group;
 };
 
-export const removePinGroupItems = (ids = []) => {
+export const removePinGroupItems = (ids = [], options = {}) => {
     const idSet = new Set(ids.filter(Boolean));
-    const group = getPinGroup();
-    if (!idSet.size || !group.itemIds.length) return group;
-    const itemIds = group.itemIds.filter((id) => !idSet.has(id));
-    return savePinGroup(itemIds, {
-        cursor: Math.min(group.cursor, Math.max(0, itemIds.length - 1)),
+    const state = getPinGroupState();
+    const returnType = normalizePinGroupType(options.type || state.currentType);
+    if (!idSet.size) return state.groups[returnType] || createEmptyPinGroup(returnType);
+
+    let changed = false;
+    PIN_GROUP_TYPES.forEach((type) => {
+        const group = state.groups[type] || createEmptyPinGroup(type);
+        if (!group.itemIds.length) return;
+        const itemIds = group.itemIds.filter((id) => !idSet.has(id));
+        if (itemIds.length === group.itemIds.length) return;
+        changed = true;
+        state.groups[type] = {
+            ...group,
+            itemIds,
+            cursor: Math.min(group.cursor, Math.max(0, itemIds.length - 1)),
+            updatedAt: Date.now(),
+        };
     });
+    if (changed) {
+        state.updatedAt = Math.max(
+            ...Object.values(state.groups).map((group) => Number(group.updatedAt) || 0),
+        );
+        writePinGroupState(state);
+    }
+    return getPinGroup(returnType);
 };
 
-export const advancePinGroupCursor = () => {
-    const group = getPinGroup();
+export const advancePinGroupCursor = (type) => {
+    const group = getPinGroup(type);
     if (!group.itemIds.length) return group;
     const nextCursor = (group.cursor + 1) % group.itemIds.length;
-    return savePinGroup(group.itemIds, { cursor: nextCursor });
+    return savePinGroup(group.itemIds, { type: group.type, cursor: nextCursor });
 };

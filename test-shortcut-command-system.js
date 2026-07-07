@@ -94,6 +94,13 @@ async function main() {
     resolveQuickPastePinnedItem
   } = await import('./src/global/quickPasteSelection.js')
   const {
+    clearPinGroup,
+    getPinGroup,
+    getPinGroupState,
+    removePinGroupItems,
+    savePinGroup
+  } = await import('./src/storage/pinnedItems.js')
+  const {
     SHORTCUT_STORAGE_MODE_SETTING,
     SHORTCUT_STORAGE_MODE_SQLITE,
     SHORTCUT_STORAGE_MODE_UTOOLS_SYNC,
@@ -852,6 +859,123 @@ async function main() {
     [['partial-image', hydratedImageItem.data]],
     'pin group runtime cache should store hydrated image payloads'
   )
+
+  const tabScopedPinGroupStorage = new Map()
+  globalThis.utools = {
+    dbStorage: {
+      getItem: (key) => tabScopedPinGroupStorage.get(key),
+      setItem: (key, value) => tabScopedPinGroupStorage.set(key, value)
+    }
+  }
+  const savedAllGroup = savePinGroup(['all-a', 'all-b', 'all-a'], { type: 'all', cursor: 0 })
+  const savedImageGroup = savePinGroup(['image-a'], { type: 'image', cursor: 0 })
+  assert.deepStrictEqual(savedAllGroup.itemIds, ['all-a', 'all-b'])
+  assert.deepStrictEqual(savedImageGroup.itemIds, ['image-a'])
+  assert.deepStrictEqual(getPinGroup('all').itemIds, ['all-a', 'all-b'])
+  assert.deepStrictEqual(getPinGroup('image').itemIds, ['image-a'])
+  assert.deepStrictEqual(getPinGroup('text').itemIds, [])
+  assert.strictEqual(getPinGroupState().currentType, 'image')
+  removePinGroupItems(['all-a', 'image-a'], { type: 'all' })
+  assert.deepStrictEqual(getPinGroup('all').itemIds, ['all-b'])
+  assert.deepStrictEqual(getPinGroup('image').itemIds, [])
+  clearPinGroup('all')
+  assert.deepStrictEqual(getPinGroup('all').itemIds, [])
+  tabScopedPinGroupStorage.set('pin.group', { itemIds: ['legacy-a'], cursor: 5, updatedAt: 10 })
+  assert.deepStrictEqual(getPinGroupState().groups.all.itemIds, ['legacy-a'])
+  assert.deepStrictEqual(getPinGroup('image').itemIds, [])
+
+  const tabScopedGroupPasteCalls = []
+  const tabScopedGroupHideCalls = []
+  const tabScopedGroupStorage = new Map([
+    [
+      'pin.group',
+      {
+        version: 2,
+        currentType: 'image',
+        updatedAt: 20,
+        groups: {
+          all: { type: 'all', operation: 'pin-group', itemIds: ['all-group'], cursor: 0, updatedAt: 10 },
+          image: { type: 'image', operation: 'pin-group', itemIds: ['image-group'], cursor: 0, updatedAt: 20 }
+        }
+      }
+    ],
+    ['pin.lastActiveContext', { tab: 'image', collectTag: '*全部*', keyword: '', lockFilter: 'all' }]
+  ])
+  const tabScopedGroupUTools = quickPasteMissingFromUTools
+  tabScopedGroupUTools.hideMainWindowPasteText = (text) => {
+    tabScopedGroupPasteCalls.push(text)
+    return true
+  }
+  tabScopedGroupUTools.hideMainWindow = () => {
+    tabScopedGroupHideCalls.push('hide')
+  }
+  tabScopedGroupUTools.isMacOs = () => true
+  tabScopedGroupUTools.dbStorage = {
+    getItem: (key) => tabScopedGroupStorage.get(key),
+    setItem: (key, value) => tabScopedGroupStorage.set(key, value)
+  }
+  const allGroupItem = { id: 'all-group', type: 'text', data: 'all-group' }
+  const imageGroupItem = { id: 'image-group', type: 'text', data: 'image-group' }
+  globalThis.utools = tabScopedGroupUTools
+  globalThis.window = {
+    exports: {
+      utools: tabScopedGroupUTools,
+      os: { platform: () => 'darwin' },
+      existsSync: () => false,
+      sep: '/',
+      Buffer
+    },
+    db: {
+      dataBase: { data: [allGroupItem, imageGroupItem], collectData: [] },
+      getById: (id) => [allGroupItem, imageGroupItem].find((item) => item.id === id) || null,
+      filterDataBaseViaId: (id) => {
+        const item = [allGroupItem, imageGroupItem].find((entry) => entry.id === id)
+        return item ? [item] : []
+      },
+      isCollected: () => false
+    }
+  }
+  const {
+    runQuickPasteAction: runTabScopedQuickPasteAction,
+    setQuickPastePinGroupCache: setTabScopedQuickPastePinGroupCache
+  } = await import(`./src/global/quickPasteRuntime.js?tabScopedPinGroup=${Date.now()}`)
+  setTabScopedQuickPastePinGroupCache([allGroupItem], {
+    type: 'all',
+    currentType: 'image',
+    itemIds: ['all-group'],
+    cursor: 0,
+    updatedAt: 10
+  })
+  setTabScopedQuickPastePinGroupCache([imageGroupItem], {
+    type: 'image',
+    currentType: 'image',
+    itemIds: ['image-group'],
+    cursor: 0,
+    updatedAt: 20
+  })
+  assert.strictEqual(
+    runTabScopedQuickPasteAction({ code: 'quick-paste-pin-group' }, { immediate: true }),
+    true,
+    'quick-paste-pin-group should use the last active tab type cache'
+  )
+  assert.deepStrictEqual(tabScopedGroupPasteCalls, ['image-group'])
+  tabScopedGroupStorage.set('pin.lastActiveContext', { tab: 'text', collectTag: '*全部*', keyword: '', lockFilter: 'all' })
+  assert.strictEqual(
+    runTabScopedQuickPasteAction({ code: 'quick-paste-pin-group' }, { immediate: true }),
+    false,
+    'quick-paste-pin-group should not fall back to another tab group'
+  )
+  assert.deepStrictEqual(tabScopedGroupPasteCalls, ['image-group'])
+  assert.deepStrictEqual(tabScopedGroupHideCalls, ['hide'])
+  tabScopedGroupStorage.set('pin.lastActiveContext', { tab: 'image', collectTag: '*全部*', keyword: '', lockFilter: 'all' })
+  assert.strictEqual(
+    runTabScopedQuickPasteAction({ code: 'quick-paste-pin-group' }, { immediate: true }),
+    true,
+    'missing group in one tab should not clear another tab cache'
+  )
+  assert.deepStrictEqual(tabScopedGroupPasteCalls, ['image-group', 'image-group'])
+  assert.deepStrictEqual(tabScopedGroupHideCalls, ['hide'])
+
   const expectedDataWriteCommands = [
     'dialog.clear.confirm',
     'tag.edit.save',

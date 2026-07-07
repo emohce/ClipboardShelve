@@ -3,6 +3,9 @@ import {
   getLastActiveContext,
   getPinGroup,
   getPinnedMap,
+  normalizePinGroupType,
+  PIN_GROUP_OPERATION,
+  PIN_GROUP_TYPES,
   savePinGroup,
   sortPinnedItems
 } from '../storage/pinnedItems.js'
@@ -29,11 +32,50 @@ const QUICK_PASTE_OPTIONS = {
 export const QUICK_PASTE_HOTKEY_SETTLE_MS = 120
 
 let quickPasteInFlight = false
-let quickPasteSettlePending = false
-const quickPasteQueue = []
-let disposeQuickPasteEnterHandler = null
-let pinGroupRuntimeCache = null
-let pinTopRuntimeCache = null
+let quickPasteSettlePending = false
+const quickPasteQueue = []
+let disposeQuickPasteEnterHandler = null
+let pinGroupRuntimeCache = null
+let pinTopRuntimeCache = null
+
+const createEmptyPinGroupRuntimeCache = (type, updatedAt = 0) => ({
+  type: normalizePinGroupType(type),
+  operation: PIN_GROUP_OPERATION,
+  itemIds: [],
+  entries: [],
+  cursor: 0,
+  updatedAt: Number(updatedAt) || 0
+})
+
+const createPinGroupRuntimeCacheState = (currentType) => {
+  const groups = {}
+  PIN_GROUP_TYPES.forEach((type) => {
+    groups[type] = createEmptyPinGroupRuntimeCache(type)
+  })
+  return {
+    currentType: normalizePinGroupType(currentType || getLastActiveContext().tab),
+    groups,
+    updatedAt: 0
+  }
+}
+
+const ensurePinGroupRuntimeCacheState = (currentType) => {
+  if (!pinGroupRuntimeCache || typeof pinGroupRuntimeCache !== 'object') {
+    pinGroupRuntimeCache = createPinGroupRuntimeCacheState(currentType)
+  }
+  if (!pinGroupRuntimeCache.groups || typeof pinGroupRuntimeCache.groups !== 'object') {
+    pinGroupRuntimeCache.groups = {}
+  }
+  PIN_GROUP_TYPES.forEach((type) => {
+    if (!pinGroupRuntimeCache.groups[type]) {
+      pinGroupRuntimeCache.groups[type] = createEmptyPinGroupRuntimeCache(type)
+    }
+  })
+  pinGroupRuntimeCache.currentType = normalizePinGroupType(
+    currentType || pinGroupRuntimeCache.currentType || getLastActiveContext().tab
+  )
+  return pinGroupRuntimeCache
+}
 
 export const isQuickPasteEnterAction = (action) =>
   action?.code === QUICK_PASTE_TOP_CODE || action?.code === QUICK_PASTE_GROUP_CODE
@@ -109,26 +151,33 @@ const getKnownItems = (db = window.db) => [
   ...(db?.dataBase?.collectData || [])
 ]
 
-const getCachedItemSnapshotById = () => {
-  const map = new Map()
-  ;(pinGroupRuntimeCache?.entries || []).forEach((entry) => {
-    if (entry?.value?.id) map.set(entry.value.id, entry.value)
-  })
-  ;(pinTopRuntimeCache?.items || []).forEach((item) => {
-    if (item?.id) map.set(item.id, item)
-  })
-  return map
-}
-
-const buildCacheFromGroup = (group, db = window.db) => {
-  const snapshotById = getCachedItemSnapshotById()
-  return buildPinGroupRuntimeCache(group.itemIds, {
-    cursor: group.cursor,
-    updatedAt: group.updatedAt,
-    knownItems: getKnownItems(db),
-    getItemById: (id) => getItemById(id, db) || snapshotById.get(id) || null
-  })
-}
+const getCachedItemSnapshotById = () => {
+  const map = new Map()
+  Object.values(pinGroupRuntimeCache?.groups || {}).forEach((cache) => {
+    ;(cache?.entries || []).forEach((entry) => {
+      if (entry?.value?.id) map.set(entry.value.id, entry.value)
+    })
+  })
+  ;(pinTopRuntimeCache?.items || []).forEach((item) => {
+    if (item?.id) map.set(item.id, item)
+  })
+  return map
+}
+
+const buildCacheFromGroup = (group, db = window.db) => {
+  const snapshotById = getCachedItemSnapshotById()
+  const type = normalizePinGroupType(group?.type)
+  return {
+    type,
+    operation: group?.operation || PIN_GROUP_OPERATION,
+    ...buildPinGroupRuntimeCache(group?.itemIds, {
+      cursor: group?.cursor,
+      updatedAt: group?.updatedAt,
+      knownItems: getKnownItems(db),
+      getItemById: (id) => getItemById(id, db) || snapshotById.get(id) || null
+    })
+  }
+}
 
 export function setQuickPasteTopCache(items = [], options = {}) {
   const list = (Array.isArray(items) ? items : []).filter(
@@ -146,61 +195,83 @@ export function clearQuickPasteTopCache() {
   pinTopRuntimeCache = null
 }
 
-export function setQuickPastePinGroupCache(items = [], options = {}) {
-  const list = (Array.isArray(items) ? items : []).filter(
-    (item) => item?.id && !item.__pinGroup && PASTEABLE_CLIPBOARD_ITEM_TYPES.has(item.type)
-  )
-  const itemIds = Array.isArray(options.itemIds) && options.itemIds.length
-    ? options.itemIds.filter((id) => id && id !== '__ez_pin_group__')
-    : list.map((item) => item.id)
-  const byId = new Map(list.map((item) => [item.id, item]))
-  const snapshotById = getCachedItemSnapshotById()
-  pinGroupRuntimeCache = {
-    itemIds,
-    entries: itemIds
-      .map((id, sourceIndex) => ({
-        type: PIN_GROUP_CACHE_ENTRY_TYPE,
-        value: byId.get(id) || snapshotById.get(id) || null,
+export function setQuickPastePinGroupCache(items = [], options = {}) {
+  const list = (Array.isArray(items) ? items : []).filter(
+    (item) => item?.id && !item.__pinGroup && PASTEABLE_CLIPBOARD_ITEM_TYPES.has(item.type)
+  )
+  const type = normalizePinGroupType(options.type || options.currentType || getLastActiveContext().tab)
+  const itemIds = Array.isArray(options.itemIds) && options.itemIds.length
+    ? options.itemIds.filter((id) => id && id !== '__ez_pin_group__')
+    : list.map((item) => item.id)
+  const byId = new Map(list.map((item) => [item.id, item]))
+  const snapshotById = getCachedItemSnapshotById()
+  const cache = {
+    type,
+    operation: options.operation || PIN_GROUP_OPERATION,
+    itemIds,
+    entries: itemIds
+      .map((id, sourceIndex) => ({
+        type: PIN_GROUP_CACHE_ENTRY_TYPE,
+        value: byId.get(id) || snapshotById.get(id) || null,
         sourceIndex
       }))
-      .filter((entry) => entry.value),
-    cursor: Math.max(0, Number(options.cursor) || 0),
-    updatedAt: Number(options.updatedAt) || Date.now()
-  }
-  return pinGroupRuntimeCache
-}
-
-export function clearQuickPastePinGroupCache() {
-  pinGroupRuntimeCache = null
-}
-
-export function refreshQuickPastePinGroupCache(options = {}) {
-  const db = options.db || window.db
-  const group = options.group || getPinGroup()
-  if (!group?.itemIds?.length) {
-    pinGroupRuntimeCache = null
-    return null
-  }
-  const next = buildCacheFromGroup(group, db)
-  if (pinGroupRuntimeCache?.entries?.length && next.entries.length) {
-    const prevById = new Map(
-      pinGroupRuntimeCache.entries
-        .filter((entry) => entry?.value?.id)
-        .map((entry) => [entry.value.id, entry.value])
-    )
-    next.entries = next.entries.map((entry) => ({
-      ...entry,
-      value: entry.value || prevById.get(entry.value?.id) || null
-    })).filter((entry) => entry.value)
-  }
-  pinGroupRuntimeCache = next
-  return pinGroupRuntimeCache
-}
-
-function getQuickPastePinGroupCache(db = window.db) {
-  if (pinGroupRuntimeCache?.entries?.length) return pinGroupRuntimeCache
-  return refreshQuickPastePinGroupCache({ db })
-}
+      .filter((entry) => entry.value),
+    cursor: Math.max(0, Number(options.cursor) || 0),
+    updatedAt: Number(options.updatedAt) || Date.now()
+  }
+  const state = ensurePinGroupRuntimeCacheState(options.currentType || type)
+  state.groups[type] = cache
+  state.updatedAt = Math.max(Number(state.updatedAt) || 0, cache.updatedAt)
+  return cache
+}
+
+export function clearQuickPastePinGroupCache(type, options = {}) {
+  if (!type) {
+    pinGroupRuntimeCache = null
+    return null
+  }
+  const state = ensurePinGroupRuntimeCacheState(
+    options.currentType || pinGroupRuntimeCache?.currentType || getLastActiveContext().tab
+  )
+  state.groups[normalizePinGroupType(type)] = createEmptyPinGroupRuntimeCache(type, Date.now())
+  state.updatedAt = Date.now()
+  return state
+}
+
+export function refreshQuickPastePinGroupCache(options = {}) {
+  const db = options.db || window.db
+  const context = options.context || getLastActiveContext()
+  const type = normalizePinGroupType(options.type || options.group?.type || context.tab)
+  const group = options.group || getPinGroup(type)
+  if (!group?.itemIds?.length) {
+    clearQuickPastePinGroupCache(type, { currentType: context.tab })
+    return null
+  }
+  const next = buildCacheFromGroup(group, db)
+  const state = ensurePinGroupRuntimeCacheState(options.currentType || context.tab || type)
+  const prevCache = state.groups[type]
+  if (prevCache?.entries?.length && next.entries.length) {
+    const prevById = new Map(
+      prevCache.entries
+        .filter((entry) => entry?.value?.id)
+        .map((entry) => [entry.value.id, entry.value])
+    )
+    next.entries = next.entries.map((entry) => ({
+      ...entry,
+      value: entry.value || prevById.get(entry.value?.id) || null
+    })).filter((entry) => entry.value)
+  }
+  state.groups[type] = next
+  state.updatedAt = Math.max(Number(state.updatedAt) || 0, Number(next.updatedAt) || 0)
+  return next
+}
+
+function getQuickPastePinGroupCache(db = window.db, context = getLastActiveContext()) {
+  const type = normalizePinGroupType(context.tab)
+  const cache = pinGroupRuntimeCache?.groups?.[type]
+  if (cache?.entries?.length) return cache
+  return refreshQuickPastePinGroupCache({ db, type, context })
+}
 
 const getPinnedItemsForContext = (context = getLastActiveContext(), db = window.db) => {
   const map = getPinnedMap()
@@ -296,19 +367,27 @@ function executeQuickPasteActionSync(action, options = {}) {
       return copyAndPasteAndExit(item, pasteOptions)
     }
 
-    const cache = getQuickPastePinGroupCache(db)
-    const { item, nextIndex } = resolvePinGroupCacheCursorEntry(cache, { cursor: cache.cursor })
-    logQuickPasteDebug('quick-paste-pin-group', { itemId: item?.id, type: item?.type, enterFrom, cursor: cache.cursor })
-    if (!item) {
-      hideQuickPasteWindow()
-      return false
-    }
-    const ok = copyAndPasteAndExit(item, pasteOptions)
-    if (ok) {
-      const saved = savePinGroup(cache.itemIds, { cursor: nextIndex })
-      cache.cursor = saved.cursor
-      cache.updatedAt = saved.updatedAt
-    } else {
+    const context = getLastActiveContext()
+    const cache = getQuickPastePinGroupCache(db, context)
+    const { item, nextIndex } = resolvePinGroupCacheCursorEntry(cache || {}, { cursor: cache?.cursor })
+    const groupType = normalizePinGroupType(cache?.type || context.tab)
+    logQuickPasteDebug('quick-paste-pin-group', {
+      itemId: item?.id,
+      type: item?.type,
+      groupType,
+      enterFrom,
+      cursor: cache?.cursor
+    })
+    if (!item) {
+      hideQuickPasteWindow()
+      return false
+    }
+    const ok = copyAndPasteAndExit(item, pasteOptions)
+    if (ok) {
+      const saved = savePinGroup(cache.itemIds, { type: groupType, cursor: nextIndex })
+      cache.cursor = saved.cursor
+      cache.updatedAt = saved.updatedAt
+    } else {
       hideQuickPasteWindow()
     }
     return ok

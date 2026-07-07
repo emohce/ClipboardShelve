@@ -281,6 +281,7 @@ import {
     removePinGroupItems,
     removePinnedItems,
     savePinGroup,
+    getPinGroupState,
     setLastActiveContext,
     sortPinnedItems,
     togglePinnedItem,
@@ -515,7 +516,7 @@ const showList = shallowRef([]); // 展示的数据
 const collectBlockList = shallowRef([]); // 非收藏 tab 且 * 前缀时，上方展示的收藏匹配结果
 const collectVersion = ref(0); // 收藏列表变更时自增，用于驱动星标等 UI 更新
 const pinnedMap = shallowRef(getPinnedMap());
-const pinGroup = shallowRef(getPinGroup());
+const pinGroup = shallowRef(null);
 const pinGroupEditorVisible = ref(false);
 const pinGroupEditorItems = shallowRef([]);
 const queryCursor = ref(null);
@@ -1216,15 +1217,21 @@ const currentShowList = computed(() => {
     return pinGroupListItem.value ? [pinGroupListItem.value, ...composed] : composed;
 });
 
-const pinGroupItems = computed(() => {
+const getCurrentPinGroupType = () => activeTab.value || "all";
+
+const resolvePinGroupItems = (group) => {
     list.value;
     collectVersion.value;
-    const ids = pinGroup.value?.itemIds || [];
+    const ids = group?.itemIds || [];
     if (!ids.length) return [];
     return resolvePinGroupItemsById(ids, {
         knownItems: getAllKnownItems(),
         getItemById: (id) => window.db?.getById?.(id) || window.db?.filterDataBaseViaId?.(id)?.[0] || null,
     });
+};
+
+const pinGroupItems = computed(() => {
+    return resolvePinGroupItems(pinGroup.value);
 });
 
 const pinGroupListItem = computed(() => {
@@ -1254,17 +1261,27 @@ const syncQuickPasteTopCache = () => {
     setQuickPasteTopCache(items, { context });
 };
 
-const syncQuickPastePinGroupCache = () => {
-    const group = pinGroup.value;
-    if (!group?.itemIds?.length) {
-        clearQuickPastePinGroupCache();
-        syncQuickPasteTopCache();
-        return;
-    }
-    setQuickPastePinGroupCache(pinGroupItems.value, {
-        itemIds: group.itemIds,
-        cursor: group.cursor,
-        updatedAt: group.updatedAt,
+const syncQuickPastePinGroupCache = (type = getCurrentPinGroupType(), options = {}) => {
+    const state = getPinGroupState();
+    const currentType = getCurrentPinGroupType();
+    const targetTypes = options.all
+        ? Object.keys(state.groups || {})
+        : [type || currentType];
+
+    targetTypes.forEach((targetType) => {
+        const group = state.groups?.[targetType] || getPinGroup(targetType);
+        if (!group?.itemIds?.length) {
+            clearQuickPastePinGroupCache(targetType, { currentType });
+            return;
+        }
+        setQuickPastePinGroupCache(resolvePinGroupItems(group), {
+            type: targetType,
+            currentType,
+            operation: group.operation,
+            itemIds: group.itemIds,
+            cursor: group.cursor,
+            updatedAt: group.updatedAt,
+        });
     });
     syncQuickPasteTopCache();
 };
@@ -1276,11 +1293,11 @@ const removeVisibleItemsByIds = (ids = []) => {
     const idSet = new Set(ids.filter(Boolean));
     if (!idSet.size) return 0;
     pinnedMap.value = removePinnedItems([...idSet]);
-    pinGroup.value = removePinGroupItems([...idSet]);
+    pinGroup.value = removePinGroupItems([...idSet], { type: getCurrentPinGroupType() });
     const beforeShowListLength = showList.value.length;
     showList.value = showList.value.filter((item) => !idSet.has(item.id));
     collectBlockList.value = collectBlockList.value.filter((item) => !idSet.has(item.id));
-    syncQuickPastePinGroupCache();
+    syncQuickPastePinGroupCache(getCurrentPinGroupType(), { all: true });
     return beforeShowListLength - showList.value.length;
 };
 
@@ -1319,8 +1336,11 @@ const closePinGroupEditor = () => {
 
 const handlePinGroupSave = (items = []) => {
     const ids = items.map((item) => item?.id).filter((id) => id && id !== "__ez_pin_group__");
-    pinGroup.value = savePinGroup(ids, { cursor: 0 });
+    const type = getCurrentPinGroupType();
+    pinGroup.value = savePinGroup(ids, { type, cursor: 0 });
     setQuickPastePinGroupCache(items, {
+        type,
+        currentType: type,
         itemIds: ids,
         cursor: pinGroup.value.cursor,
         updatedAt: pinGroup.value.updatedAt,
@@ -1332,8 +1352,9 @@ const handlePinGroupSave = (items = []) => {
 };
 
 const handlePinGroupClear = () => {
-    pinGroup.value = clearPinGroup();
-    clearQuickPastePinGroupCache();
+    const type = getCurrentPinGroupType();
+    pinGroup.value = clearPinGroup(type);
+    clearQuickPastePinGroupCache(type, { currentType: type });
     pinGroupEditorVisible.value = false;
     ElMessage({ type: "success", message: "已取消置顶组合" });
 };
@@ -1341,8 +1362,9 @@ const handlePinGroupClear = () => {
 const pastePinGroupItem = (index) => {
     const item = pinGroupItems.value[index];
     if (!item) return false;
-    pinGroup.value = savePinGroup(pinGroup.value.itemIds, { cursor: index });
-    syncQuickPastePinGroupCache();
+    const type = getCurrentPinGroupType();
+    pinGroup.value = savePinGroup(pinGroup.value.itemIds, { type, cursor: index });
+    syncQuickPastePinGroupCache(type);
     return copyAndPasteAndExit(item, { respectImageCopyGuard: true });
 };
 
@@ -1770,6 +1792,7 @@ const getInitialMainTab = () => {
 };
 
 const activeTab = ref(getInitialMainTab());
+pinGroup.value = getPinGroup(activeTab.value);
 // 保存每个 tab 的状态（activeIndex）
 const tabStateMap = ref(new Map());
 const activeTabLabel = computed(() => {
@@ -1817,6 +1840,7 @@ onMounted(() => {
             if (MAIN_TAB_TYPES.includes(newVal)) {
                 setPersistedUiState(MAIN_TAB_STATE_KEY, newVal);
             }
+            pinGroup.value = getPinGroup(newVal);
             updateShowList(newVal);
             // 恢复新 tab 的状态
             nextTick(() => {
@@ -1880,7 +1904,7 @@ onMounted(() => {
     list.value = window.db.dataBase.data;
     showList.value = list.value.slice(0, GAP); // 最初展示 10条
     updateShowList(activeTab.value);
-    syncQuickPastePinGroupCache();
+    syncQuickPastePinGroupCache(activeTab.value, { all: true });
 
     // 定期检查更新
     if (window.listener.listening) {
@@ -2306,6 +2330,7 @@ onMounted(() => {
     nextTick(() => registerMainHotkeyFeatures());
 
 onUnmounted(() => {
+    persistLastActiveContext();
     window.removeEventListener(STORAGE_STATUS_EVENT, refreshStorageStatus);
     if (tabPrefetchTimer) {
         clearTimeout(tabPrefetchTimer);

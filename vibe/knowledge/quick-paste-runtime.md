@@ -7,7 +7,7 @@ Tool: codex
 | code | 用户可见名称 | 行为 |
 |------|-------------|------|
 | `quick-paste-top` | 粘贴置顶项 | 按 `pin.lastActiveContext` 取**单项置顶**最上方可粘贴条目 |
-| `quick-paste-pin-group` | 循环粘贴组合项 | 按 `pin.group` cursor 循环粘贴组合内下一项 |
+| `quick-paste-pin-group` | 循环粘贴组合项 | 按 `pin.lastActiveContext.tab` 选择 `pin.group.groups[type]` 并按该 bucket 的 cursor 循环粘贴下一项 |
 
 与列表内点击/Enter **分流**：静默入口走原生 `hideMainWindowPaste*`；列表内仍走 `copy + hideMainWindow + simulateKeyboardTap`。
 
@@ -38,7 +38,9 @@ Tool: codex
 
 **Win hotkey 文本**：仅用 `hideMainWindowTypeString`（不模拟 Ctrl+V，避免只出 `v`）。点击与其它平台仍用 `hideMainWindowPasteText`。图片/文件用 `hideMainWindowPaste*`。
 
-**全局 cache**：`setQuickPasteTopCache` / `setQuickPastePinGroupCache` 在 Main 同步；热路径优先读内存 snapshot，db 暂不可用时仍可用已缓存条目。
+**全局 cache**：`setQuickPasteTopCache` / `setQuickPastePinGroupCache` 在 Main 同步；组合 cache 按顶层 Tab type 分桶（`collect` / `all` / `text` / `image` / `file`），热路径优先读 last-active type 的内存 snapshot，db 暂不可用时仍可用已缓存条目。
+
+**缓存边界**：全局快捷键只消费缓存，不拥有缓存生命周期。`quick-paste-top` / `quick-paste-pin-group` 不得因为触发、失败、无匹配或切换 last-active Tab 而清理整个缓存；循环类行为最多推进对应 item / type bucket 的 cursor，并把 cursor 轻量写回。显式清理只能来自功能语义本身，例如用户清空当前 Type 的组合、删除底层 item 后同步移除成员，且也只能影响对应 bucket 或对应 item 成员，不得清空完整 envelope。
 
 **Payload hydrate**：`dataPath` 有值且 `data` 为空的 item 只是轻量索引行，不是最终剪贴板 payload。进入 `quick-paste-top`、`quick-paste-pin-group`、组合 cache、列表展示页或操作入口前，必须通过 `getById(id)` 取完整 hydrated item；不能把轻量行直接传给 `hideMainWindowPaste*`、图片复制、文件化或收藏标签编辑。
 
@@ -54,12 +56,17 @@ Tool: codex
 ## 产品语义
 
 - `quick-paste-top`：只取符合 last context 的单项置顶；**不** fallback 组合项、当前剪贴板临时项或列表首项。
-- `quick-paste-pin-group`：只读 `pin.group` 与运行时 cache；与置顶项独立。
+- `quick-paste-pin-group`：只读 `pin.group.groups[pin.lastActiveContext.tab]` 与同 type 运行时 cache；与置顶项独立，且不 fallback 到其他 Tab 的组合。
 - 无匹配：`hideMainWindow()`，不粘贴。
+- 新增 Pad / Tab / Type 投影概念时，只能增加或更新对应投影 bucket，不得把投影切换解释成 cache reset。
 
 ## 组合 cache
 
-[quick-paste-pin-group-cache.md](quick-paste-pin-group-cache.md)。冷启动 cache 未建立时允许 id 解析兜底。
+[quick-paste-pin-group-cache.md](quick-paste-pin-group-cache.md)。冷启动 cache 未建立时仅允许解析 last-active type 的对应 bucket。
+
+## 组合存储
+
+`pin.group` 使用 envelope 结构：`version`、`currentType`、`groups[type]`、`updatedAt`。每个 `groups[type]` 保存 `type`、`operation: pin-group`、`itemIds`、`cursor`、`updatedAt`。旧版单对象 `itemIds/cursor/updatedAt` 没有来源 Tab，读取时保守归入 `all` bucket。
 
 ## 实现注意
 
