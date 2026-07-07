@@ -6,6 +6,7 @@ Tool: codex
 
 - Memory reference index: `vibe/knowledge/MEMORY_INDEX.md`
 - Error memories: `vibe/knowledge/error-memory/`
+- Error memory workflow skill: [error-memory-capture](../../../CzzProj/CodeNote/AiRef/VibePractice/Skills/global/error-memory-capture/SKILL.md)
 - ADRs: `vibe/knowledge/adr/`
 - Glossary/domain notes: `vibe/knowledge/glossary.md` or domain-specific files
 - Active process docs: `vibe/specs/`
