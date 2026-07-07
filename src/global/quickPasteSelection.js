@@ -7,8 +7,27 @@ const pushUniqueItem = (result, seen, item) => {
 const PIN_GROUP_CACHE_ENTRY_TYPE = 'clipboard-item'
 const PASTEABLE_CLIPBOARD_ITEM_TYPES = new Set(['text', 'image', 'file'])
 
+const isExternalizedPayloadItem = (item) =>
+  Boolean(item?.id && item.dataPath && (item.data == null || item.data === ''))
+
+const resolveItemById = (id, byId, getItemById) => {
+  const known = byId.get(id) || null
+  if (isExternalizedPayloadItem(known)) {
+    const hydrated = getItemById(id)
+    return hydrated?.id && !isExternalizedPayloadItem(hydrated) ? hydrated : null
+  }
+  if (known) return known
+  const fallback = getItemById(id)
+  return isExternalizedPayloadItem(fallback) ? null : fallback
+}
+
 const isPasteableClipboardItem = (item) =>
-  Boolean(item?.id && !item.__pinGroup && PASTEABLE_CLIPBOARD_ITEM_TYPES.has(item.type))
+  Boolean(
+    item?.id &&
+    !item.__pinGroup &&
+    !isExternalizedPayloadItem(item) &&
+    PASTEABLE_CLIPBOARD_ITEM_TYPES.has(item.type)
+  )
 
 const getCachePasteItem = (entry = {}) =>
   entry.type === PIN_GROUP_CACHE_ENTRY_TYPE && isPasteableClipboardItem(entry.value)
@@ -43,7 +62,7 @@ export function resolvePinGroupCursorEntry(itemIds = [], options = {}) {
   const getItemById = typeof options.getItemById === 'function' ? options.getItemById : () => null
   const entries = ids
     .map((id, sourceIndex) => ({
-      item: byId.get(id) || getItemById(id),
+      item: resolveItemById(id, byId, getItemById),
       sourceIndex
     }))
     .filter((entry) => entry.item?.id && !entry.item.__pinGroup)
@@ -68,7 +87,7 @@ export function buildPinGroupRuntimeCache(itemIds = [], options = {}) {
   const getItemById = typeof options.getItemById === 'function' ? options.getItemById : () => null
   const entries = ids
     .map((id, sourceIndex) => {
-      const item = byId.get(id) || getItemById(id)
+      const item = resolveItemById(id, byId, getItemById)
       return {
         type: PIN_GROUP_CACHE_ENTRY_TYPE,
         value: isPasteableClipboardItem(item) ? item : null,
@@ -109,6 +128,6 @@ export function resolvePinGroupItemsById(itemIds = [], options = {}) {
   const getItemById = typeof options.getItemById === 'function' ? options.getItemById : () => null
   return ids
     .filter((id) => id !== '__ez_pin_group__')
-    .map((id) => byId.get(id) || getItemById(id))
+    .map((id) => resolveItemById(id, byId, getItemById))
     .filter((item) => item?.id && !item.__pinGroup)
 }

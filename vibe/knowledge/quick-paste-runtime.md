@@ -15,13 +15,13 @@ Tool: codex
 
 | 模块 | 路径 | 职责 |
 |------|------|------|
-| 运行时 | [src/global/quickPasteRuntime.js](../../src/global/quickPasteRuntime.js) | 选择条目、粘贴、组合 cache、串行保护 |
-| 进入复用 | [src/global/pluginEnterHandlers.js](../../src/global/pluginEnterHandlers.js) | `onPluginEnter` 多路复用 + pending |
-| 选择工具 | [src/global/quickPasteSelection.js](../../src/global/quickPasteSelection.js) | 置顶/组合 cursor、cache |
-| 粘贴执行 | [src/utils/index.js](../../src/utils/index.js) | `copyAndPasteAndExit` + `tryHideMainWindowPasteItem` |
-| 冷启动 | [src/main.js](../../src/main.js) | multiplexer → `initPlugin` → `mount` → `flushPendingQuickPasteActions` |
-| 组合 cache | [src/views/Main.vue](../../src/views/Main.vue) | `syncQuickPastePinGroupCache` |
-| 指令注册 | [scripts/utools-runtime-assets.mjs](../../scripts/utools-runtime-assets.mjs) | `mainHide: true` |
+| 运行时 | [src/global/quickPasteRuntime.js](../../src/global/quickPasteRuntime.js#L1) | 选择条目、粘贴、组合 cache、串行保护 |
+| 进入复用 | [src/global/pluginEnterHandlers.js](../../src/global/pluginEnterHandlers.js#L1) | `onPluginEnter` 多路复用 + pending |
+| 选择工具 | [src/global/quickPasteSelection.js](../../src/global/quickPasteSelection.js#L1) | 置顶/组合 cursor、cache |
+| 粘贴执行 | [src/utils/index.js](../../src/utils/index.js#L1) | `copyAndPasteAndExit` + `tryHideMainWindowPasteItem` |
+| 冷启动 | [src/main.js](../../src/main.js#L1) | multiplexer → `initPlugin` → `mount` → `flushPendingQuickPasteActions` |
+| 组合 cache | [src/views/Main.vue](../../src/views/Main.vue#L1) | `syncQuickPastePinGroupCache` |
+| 指令注册 | [scripts/utools-runtime-assets.mjs](../../scripts/utools-runtime-assets.mjs#L1) | `mainHide: true` |
 
 ## 粘贴执行
 
@@ -32,13 +32,15 @@ Tool: codex
 
 **列表内粘贴**：`copyText/copyImage/copyFile` → `hideMainWindow` → `simulateKeyboardTap`。
 
-**宏命令步骤间** `macroSettleAfterMs`（[commandDefaults.js](../../src/global/commandDefaults.js)）仅用于多步宏，与静默快捷粘贴无关。
+**宏命令步骤间** `macroSettleAfterMs`（[commandDefaults.js](../../src/global/commandDefaults.js#L1)）仅用于多步宏，与静默快捷粘贴无关。
 
 **Win 全局快捷键**：`action.from === 'hotkey'`，或 Windows 下 `quick-paste-*` 入口缺失 `from` 时，均按 hotkey-safe 路径延迟 `QUICK_PASTE_HOTKEY_SETTLE_MS`（120ms）后单次粘贴；点击和 Mac/non-Windows hotkey 仍同步走原快路径。hotkey 串行队列，消费只推进组合 cursor，**不清空**置顶/组合运行时 cache。`quick-paste-top` / `quick-paste-pin-group` 属于 uTools 全局指令入口，不新增应用内 `s-a-p` / `s-a-v` 默认绑定。
 
 **Win hotkey 文本**：仅用 `hideMainWindowTypeString`（不模拟 Ctrl+V，避免只出 `v`）。点击与其它平台仍用 `hideMainWindowPasteText`。图片/文件用 `hideMainWindowPaste*`。
 
 **全局 cache**：`setQuickPasteTopCache` / `setQuickPastePinGroupCache` 在 Main 同步；热路径优先读内存 snapshot，db 暂不可用时仍可用已缓存条目。
+
+**Payload hydrate**：`dataPath` 有值且 `data` 为空的 item 只是轻量索引行，不是最终剪贴板 payload。进入 `quick-paste-top`、`quick-paste-pin-group`、组合 cache、列表展示页或操作入口前，必须通过 `getById(id)` 取完整 hydrated item；不能把轻量行直接传给 `hideMainWindowPaste*`、图片复制、文件化或收藏标签编辑。
 
 **静默 fallback 禁止**：`hideMainWindowPaste*` 不可用时不得回退到 `simulateKeyboardTap`（避免外部只出现 `v`）；见 [EM-2026-06-13](error-memory/2026-06-13-quick-paste-simulateKeyboardTap-only-v.md)。
 
@@ -72,5 +74,7 @@ Tool: codex
 ## 验证
 
 - `node test-shortcut-command-system.js`
+- `node test-storage-query.js`
+- `node test-image-payload-path.js`
 - `pnpm run build`
 - uTools：全局快捷键「粘贴置顶项」「循环粘贴组合项」；列表点击/Enter 回归

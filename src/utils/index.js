@@ -323,20 +323,78 @@ const isUToolsPlugin = () => {
   return typeof utools !== 'undefined' && utools.getNativeId
 }
 
+const IMAGE_DATA_URL_RE = /^data:(image\/[a-zA-Z0-9.+-]+)(?:;[^,]*)?;base64,([\s\S]*)$/i
+const IMAGE_EXT_MAP = {
+  jpeg: '.jpg',
+  jpg: '.jpg',
+  png: '.png',
+  gif: '.gif',
+  webp: '.webp',
+  bmp: '.bmp',
+  'svg+xml': '.svg',
+  'x-icon': '.ico',
+  'vnd.microsoft.icon': '.ico',
+  ico: '.ico',
+  tiff: '.tiff',
+  tif: '.tif'
+}
+
+const parseImageDataUrl = (value) => {
+  if (!value || typeof value !== 'string') return null
+  const matched = value.match(IMAGE_DATA_URL_RE)
+  if (!matched) return null
+  const mime = matched[1].toLowerCase()
+  const subtype = mime.replace(/^image\//, '')
+  return {
+    mime,
+    ext: IMAGE_EXT_MAP[subtype] || '.png',
+    base64Data: matched[2]
+  }
+}
+
+const normalizeImageFilePath = (rawPath = '') => {
+  let path = String(rawPath || '').trim()
+  if (!path) return ''
+  if (/^file:\/\//i.test(path)) {
+    try {
+      const url = new URL(path)
+      if (url.protocol === 'file:') {
+        const host = url.hostname && url.hostname !== 'localhost'
+          ? `//${url.hostname}`
+          : ''
+        path = host + decodeURIComponent(url.pathname || '')
+      }
+    } catch (_) {
+      path = decodeURIComponent(path.replace(/^file:\/+/, '/'))
+    }
+    if (/^\/[A-Za-z]:\//.test(path)) {
+      path = path.slice(1)
+    }
+  }
+  if (sep === '\\') {
+    path = path.replace(/\//g, '\\')
+  }
+  return path
+}
+
+const resolveImageBufferAndExtFromDataUrl = (value) => {
+  const parsed = parseImageDataUrl(value)
+  if (!parsed) return null
+  const buffer = Buffer.from(parsed.base64Data, 'base64')
+  if (!buffer || !buffer.length) return null
+  return { buffer, ext: parsed.ext, mime: parsed.mime }
+}
+
 /** 与前端 isValidImageData 一致：仅当 data 为合法 base64 数据 URL */
 const isValidImageData = (data) => {
-  if (!data || typeof data !== 'string') return false
-  return data.startsWith('data:image/') && data.includes('base64,')
+  return Boolean(parseImageDataUrl(data))
 }
 
 /** 能展示就能复制：返回可用于 copyImage 的 data URL（base64 或从路径/ file:// 读取） */
 const getImageDataUrlForCopy = (item) => {
   if (!item || item.type !== 'image' || !item.data || typeof item.data !== 'string') return null
   if (isValidImageData(item.data)) return item.data
-  let path = item.data
-  if (path.startsWith('file://')) {
-    path = path.slice(path.indexOf('://') + 3).replace(/^\/+/, '').replace(/\//g, sep)
-  }
+  const path = normalizeImageFilePath(item.data)
   if (!path) return null
   try {
     const buf = readFileSync(path)
@@ -501,19 +559,13 @@ const resolveImageBufferAndExt = (item) => {
     return null
   }
   const value = item.data
-  if (isValidImageData(value)) {
-    const matched = value.match(/^data:image\/([a-zA-Z0-9+.-]+);base64,/)
-    const extMap = { jpeg: '.jpg', jpg: '.jpg', png: '.png', gif: '.gif', webp: '.webp', bmp: '.bmp', 'svg+xml': '.svg' }
-    const ext = extMap[matched?.[1]?.toLowerCase()] || '.png'
-    const base64Data = value.replace(/^data:image\/[^;]+;base64,/, '')
-    const buf = Buffer.from(base64Data, 'base64')
+  const dataUrlMeta = resolveImageBufferAndExtFromDataUrl(value)
+  if (dataUrlMeta) {
+    const { buffer: buf, ext } = dataUrlMeta
     console.log('[alias-paste] image-resolve ok: data URL base64', { ext, byteLength: buf?.length })
     return { buffer: buf, ext }
   }
-  let path = value
-  if (path.startsWith('file://')) {
-    path = path.slice(path.indexOf('://') + 3).replace(/^\/+/, '').replace(/\//g, sep)
-  }
+  const path = normalizeImageFilePath(value)
   if (!path) {
     console.log('[alias-paste] image-resolve fail: empty path after normalize')
     return null
@@ -587,14 +639,14 @@ const createFile = (item) => {
   const { type, id } = item
   if (type === 'image') {
     // 图片类型：创建原始副本到持久化目录
+    const imageMeta = resolveImageBufferAndExt(item)
+    if (!imageMeta?.buffer) return ''
     const dir = getOriginalMaterialDirForItem(id)
     if (!existsSync(dir)) {
       mkdirSync(dir, { recursive: true })
     }
-    const base64Data = item.data.replace(/^data:image\/\w+;base64,/, '') // remove the prefix
-    const buffer = Buffer.from(base64Data, 'base64') // to Buffer
-    const filePath = dir + sep + 'original.png'
-    writeFileSync(filePath, buffer)
+    const filePath = dir + sep + `original${imageMeta.ext || '.png'}`
+    writeFileSync(filePath, imageMeta.buffer)
     return filePath
   } else if (type === 'text') {
     // 文本类型：使用临时目录

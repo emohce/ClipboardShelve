@@ -544,6 +544,59 @@ async function main() {
     'Windows quick-paste action without from should not use hideMainWindowPasteText for text'
   )
 
+  const quickPastePartialImageCalls = []
+  const quickPastePartialStorage = new Map([
+    ['pin.item.map', { 'qp-partial-image': { pinnedAt: 1 } }],
+    ['pin.lastActiveContext', { tab: 'all', collectTag: '*全部*', keyword: '', lockFilter: 'all' }]
+  ])
+  const quickPastePartialImage = {
+    id: 'qp-partial-image',
+    type: 'image',
+    data: '',
+    dataPath: '/blob/image/qp-partial-image.txt'
+  }
+  const quickPasteHydratedImage = {
+    ...quickPastePartialImage,
+    data: 'data:image/png;base64,UE5HREFUQQ=='
+  }
+  quickPasteMissingFromUTools.hideMainWindowPasteImage = (image) => {
+    quickPastePartialImageCalls.push(image)
+    return true
+  }
+  quickPasteMissingFromUTools.dbStorage = {
+    getItem: (key) => quickPastePartialStorage.get(key),
+    setItem: (key, value) => quickPastePartialStorage.set(key, value)
+  }
+  globalThis.utools = quickPasteMissingFromUTools
+  globalThis.window = {
+    exports: {
+      utools: quickPasteMissingFromUTools,
+      os: { platform: () => 'darwin' },
+      existsSync: () => false,
+      sep: '/',
+      Buffer
+    },
+    db: {
+      dataBase: { data: [quickPastePartialImage], collectData: [] },
+      getById: (id) => (id === quickPasteHydratedImage.id ? quickPasteHydratedImage : null),
+      filterDataBaseViaId: (id) => (id === quickPasteHydratedImage.id ? [quickPasteHydratedImage] : []),
+      isCollected: () => false
+    }
+  }
+  const { runQuickPasteAction: runQuickPasteActionPartialImage } = await import(
+    `./src/global/quickPasteRuntime.js?partialImageTop=${Date.now()}`
+  )
+  assert.strictEqual(
+    runQuickPasteActionPartialImage({ code: 'quick-paste-top' }, { immediate: true }),
+    true,
+    'quick-paste-top should hydrate externalized image payload before pasting'
+  )
+  assert.deepStrictEqual(
+    quickPastePartialImageCalls,
+    [quickPasteHydratedImage.data],
+    'quick-paste-top should paste the hydrated image data URL, not the lightweight cache row'
+  )
+
   const macPasteCalls = []
   globalThis.window.exports = {
     utools: {
@@ -736,6 +789,22 @@ async function main() {
     ['missing-cache', 'pinned'],
     'pin group should resolve ids from repository fallback and ignore synthetic group rows'
   )
+  const partialImageItem = { id: 'partial-image', type: 'image', data: '', dataPath: '/blob/image/partial-image.txt' }
+  const hydratedImageItem = { ...partialImageItem, data: 'data:image/png;base64,SEVMTE8=' }
+  let partialHydrateReads = 0
+  const hydratedPinItems = resolvePinGroupItemsById(['partial-image'], {
+    knownItems: [partialImageItem],
+    getItemById: (id) => {
+      partialHydrateReads += 1
+      return id === 'partial-image' ? hydratedImageItem : null
+    }
+  })
+  assert.strictEqual(partialHydrateReads, 1)
+  assert.deepStrictEqual(
+    hydratedPinItems,
+    [hydratedImageItem],
+    'pin group id resolution should replace lightweight externalized payload rows with hydrated items'
+  )
   let pinGroupCacheFallbackReads = 0
   const pinGroupRuntimeCache = buildPinGroupRuntimeCache(['missing-cache', 'unsupported', 'pinned', 'base'], {
     cursor: 1,
@@ -769,6 +838,20 @@ async function main() {
     'pin group runtime cache should cycle without resolving items again'
   )
   assert.strictEqual(pinGroupCacheFallbackReads, 1)
+  let pinGroupPartialCacheReads = 0
+  const pinGroupPartialRuntimeCache = buildPinGroupRuntimeCache(['partial-image'], {
+    knownItems: [partialImageItem],
+    getItemById: (id) => {
+      pinGroupPartialCacheReads += 1
+      return id === 'partial-image' ? hydratedImageItem : null
+    }
+  })
+  assert.strictEqual(pinGroupPartialCacheReads, 1)
+  assert.deepStrictEqual(
+    pinGroupPartialRuntimeCache.entries.map((entry) => [entry.value.id, entry.value.data]),
+    [['partial-image', hydratedImageItem.data]],
+    'pin group runtime cache should store hydrated image payloads'
+  )
   const expectedDataWriteCommands = [
     'dialog.clear.confirm',
     'tag.edit.save',

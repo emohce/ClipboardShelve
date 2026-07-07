@@ -30,6 +30,15 @@ export default function useClipOperate({ emit, currentActiveTab }) {
         : []
     return list.filter(Boolean)
   }
+  const needsPayloadHydration = (item) =>
+    Boolean(item?.id && item.dataPath && (item.data == null || item.data === ""))
+  const hydrateOperationItem = (item) => {
+    if (!needsPayloadHydration(item)) return item
+    const hydrated =
+      window.db?.getById?.(item.id) ||
+      window.db?.filterDataBaseViaId?.(item.id)?.[0]
+    return hydrated?.id && !needsPayloadHydration(hydrated) ? hydrated : item
+  }
   const suppressNextLineJoinClipboardRecord = (data) => {
     if (typeof window === "undefined" || typeof data !== "string") return;
     window[LINE_JOIN_SUPPRESS_CLIPBOARD_RECORD_KEY] = {
@@ -42,6 +51,7 @@ export default function useClipOperate({ emit, currentActiveTab }) {
     resolveItemAlias,
     canEditItemAlias,
     handleOperateClick: (operation, item, meta = {}) => {
+      item = hydrateOperationItem(item);
       const { id } = operation;
       let handled = true;
       const typeMap = {
@@ -198,6 +208,7 @@ export default function useClipOperate({ emit, currentActiveTab }) {
       return handled;
     },
     filterOperate: (operation, item, isFullData, context) => {
+      item = hydrateOperationItem(item);
       const { id } = operation;
       if (!item) {
         return false;

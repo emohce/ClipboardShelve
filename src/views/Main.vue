@@ -739,7 +739,7 @@ const getQueryOptions = (type, cursor = 0, limit = GAP) => ({
 
 const setShowListFromQueryResult = (result, loadedCount = null) => {
     collectBlockList.value = [];
-    showList.value = result.items;
+    showList.value = hydrateVisibleItems(result.items);
     queryCursor.value =
         result.nextCursor == null
             ? null
@@ -750,8 +750,24 @@ const setShowListFromQueryResult = (result, loadedCount = null) => {
     offset.value = showList.value.length;
 };
 
+const needsPayloadHydration = (item) =>
+    Boolean(item?.id && item.dataPath && (item.data == null || item.data === ""));
+
+const hydrateVisibleItem = (item) => {
+    if (!needsPayloadHydration(item)) return item;
+    const hydrated =
+        window.db?.getById?.(item.id) ||
+        window.db?.filterDataBaseViaId?.(item.id)?.[0];
+    return hydrated?.id && !needsPayloadHydration(hydrated) ? hydrated : item;
+};
+
+const hydrateVisibleItems = (items = []) =>
+    (Array.isArray(items) ? items : []).map((item) => hydrateVisibleItem(item));
+
 const getAllKnownItems = () => {
     const items = [
+        ...showList.value,
+        ...collectBlockList.value,
         ...(window.db?.dataBase?.data || []),
         ...(window.db?.dataBase?.collectData || []),
     ];
@@ -902,7 +918,7 @@ const updateShowList = (type, toTop = true) => {
                 : window.db.getCollectsByTag(subTab);
         baseList = applyCollectFilters(baseList, parsed);
         collectBlockList.value = [];
-        showList.value = baseList.slice(0, GAP);
+        showList.value = hydrateVisibleItems(baseList.slice(0, GAP));
         queryCursor.value = showList.value.length < baseList.length ? showList.value.length : null;
         currentQueryTotal.value = baseList.length;
     } else {
@@ -914,11 +930,11 @@ const updateShowList = (type, toTop = true) => {
                 .filter((item) => matchSearchableItemType(item, filterText.value, type))
                 .filter((item) => tagMatch(item, parsed.tagKeyword))
                 .filter((item) => bodyFilterCallBack(item, parsed.bodyKeyword));
-            collectBlockList.value = collectMatches.slice(0, COLLECT_BLOCK_CAP);
+            collectBlockList.value = hydrateVisibleItems(collectMatches.slice(0, COLLECT_BLOCK_CAP));
             const mainFiltered = mainBase
                 .filter((item) => !window.db.isCollected(item.id))
                 .filter((item) => matchMainTabItem(item, parsed.bodyKeyword, type));
-            showList.value = mainFiltered.slice(0, GAP);
+            showList.value = hydrateVisibleItems(mainFiltered.slice(0, GAP));
             queryCursor.value = showList.value.length < mainFiltered.length ? showList.value.length : null;
             currentQueryTotal.value = mainFiltered.length + collectBlockList.value.length;
         } else {
@@ -927,7 +943,7 @@ const updateShowList = (type, toTop = true) => {
                 .filter((item) => !window.db.isCollected(item.id))
                 .filter((item) => matchLockFilter(item))
                 .filter((item) => textFilterCallBack(item));
-            showList.value = mainFiltered.slice(0, GAP);
+            showList.value = hydrateVisibleItems(mainFiltered.slice(0, GAP));
             queryCursor.value = showList.value.length < mainFiltered.length ? showList.value.length : null;
             currentQueryTotal.value = mainFiltered.length;
         }
@@ -1131,9 +1147,10 @@ const openTagEditModal = (item) => {
     let target = item;
     // 优先使用收藏数据中的最新记录，保证包含 tags/remark
     if (window.db && item?.id) {
-        const found = window.db.dataBase?.collectData?.find(
-            (c) => c.id === item.id,
-        );
+        const found =
+            window.db.getById?.(item.id) ||
+            window.db.filterDataBaseViaId?.(item.id)?.[0] ||
+            window.db.dataBase?.collectData?.find((c) => c.id === item.id);
         if (found) {
             target = { ...found };
         }
@@ -1407,7 +1424,7 @@ const loadMoreData = () => {
                 queryCursor.value = null;
                 return;
             }
-            showList.value = [...showList.value, ...result.items];
+            showList.value = [...showList.value, ...hydrateVisibleItems(result.items)];
             queryCursor.value = result.nextCursor;
             currentQueryTotal.value = result.total;
             offset.value = showList.value.length;
@@ -1445,7 +1462,7 @@ const loadMoreData = () => {
         return;
     }
     offset.value += GAP;
-    showList.value.push(...addition);
+    showList.value.push(...hydrateVisibleItems(addition));
 };
 
 const maybePrefetchNextPage = (visibleIndex = currentShowList.value.length - 1) => {

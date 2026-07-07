@@ -11,12 +11,12 @@ Tool: codex
 ## Cache Shape
 
 - `type`: `clipboard-item`
-- `value`: 每个 entry 一个完整、可直接粘贴的剪贴板 item
+- `value`: 每个 entry 一个完整、可直接粘贴的剪贴板 item；`dataPath + 空 data` 的外置 payload 轻量行必须先 hydrate，不能进入 cache
 - `sourceIndex`: 组合原始顺序，用于 cursor 循环
 
 只接受 `text`、`image`、`file`。多值需求应新增独立 `type`，不要把 `clipboard-item` 扩成数组。
 
-实现：[quickPasteSelection.js](../../src/global/quickPasteSelection.js)、[quickPasteRuntime.js](../../src/global/quickPasteRuntime.js)
+实现：[quickPasteSelection.js](../../src/global/quickPasteSelection.js#L1)、[quickPasteRuntime.js](../../src/global/quickPasteRuntime.js#L1)
 
 ## Update Timing
 
@@ -28,7 +28,7 @@ Tool: codex
 
 普通数据刷新、监听器 `change`、`view-change` **不**刷新 cache。
 
-实现：[Main.vue](../../src/views/Main.vue) `syncQuickPastePinGroupCache`
+实现：[Main.vue](../../src/views/Main.vue#L1) `syncQuickPastePinGroupCache`
 
 ## Runtime Rule
 
