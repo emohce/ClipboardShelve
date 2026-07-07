@@ -2,11 +2,20 @@ import { getWhenLiteralSets } from './whenExpression.js'
 import { WHEN_MUTEX_GROUPS } from './whenBuilder.js'
 import { dedupeShortcutIds } from './commandKeybindings.js'
 import { findReservationConflicts } from './shortcutReservations.js'
+import { getShortcutLookupIds } from './shortcutKey.js'
 
 const MUTEX_GROUPS = WHEN_MUTEX_GROUPS
 
 function normalizedKey(binding) {
   return String(binding?.key || binding?.shortcutId || '').trim()
+}
+
+function shortcutIdsOverlap(left, right) {
+  const leftIds = getShortcutLookupIds(left)
+  const rightIds = getShortcutLookupIds(right)
+  if (!leftIds.length || !rightIds.length) return false
+  const rightSet = new Set(rightIds)
+  return leftIds.some((id) => rightSet.has(id))
 }
 
 function setsContradict(a, b) {
@@ -34,7 +43,7 @@ export function detectKeybindingConflicts(candidate, bindings) {
   if (!key) return []
   return (bindings || []).filter((binding) => {
     if (!binding || binding === candidate) return false
-    if (normalizedKey(binding) !== key) return false
+    if (!shortcutIdsOverlap(normalizedKey(binding), key)) return false
     return canWhenClausesOverlap(candidate.when, binding.when)
   })
 }
@@ -122,6 +131,7 @@ export function getShortcutCommandRowConflicts(row, rows, patch = {}) {
     const bindingPool = buildBindingPoolRows(rows, { row }).filter((item) => {
       if (!item || item.id === row.id) return false
       if (row.commandId && item.commandId === row.commandId && ownIds.has(item.shortcutId)) return false
+      if (row.commandId && item.commandId === row.commandId && shortcutIdsOverlap(candidate.shortcutId, item.shortcutId)) return false
       return true
     })
     const keyConflicts = detectKeybindingConflicts(candidate, bindingPool)

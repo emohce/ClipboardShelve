@@ -254,6 +254,7 @@ import {
 } from "../utils/deleteAnchor.mjs";
 import { desktopPreviewManager } from "../global/desktopPreview";
 import { registerCommandFeaturePairs } from "../global/hotkeyRegistry";
+import { formatShortcutDisplay } from "../global/shortcutKey";
 import {
     ALIAS_CONTEXT_MENU_ACTION_ID,
     buildDrawerMenuItems,
@@ -637,6 +638,12 @@ const handlePreviewScrollShortcut = (direction, event = null) => {
 const hasActiveShiftPreview = () =>
     imagePreview.value.show || textPreview.value.show || filePreview.value.show;
 
+const isPureShiftPreviewEvent = (event) =>
+    Boolean(event?.shiftKey) && !event?.ctrlKey && !event?.metaKey && !event?.altKey;
+
+const isShiftPreviewCancelModifier = (event) =>
+    Boolean(event?.shiftKey) && ["Control", "Meta", "Alt"].includes(event?.key);
+
 const clearFilePreviewImmediately = () => {
     if (filePreviewHideTimer) {
         clearTimeout(filePreviewHideTimer);
@@ -858,7 +865,7 @@ const handleImagePreviewScroll = (event) => {
 
 // 图片预览键盘处理兜底；主入口仍走 hotkey feature
 const handleImagePreviewKeydown = (event) => {
-    if (!imagePreview.value.show || !event.shiftKey) return;
+    if (!imagePreview.value.show || !isPureShiftPreviewEvent(event)) return;
     const directionMap = {
         ArrowUp: "up",
         ArrowDown: "down",
@@ -1225,6 +1232,7 @@ const handleShiftKeyUp = () => {
         clearTimeout(shiftKeyTimer);
         shiftKeyTimer = null;
     }
+    isShiftDown.value = false;
 
     if (keyboardTriggeredPreview.value) {
         keyboardTriggeredPreview.value = false;
@@ -2674,7 +2682,7 @@ function registerListHotkeyFeatures() {
         if (skippedLocked > 0)
             ElMessage({
                 type: "info",
-                message: `已跳过锁定 ${skippedLocked} 条，使用 Ctrl+Delete/Ctrl+Backspace 强制删除`,
+                message: `已跳过锁定 ${skippedLocked} 条，使用 ${formatShortcutDisplay("c-del")} / ${formatShortcutDisplay("c-backspace")} 强制删除`,
             });
         return true;
     };
@@ -2892,7 +2900,7 @@ const unifiedKeyHandler = (e) => {
     };
     const previewDirection = previewDirectionMap[key];
 
-    if (hasActiveShiftPreview() && e.shiftKey && previewDirection) {
+    if (hasActiveShiftPreview() && isPureShiftPreviewEvent(e) && previewDirection) {
         if (handlePreviewScrollShortcut(previewDirection, e)) {
             e.preventDefault();
             e.stopPropagation();
@@ -2901,10 +2909,15 @@ const unifiedKeyHandler = (e) => {
         return;
     }
 
+    if (isShiftPreviewCancelModifier(e)) {
+        handleShiftKeyUp();
+        return;
+    }
+
     // 聚焦到预览窗口
     if (isShift) {
         if (isAliasDialogOpen()) return;
-        if (!repeat && !shiftKeyTimer) {
+        if (isPureShiftPreviewEvent(e) && !repeat && !shiftKeyTimer) {
             // Shift键按下，启动预览计时
             if (props.isMultiple) isShiftDown.value = true;
             handleShiftKeyDown();

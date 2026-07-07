@@ -42,6 +42,7 @@ async function main() {
     eventToShortcutId,
     compactToLegacyShortcutId,
     formatShortcutDisplay,
+    getShortcutLookupIds,
     getShortcutMainKeyToken,
     isShortcutIdFixedNonConfigurable,
     legacyToCompactShortcutId,
@@ -186,6 +187,24 @@ async function main() {
   assert.strictEqual(normalizeShortcutId('ctrl+shift+Delete'), 'c-s-del')
   assert.strictEqual(normalizeShortcutId('ctrl+shift+,'), 'c-s-,')
   assert.strictEqual(normalizeShortcutId('ctrl+shift+alt+.'), 'c-s-a-.')
+  assert.strictEqual(normalizeShortcutId('ctrl+s'), 'c-s')
+  assert.strictEqual(normalizeShortcutId('ctrl+a'), 'c-a')
+  assert.strictEqual(normalizeShortcutId('ctrl+c'), 'c-c')
+  assert.strictEqual(normalizeShortcutId('shift+s'), 's-s')
+  assert.strictEqual(normalizeShortcutId('ctrl+shift+s'), 'c-s-s')
+  assert.strictEqual(normalizeShortcutId('alt+a'), 'a-a')
+  assert.strictEqual(normalizeShortcutId('ctrl+alt+a'), 'c-a-a')
+  assert.strictEqual(normalizeShortcutId('ctrl+shift+-'), 'c-s--')
+  assert.strictEqual(normalizeShortcutId('ctrl+shift++'), 'c-s-+')
+  assert.strictEqual(normalizeShortcutId('c-s--'), 'c-s--')
+  assert.strictEqual(normalizeShortcutId('c-s-+'), 'c-s-+')
+  assert.strictEqual(normalizeShortcutId('s-+'), 's-+')
+  assert.strictEqual(normalizeShortcutId('+'), '+')
+  assert.strictEqual(normalizeShortcutId('c-s-'), '')
+  assert.strictEqual(normalizeShortcutId('C-S-'), '')
+  assert.strictEqual(normalizeShortcutId('ctrl+shift'), '')
+  assert.strictEqual(normalizeShortcutId('ctrl+alt'), '')
+  assert.strictEqual(normalizeShortcutId('ctrl+shift+'), '')
   assert.strictEqual(normalizeShortcutId('cr'), 'cr')
   assert.strictEqual(normalizeShortcutId('c-r'), 'c-r')
   assert.strictEqual(normalizeShortcutId('left'), 'left')
@@ -196,6 +215,14 @@ async function main() {
   assert.strictEqual(normalizeShortcutId('ctrl+shift+Tab'), 'c-s-tab')
   assert.strictEqual(legacyToCompactShortcutId('ctrl+shift+Delete'), 'c-s-del')
   assert.strictEqual(compactToLegacyShortcutId('mod-s'), 'Shift')
+  assert.deepStrictEqual(parseCompactShortcutId('c-s'), {
+    ctrl: true,
+    alt: false,
+    shift: false,
+    meta: false,
+    key: 's',
+    valid: true
+  })
   assert.deepStrictEqual(parseCompactShortcutId('c-s-del'), {
     ctrl: true,
     alt: false,
@@ -204,6 +231,12 @@ async function main() {
     key: 'del',
     valid: true
   })
+  assert.strictEqual(eventToShortcutId({ shiftKey: true, key: 'Shift' }), 'mod-s')
+  assert.strictEqual(eventToShortcutId({ ctrlKey: true, shiftKey: true, key: 'Shift' }), '')
+  assert.strictEqual(eventToShortcutId({ metaKey: true, shiftKey: true, key: 'Shift' }), '')
+  assert.strictEqual(eventToShortcutId({ altKey: true, shiftKey: true, key: 'Shift' }), '')
+  assert.strictEqual(eventToShortcutId({ shiftKey: true, key: 'ArrowUp', code: 'ArrowUp' }), 's-up')
+  assert.strictEqual(eventToShortcutId({ ctrlKey: true, shiftKey: true, key: 'ArrowUp', code: 'ArrowUp' }), 'c-s-up')
   assert.strictEqual(eventToShortcutId({ ctrlKey: true, key: 'cr' }), 'c-cr')
   assert.strictEqual(eventToShortcutId({ ctrlKey: true, shiftKey: true, key: ',', code: 'Comma' }), 'c-s-,')
   withRuntimePlatform('win32', () => {
@@ -212,12 +245,78 @@ async function main() {
     assert.strictEqual(eventToShortcutId({ ctrlKey: true, shiftKey: true, altKey: true, key: '>', code: 'Period' }), 'c-s-a-.')
     assert.strictEqual(eventToShortcutId({ shiftKey: true, altKey: true, key: 'P', code: 'KeyP' }), 's-a-p')
     assert.strictEqual(eventToShortcutId({ shiftKey: true, altKey: true, key: 'V', code: 'KeyV' }), 's-a-v')
+    const shiftedKeyCases = [
+      ['Digit1', '!', 'c-s-1'],
+      ['Digit2', '@', 'c-s-2'],
+      ['Digit3', '#', 'c-s-3'],
+      ['Digit4', '$', 'c-s-4'],
+      ['Digit5', '%', 'c-s-5'],
+      ['Digit6', '^', 'c-s-6'],
+      ['Digit7', '&', 'c-s-7'],
+      ['Digit8', '*', 'c-s-8'],
+      ['Digit9', '(', 'c-s-9'],
+      ['Digit0', ')', 'c-s-0'],
+      ['Minus', '_', 'c-s--'],
+      ['Equal', '+', 'c-s-='],
+      ['BracketLeft', '{', 'c-s-['],
+      ['BracketRight', '}', 'c-s-]'],
+      ['Backslash', '|', 'c-s-\\'],
+      ['Semicolon', ':', 'c-s-;'],
+      ['Quote', '"', "c-s-'"],
+      ['Slash', '?', 'c-s-/'],
+      ['Backquote', '~', 'c-s-`']
+    ]
+    shiftedKeyCases.forEach(([code, key, shortcutId]) => {
+      assert.strictEqual(
+        eventToShortcutId({ ctrlKey: true, shiftKey: true, key, code }),
+        shortcutId,
+        `Windows ${code} shifted key should normalize to the physical base key`
+      )
+    })
+    assert.deepStrictEqual(getShortcutLookupIds('c-s-/'), ['c-s-/', 'c-s-?'])
+    assert.deepStrictEqual(getShortcutLookupIds('c-s--'), ['c-s--', 'c-s-_'])
+    assert.deepStrictEqual(getShortcutLookupIds('c-s-1'), ['c-s-1', 'c-s-!'])
+    assert.deepStrictEqual(getShortcutLookupIds('c-s-='), ['c-s-=', 'c-s-+'])
+    assert.deepStrictEqual(getShortcutLookupIds('c-s-+'), ['c-s-+'])
+    assert.deepStrictEqual(getShortcutLookupIds('c-s-a-.'), ['c-s-a-.', 'c-s-a->'])
+    ;['AltGraph', 'Process', 'Dead', 'Unidentified'].forEach((key) => {
+      assert.strictEqual(eventToShortcutId({ ctrlKey: true, altKey: true, key, code: key }), '')
+      assert.strictEqual(eventLikeToShortcutId({ ctrlKey: true, altKey: true, key, code: key }), '')
+    })
+    assert.strictEqual(
+      eventToShortcutId({
+        ctrlKey: true,
+        altKey: true,
+        key: '@',
+        code: 'KeyQ',
+        getModifierState: (modifier) => modifier === 'AltGraph'
+      }),
+      ''
+    )
+    assert.strictEqual(
+      eventToShortcutId({ ctrlKey: true, altKey: true, key: '@', code: 'KeyQ' }),
+      '',
+      'Windows AltGraph-like printable text should not become a ctrl+alt shortcut when AltGraph state is unavailable'
+    )
+    assert.strictEqual(
+      eventToShortcutId({ ctrlKey: true, altKey: true, key: 'q', code: 'KeyQ' }),
+      'c-a-q',
+      'Real Windows ctrl+alt letter shortcuts should still be recordable'
+    )
   })
   withRuntimePlatform('darwin', () => {
     assert.strictEqual(eventToShortcutId({ altKey: true, key: '≥', code: 'Period' }), 'a-≥')
+    assert.deepStrictEqual(getShortcutLookupIds('c-s-/'), ['c-s-/'])
   })
   assert.strictEqual(eventToShortcutId({ shiftKey: true, key: 'f2' }), 's-f2')
-  assert.match(formatShortcutDisplay('c-s-del'), /^(Ctrl|Command)\+Shift\+Delete$/)
+  assert.strictEqual(formatShortcutDisplay('c-s-del'), 'c-s-del')
+  assert.strictEqual(formatShortcutDisplay('C-S-DEL'), 'c-s-del')
+  withRuntimePlatform('win32', () => {
+    assert.strictEqual(formatShortcutDisplay('c-s-del'), 'c-s-del')
+  })
+  withRuntimePlatform('darwin', () => {
+    assert.strictEqual(formatShortcutDisplay('c-s-del'), 'c-s-del')
+  })
   assert.strictEqual(getShortcutMainKeyToken('c-s-tab'), 'tab')
   assert.strictEqual(isShortcutIdFixedNonConfigurable('space'), true)
   assert.strictEqual(isShortcutIdFixedNonConfigurable('c-space'), true)
@@ -1426,6 +1525,41 @@ async function main() {
     [],
     'setting focus should not conflict with overlay-only keybindings'
   )
+  withRuntimePlatform('win32', () => {
+    assert.deepStrictEqual(
+      detectKeybindingConflicts(
+        { id: 'user.slash', key: 'c-s-/', when: 'mainFocus && !inputFocus' },
+        [
+          { id: 'legacy.question', key: 'c-s-?', when: 'mainFocus', source: 'user' },
+          { id: 'setting.question', key: 'c-s-?', when: 'settingFocus', source: 'user' }
+        ]
+      ).map((item) => item.id),
+      ['legacy.question'],
+      'Windows shifted-key aliases should conflict when their when clauses overlap'
+    )
+    assert.deepStrictEqual(
+      detectKeybindingConflicts(
+        { id: 'user.equal', key: 'c-s-=', when: 'mainFocus && !inputFocus' },
+        [
+          { id: 'legacy.plus', key: 'c-s-+', when: 'mainFocus', source: 'user' },
+          { id: 'setting.plus', key: 'c-s-+', when: 'settingFocus', source: 'user' }
+        ]
+      ).map((item) => item.id),
+      ['legacy.plus'],
+      'Windows shifted plus aliases should conflict when their when clauses overlap'
+    )
+    assert.deepStrictEqual(
+      getShortcutCommandRowConflicts(
+        { id: 'row.slash', commandId: 'list.item.joinLines', shortcutIds: ['c-s-/'], when: 'mainFocus && !inputFocus' },
+        [
+          { id: 'row.question', commandId: 'list.item.surroundLines', shortcutIds: ['c-s-?'], when: 'mainFocus', commandTitle: 'Legacy question' },
+          { id: 'row.setting', commandId: 'setting.tab.next', shortcutIds: ['c-s-?'], when: 'settingFocus', commandTitle: 'Setting question' }
+        ]
+      ).map((item) => item.id),
+      ['row.question'],
+      'Windows command rows should treat shifted aliases as the same shortcut for conflicts'
+    )
+  })
 
   const commandRows = buildShortcutCommandRows([
     {
@@ -1525,6 +1659,16 @@ async function main() {
   const lineSurroundShortcutSummary = getOperationShortcutSummary('line-surround', allShortcutRows, (shortcutId) => shortcutId)
   assert.strictEqual(lineSurroundShortcutSummary.query, 'list.item.surroundLines')
   assert.strictEqual(lineSurroundShortcutSummary.label, 'c-s-a-.')
+  assert.strictEqual(
+    getOperationShortcutSummary('line-join', allShortcutRows, formatShortcutDisplay).label,
+    'c-s-,',
+    'feature settings should display command shortcuts as lowercase compact ids'
+  )
+  assert.strictEqual(
+    getOperationShortcutSummary('line-surround', allShortcutRows, formatShortcutDisplay).label,
+    'c-s-a-.',
+    'feature settings should keep modifier order in compact display labels'
+  )
   assert.ok(
     allShortcutRows.some((row) => row.commandId === 'list.item.surroundLines' && row.shortcutIds.includes('c-s-a-.')),
     'line surround command should expose ctrl/shift/alt period as its default shortcut'
@@ -3047,6 +3191,108 @@ async function main() {
   assert.strictEqual(event.__hotkeyHandled, true)
   unregisterFeature('shadow-user-command')
   unregisterFeature('shadow-system-command')
+
+  const windowsAliasDispatches = []
+  clearLayers()
+  setMainState('normal')
+  setBindings([
+    {
+      layer: 'main',
+      shortcutId: 'c-s-?',
+      features: ['windows-legacy-question-shortcut'],
+      when: 'mainFocus && !inputFocus',
+      source: 'user'
+    }
+  ])
+  registerFeature('windows-legacy-question-shortcut', () => {
+    windowsAliasDispatches.push('legacy-question')
+    return true
+  })
+  withRuntimePlatform('win32', () => {
+    assert.strictEqual(
+      dispatch({
+        ...event,
+        key: '?',
+        code: 'Slash',
+        ctrlKey: true,
+        shiftKey: true,
+        __hotkeyHandled: false,
+        defaultPrevented: false
+      }),
+      true,
+      'Windows physical slash event should still match legacy shifted question shortcut overrides'
+    )
+  })
+  assert.deepStrictEqual(windowsAliasDispatches, ['legacy-question'])
+  unregisterFeature('windows-legacy-question-shortcut')
+
+  const windowsPlusAliasDispatches = []
+  clearLayers()
+  setMainState('normal')
+  setBindings([
+    {
+      layer: 'main',
+      shortcutId: 'c-s-+',
+      features: ['windows-legacy-plus-shortcut'],
+      when: 'mainFocus && !inputFocus',
+      source: 'user'
+    }
+  ])
+  registerFeature('windows-legacy-plus-shortcut', () => {
+    windowsPlusAliasDispatches.push('legacy-plus')
+    return true
+  })
+  withRuntimePlatform('win32', () => {
+    assert.strictEqual(
+      dispatch({
+        ...event,
+        key: '+',
+        code: 'Equal',
+        ctrlKey: true,
+        shiftKey: true,
+        __hotkeyHandled: false,
+        defaultPrevented: false
+      }),
+      true,
+      'Windows physical equal event should still match legacy shifted plus shortcut overrides'
+    )
+  })
+  assert.deepStrictEqual(windowsPlusAliasDispatches, ['legacy-plus'])
+  unregisterFeature('windows-legacy-plus-shortcut')
+
+  const windowsIgnoredDispatches = []
+  clearLayers()
+  setMainState('normal')
+  setBindings([
+    {
+      layer: 'main',
+      shortcutId: '*',
+      features: ['windows-ime-wildcard-block'],
+      when: 'mainFocus'
+    }
+  ])
+  registerFeature('windows-ime-wildcard-block', () => {
+    windowsIgnoredDispatches.push('wildcard')
+    return true
+  })
+  withRuntimePlatform('win32', () => {
+    assert.strictEqual(
+      dispatch({
+        ...event,
+        key: 'Process',
+        code: 'Process',
+        ctrlKey: false,
+        shiftKey: false,
+        altKey: false,
+        __hotkeyHandled: false,
+        defaultPrevented: false
+      }),
+      false,
+      'Windows IME Process key should not hit wildcard dispatch bindings'
+    )
+  })
+  assert.deepStrictEqual(windowsIgnoredDispatches, [])
+  unregisterFeature('windows-ime-wildcard-block')
 
   const commandDispatches = []
   clearLayers()

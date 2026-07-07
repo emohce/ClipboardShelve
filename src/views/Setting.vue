@@ -1617,7 +1617,7 @@ const shortcutConflictRows = computed(() => [...shortcutCommandRows.value, ...ma
 
 const shortcutHelpContent = computed(() =>
   [
-    '以 command 形式展示实际生效的快捷键；输入关键词后按 Enter 搜索，Ctrl/Cmd+F 可快速定位到搜索框。',
+    `以 command 形式展示实际生效的快捷键；输入关键词后按 ${formatShortcutDisplay('cr')} 搜索，${formatShortcutDisplay('c-f')} 可快速定位到搜索框。`,
     '支持多键绑定、禁用 action 触发、恢复默认和编辑 When 条件；冲突键录入时直接拒绝。'
   ].join(' ')
 )

@@ -77,9 +77,9 @@
                 <!-- 快捷键提示 -->
                 <div class="shortcuts-hint">
                     <div class="hint-item"><kbd>↑</kbd><kbd>↓</kbd><span>选择</span></div>
-                    <div class="hint-item"><kbd>Enter</kbd><span>跳转</span></div>
-<!--                    <div class="hint-item"><kbd>Ctrl+Enter</kbd><span>快速跳转</span></div>-->
-                    <div class="hint-item"><kbd>Esc</kbd><span>关闭</span></div>
+                    <div class="hint-item"><kbd>{{ formatShortcutDisplay("cr") }}</kbd><span>跳转</span></div>
+<!--                    <div class="hint-item"><kbd>{{ formatShortcutDisplay("c-cr") }}</kbd><span>快速跳转</span></div>-->
+                    <div class="hint-item"><kbd>{{ formatShortcutDisplay("esc") }}</kbd><span>关闭</span></div>
                 </div>
             </div>
         </div>
@@ -90,6 +90,7 @@
 import { ref, computed, watch, onMounted, onUnmounted, nextTick } from "vue";
 import { activateLayer, deactivateLayer } from "../global/hotkeyLayers";
 import { registerCommandFeaturePairs } from "../global/hotkeyRegistry";
+import { formatShortcutDisplay } from "../global/shortcutKey";
 
 const props = defineProps({
     visible: Boolean,
@@ -205,7 +206,7 @@ const handleKeydown = (e) => {
             break;
     }
 
-    // Ctrl+Enter 也触发跳转
+    // c-cr 也触发跳转
     if ((e.ctrlKey || e.metaKey) && e.key === "Enter") {
         stopEvent();
         if (selectedTag.value) {

@@ -3,7 +3,7 @@
  * Single dispatch: normalize -> find binding by layer priority -> run features in order.
  */
 
-import { eventToShortcutId } from "./shortcutKey.js";
+import { eventToShortcutId, getShortcutLookupIds } from "./shortcutKey.js";
 import { normalizeShortcutId } from "./shortcutKey.js";
 import { getActiveLayers, getCurrentLayer, getLayerPriorityStack } from "./hotkeyLayers.js";
 import { getCommandAwareBindings } from "./hotkeyBindings.js";
@@ -345,7 +345,9 @@ export function dispatch(e) {
   }
 
   const shortcutId = eventToShortcutId(e);
-  const lookupId = shortcutIdForLookup(shortcutId);
+  if (!shortcutId) return false;
+  const lookupIds = getShortcutLookupIds(shortcutId).map(shortcutIdForLookup).filter(Boolean);
+  const lookupId = lookupIds[0] || "";
   const currentLayer = getCurrentLayer();
   const state = mainStateRef.current;
 
@@ -357,19 +359,28 @@ export function dispatch(e) {
     return false;
   }
 
-  // 设置页输入控件聚焦时，不把按键继续分发给主界面热键，避免 Enter/Ctrl+数字等误触发。
+  // 设置页输入控件聚焦时，不把按键继续分发给主界面热键，避免 cr/c-数字等误触发。
   if (currentLayer === SETTING_LAYER && isEditableHotkeyTarget(e.target)) {
     return false;
   }
 
   if (typeof window !== "undefined" && window.__EZCLIPBOARD_HOTKEY_SHADOW__ === true) {
-    const preview = previewKeybindingResolution(lookupId, {
-      currentLayer,
-      activeLayers: getActiveLayers(),
-      mainState: state,
-      target: e.target,
-      bindingList: bindings,
-    });
+    const preview = lookupIds
+      .map((id) => previewKeybindingResolution(id, {
+        currentLayer,
+        activeLayers: getActiveLayers(),
+        mainState: state,
+        target: e.target,
+        bindingList: bindings,
+      }))
+      .find((item) => item.commandBinding || item.legacy.binding) ||
+      previewKeybindingResolution(lookupId, {
+        currentLayer,
+        activeLayers: getActiveLayers(),
+        mainState: state,
+        target: e.target,
+        bindingList: bindings,
+      });
     if (!preview.matches) {
       console.warn("[EzClipboard] hotkey shadow mismatch", {
         shortcutId: lookupId,
@@ -387,7 +398,12 @@ export function dispatch(e) {
     mainState: state,
     target: e.target,
   });
-  const binding = resolveKeybinding(getCommandAwareBindings(bindings), lookupId, context, getLayerPriorityOrder(activeLayers));
+  const commandAwareBindings = getCommandAwareBindings(bindings);
+  let binding = null;
+  for (const id of lookupIds.length ? lookupIds : [lookupId]) {
+    binding = resolveKeybinding(commandAwareBindings, id, context, getLayerPriorityOrder(activeLayers));
+    if (binding) break;
+  }
   if (!binding) return false;
   if (binding.commandEnabled === false || binding.enabled === false) return false;
 

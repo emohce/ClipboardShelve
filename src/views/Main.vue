@@ -1707,7 +1707,7 @@ const handleItemsDelete = (items = [], metadata = {}) => {
 
 const emit = defineEmits(["showSetting"]);
 const multiSelectTooltip = computed(() =>
-    isMultiple.value ? "Esc" : formatShortcutDisplay("space"),
+    isMultiple.value ? formatShortcutDisplay("esc") : formatShortcutDisplay("space"),
 );
 const settingTooltip = computed(() => formatShortcutDisplay("c-a-s"));
 const storageStatus = ref(getStorageRuntimeStatus());

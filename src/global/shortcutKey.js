@@ -19,11 +19,7 @@ const MODIFIER_ALIAS = {
   option: 'a'
 }
 
-const LEGACY_MODIFIER_DISPLAY = {
-  c: 'Ctrl',
-  s: 'Shift',
-  a: 'Alt'
-}
+const FULL_MODIFIER_ALIAS = new Set(['ctrl', 'control', 'cmd', 'command', 'meta', 'shift', 'alt', 'option'])
 
 const KEY_ALIAS = {
   ' ': 'space',
@@ -50,21 +46,6 @@ const KEY_ALIAS = {
   pgup: 'pageup',
   pagedown: 'pagedown',
   pgdn: 'pagedown'
-}
-
-const KEY_DISPLAY = {
-  cr: 'Enter',
-  esc: 'Esc',
-  del: 'Delete',
-  backspace: 'Backspace',
-  tab: 'Tab',
-  space: 'Space',
-  left: 'Left',
-  right: 'Right',
-  up: 'Up',
-  down: 'Down',
-  pageup: 'PageUp',
-  pagedown: 'PageDown'
 }
 
 const COMPACT_TO_LEGACY_KEY = {
@@ -96,12 +77,56 @@ const CODE_ALIAS = {
   Digit9: '9'
 }
 
-const WINDOWS_SHIFTED_PUNCTUATION_CODE_ALIAS = {
+const WINDOWS_SHIFTED_KEY_BY_CODE = {
+  Digit0: '0',
+  Digit1: '1',
+  Digit2: '2',
+  Digit3: '3',
+  Digit4: '4',
+  Digit5: '5',
+  Digit6: '6',
+  Digit7: '7',
+  Digit8: '8',
+  Digit9: '9',
+  Minus: '-',
+  Equal: '=',
+  BracketLeft: '[',
+  BracketRight: ']',
+  Backslash: '\\',
+  Semicolon: ';',
+  Quote: "'",
   Comma: ',',
-  Period: '.'
+  Period: '.',
+  Slash: '/',
+  Backquote: '`'
+}
+
+const WINDOWS_SHIFTED_ALIAS_BY_KEY = {
+  0: ')',
+  1: '!',
+  2: '@',
+  3: '#',
+  4: '$',
+  5: '%',
+  6: '^',
+  7: '&',
+  8: '*',
+  9: '(',
+  '-': '_',
+  '=': '+',
+  '[': '{',
+  ']': '}',
+  '\\': '|',
+  ';': ':',
+  "'": '"',
+  ',': '<',
+  '.': '>',
+  '/': '?',
+  '`': '~'
 }
 
 const MODIFIER_KEYS = new Set(['Shift', 'Control', 'Alt', 'Meta'])
+const WINDOWS_IGNORED_EVENT_KEYS = new Set(['AltGraph', 'Process', 'Dead', 'Unidentified'])
 const FIXED_MAIN_KEY_TOKENS = new Set(['tab', 'space'])
 const INTERNAL_MODIFIER_EVENT_IDS = new Set(['mod-c', 'mod-s', 'mod-a'])
 const MODIFIER_EVENT_ID_BY_KEY = {
@@ -121,7 +146,7 @@ function keyFromCode(code) {
 
 function keyFromWindowsShiftedPunctuationCode(code) {
   if (!code) return null
-  return WINDOWS_SHIFTED_PUNCTUATION_CODE_ALIAS[code] ?? null
+  return WINDOWS_SHIFTED_KEY_BY_CODE[code] ?? null
 }
 
 function isWindowsPlatform() {
@@ -143,6 +168,32 @@ function shouldUseWindowsShiftedPunctuationKey(e, key, codeKey) {
   return normalizeKeyToken(key) !== codeKey
 }
 
+function isPotentialWindowsAltGraphTextEvent(e, key) {
+  if (!e?.ctrlKey || !e?.altKey || e?.shiftKey || e?.metaKey) return false
+  if (!key || String(key).length !== 1) return false
+  const codeKey = keyFromCode(e?.code)
+  if (!codeKey || codeKey === 'space') return false
+  return normalizeKeyToken(key) !== codeKey
+}
+
+function shouldIgnoreWindowsKeyEvent(e, key) {
+  if (!isWindowsPlatform()) return false
+  if (WINDOWS_IGNORED_EVENT_KEYS.has(key)) return true
+  try {
+    if (typeof e?.getModifierState === 'function' && e.getModifierState('AltGraph')) return true
+  } catch (_) {}
+  if (isPotentialWindowsAltGraphTextEvent(e, key)) return true
+  return false
+}
+
+function hasOtherModifierForModifierKey(e, key) {
+  if (key !== 'Shift' && e?.shiftKey) return true
+  if (key !== 'Control' && e?.ctrlKey) return true
+  if (key !== 'Meta' && e?.metaKey) return true
+  if (key !== 'Alt' && e?.altKey) return true
+  return false
+}
+
 function normalizeKeyToken(token) {
   if (token == null) return ''
   const raw = String(token).trim()
@@ -158,6 +209,26 @@ function orderedModifierParts(modifiers) {
   return MODIFIER_ORDER.filter((modifier) => modifiers.has(modifier))
 }
 
+function isModifierAlias(part) {
+  return Boolean(MODIFIER_ALIAS[String(part || '').trim().toLowerCase()])
+}
+
+function isFullModifierAlias(part) {
+  return FULL_MODIFIER_ALIAS.has(String(part || '').trim().toLowerCase())
+}
+
+function addModifierPart(part, modifiers) {
+  const modifier = MODIFIER_ALIAS[String(part || '').trim().toLowerCase()]
+  if (!modifier) return false
+  modifiers.add(modifier)
+  return true
+}
+
+function shouldUseLegacyPlusSeparator(raw) {
+  if (!raw.includes('+') || raw === '+') return false
+  return isModifierAlias(raw.split('+')[0])
+}
+
 function buildShortcutId(modifiers, key) {
   const parts = orderedModifierParts(modifiers)
   const normalizedKey = normalizeKeyToken(key)
@@ -171,24 +242,57 @@ export function parseCompactShortcutId(shortcutId) {
   const raw = shortcutId.trim()
   if (!raw) return result
 
-  const separator = raw.includes('+') ? '+' : '-'
-  const parts = raw.split(separator).map((part) => part.trim()).filter(Boolean)
-  if (!parts.length) return result
+  const separator = shouldUseLegacyPlusSeparator(raw) ? '+' : '-'
+  let parts = raw.split(separator).map((part) => part.trim()).filter(Boolean)
+  let trailingMinusKey = false
+  let trailingPlusKey = false
+  if (separator === '-') {
+    if (raw === '-') {
+      parts = []
+      trailingMinusKey = true
+    } else if (raw.endsWith('--')) {
+      parts = raw.slice(0, -1).split(separator).map((part) => part.trim()).filter(Boolean)
+      trailingMinusKey = true
+    } else if (raw.endsWith('-')) {
+      return result
+    }
+  } else if (raw.endsWith('++')) {
+    parts = raw.slice(0, -1).split(separator).map((part) => part.trim()).filter(Boolean)
+    trailingPlusKey = true
+  } else if (raw.endsWith('+')) {
+    return result
+  }
+  if (!parts.length && !trailingMinusKey && !trailingPlusKey) return result
 
   const modifiers = new Set()
   let key = ''
-  const compactWithKey = separator === '-' && parts.length > 1
-  const modifierParts = compactWithKey ? parts.slice(0, -1) : parts
-  for (const part of modifierParts) {
-    const lower = part.toLowerCase()
-    const modifier = MODIFIER_ALIAS[lower]
-    if (modifier) {
-      modifiers.add(modifier)
-      continue
+  if (separator === '+') {
+    const modifierParts = trailingPlusKey ? parts : parts.slice(0, -1)
+    for (const part of modifierParts) {
+      if (!addModifierPart(part, modifiers)) return result
     }
-    key = normalizeKeyToken(part)
+    if (trailingPlusKey) {
+      key = '+'
+    } else {
+      const lastPart = parts[parts.length - 1]
+      if (!lastPart || isFullModifierAlias(lastPart)) return result
+      key = normalizeKeyToken(lastPart)
+    }
+  } else {
+    const compactWithKey = parts.length > 1 || trailingMinusKey
+    const modifierParts = trailingMinusKey ? parts : compactWithKey ? parts.slice(0, -1) : parts
+    for (const part of modifierParts) {
+      const lower = part.toLowerCase()
+      const modifier = MODIFIER_ALIAS[lower]
+      if (modifier) {
+        modifiers.add(modifier)
+        continue
+      }
+      key = normalizeKeyToken(part)
+    }
+    if (trailingMinusKey) key = '-'
+    else if (compactWithKey) key = normalizeKeyToken(parts[parts.length - 1])
   }
-  if (compactWithKey) key = normalizeKeyToken(parts[parts.length - 1])
 
   result.ctrl = modifiers.has('c')
   result.meta = false
@@ -210,7 +314,11 @@ export function eventToShortcutId(e) {
   if (e?.altKey) modifiers.add('a')
 
   let key = e?.key || ''
-  if (key && MODIFIER_KEYS.has(key)) return MODIFIER_EVENT_ID_BY_KEY[key] || ''
+  if (shouldIgnoreWindowsKeyEvent(e, key)) return ''
+  if (key && MODIFIER_KEYS.has(key)) {
+    if (hasOtherModifierForModifierKey(e, key)) return ''
+    return MODIFIER_EVENT_ID_BY_KEY[key] || ''
+  }
 
   const shiftedPunctuationKey = keyFromWindowsShiftedPunctuationCode(e?.code)
   if (shouldUseWindowsShiftedPunctuationKey(e, key, shiftedPunctuationKey)) key = shiftedPunctuationKey
@@ -219,6 +327,26 @@ export function eventToShortcutId(e) {
   if (codeKey != null && (e?.altKey || key.length !== 1 || key === ' ')) key = codeKey
 
   return buildShortcutId(modifiers, key)
+}
+
+export function getShortcutLookupIds(shortcutId) {
+  const normalized = normalizeShortcutId(shortcutId)
+  if (!normalized) return []
+  const ids = [normalized]
+  if (!isWindowsPlatform()) return ids
+
+  const parsed = parseCompactShortcutId(normalized)
+  if (!parsed.valid || !parsed.shift || !parsed.key) return ids
+  const shiftedAlias = WINDOWS_SHIFTED_ALIAS_BY_KEY[parsed.key]
+  if (!shiftedAlias) return ids
+
+  const modifiers = new Set()
+  if (parsed.ctrl || parsed.meta) modifiers.add('c')
+  if (parsed.shift) modifiers.add('s')
+  if (parsed.alt) modifiers.add('a')
+  const alias = buildShortcutId(modifiers, shiftedAlias)
+  if (alias && alias !== normalized) ids.push(alias)
+  return ids
 }
 
 /**
@@ -294,61 +422,17 @@ export function isMacPlatform() {
   return false
 }
 
-/**
- * Convert compact shortcut ids like "c-a-f" to UI labels.
- * On macOS, `c` is shown as `Command` and `a` as `Option`.
- * @param {string} shortcutId
- * @returns {string}
- */
 export function formatShortcutDisplay(shortcutId) {
   const normalized = normalizeShortcutId(shortcutId)
   if (!normalized) return ''
-  if (normalized === '*') return '*'
-  if (normalized === 'mod-c') return isMacPlatform() ? 'Command' : 'Ctrl'
-  if (normalized === 'mod-s') return 'Shift'
-  if (normalized === 'mod-a') return isMacPlatform() ? 'Option' : 'Alt'
-
-  const parsed = parseCompactShortcutId(normalized)
-  const useMacLabels = isMacPlatform()
-  const modifierDisplay = {
-    ...LEGACY_MODIFIER_DISPLAY,
-    c: useMacLabels ? 'Command' : 'Ctrl',
-    a: useMacLabels ? 'Option' : 'Alt'
-  }
-  const parts = []
-  for (const modifier of MODIFIER_ORDER) {
-    if (modifier === 'c' && parsed.ctrl) parts.push(modifierDisplay.c)
-    if (modifier === 's' && parsed.shift) parts.push(modifierDisplay.s)
-    if (modifier === 'a' && parsed.alt) parts.push(modifierDisplay.a)
-  }
-  if (parsed.key) parts.push(KEY_DISPLAY[parsed.key] || parsed.key.toUpperCase())
-  return parts.join('+')
-}
-
-/**
- * Format shortcut ID in compact cross-platform format (e.g., "s-esc" instead of "Shift+Esc").
- * @param {string} shortcutId
- * @returns {string}
- */
-export function formatShortcutDisplayCompact(shortcutId) {
-  const normalized = normalizeShortcutId(shortcutId)
-  if (!normalized) return ''
-  if (normalized === '*') return '*'
-  if (normalized === 'mod-c') return 'mod-c'
-  if (normalized === 'mod-s') return 'mod-s'
-  if (normalized === 'mod-a') return 'mod-a'
   return normalized
 }
 
-/**
- * Replace shortcut text inside feature descriptions for platform-aware display.
- * @param {string} text
- * @returns {string}
- */
+export function formatShortcutDisplayCompact(shortcutId) {
+  return formatShortcutDisplay(shortcutId)
+}
+
+/** Kept for existing label call sites; shortcut labels now stay platform-neutral. */
 export function formatShortcutTextForPlatform(text) {
-  if (!text) return ''
-  if (!isMacPlatform()) return text
-  return String(text)
-    .replace(/\bCtrl\b/g, 'Command')
-    .replace(/\bAlt\b/g, 'Option')
+  return text ? String(text) : ''
 }

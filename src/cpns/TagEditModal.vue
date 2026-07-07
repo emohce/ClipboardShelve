@@ -83,7 +83,7 @@
                     取消收藏
                 </button>
                 <button @click="save" class="btn-save" :disabled="saving">
-                    {{ saving ? "保存中..." : "保存 (Ctrl+S)" }}
+                    {{ saving ? "保存中..." : `保存 (${formatShortcutDisplay("c-s")})` }}
                 </button>
             </div>
         </div>
@@ -94,6 +94,7 @@
 import { ref, computed, watch, onMounted, onUnmounted } from "vue";
 import { activateLayer, deactivateLayer } from "../global/hotkeyLayers";
 import { registerCommandFeaturePairs } from "../global/hotkeyRegistry";
+import { formatShortcutDisplay } from "../global/shortcutKey";
 import { ElMessage } from "element-plus";
 import TagInput from "./TagInput.vue";
 

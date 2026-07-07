@@ -8,7 +8,7 @@
             <div class="pin-group-editor-header">
                 <div>
                     <h3>置顶组合</h3>
-                    <span>上下移动高亮，空格多选，Alt+U / Alt+E 排序，Alt+G 清空</span>
+                    <span>{{ shortcutHintText }}</span>
                 </div>
                 <button class="pin-group-editor-close" @click="close">×</button>
             </div>
@@ -43,15 +43,15 @@
                 <div class="pin-group-editor-actions">
                     <button class="pin-group-secondary" @click="close">
                         <span>取消</span>
-                        <small>Esc</small>
+                        <small>{{ formatShortcutDisplay("esc") }}</small>
                     </button>
                     <button class="pin-group-secondary" @click="clear">
                         <span>清空组合</span>
-                        <small>Alt+G</small>
+                        <small>{{ formatShortcutDisplay("a-g") }}</small>
                     </button>
                     <button class="pin-group-primary" @click="save">
                         <span>保存组合</span>
-                        <small>Enter</small>
+                        <small>{{ formatShortcutDisplay("cr") }}</small>
                     </button>
                 </div>
             </div>
@@ -64,6 +64,7 @@ import { computed, nextTick, ref, watch, onMounted, onUnmounted } from "vue";
 import draggable from "vuedraggable";
 import { activateLayer, deactivateLayer } from "../global/hotkeyLayers";
 import { registerCommandFeaturePairs } from "../global/hotkeyRegistry";
+import { formatShortcutDisplay } from "../global/shortcutKey";
 
 const props = defineProps({
     visible: Boolean,
@@ -80,6 +81,7 @@ const activeIndex = ref(0);
 const selectedIndices = ref([]);
 const selectedIndexSet = computed(() => new Set(selectedIndices.value));
 let disposePinGroupCommandHandlers = null;
+const shortcutHintText = `up/down 移动高亮，${formatShortcutDisplay("space")} 多选，${formatShortcutDisplay("a-u")} / ${formatShortcutDisplay("a-e")} 排序，${formatShortcutDisplay("a-g")} 清空`;
 
 const resetDraft = () => {
     draftItems.value = Array.isArray(props.items) ? props.items.filter(Boolean) : [];
