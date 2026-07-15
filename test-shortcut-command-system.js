@@ -95,6 +95,7 @@ async function main() {
   } = await import('./src/global/quickPasteSelection.js')
   const {
     clearPinGroup,
+    getLastActiveContext,
     getPinGroup,
     getPinGroupState,
     removePinGroupItems,
@@ -329,6 +330,7 @@ async function main() {
   assert.strictEqual(isShortcutIdFixedNonConfigurable('c-space'), true)
   const mainVueSource = fs.readFileSync('./src/views/Main.vue', 'utf8')
   const quickPasteTopCacheSyncSource = mainVueSource.match(/const syncQuickPasteTopCache = \(\) => \{[\s\S]*?\n\};/)?.[0] || ''
+  const pinGroupSaveSource = mainVueSource.match(/const handlePinGroupSave = \(items = \[\]\) => \{[\s\S]*?\n\};/)?.[0] || ''
   assert.ok(
     quickPasteTopCacheSyncSource.includes('getCurrentFilterContext()'),
     'quick paste top cache sync should use the live main filter context'
@@ -336,6 +338,10 @@ async function main() {
   assert.ok(
     !quickPasteTopCacheSyncSource.includes('getLastActiveContext'),
     'quick paste top cache sync must not reference missing storage helpers before main hotkey registration'
+  )
+  assert.ok(
+    pinGroupSaveSource.includes('activeContext: getCurrentFilterContext()'),
+    'saving a pin group should synchronize the trigger context with the saved tab bucket'
   )
   const quickPasteRuntimeSource = fs.readFileSync('./src/global/quickPasteRuntime.js', 'utf8')
   assert.ok(
@@ -899,7 +905,8 @@ async function main() {
         }
       }
     ],
-    ['pin.lastActiveContext', { tab: 'image', collectTag: '*全部*', keyword: '', lockFilter: 'all' }]
+    ['pin.lastActiveContext', { tab: 'image', collectTag: '*全部*', keyword: '', lockFilter: 'all' }],
+    ['pin.item.map', { 'all-group': { pinnedAt: 30 } }]
   ])
   const tabScopedGroupUTools = quickPasteMissingFromUTools
   tabScopedGroupUTools.hideMainWindowPasteText = (text) => {
@@ -974,6 +981,24 @@ async function main() {
     'missing group in one tab should not clear another tab cache'
   )
   assert.deepStrictEqual(tabScopedGroupPasteCalls, ['image-group', 'image-group'])
+  assert.deepStrictEqual(tabScopedGroupHideCalls, ['hide'])
+  tabScopedGroupStorage.set('pin.lastActiveContext', { tab: 'text', collectTag: '*全部*', keyword: '', lockFilter: 'all' })
+  savePinGroup(['all-group'], {
+    type: 'all',
+    cursor: 0,
+    activeContext: { tab: 'all', collectTag: '*全部*', keyword: '', lockFilter: 'all' }
+  })
+  assert.strictEqual(
+    getLastActiveContext().tab,
+    'all',
+    'saving a group from pinned candidates should make its tab bucket the next global trigger context'
+  )
+  assert.strictEqual(
+    runTabScopedQuickPasteAction({ code: 'quick-paste-pin-group' }, { immediate: true }),
+    true,
+    'a group made from an item that is also individually pinned should trigger in the synchronized tab bucket'
+  )
+  assert.deepStrictEqual(tabScopedGroupPasteCalls, ['image-group', 'image-group', 'all-group'])
   assert.deepStrictEqual(tabScopedGroupHideCalls, ['hide'])
 
   const expectedDataWriteCommands = [

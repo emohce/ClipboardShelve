@@ -26,6 +26,7 @@ Tool: codex
 
 - 初始化已有组合：同步每个已有 Type bucket
 - 保存、清空：只更新当前 Tab type bucket
+- 保存组合时同时同步当前过滤上下文到该 Type，避免保存 bucket 与下一次全局触发所读 `pin.lastActiveContext.tab` 漂移；cursor 推进不做这项同步
 - 删除可见条目导致成员变化：清理所有 Type bucket 中的被删 item id，并同步所有 bucket
 - 列表内直接粘贴组合项并更新当前 Tab type 的 cursor
 
@@ -45,6 +46,8 @@ Tool: codex
 ## Runtime Rule
 
 `quick-paste-pin-group`：先读 `pin.lastActiveContext.tab`，再选同 type 运行时 cache 并推进内存 cursor；成功后只轻量落盘该 type 的 cursor。仅冷启动且该 type cache 未建立时允许解析同 type 的 `pin.group.groups[type]`。热路径不做跨 type id 匹配。
+
+单项置顶 map 与组合成员允许重叠。重叠不改变 cache entry 形状，也不是跨 Type fallback 的理由；UI 保存动作负责把当前 Type 与触发上下文同步到同一边界。
 
 ## Do Not
 

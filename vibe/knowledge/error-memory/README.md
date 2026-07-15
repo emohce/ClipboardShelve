@@ -26,5 +26,6 @@ Tool: codex
 | EM-2026-06-13-setting-dialog | [2026-06-13-setting-dialog-teleport-global-less.md](2026-06-13-setting-dialog-teleport-global-less.md) | 设置页弹窗全局样式 teleport 未命中 |
 | EM-2026-07-07-shortcut-legacy-final-key | [2026-07-07-shortcut-legacy-final-key.md](2026-07-07-shortcut-legacy-final-key.md) | legacy 快捷键最后一段被误当修饰符 |
 | EM-2026-07-07-externalized-payload | [2026-07-07-externalized-payload-hydration.md](2026-07-07-externalized-payload-hydration.md) | 外置 payload 轻量行误作完整 item |
+| EM-2026-07-15-pin-group-active-context | [2026-07-15-pin-group-active-context-bucket-drift.md](2026-07-15-pin-group-active-context-bucket-drift.md) | 置顶组合保存分桶与全局触发 Tab 上下文漂移 |
 
 权威实现见各主题知识页（例：[../quick-paste-runtime.md](../quick-paste-runtime.md)）。

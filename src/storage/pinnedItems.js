@@ -191,6 +191,12 @@ export const savePinGroup = (itemIds = [], options = {}) => {
     state.currentType = type;
     state.updatedAt = group.updatedAt;
     writePinGroupState(state);
+    if (options.activeContext && typeof options.activeContext === "object") {
+        setLastActiveContext({
+            ...options.activeContext,
+            tab: type,
+        });
+    }
     return group;
 };
 

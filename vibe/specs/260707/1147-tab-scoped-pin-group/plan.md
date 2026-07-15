@@ -32,13 +32,22 @@ Tool: codex
 
 ## Status
 
-Completed in this task. Verification details are in [verify.md](verify.md).
+Completed, including the 2026-07-15 pinned-member trigger-conflict follow-up. Verification details are in [verify.md](verify.md).
+
+## Follow-up Plan（2026-07-15）
+
+1. Compare ordinary members with members also present in `pin.item.map`; do not assume storage-key overlap is causal.
+2. Reproduce save/trigger behavior with matching and mismatching `pin.lastActiveContext.tab`.
+3. Extend `savePinGroup` with an optional UI `activeContext`; normalize its `tab` to the actual group Type. Keep cursor-only runtime saves unchanged.
+4. Pass the live filter context from `Main.handlePinGroupSave` and add a pinned-overlap + stale-context regression.
+5. Re-run focused tests, production build, code-link audit, project rule audit, and synchronize task/current/error-memory owners.
 
 ## Risks
 
 - 旧 `pin.group` 没有创建来源，只能默认归入 `all`，这是有意兼容策略。
 - 收藏子 Tab 不拆分为独立 bucket，避免把标签筛选上下文误建成多套组合。
 - 快捷热路径不能每次扫描全部数据，冷启动 fallback 才允许按 id resolve。
+- 不用跨 Type fallback 修复保存上下文漂移；这会破坏本任务已确认的 Tab 隔离语义。
 
 ## Verification
 

@@ -57,6 +57,7 @@ Tool: codex
 
 - `quick-paste-top`：只取符合 last context 的单项置顶；**不** fallback 组合项、当前剪贴板临时项或列表首项。
 - `quick-paste-pin-group`：只读 `pin.group.groups[pin.lastActiveContext.tab]` 与同 type 运行时 cache；与置顶项独立，且不 fallback 到其他 Tab 的组合。
+- UI 保存置顶组合时，保存边界必须同时把当前过滤上下文的 `tab` 归一到实际 group Type；这样成员即使也在 `pin.item.map` 中，保存后立即触发仍会读取刚保存的 bucket。仅推进组合 cursor 时不改写最新 Tab 上下文。
 - 无匹配：`hideMainWindow()`，不粘贴。
 - 新增 Pad / Tab / Type 投影概念时，只能增加或更新对应投影 bucket，不得把投影切换解释成 cache reset。
 
@@ -85,3 +86,5 @@ Tool: codex
 - `node test-image-payload-path.js`
 - `pnpm run build`
 - uTools：全局快捷键「粘贴置顶项」「循环粘贴组合项」；列表点击/Enter 回归
+
+回归用例还必须覆盖：组合成员同时属于单项置顶、保存前 `pin.lastActiveContext.tab` 为其他 Type、保存后全局组合入口命中当前保存 bucket；同时保留无组合 Type 不跨 Type fallback 的断言。

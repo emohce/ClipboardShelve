@@ -1337,7 +1337,11 @@ const closePinGroupEditor = () => {
 const handlePinGroupSave = (items = []) => {
     const ids = items.map((item) => item?.id).filter((id) => id && id !== "__ez_pin_group__");
     const type = getCurrentPinGroupType();
-    pinGroup.value = savePinGroup(ids, { type, cursor: 0 });
+    pinGroup.value = savePinGroup(ids, {
+        type,
+        cursor: 0,
+        activeContext: getCurrentFilterContext(),
+    });
     setQuickPastePinGroupCache(items, {
         type,
         currentType: type,
