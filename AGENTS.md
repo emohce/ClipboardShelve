@@ -1,21 +1,10 @@
-# EzClipboard AI Adapter
+<!-- codenote-agent-ecosystem:start -->
+# ez-clipboard AI entry
 
-Tool: codex
+Source: CodeNote compact core sha256:935bd00f7f626c43a5accac9a71618af64ea59d8561b443a4f6838f43af7fdbe.
 
-Read first:
-- [../CzzProj/CodeNote/AiRef/VibePractice/Vibe_Rules/VibeAi.md](../CzzProj/CodeNote/AiRef/VibePractice/Vibe_Rules/VibeAi.md)
-- [vibe/rules/README.md](vibe/rules/README.md)
-- [vibe/rules/context-loading.md](vibe/rules/context-loading.md)
-- [vibe/rules/documentation.md](vibe/rules/documentation.md)
-- [vibe/specs/PROJECT_STATUS.md](vibe/specs/PROJECT_STATUS.md)
-- [.agents/skills/ezclipboard-rules/SKILL.md](.agents/skills/ezclipboard-rules/SKILL.md)
+If ../CzzProj/CodeNote/AiRef/VibePractice/Vibe_Rules/VibeAi.md exists, load that core, its short routing/README.md and the applicable short host adapter once; apply both baseline guards selected by that router. Otherwise load [vibe/rules/global-core.generated.md](vibe/rules/global-core.generated.md); it is a deterministic portable projection. Reuse unchanged context during the task.
 
-Hard constraints:
-- Keep project-specific rules in `vibe/rules/`; do not copy the CodeNote master into this repository.
-- Preserve existing behavior and user changes; do not touch unrelated business code.
-- High-risk actions require confirmation: DB writes, deletes, production changes, credentials, publish/deploy, or external service writes.
-- Write Markdown links relative to the target document location.
-- Cursor, Codex, Windsurf, and other AI tools must use adapter files only as routing surfaces; authoritative project rules stay in `vibe/rules/`, and cross-project rules stay in CodeNote.
-- Load task-specific memories through `.agents/skills/ezclipboard-rules/SKILL.md` instead of pasting all rules into every prompt.
-- Knowledge hygiene ([vibe/rules/documentation.md](vibe/rules/documentation.md#knowledge-hygiene权威文档原则)): formal docs keep correct knowledge and misconception concepts only; drop stale references, intermediate artifacts, and wrong-code traces.
-- Final replies must include verification status and memory/process-document status.
+Load [project rules](vibe/rules/README.md). Detailed project procedures are conditional on the affected code, UI, data or runtime surface. Routine replies use concise numbered points; omit empty modules. Other tool entries route to this file.
+<!-- projection-sha256: 08302d6ebbf88ec3bbcf1c47bf1d535ec4e55d32946a1a37724f7c89ffd1362b -->
+<!-- codenote-agent-ecosystem:end -->
